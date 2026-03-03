@@ -7,6 +7,18 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 echo "🚀 AI 리서치 시스템 시작 중..."
 
+# BE 의존성 설치
+if [ ! -d "$ROOT/BE/node_modules" ]; then
+  echo "📦 BE node_modules 설치 중..."
+  cd "$ROOT/BE" && pnpm install
+fi
+
+# FE 의존성 설치
+if [ ! -d "$ROOT/FE/node_modules" ]; then
+  echo "📦 FE node_modules 설치 중..."
+  cd "$ROOT/FE" && npm install
+fi
+
 # BE 실행
 echo "📦 백엔드 시작 (NestJS · http://localhost:3001)"
 cd "$ROOT/BE" && pnpm run start:dev &
