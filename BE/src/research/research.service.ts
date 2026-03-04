@@ -14,11 +14,25 @@ export interface SearchSources {
   ollama?: string;
 }
 
+const TTL_MS = 60_000; // 60초 캐시
+
+function makeCache<T>() {
+  let value: T | null = null;
+  let expireAt = 0;
+  return {
+    get: () => (Date.now() < expireAt ? value : null),
+    set: (v: T) => { value = v; expireAt = Date.now() + TTL_MS; },
+  };
+}
+
 @Injectable()
 export class ResearchService {
   private anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   private openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   private google = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
+
+  private tavilyCache = makeCache<Awaited<ReturnType<ResearchService['getTavilyOverview']>>>();
+  private anthropicCache = makeCache<Awaited<ReturnType<ResearchService['getAnthropicUsage']>>>();
 
   async getModels() {
     const models: (typeof MODELS[number] & { provider: string })[] = [...MODELS];
@@ -78,9 +92,105 @@ export class ResearchService {
     }
   }
 
-  async testOllamaFilter(query: string, context: string) {
-    const result = await this.filterWithOllama(query, context);
+  async testOllamaFilter(query: string, context: string, customFilterPrompt?: string) {
+    const result = await this.filterWithOllama(query, context, customFilterPrompt);
     return { result };
+  }
+
+  // ─── Anthropic Usage ────────────────────────────────────────────────────────
+
+  async getAnthropicUsage() {
+    const cached = this.anthropicCache.get();
+    if (cached) return cached;
+
+    const adminKey = process.env.ANTHROPIC_ADMIN_API_KEY;
+    if (!adminKey || adminKey.startsWith('your_')) {
+      return { configured: false, data: null };
+    }
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startingAt = startOfMonth.toISOString();
+    const endingAt = now.toISOString();
+
+    try {
+      const url = new URL('https://api.anthropic.com/v1/organizations/usage_report/messages');
+      url.searchParams.set('starting_at', startingAt);
+      url.searchParams.set('ending_at', endingAt);
+      url.searchParams.set('bucket_width', '1d');
+
+      const res = await fetch(url.toString(), {
+        headers: {
+          'anthropic-version': '2023-06-01',
+          'x-api-key': adminKey,
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { configured: true, data: null, error: (err as any).error?.message ?? `HTTP ${res.status}` };
+      }
+
+      const json = (await res.json()) as any;
+
+      // 기간 합계 계산
+      const totals = (json.data ?? []).reduce(
+        (acc: any, bucket: any) => {
+          acc.input_tokens += bucket.input_tokens ?? 0;
+          acc.output_tokens += bucket.output_tokens ?? 0;
+          acc.cache_read_input_tokens += bucket.cache_read_input_tokens ?? 0;
+          acc.cache_creation_input_tokens += bucket.cache_creation_input_tokens ?? 0;
+          return acc;
+        },
+        { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+      );
+
+      const result = {
+        configured: true,
+        data: {
+          period: { from: startingAt, to: endingAt },
+          totals,
+          daily: json.data ?? [],
+        },
+      };
+      this.anthropicCache.set(result);
+      return result;
+    } catch (e: any) {
+      return { configured: true, data: null, error: e.message };
+    }
+  }
+
+  // ─── Tavily Overview ────────────────────────────────────────────────────────
+
+  async getTavilyOverview() {
+    const cached = this.tavilyCache.get();
+    if (cached) return cached;
+
+    const apiKey = process.env.TAVILY_API_KEY;
+    if (!apiKey || apiKey.startsWith('your_')) {
+      return { configured: false, usage: null, apiKey: null };
+    }
+
+    let usage: any = null;
+    try {
+      const res = await fetch('https://api.tavily.com/usage', {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) usage = await res.json();
+    } catch {
+      // usage 조회 실패 시 null 반환
+    }
+
+    const masked =
+      apiKey.length > 12
+        ? apiKey.slice(0, 12) + '*'.repeat(apiKey.length - 12)
+        : apiKey.slice(0, 4) + '****';
+
+    const result = { configured: true, usage, apiKey: masked };
+    this.tavilyCache.set(result);
+    return result;
   }
 
   // ─── 태스크 생성 ────────────────────────────────────────────────────────────
@@ -251,17 +361,20 @@ export class ResearchService {
     );
   }
 
-  private async filterWithOllama(query: string, context: string): Promise<string> {
+  private async filterWithOllama(query: string, context: string, customPrompt?: string): Promise<string> {
     if (!context) return context;
     try {
       const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
       const ollamaModel = process.env.OLLAMA_MODEL || 'phi4';
+      const prompt = customPrompt
+        ? customPrompt.replaceAll('{{query}}', query).replaceAll('{{context}}', context)
+        : PROMPTS.ollamaFilter(query, context);
       const res = await fetch(`${ollamaUrl}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: ollamaModel,
-          prompt: PROMPTS.ollamaFilter(query, context),
+          prompt,
           stream: false,
         }),
         signal: AbortSignal.timeout(3000000),

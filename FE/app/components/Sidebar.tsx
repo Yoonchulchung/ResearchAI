@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { getSessions, deleteSession } from "../lib/api";
-import { Session, TaskStatus } from "../types";
+import { Session } from "../types";
+import { SettingsMenu } from "./SettingsMenu";
 
 type SessionSummary = Omit<Session, "results"> & { doneCount: number };
 
@@ -54,7 +55,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-4 py-5 border-b border-slate-100">
         <div
-          onClick={() => router.push("/")}
+          onClick={() => router.push("/sessions/new")}
           className="flex items-center gap-2.5 cursor-pointer group"
         >
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0">
@@ -143,20 +144,7 @@ export function Sidebar() {
           </div>
         )}
       </div>
-      {/* Settings */}
-      <div className="px-3 py-3 border-t border-slate-100 shrink-0">
-        <button
-          onClick={() => router.push("/settings")}
-          className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
-            pathname === "/settings"
-              ? "bg-slate-100 text-slate-800"
-              : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-          }`}
-        >
-          <span className="text-sm">⚙️</span>
-          Setting
-        </button>
-      </div>
+      <SettingsMenu />
     </aside>
   );
 }

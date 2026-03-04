@@ -43,13 +43,23 @@ export class ResearchController {
     return this.researchService.getPipelineStatus();
   }
 
+  @Get('tavily/overview')
+  getTavilyOverview() {
+    return this.researchService.getTavilyOverview();
+  }
+
+  @Get('anthropic/usage')
+  getAnthropicUsage() {
+    return this.researchService.getAnthropicUsage();
+  }
+
   @Post('test/search')
   testSearch(@Body() body: { engine: string; query: string }) {
     return this.researchService.testSearchEngine(body.engine as any, body.query);
   }
 
   @Post('test/ollama-filter')
-  testOllamaFilter(@Body() body: { query: string; context: string }) {
-    return this.researchService.testOllamaFilter(body.query, body.context);
+  testOllamaFilter(@Body() body: { query: string; context: string; customFilterPrompt?: string }) {
+    return this.researchService.testOllamaFilter(body.query, body.context, body.customFilterPrompt);
   }
 }

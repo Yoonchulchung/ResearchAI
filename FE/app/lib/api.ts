@@ -74,6 +74,29 @@ export const testGenerateTasks = (
     { method: "POST", body: JSON.stringify({ topic, model, ...opts }) }
   );
 
+export const getAnthropicUsage = () =>
+  apiFetch<{
+    configured: boolean;
+    data: {
+      period: { from: string; to: string };
+      totals: {
+        input_tokens: number;
+        output_tokens: number;
+        cache_read_input_tokens: number;
+        cache_creation_input_tokens: number;
+      };
+      daily: any[];
+    } | null;
+    error?: string;
+  }>("/research/anthropic/usage");
+
+export const getTavilyOverview = () =>
+  apiFetch<{
+    configured: boolean;
+    usage: { used?: number; limit?: number; plan_id?: string; [key: string]: any } | null;
+    apiKey: string | null;
+  }>("/research/tavily/overview");
+
 export const getPipelineStatus = () =>
   apiFetch<{ tavily: boolean; serper: boolean; naver: boolean; brave: boolean; ollama: boolean }>(
     "/research/pipeline-status"
@@ -85,8 +108,8 @@ export const testSearchEngine = (engine: string, query: string) =>
     body: JSON.stringify({ engine, query }),
   });
 
-export const testOllamaFilter = (query: string, context: string) =>
+export const testOllamaFilter = (query: string, context: string, customFilterPrompt?: string) =>
   apiFetch<{ result: string }>("/research/test/ollama-filter", {
     method: "POST",
-    body: JSON.stringify({ query, context }),
+    body: JSON.stringify({ query, context, customFilterPrompt }),
   });
