@@ -30,7 +30,7 @@ export default function OverviewPage() {
     <div className="min-h-full bg-slate-50">
       <PageHeader loading={loading} operational={!!tavily?.configured} />
 
-      <div className="px-8 py-8 space-y-6 max-w-4xl">
+      <div className="px-8 py-8 space-y-6 max-w-4xl mx-auto">
         <TavilyCard loading={loading} tavily={tavily} />
         <AnthropicCard loading={loading} anthropic={anthropic} />
         <ApiKeysTable loading={loading} tavily={tavily} anthropic={anthropic} />

@@ -40,9 +40,16 @@ export function TaskCard({
     if (expanded) {
       setTimeout(() => {
         cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 200);
+      }, 320);
     }
   }, [expanded]);
+
+  useEffect(() => {
+    if (expanded) {
+      cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const availableSources = SOURCE_LABELS.filter((s) => sources?.[s.key]);
   const hasContent = !!result || availableSources.length > 0;
