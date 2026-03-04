@@ -75,19 +75,7 @@ export default function NewSession() {
   return (
     <div className="h-full flex flex-col">
       {/* Page header */}
-      <div className="px-8 py-6 border-b border-slate-200 bg-white sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center text-lg">
-            ✨
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-800">새 리서치 만들기</h1>
-            <p className="text-slate-400 text-xs mt-0.5">
-              모델 선택 → 주제 입력 → AI가 조사 항목 자동 생성
-            </p>
-          </div>
-        </div>
-      </div>
+      
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-8 py-8">
@@ -99,6 +87,7 @@ export default function NewSession() {
             selectedModel={selectedApiModel}
             onSelect={setSelectedApiModel}
             loading={isLoading}
+            defaultOpen={false}
           />
 
           {/* 로컬 모델 */}
@@ -109,6 +98,7 @@ export default function NewSession() {
             onSelect={setSelectedLocalModel}
             loading={isLoading}
             emptyMessage="Ollama가 실행 중이지 않거나 설치된 모델이 없습니다."
+            defaultOpen={false}
           />
 
           {/* Topic input */}

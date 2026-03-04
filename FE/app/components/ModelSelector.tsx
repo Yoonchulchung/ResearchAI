@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ModelDefinition } from "../types";
 
 const PROVIDER_META: Record<
@@ -120,6 +121,7 @@ export function ModelSelector({
   title = "AI 모델 선택",
   loading = false,
   emptyMessage,
+  defaultOpen = true,
 }: {
   models: ModelDefinition[];
   selectedModel: string;
@@ -127,48 +129,75 @@ export function ModelSelector({
   title?: string;
   loading?: boolean;
   emptyMessage?: string;
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
+
   const grouped = models.reduce<Record<string, ModelDefinition[]>>((acc, m) => {
     (acc[m.provider] ??= []).push(m);
     return acc;
   }, {});
 
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-      <h2 className="text-sm font-semibold text-slate-700 mb-4">{title}</h2>
+  const selectedName = models.find((m) => m.id === selectedModel)?.name;
 
-      {loading ? (
-        <div className="text-slate-400 text-sm text-center py-6 animate-pulse">
-          모델 목록 불러오는 중...
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* 헤더 (항상 표시) */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
+      >
+        <span className="text-sm font-semibold text-slate-700">{title}</span>
+        <div className="flex items-center gap-2">
+          {!open && selectedName && (
+            <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
+              ✓ {selectedName}
+            </span>
+          )}
+          <span className={`text-slate-400 text-xs transition-transform ${open ? "rotate-180" : ""}`}>
+            ▼
+          </span>
         </div>
-      ) : models.length === 0 ? (
-        <div className="text-slate-400 text-sm text-center py-6">
-          {emptyMessage ?? "사용 가능한 모델이 없습니다."}
-        </div>
-      ) : (
-        <div className="space-y-5">
-          {PROVIDER_ORDER.map((provider) => {
-            const group = grouped[provider];
-            if (!group?.length) return null;
-            const meta = PROVIDER_META[provider];
-            return (
-              <div key={provider}>
-                <div className={`text-xs font-bold ${meta.color} mb-2 flex items-center gap-1`}>
-                  {meta.logo} {meta.label}
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {group.map((m) => (
-                    <ModelCard
-                      key={m.id}
-                      model={m}
-                      selected={selectedModel === m.id}
-                      onSelect={() => onSelect(m.id)}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+      </button>
+
+      {/* 콘텐츠 (토글) */}
+      {open && (
+        <div className="px-6 pb-6 border-t border-slate-100">
+          {loading ? (
+            <div className="text-slate-400 text-sm text-center py-6 animate-pulse">
+              모델 목록 불러오는 중...
+            </div>
+          ) : models.length === 0 ? (
+            <div className="text-slate-400 text-sm text-center py-6">
+              {emptyMessage ?? "사용 가능한 모델이 없습니다."}
+            </div>
+          ) : (
+            <div className="space-y-5 pt-4">
+              {PROVIDER_ORDER.map((provider) => {
+                const group = grouped[provider];
+                if (!group?.length) return null;
+                const meta = PROVIDER_META[provider];
+                return (
+                  <div key={provider}>
+                    <div className={`text-xs font-bold ${meta.color} mb-2 flex items-center gap-1`}>
+                      {meta.logo} {meta.label}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {group.map((m) => (
+                        <ModelCard
+                          key={m.id}
+                          model={m}
+                          selected={selectedModel === m.id}
+                          onSelect={() => onSelect(m.id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
