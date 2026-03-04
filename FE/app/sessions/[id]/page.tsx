@@ -1,24 +1,63 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { getSession, runResearch, saveTaskResult } from "../../lib/api";
-import { Session, Task, TaskStatus } from "../../types";
+import { getSession, searchPipeline, runResearch, saveTaskResult } from "../../lib/api";
+import { Session, Task, TaskStatus, SearchSources } from "../../types";
+
+const SOURCE_LABELS: { key: keyof SearchSources; label: string }[] = [
+  { key: "tavily", label: "Tavily" },
+  { key: "serper", label: "Serper" },
+  { key: "naver", label: "네이버" },
+  { key: "brave", label: "Brave" },
+  { key: "ollama", label: "Ollama 압축" },
+];
+
+type Phase = "searching" | "analyzing";
 
 function TaskCard({
   task,
   status,
+  phase,
   result,
+  sources,
   onRun,
+  onCancel,
 }: {
   task: Task;
   status: TaskStatus;
+  phase?: Phase;
   result?: string;
+  sources?: SearchSources;
   onRun: () => void;
+  onCancel: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState<"result" | keyof SearchSources>("result");
+
+  const availableSources = SOURCE_LABELS.filter((s) => sources?.[s.key]);
+  const hasContent = !!result || availableSources.length > 0;
+
+  // 소스가 새로 생기면 자동 펼침
+  useEffect(() => {
+    if (availableSources.length > 0 && status === "loading" && phase === "analyzing") {
+      setExpanded(true);
+      // AI 결과는 아직 없으니 첫 소스 탭으로 이동
+      if (activeTab === "result" && !result) {
+        setActiveTab(availableSources[0].key);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableSources.length, phase]);
+
+  // 분석 완료 시 AI 결과 탭으로 이동
+  useEffect(() => {
+    if (status === "done" && result) {
+      setActiveTab("result");
+    }
+  }, [status, result]);
 
   const borderColor = {
     done: "#22c55e",
@@ -36,21 +75,25 @@ function TaskCard({
 
   const badgeLabel = {
     done: "완료",
-    loading: "분석 중",
+    loading: phase === "searching" ? "검색 중" : "분석 중",
     error: "오류",
     idle: "대기",
   }[status];
 
-  const subText = {
-    done: "✅ 완료 · 클릭하여 결과 보기",
-    loading: "🔍 웹 검색 및 AI 분석 중...",
-    error: "❌ 오류 발생",
-    idle: "클릭하여 분석 시작",
-  }[status];
+  const subText =
+    status === "idle"
+      ? "클릭하여 분석 시작"
+      : status === "loading" && phase === "searching"
+      ? "🔍 웹 검색 중..."
+      : status === "loading" && phase === "analyzing"
+      ? `🤖 AI 분석 중...${hasContent ? " · 클릭하여 검색 결과 보기" : ""}`
+      : status === "done"
+      ? "✅ 완료 · 클릭하여 결과 보기"
+      : "❌ 오류 발생";
 
   const handleCardClick = () => {
     if (status === "idle") onRun();
-    else if (result) setExpanded((e) => !e);
+    else if (hasContent) setExpanded((e) => !e);
   };
 
   return (
@@ -62,7 +105,7 @@ function TaskCard({
         onClick={handleCardClick}
         style={{
           background: status === "loading" ? "#f0f0ff" : "#fff",
-          cursor: status === "idle" || result ? "pointer" : "default",
+          cursor: status === "idle" || hasContent ? "pointer" : "default",
         }}
         className="flex items-center gap-3 px-5 py-4"
       >
@@ -73,30 +116,90 @@ function TaskCard({
           </div>
           <div className="text-xs text-slate-400 mt-0.5">{subText}</div>
         </div>
-        <span
-          className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${badgeStyle}`}
-        >
-          {badgeLabel}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          {availableSources.length > 0 && (
+            <span className="text-xs text-slate-400 font-medium">
+              검색 {availableSources.length}개
+            </span>
+          )}
+          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${badgeStyle}`}>
+            {badgeLabel}
+          </span>
+          {status === "loading" && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onCancel(); }}
+              className="text-xs font-semibold text-slate-400 hover:text-red-500 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
+              title="중단"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
-      {result && expanded && (
-        <div className="px-5 py-4 border-t border-slate-100 bg-slate-50 max-h-150 overflow-y-auto prose prose-sm prose-slate max-w-none
-          [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
-          [&_th]:bg-slate-200 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
-          [&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:border-slate-200
-          [&_tr:nth-child(even)]:bg-white [&_tr:nth-child(odd)]:bg-slate-50/50
-          [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:text-slate-800
-          [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-slate-800
-          [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:text-slate-700
-          [&_strong]:font-bold [&_strong]:text-slate-800
-          [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2
-          [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2
-          [&_li]:my-0.5 [&_li]:text-slate-700
-          [&_p]:my-2 [&_p]:leading-relaxed [&_p]:text-slate-700
-          [&_code]:bg-slate-200 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700
-          [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
-          [&_hr]:border-slate-200 [&_hr]:my-3">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
+
+      {expanded && hasContent && (
+        <div className="border-t border-slate-100">
+          {/* 탭 바 */}
+          <div className="flex gap-1 px-4 pt-3 pb-0 bg-slate-50 overflow-x-auto">
+            <button
+              onClick={() => setActiveTab("result")}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-t-lg border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "result"
+                  ? "border-indigo-500 text-indigo-700 bg-white"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              🤖 AI 결과
+            </button>
+            {availableSources.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-t-lg border-b-2 transition-colors whitespace-nowrap ${
+                  activeTab === key
+                    ? "border-indigo-500 text-indigo-700 bg-white"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                🔍 {label}
+              </button>
+            ))}
+          </div>
+
+          {/* 탭 콘텐츠 */}
+          {activeTab === "result" ? (
+            result ? (
+              <div className="px-5 py-4 bg-slate-50 max-h-150 overflow-y-auto prose prose-sm prose-slate max-w-none
+                [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
+                [&_th]:bg-slate-200 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
+                [&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:border-slate-200
+                [&_tr:nth-child(even)]:bg-white [&_tr:nth-child(odd)]:bg-slate-50/50
+                [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:text-slate-800
+                [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-slate-800
+                [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:text-slate-700
+                [&_strong]:font-bold [&_strong]:text-slate-800
+                [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2
+                [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2
+                [&_li]:my-0.5 [&_li]:text-slate-700
+                [&_p]:my-2 [&_p]:leading-relaxed [&_p]:text-slate-700
+                [&_code]:bg-slate-200 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700
+                [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
+                [&_hr]:border-slate-200 [&_hr]:my-3">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
+              </div>
+            ) : (
+              <div className="px-5 py-8 bg-slate-50 flex flex-col items-center gap-2 text-slate-400">
+                <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+                <p className="text-xs">AI가 검색 결과를 분석하고 있습니다...</p>
+              </div>
+            )
+          ) : (
+            <div className="px-5 py-4 bg-slate-50 max-h-150 overflow-y-auto">
+              <pre className="text-xs text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
+                {sources?.[activeTab as keyof SearchSources]}
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -109,9 +212,14 @@ export default function SessionPage() {
 
   const [session, setSession] = useState<Session | null>(null);
   const [statuses, setStatuses] = useState<Record<string, TaskStatus>>({});
+  const [phases, setPhases] = useState<Record<string, Phase>>({});
   const [results, setResults] = useState<Record<string, string>>({});
+  const [sources, setSources] = useState<Record<string, SearchSources>>({});
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const abortRef = useRef<AbortController | null>(null);
+  const runningRef = useRef(false);
 
   useEffect(() => {
     getSession(id)
@@ -119,39 +227,113 @@ export default function SessionPage() {
         setSession(s);
         setStatuses(s.statuses);
         setResults(s.results);
+        setSources(s.sources ?? {});
       })
       .catch(() => router.push("/"))
       .finally(() => setLoading(false));
   }, [id, router]);
 
+  const cancel = useCallback(() => {
+    runningRef.current = false;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setRunning(false);
+    setStatuses((prev) => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        if (next[k] === "loading") next[k] = "idle" as TaskStatus;
+      }
+      return next;
+    });
+    setPhases({});
+  }, []);
+
   const runTask = useCallback(
-    async (task: Task) => {
+    async (task: Task, signal?: AbortSignal) => {
       if (!session) return;
+
+      // ── 1단계: 검색 파이프라인 ──────────────────────────────────────────────
       setStatuses((s) => ({ ...s, [task.id]: "loading" }));
+      setPhases((p) => ({ ...p, [task.id]: "searching" }));
+
+      let context = "";
       try {
-        const { result } = await runResearch(task.prompt, session.model);
+        const { sources: taskSources, context: ctx } = await searchPipeline(task.prompt, signal);
+        context = ctx;
+        if (taskSources && Object.keys(taskSources).length > 0) {
+          setSources((s) => ({ ...s, [task.id]: taskSources }));
+        }
+      } catch (e: unknown) {
+        if (e instanceof Error && e.name === "AbortError") {
+          setStatuses((s) => ({ ...s, [task.id]: "idle" }));
+          setPhases((p) => { const n = { ...p }; delete n[task.id]; return n; });
+          return;
+        }
+        // 검색 실패는 무시하고 AI 단계로 진행
+      }
+
+      if (signal?.aborted) {
+        setStatuses((s) => ({ ...s, [task.id]: "idle" }));
+        setPhases((p) => { const n = { ...p }; delete n[task.id]; return n; });
+        return;
+      }
+
+      // ── 2단계: AI 분석 ───────────────────────────────────────────────────────
+      setPhases((p) => ({ ...p, [task.id]: "analyzing" }));
+
+      try {
+        const { result } = await runResearch(task.prompt, session.model, context || undefined, signal);
         setResults((r) => ({ ...r, [task.id]: result }));
         setStatuses((s) => ({ ...s, [task.id]: "done" }));
-        await saveTaskResult(id, task.id, result, "done");
+        setPhases((p) => { const n = { ...p }; delete n[task.id]; return n; });
+        const savedSources = sources[task.id] ?? (context ? undefined : undefined);
+        await saveTaskResult(id, task.id, result, "done", savedSources);
       } catch (e: unknown) {
+        if (e instanceof Error && e.name === "AbortError") {
+          setStatuses((s) => ({ ...s, [task.id]: "idle" }));
+          setPhases((p) => { const n = { ...p }; delete n[task.id]; return n; });
+          return;
+        }
         const msg = e instanceof Error ? e.message : "오류";
         setResults((r) => ({ ...r, [task.id]: msg }));
         setStatuses((s) => ({ ...s, [task.id]: "error" }));
+        setPhases((p) => { const n = { ...p }; delete n[task.id]; return n; });
         await saveTaskResult(id, task.id, msg, "error");
       }
     },
-    [id, session]
+    [id, session, sources]
+  );
+
+  const handleRunTask = useCallback(
+    async (task: Task) => {
+      const controller = new AbortController();
+      abortRef.current = controller;
+      await runTask(task, controller.signal);
+      if (abortRef.current === controller) abortRef.current = null;
+    },
+    [runTask]
   );
 
   const runAll = async () => {
     if (!session) return;
     setRunning(true);
+    runningRef.current = true;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     for (const task of session.tasks) {
+      if (!runningRef.current || controller.signal.aborted) break;
       if (statuses[task.id] !== "done") {
-        await runTask(task);
+        await runTask(task, controller.signal);
       }
     }
-    setRunning(false);
+
+    if (runningRef.current) {
+      setRunning(false);
+      runningRef.current = false;
+    }
+    if (abortRef.current === controller) abortRef.current = null;
   };
 
   if (loading) {
@@ -212,6 +394,14 @@ export default function SessionPage() {
               📥 내보내기
             </button>
           )}
+          {running && (
+            <button
+              onClick={cancel}
+              className="text-red-500 hover:text-red-600 font-bold text-sm px-4 py-2 rounded-xl border border-red-200 hover:border-red-300 hover:bg-red-50 transition-colors shrink-0"
+            >
+              ⏹ 중단
+            </button>
+          )}
           <button
             onClick={runAll}
             disabled={running || allDone}
@@ -270,8 +460,11 @@ export default function SessionPage() {
               key={task.id}
               task={task}
               status={statuses[task.id] ?? "idle"}
+              phase={phases[task.id]}
               result={results[task.id]}
-              onRun={() => runTask(task)}
+              sources={sources[task.id]}
+              onRun={() => handleRunTask(task)}
+              onCancel={cancel}
             />
           ))}
         </div>

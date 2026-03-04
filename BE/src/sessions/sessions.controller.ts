@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Delete, Put, Param, Body } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
+import { SearchSources } from '../research/research.service';
 
 @Controller('sessions')
 export class SessionsController {
@@ -29,8 +30,8 @@ export class SessionsController {
   updateTask(
     @Param('id') id: string,
     @Param('taskId') taskId: string,
-    @Body() body: { result: string; status: string },
+    @Body() body: { result: string; status: string; sources?: SearchSources },
   ) {
-    return this.sessionsService.updateTask(id, parseInt(taskId), body.result, body.status);
+    return this.sessionsService.updateTask(id, parseInt(taskId), body.result, body.status, body.sources);
   }
 }

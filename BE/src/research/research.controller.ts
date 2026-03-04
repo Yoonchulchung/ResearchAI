@@ -10,9 +10,14 @@ export class ResearchController {
     return this.researchService.getModels();
   }
 
+  @Post('search')
+  runSearch(@Body() body: { prompt: string }) {
+    return this.researchService.runSearch(body.prompt);
+  }
+
   @Post()
-  runResearch(@Body() body: { prompt: string; model: string }) {
-    return this.researchService.runResearch(body.prompt, body.model);
+  runResearch(@Body() body: { prompt: string; model: string; context?: string }) {
+    return this.researchService.runResearch(body.prompt, body.model, body.context);
   }
 
   @Post('generate-tasks')

@@ -2,7 +2,17 @@ import { Injectable } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { GoogleGenAI } from '@google/genai';
+import { tavily } from '@tavily/core';
 import { MODELS } from '../models';
+import { PROMPTS } from './research.prompts';
+
+export interface SearchSources {
+  tavily?: string;
+  serper?: string;
+  naver?: string;
+  brave?: string;
+  ollama?: string;
+}
 
 @Injectable()
 export class ResearchService {
@@ -17,19 +27,17 @@ export class ResearchService {
   // ─── 태스크 생성 ────────────────────────────────────────────────────────────
 
   async generateTasks(topic: string, model: string) {
-    const prompt = `리서치 주제: "${topic}"
+    // Tavily가 설정된 경우 먼저 검색해서 컨텍스트 확보
+    let searchContext: string | undefined;
+    if (process.env.TAVILY_API_KEY && !process.env.TAVILY_API_KEY.startsWith('your_')) {
+      try {
+        searchContext = await this.searchTavily(topic);
+      } catch {
+        // 검색 실패 시 컨텍스트 없이 진행
+      }
+    }
 
-이 주제에 대한 심층 리서치를 위해 5~7개의 조사 항목을 생성하세요.
-반드시 아래 JSON 배열 형식만 반환하세요 (다른 텍스트, 마크다운 코드블록 없이):
-[
-  {
-    "id": 1,
-    "title": "항목 제목 (간결하게 10자 이내)",
-    "icon": "관련 이모지 1개",
-    "prompt": "AI에게 전달할 상세 검색 프롬프트. 반드시 한국어로 답하도록 지시 포함."
-  }
-]`;
-
+    const prompt = PROMPTS.generateTasks(topic, searchContext);
     const raw = await this.callAI(model, prompt, false);
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
@@ -37,17 +45,23 @@ export class ResearchService {
     return { tasks };
   }
 
-  // ─── 리서치 실행 ────────────────────────────────────────────────────────────
+  // ─── 검색 파이프라인만 실행 ─────────────────────────────────────────────────
 
-  async runResearch(prompt: string, model: string) {
-    const hasExternalSearch = this.hasExternalSearch();
-
-    let context = '';
-    if (hasExternalSearch) {
-      context = await this.runSearchPipeline(prompt);
+  async runSearch(prompt: string): Promise<{ sources: SearchSources; context: string }> {
+    if (!this.hasExternalSearch()) {
+      return { sources: {}, context: '' };
     }
+    const { combined, sources } = await this.runSearchPipeline(prompt);
+    return { sources, context: combined };
+  }
 
-    const result = await this.callAI(model, prompt, !hasExternalSearch, context);
+  // ─── AI 분석 실행 ────────────────────────────────────────────────────────────
+
+  async runResearch(prompt: string, model: string, context = '') {
+    const hasExternalSearch = this.hasExternalSearch();
+    // context가 넘어오면 외부 검색 결과를 쓴 것이므로 내장 검색 불필요
+    const useBuiltinSearch = !hasExternalSearch && !context;
+    const result = await this.callAI(model, prompt, useBuiltinSearch, context);
     return { result };
   }
 
@@ -62,49 +76,52 @@ export class ResearchService {
     ].some((k) => k && !k.startsWith('your_'));
   }
 
-  private async runSearchPipeline(query: string): Promise<string> {
-    const searches: Promise<string>[] = [];
+  private async runSearchPipeline(query: string): Promise<{ combined: string; sources: SearchSources }> {
+    const pending: { key: keyof SearchSources; promise: Promise<string> }[] = [];
 
     if (process.env.TAVILY_API_KEY && !process.env.TAVILY_API_KEY.startsWith('your_')) {
-      searches.push(this.searchTavily(query));
+      pending.push({ key: 'tavily', promise: this.searchTavily(query) });
     }
     if (process.env.SERPER_API_KEY && !process.env.SERPER_API_KEY.startsWith('your_')) {
-      searches.push(this.searchSerper(query));
+      pending.push({ key: 'serper', promise: this.searchSerper(query) });
     }
     if (process.env.NAVER_CLIENT_ID && !process.env.NAVER_CLIENT_ID.startsWith('your_')) {
-      searches.push(this.searchNaver(query));
+      pending.push({ key: 'naver', promise: this.searchNaver(query) });
     }
     if (process.env.BRAVE_API_KEY && !process.env.BRAVE_API_KEY.startsWith('your_')) {
-      searches.push(this.searchBrave(query));
+      pending.push({ key: 'brave', promise: this.searchBrave(query) });
     }
 
-    const results = await Promise.allSettled(searches);
-    const combined = results
-      .filter((r) => r.status === 'fulfilled')
-      .map((r) => (r as PromiseFulfilledResult<string>).value)
-      .filter(Boolean)
-      .join('\n\n---\n\n');
+    const results = await Promise.allSettled(pending.map((p) => p.promise));
+    const sources: SearchSources = {};
+    const parts: string[] = [];
 
-    // Ollama 필터링 (graceful skip)
-    return this.filterWithOllama(query, combined);
+    results.forEach((result, i) => {
+      if (result.status === 'fulfilled' && result.value) {
+        sources[pending[i].key] = result.value;
+        parts.push(result.value);
+      }
+    });
+
+    const raw = parts.join('\n\n---\n\n');
+    const filtered = await this.filterWithOllama(query, raw);
+    if (filtered && filtered !== raw) {
+      sources.ollama = filtered;
+    }
+
+    return { combined: filtered || raw, sources };
   }
 
   private async searchTavily(query: string): Promise<string> {
-    const depth = process.env.TAVILY_SEARCH_DEPTH || 'basic';
-    const res = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: process.env.TAVILY_API_KEY,
-        query,
-        search_depth: depth,
-        max_results: 5,
-      }),
+    const depth = (process.env.TAVILY_SEARCH_DEPTH || 'basic') as 'basic' | 'advanced';
+    const client = tavily({ apiKey: process.env.TAVILY_API_KEY! });
+    const response = await client.search(query, {
+      searchDepth: depth,
+      maxResults: 5,
     });
-    const data = (await res.json()) as any;
     return (
-      data.results
-        ?.map((r: any) => `[${r.title}]\n${r.content}\n출처: ${r.url}`)
+      response.results
+        .map((r) => `[${r.title}]\n${r.content}\n출처: ${r.url}`)
         .join('\n\n') ?? ''
     );
   }
@@ -166,16 +183,16 @@ export class ResearchService {
     if (!context) return context;
     try {
       const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-      const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2:3b';
+      const ollamaModel = process.env.OLLAMA_MODEL || 'phi4';
       const res = await fetch(`${ollamaUrl}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: ollamaModel,
-          prompt: `질문: "${query}"\n\n다음 검색 결과 중 질문과 관련된 핵심 내용만 추출하여 간결하게 정리하세요.\n\n${context}`,
+          prompt: PROMPTS.ollamaFilter(query, context),
           stream: false,
         }),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(3000000),
       });
       if (!res.ok) return context;
       const data = (await res.json()) as any;
@@ -193,12 +210,8 @@ export class ResearchService {
     useBuiltinSearch: boolean,
     context = '',
   ): Promise<string> {
-    const system =
-      '당신은 전문 리서치 어시스턴트입니다. 최신 정보를 기반으로 한국어로 상세하고 구조화된 마크다운 형식으로 답변하세요.';
-
-    const fullPrompt = context
-      ? `다음 검색 결과를 바탕으로 아래 질문에 한국어로 상세하게 답하세요. 마크다운 형식으로 작성하세요.\n\n[검색 결과]\n${context}\n\n[질문]\n${prompt}`
-      : prompt;
+    const system = PROMPTS.system;
+    const fullPrompt = context ? PROMPTS.withSearchContext(context, prompt) : prompt;
 
     if (model.startsWith('claude')) {
       return this.callAnthropic(model, system, fullPrompt, useBuiltinSearch);

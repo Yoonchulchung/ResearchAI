@@ -1,4 +1,4 @@
-import { Session, Task, ModelDefinition } from "../types";
+import { Session, Task, ModelDefinition, SearchSources } from "../types";
 
 const API_BASE = "http://localhost:3001/api";
 
@@ -33,17 +33,26 @@ export const saveTaskResult = (
   sessionId: string,
   taskId: number,
   result: string,
-  status: string
+  status: string,
+  sources?: SearchSources
 ) =>
   apiFetch<{ ok: boolean }>(`/sessions/${sessionId}/tasks/${taskId}`, {
     method: "PUT",
-    body: JSON.stringify({ result, status }),
+    body: JSON.stringify({ result, status, sources }),
   });
 
-export const runResearch = (prompt: string, model: string) =>
+export const searchPipeline = (prompt: string, signal?: AbortSignal) =>
+  apiFetch<{ sources: SearchSources; context: string }>("/research/search", {
+    method: "POST",
+    body: JSON.stringify({ prompt }),
+    signal,
+  });
+
+export const runResearch = (prompt: string, model: string, context?: string, signal?: AbortSignal) =>
   apiFetch<{ result: string }>("/research", {
     method: "POST",
-    body: JSON.stringify({ prompt, model }),
+    body: JSON.stringify({ prompt, model, context }),
+    signal,
   });
 
 export const generateTasks = (topic: string, model: string) =>

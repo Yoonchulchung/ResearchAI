@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import { SearchSources } from '../research/research.service';
 
 export interface Task {
   id: number;
@@ -18,6 +19,7 @@ export interface Session {
   tasks: Task[];
   results: Record<string, string>;
   statuses: Record<string, string>;
+  sources: Record<string, SearchSources>;
 }
 
 interface DB {
@@ -41,7 +43,7 @@ export class SessionsService {
     const { sessions } = this.readDB();
     return sessions.map((s) => {
       const statuses = s.statuses ?? {};
-      const { results, ...rest } = s;
+      const { results, sources, ...rest } = s;
       return {
         ...rest,
         statuses,
@@ -73,6 +75,7 @@ export class SessionsService {
       tasks,
       results: {},
       statuses: Object.fromEntries(tasks.map((t) => [t.id, 'idle'])),
+      sources: {},
     };
     db.sessions.unshift(session);
     this.writeDB(db);
@@ -88,14 +91,16 @@ export class SessionsService {
     return { ok: true };
   }
 
-  updateTask(sessionId: string, taskId: number, result: string, status: string) {
+  updateTask(sessionId: string, taskId: number, result: string, status: string, sources?: SearchSources) {
     const db = this.readDB();
     const session = db.sessions.find((s) => s.id === sessionId);
     if (!session) throw new NotFoundException('Session not found');
     if (!session.results) session.results = {};
     if (!session.statuses) session.statuses = {};
+    if (!session.sources) session.sources = {};
     session.results[taskId] = result;
     session.statuses[taskId] = status;
+    if (sources) session.sources[taskId] = sources;
     this.writeDB(db);
     return { ok: true };
   }
