@@ -80,18 +80,15 @@ export class QueueService implements OnModuleDestroy {
     return this.jobs;
   }
 
-  /** 세션 단위 인큐: 이미 pending/running 중인 태스크는 건너뜀 */
+  /** 세션 단위 인큐: 같은 (sessionId, taskId) 가 큐에 이미 있으면 상태 무관 스킵 (멱등) */
   enqueueSession(tasks: EnqueueTaskDto[], doneTaskIds: number[] = []) {
     let changed = false;
     for (const t of tasks) {
       if (doneTaskIds.includes(t.taskId)) continue;
-      const alreadyActive = this.jobs.some(
-        (j) =>
-          j.sessionId === t.sessionId &&
-          j.taskId === t.taskId &&
-          (j.status === 'pending' || j.status === 'running'),
+      const alreadyQueued = this.jobs.some(
+        (j) => j.sessionId === t.sessionId && j.taskId === t.taskId,
       );
-      if (alreadyActive) continue;
+      if (alreadyQueued) continue;
 
       this.jobs.push(this.makeJob(t));
       changed = true;
@@ -102,15 +99,19 @@ export class QueueService implements OnModuleDestroy {
     }
   }
 
-  /** 태스크 단위 인큐: 기존 항목 교체 (실행 중이면 중단) */
+  /** 태스크 단위 인큐: pending이면 스킵, running이면 중단 후 교체, 그 외엔 새로 추가 (멱등) */
   enqueueTask(t: EnqueueTaskDto) {
-    const running = this.jobs.find(
-      (j) => j.sessionId === t.sessionId && j.taskId === t.taskId && j.status === 'running',
+    const existing = this.jobs.find(
+      (j) => j.sessionId === t.sessionId && j.taskId === t.taskId,
     );
-    if (running) {
-      this.abortControllers.get(running.jobId)?.abort();
-      this.abortControllers.delete(running.jobId);
+
+    if (existing?.status === 'pending') return; // 이미 대기 중 → 중복 무시
+
+    if (existing?.status === 'running') {
+      this.abortControllers.get(existing.jobId)?.abort();
+      this.abortControllers.delete(existing.jobId);
     }
+
     this.jobs = this.jobs.filter(
       (j) => !(j.sessionId === t.sessionId && j.taskId === t.taskId),
     );

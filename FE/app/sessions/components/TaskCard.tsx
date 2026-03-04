@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Task, TaskStatus, SearchSources } from "@/types";
@@ -34,6 +34,15 @@ export function TaskCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"result" | "prompt" | keyof SearchSources>("result");
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (expanded) {
+      setTimeout(() => {
+        cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 200);
+    }
+  }, [expanded]);
 
   const availableSources = SOURCE_LABELS.filter((s) => sources?.[s.key]);
   const hasContent = !!result || availableSources.length > 0;
@@ -108,6 +117,7 @@ export function TaskCard({
 
     
     <div
+      ref={cardRef}
       className="rounded-2xl bg-white shadow-sm overflow-hidden transition-colors"
     >
       {/* 메인  헤더*/}
@@ -155,7 +165,15 @@ export function TaskCard({
         </div>
       </div>
         
-      {expanded && hasContent && (
+      {hasContent && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateRows: expanded ? "1fr" : "0fr",
+            transition: "grid-template-rows 0.3s ease",
+          }}
+        >
+        <div style={{ overflow: "hidden" }}>
         <div className="border-t border-slate-100">
           {/* 탭 바 */}
           <div className="flex gap-1 px-4 pt-3 pb-0 bg-slate-50 overflow-x-auto">
@@ -249,7 +267,9 @@ export function TaskCard({
               </ReactMarkdown>
             </div>
           )}
-          
+
+        </div>
+        </div>
         </div>
       )}
     </div>
