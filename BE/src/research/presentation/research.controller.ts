@@ -1,19 +1,25 @@
 import { Controller, Get, Post, Body, Res } from '@nestjs/common';
-import { Response } from 'express';
-import { ResearchService } from './research.service';
+import type { Response } from 'express';
+import { ModelsService } from '../application/models.service';
+import { SearchService } from '../application/search.service';
+import { AiService } from '../application/ai.service';
 
 @Controller('research')
 export class ResearchController {
-  constructor(private readonly researchService: ResearchService) {}
+  constructor(
+    private readonly modelsService: ModelsService,
+    private readonly searchService: SearchService,
+    private readonly aiService: AiService,
+  ) {}
 
   @Get('models')
   getModels() {
-    return this.researchService.getModels();
+    return this.modelsService.getModels();
   }
 
   @Post('search')
   runSearch(@Body() body: { prompt: string }) {
-    return this.researchService.runSearch(body.prompt);
+    return this.searchService.runSearch(body.prompt);
   }
 
   @Post('search/stream')
@@ -24,7 +30,7 @@ export class ResearchController {
     res.flushHeaders();
 
     try {
-      for await (const event of this.researchService.runSearchStream(body.prompt)) {
+      for await (const event of this.searchService.runSearchStream(body.prompt)) {
         res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
     } finally {
@@ -34,49 +40,29 @@ export class ResearchController {
 
   @Post()
   runResearch(@Body() body: { prompt: string; model: string; context?: string }) {
-    return this.researchService.runResearch(body.prompt, body.model, body.context);
+    return this.aiService.runResearch(body.prompt, body.model, body.context);
   }
 
   @Post('generate-tasks')
   generateTasks(@Body() body: { topic: string; model: string }) {
-    return this.researchService.generateTasks(body.topic, body.model);
-  }
-
-  @Get('prompts')
-  getPromptTemplates() {
-    return this.researchService.getPromptTemplates();
+    return this.aiService.generateTasks(body.topic, body.model);
   }
 
   @Post('test/generate-tasks')
   testGenerateTasks(@Body() body: { topic: string; model: string; customPrompt?: string; customSystem?: string }) {
-    return this.researchService.testGenerateTasks(body.topic, body.model, {
+    return this.aiService.testGenerateTasks(body.topic, body.model, {
       customPrompt: body.customPrompt,
       customSystem: body.customSystem,
     });
   }
 
-  @Get('pipeline-status')
-  getPipelineStatus() {
-    return this.researchService.getPipelineStatus();
-  }
-
-  @Get('tavily/overview')
-  getTavilyOverview() {
-    return this.researchService.getTavilyOverview();
-  }
-
-  @Get('anthropic/usage')
-  getAnthropicUsage() {
-    return this.researchService.getAnthropicUsage();
-  }
-
   @Post('test/search')
   testSearch(@Body() body: { engine: string; query: string }) {
-    return this.researchService.testSearchEngine(body.engine as any, body.query);
+    return this.searchService.testSearchEngine(body.engine as any, body.query);
   }
 
   @Post('test/ollama-filter')
   testOllamaFilter(@Body() body: { query: string; context: string; customFilterPrompt?: string }) {
-    return this.researchService.testOllamaFilter(body.query, body.context, body.customFilterPrompt);
+    return this.searchService.testOllamaFilter(body.query, body.context, body.customFilterPrompt);
   }
 }

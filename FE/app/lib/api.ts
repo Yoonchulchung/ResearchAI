@@ -108,7 +108,7 @@ export const generateTasks = (topic: string, model: string) =>
   });
 
 export const getPromptTemplates = () =>
-  apiFetch<{ generateTasks: string; system: string; ollamaFilter: string }>("/research/prompts");
+  apiFetch<{ generateTasks: string; system: string; ollamaFilter: string }>("/overview/prompts");
 
 export const testGenerateTasks = (
   topic: string,
@@ -134,7 +134,7 @@ export const getAnthropicUsage = () =>
       daily: any[];
     } | null;
     error?: string;
-  }>("/research/anthropic/usage");
+  }>("/overview/anthropic/usage");
 
 export const getTavilyOverview = () =>
   apiFetch<{
@@ -144,11 +144,11 @@ export const getTavilyOverview = () =>
       account: { current_plan: string; plan_usage: number; plan_limit: number | null; search_usage: number; crawl_usage: number; extract_usage: number; map_usage: number; research_usage: number; paygo_usage: number; paygo_limit: number | null };
     } | null;
     apiKey: string | null;
-  }>("/research/tavily/overview");
+  }>("/overview/tavily");
 
 export const getPipelineStatus = () =>
   apiFetch<{ tavily: boolean; serper: boolean; naver: boolean; brave: boolean; ollama: boolean }>(
-    "/research/pipeline-status"
+    "/overview/pipeline-status"
   );
 
 export const testSearchEngine = (engine: string, query: string) =>

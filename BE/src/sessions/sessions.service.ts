@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { SearchSources } from '../research/research.service';
+import { SearchSources } from '../research/domain/model/search-sources.model';
 
 export interface Task {
   id: number;
