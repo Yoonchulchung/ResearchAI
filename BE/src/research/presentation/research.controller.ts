@@ -38,16 +38,22 @@ export class ResearchController {
     }
   }
 
-  @Post()
-  deepResearch(@Body() body: { prompt: string; model: string; context?: string }) {
-    return this.aiService.deepResearch(body.prompt, body.model, body.context);
-  }
-
+  // *** //
+  // 서칭 //
+  // *** //
   @Post('generate-tasks')
   lightResearch(@Body() body: { topic: string; model: string }) {
     return this.aiService.lightResearch(body.topic, body.model);
   }
 
+  @Post()
+  deepResearch(@Body() body: { prompt: string; model: string; context?: string }) {
+    return this.aiService.deepResearch(body.prompt, body.model, body.context);
+  }
+
+  // *************** //
+  // 서칭 프롬프트 디버그 //
+  // *************** //
   @Post('test/generate-tasks')
   testGenerateTasks(@Body() body: { topic: string; model: string; customPrompt?: string; customSystem?: string }) {
     return this.aiService.testGenerateTasks(body.topic, body.model, {

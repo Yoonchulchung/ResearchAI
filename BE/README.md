@@ -1,98 +1,153 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Research AI 백엔드 서버
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## 개요
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+리서치는 크게 두 단계로 동작합니다.
 
-## Description
+1. **LightResearch** — 주제를 분석하여 조사 항목(태스크) 목록 생성
+2. **DeepResearch** — 각 태스크를 실제로 심층 조사하여 결과 반환
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## 리서치 흐름
 
-```bash
-$ pnpm install
+```
+사용자 입력: "AI 반도체 시장 동향"
+        │
+        ▼
+┌─────────────────────────────────────┐
+│  LightResearch                      │
+│  POST /research/generate-tasks      │
+│                                     │
+│  1. Tavily 검색 (선택적)             │
+│  2. AI → 태스크 목록 생성 (5~7개)    │
+└─────────────────────────────────────┘
+        │  [{ id, title, icon, prompt }, ...]
+        ▼
+  세션 생성 후 태스크별 실행
+        │
+        ▼
+┌─────────────────────────────────────┐
+│  DeepResearch (태스크당 1회)         │
+│  POST /research                     │
+│                                     │
+│  1. 외부 검색 (병렬)                 │
+│     Tavily / Serper / Naver / Brave  │
+│  2. Ollama 필터링                    │
+│     중복 제거 및 핵심 정보 압축       │
+│  3. AI 심층 분석                     │
+│     Claude / Gemini / GPT 등         │
+└─────────────────────────────────────┘
+        │  { result: string }
+        ▼
+    결과 저장 (sessions DB)
 ```
 
-## Compile and run the project
+---
 
-```bash
-# development
-$ pnpm run start
+## 모듈 구조
 
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+```
+src/
+├── research/                          # 리서치 핵심 모듈
+│   ├── presentation/
+│   │   └── research.controller.ts    # HTTP 라우팅
+│   │
+│   ├── application/
+│   │   ├── ai-search.service.ts      # 파사드 (lightResearch / deepResearch)
+│   │   ├── web-search.service.ts     # 웹 검색 파이프라인 + SSE 스트리밍
+│   │   ├── models.service.ts         # 사용 가능한 AI 모델 목록
+│   │   │
+│   │   └── pipeline/
+│   │       ├── light-research-pipeline.service.ts  # LightResearch 파이프라인
+│   │       └── deep-research-pipeline.service.ts   # DeepResearch 파이프라인
+│   │
+│   ├── domain/
+│   │   ├── model/
+│   │   │   └── search-sources.model.ts  # SearchSources, SearchStreamEvent 타입
+│   │   └── prompt/
+│   │       └── research.prompts.ts      # 시스템/태스크 생성/검색 결과 프롬프트
+│   │
+│   └── infrastructure/
+│       ├── search/
+│       │   ├── tavily.search.ts         # Tavily API 클라이언트
+│       │   ├── serper.search.ts         # Serper (Google) API 클라이언트
+│       │   ├── naver.search.ts          # Naver 뉴스 API 클라이언트
+│       │   ├── brave.search.ts          # Brave Search API 클라이언트
+│       │   └── ollama-filter.search.ts  # Ollama 로컬 AI 필터
+│       └── ai/
+│           ├── anthropic.ai.ts          # Claude API 클라이언트
+│           ├── openai.ai.ts             # OpenAI API 클라이언트
+│           ├── google.ai.ts             # Gemini API 클라이언트
+│           └── ollama.ai.ts             # Ollama 로컬 AI 클라이언트
+│
+├── overview/                          # 대시보드/설정 모듈
+│   ├── presentation/
+│   │   └── overview.controller.ts    # GET /overview/*
+│   ├── application/
+│   │   └── overview.service.ts       # 프롬프트 템플릿, 파이프라인 상태, API 사용량
+│   └── infrastructure/
+│       ├── tavily.client.ts           # Tavily 사용량 조회
+│       └── anthropic.client.ts        # Anthropic 사용량 조회
+│
+└── sessions/                          # 세션/태스크 결과 저장
+    ├── sessions.controller.ts
+    └── sessions.service.ts
 ```
 
-## Run tests
+---
 
-```bash
-# unit tests
-$ pnpm run test
+## API 엔드포인트
 
-# e2e tests
-$ pnpm run test:e2e
+### `/research`
 
-# test coverage
-$ pnpm run test:cov
+| Method | Path | 설명 |
+|--------|------|------|
+| `GET` | `/research/models` | 사용 가능한 AI 모델 목록 |
+| `POST` | `/research/generate-tasks` | **LightResearch** — 태스크 목록 생성 |
+| `POST` | `/research` | **DeepResearch** — 태스크 심층 조사 |
+| `POST` | `/research/search` | 웹 검색만 실행 |
+| `POST` | `/research/search/stream` | 웹 검색 SSE 스트리밍 |
+| `POST` | `/research/test/generate-tasks` | LightResearch 파이프라인 테스트 |
+| `POST` | `/research/test/search` | 검색 엔진 개별 테스트 |
+| `POST` | `/research/test/ollama-filter` | Ollama 필터 테스트 |
+
+### `/overview`
+
+| Method | Path | 설명 |
+|--------|------|------|
+| `GET` | `/overview/prompts` | 프롬프트 템플릿 조회 |
+| `GET` | `/overview/pipeline-status` | 각 검색 엔진 활성화 여부 |
+| `GET` | `/overview/tavily` | Tavily 사용량 조회 |
+| `GET` | `/overview/anthropic/usage` | Anthropic 사용량 조회 |
+
+### `/sessions`
+
+| Method | Path | 설명 |
+|--------|------|------|
+| `GET` | `/sessions` | 세션 목록 |
+| `POST` | `/sessions` | 세션 생성 |
+| `GET` | `/sessions/:id` | 세션 상세 |
+| `DELETE` | `/sessions/:id` | 세션 삭제 |
+| `PUT` | `/sessions/:id/tasks/:taskId` | 태스크 결과 저장 |
+
+---
+
+## 환경 변수
+
+```env
+# AI 모델
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+GOOGLE_API_KEY=
+
+# 웹 검색 (하나 이상 설정 시 DeepResearch에서 실제 검색 수행)
+TAVILY_API_KEY=
+SERPER_API_KEY=
+NAVER_CLIENT_ID=
+NAVER_CLIENT_SECRET=
+BRAVE_API_KEY=
+
+# Anthropic 사용량 조회 (optional)
+ANTHROPIC_ADMIN_KEY=
 ```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
