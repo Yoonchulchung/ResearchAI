@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as fs from 'fs';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { GoogleGenAI } from '@google/genai';
@@ -60,11 +61,31 @@ export class ChatService {
   }
 
   getHistory(sessionId: string): ChatMessage[] {
-    return this.histories.get(sessionId) ?? [];
+    if (this.histories.has(sessionId)) return this.histories.get(sessionId)!;
+    try {
+      const filePath = this.sessionsService.chatPath(sessionId);
+      if (fs.existsSync(filePath)) {
+        const history = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as ChatMessage[];
+        this.histories.set(sessionId, history);
+        return history;
+      }
+    } catch {}
+    return [];
+  }
+
+  private saveHistory(sessionId: string, history: ChatMessage[]): void {
+    try {
+      fs.writeFileSync(this.sessionsService.chatPath(sessionId), JSON.stringify(history, null, 2), 'utf-8');
+    } catch {}
+    this.histories.set(sessionId, history);
   }
 
   clearHistory(sessionId: string): void {
     this.histories.delete(sessionId);
+    try {
+      const filePath = this.sessionsService.chatPath(sessionId);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch {}
   }
 
   private buildRagParts(sessionId: string): string[] {
@@ -192,7 +213,7 @@ export class ChatService {
 ${ragContext}`;
 
     // 2. RAM: 대화 히스토리 로드
-    const history = this.histories.get(sessionId) ?? [];
+    const history = this.getHistory(sessionId);
     const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
       ...history,
       { role: 'user', content: message },
@@ -263,6 +284,6 @@ ${ragContext}`;
     // 4. 히스토리 저장
     history.push({ role: 'user', content: message });
     history.push({ role: 'assistant', content: fullResponse });
-    this.histories.set(sessionId, history);
+    this.saveHistory(sessionId, history);
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
@@ -23,42 +23,77 @@ export interface Session {
   sources: Record<string, SearchSources>;
 }
 
-interface DB {
-  sessions: Session[];
-}
-
 @Injectable()
-export class SessionsService {
-  private readonly dbPath = path.join(__dirname, '../../data/sessions.json');
+export class SessionsService implements OnModuleInit {
+  private readonly dataDir = path.join(__dirname, '../../data/sessions');
 
   constructor(private readonly vectorService: VectorService) {}
 
-  private readDB(): DB {
-    const raw = fs.readFileSync(this.dbPath, 'utf-8');
-    return JSON.parse(raw);
+  onModuleInit() {
+    fs.mkdirSync(this.dataDir, { recursive: true });
+    this.migrateLegacy();
   }
 
-  private writeDB(db: DB): void {
-    fs.writeFileSync(this.dbPath, JSON.stringify(db, null, 2), 'utf-8');
+  /** sessions.json → 폴더 구조로 1회 마이그레이션 */
+  private migrateLegacy() {
+    const legacyPath = path.join(this.dataDir, '../sessions.json');
+    if (!fs.existsSync(legacyPath)) return;
+    try {
+      const { sessions } = JSON.parse(fs.readFileSync(legacyPath, 'utf-8')) as { sessions: Session[] };
+      for (const s of sessions) {
+        const dir = this.sessionDir(s.id);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(path.join(dir, 'session.json'), JSON.stringify(s, null, 2), 'utf-8');
+        }
+      }
+      fs.renameSync(legacyPath, legacyPath + '.migrated');
+    } catch {}
+  }
+
+  private sessionDir(id: string): string {
+    return path.join(this.dataDir, id);
+  }
+
+  private readSession(id: string): Session {
+    const filePath = path.join(this.sessionDir(id), 'session.json');
+    if (!fs.existsSync(filePath)) throw new NotFoundException('Session not found');
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Session;
+  }
+
+  private writeSession(session: Session): void {
+    const dir = this.sessionDir(session.id);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'session.json'), JSON.stringify(session, null, 2), 'utf-8');
   }
 
   findAll() {
-    const { sessions } = this.readDB();
-    return sessions.map((s) => {
-      const statuses = s.statuses ?? {};
-      const { results, sources, ...rest } = s;
-      return {
-        ...rest,
-        statuses,
-        doneCount: Object.values(statuses).filter((v) => v === 'done').length,
-      };
+    if (!fs.existsSync(this.dataDir)) return [];
+    const ids = fs.readdirSync(this.dataDir).filter((name) => {
+      return fs.statSync(path.join(this.dataDir, name)).isDirectory();
     });
+    const sessions: ReturnType<typeof this.toListItem>[] = [];
+    for (const id of ids) {
+      try {
+        const s = this.readSession(id);
+        sessions.push(this.toListItem(s));
+      } catch {}
+    }
+    return sessions.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  }
+
+  private toListItem(s: Session) {
+    const statuses = s.statuses ?? {};
+    const { results, sources, ...rest } = s;
+    return {
+      ...rest,
+      statuses,
+      doneCount: Object.values(statuses).filter((v) => v === 'done').length,
+    };
   }
 
   findOne(id: string) {
-    const { sessions } = this.readDB();
-    const session = sessions.find((s) => s.id === id);
-    if (!session) throw new NotFoundException('Session not found');
+    const session = this.readSession(id);
     return {
       ...session,
       results: session.results ?? {},
@@ -69,7 +104,6 @@ export class SessionsService {
   }
 
   create(topic: string, model: string, tasks: Task[]) {
-    const db = this.readDB();
     const session: Session = {
       id: randomUUID(),
       topic,
@@ -80,46 +114,39 @@ export class SessionsService {
       statuses: Object.fromEntries(tasks.map((t) => [t.id, 'idle'])),
       sources: {},
     };
-    db.sessions.unshift(session);
-    this.writeDB(db);
+    this.writeSession(session);
     return session;
   }
 
   remove(id: string) {
-    const db = this.readDB();
-    const idx = db.sessions.findIndex((s) => s.id === id);
-    if (idx === -1) throw new NotFoundException('Session not found');
-    db.sessions.splice(idx, 1);
-    this.writeDB(db);
+    const dir = this.sessionDir(id);
+    if (!fs.existsSync(dir)) throw new NotFoundException('Session not found');
+    fs.rmSync(dir, { recursive: true, force: true });
     this.vectorService.deleteSession(id).catch(() => {});
     return { ok: true };
   }
 
   updateTaskSources(sessionId: string, taskId: number, additionalSources: Partial<SearchSources>) {
     try {
-      const db = this.readDB();
-      const session = db.sessions.find((s) => s.id === sessionId);
-      if (!session) return;
+      const session = this.readSession(sessionId);
       if (!session.sources) session.sources = {};
       session.sources[String(taskId)] = {
         ...(session.sources[String(taskId)] ?? {}),
         ...additionalSources,
       };
-      this.writeDB(db);
+      this.writeSession(session);
     } catch {}
   }
 
   updateTask(sessionId: string, taskId: number, result: string, status: string, sources?: SearchSources) {
-    const db = this.readDB();
-    const session = db.sessions.find((s) => s.id === sessionId);
-    if (!session) throw new NotFoundException('Session not found');
+    const session = this.readSession(sessionId);
     if (!session.results) session.results = {};
     if (!session.statuses) session.statuses = {};
     if (!session.sources) session.sources = {};
     session.results[taskId] = result;
     session.statuses[taskId] = status;
     if (sources) session.sources[taskId] = sources;
-    this.writeDB(db);
+    this.writeSession(session);
     // 완료된 task 결과를 백그라운드에서 벡터 인덱싱
     if (status === 'done' && result) {
       const task = session.tasks?.find((t) => t.id === taskId);
@@ -134,5 +161,10 @@ export class SessionsService {
         .catch(() => {});
     }
     return { ok: true };
+  }
+
+  /** 채팅 히스토리 파일 경로 */
+  chatPath(sessionId: string): string {
+    return path.join(this.sessionDir(sessionId), 'chat.json');
   }
 }
