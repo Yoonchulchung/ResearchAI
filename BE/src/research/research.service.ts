@@ -20,14 +20,42 @@ export class ResearchService {
   private openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   private google = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
-  getModels() {
-    return MODELS;
+  async getModels() {
+    const models: (typeof MODELS[number] & { provider: string })[] = [...MODELS];
+    try {
+      const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+      const res = await fetch(`${ollamaUrl}/api/tags`, {
+        signal: AbortSignal.timeout(2000),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { models: { name: string }[] };
+        for (const m of data.models) {
+          models.push({
+            id: `ollama:${m.name}`,
+            name: m.name,
+            provider: 'ollama',
+            description: '로컬 Ollama 모델',
+            inputPricePer1M: 0,
+            outputPricePer1M: 0,
+            contextWindow: 8192,
+            webSearch: false,
+          });
+        }
+      }
+    } catch {
+      // Ollama 실행 중이 아닌 경우 무시
+    }
+    return models;
   }
 
   // ─── 태스크 생성 ────────────────────────────────────────────────────────────
 
   async generateTasks(topic: string, model: string) {
-    // Tavily가 설정된 경우 먼저 검색해서 컨텍스트 확보
+    const { tasks } = await this.testGenerateTasks(topic, model);
+    return { tasks };
+  }
+
+  async testGenerateTasks(topic: string, model: string) {
     let searchContext: string | undefined;
     if (process.env.TAVILY_API_KEY && !process.env.TAVILY_API_KEY.startsWith('your_')) {
       try {
@@ -37,12 +65,12 @@ export class ResearchService {
       }
     }
 
-    const prompt = PROMPTS.generateTasks(topic, searchContext);
-    const raw = await this.callAI(model, prompt, false);
+    const fullPrompt = PROMPTS.generateTasks(topic, searchContext);
+    const raw = await this.callAI(model, fullPrompt, false);
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
     const tasks = JSON.parse(jsonMatch[0]);
-    return { tasks };
+    return { tasks, searchContext, fullPrompt };
   }
 
   // ─── 검색 파이프라인만 실행 ─────────────────────────────────────────────────
@@ -217,6 +245,8 @@ export class ResearchService {
       return this.callAnthropic(model, system, fullPrompt, useBuiltinSearch);
     } else if (model.startsWith('gemini')) {
       return this.callGoogle(model, system + '\n\n' + fullPrompt, useBuiltinSearch);
+    } else if (model.startsWith('ollama:')) {
+      return this.callOllama(model.slice('ollama:'.length), system, fullPrompt);
     } else {
       return this.callOpenAI(model, system, fullPrompt);
     }
@@ -273,6 +303,25 @@ export class ResearchService {
       config,
     });
     return response.text ?? '';
+  }
+
+  private async callOllama(model: string, system: string, prompt: string): Promise<string> {
+    const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    const res = await fetch(`${ollamaUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
+    const data = (await res.json()) as any;
+    return data.message?.content ?? '';
   }
 
   private async callOpenAI(

@@ -24,4 +24,9 @@ export class ResearchController {
   generateTasks(@Body() body: { topic: string; model: string }) {
     return this.researchService.generateTasks(body.topic, body.model);
   }
+
+  @Post('test/generate-tasks')
+  testGenerateTasks(@Body() body: { topic: string; model: string }) {
+    return this.researchService.testGenerateTasks(body.topic, body.model);
+  }
 }

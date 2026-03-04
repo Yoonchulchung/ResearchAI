@@ -15,7 +15,7 @@ export interface SearchSources {
 
 export type TaskStatus = "idle" | "loading" | "done" | "error";
 
-export type Provider = "anthropic" | "openai" | "google";
+export type Provider = "anthropic" | "openai" | "google" | "ollama";
 
 export interface ModelDefinition {
   id: string;

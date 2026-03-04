@@ -85,7 +85,7 @@ export function Sidebar() {
       </div>
 
       {/* Sessions list */}
-      <div className="flex-1 overflow-y-auto py-2">
+      <div className="flex-1 overflow-y-auto py-2 min-h-0">
         {sessions.length === 0 ? (
           <div className="px-4 py-6 text-center text-slate-400 text-xs">
             세션이 없습니다
@@ -142,6 +142,20 @@ export function Sidebar() {
             })}
           </div>
         )}
+      </div>
+      {/* Settings */}
+      <div className="px-3 py-3 border-t border-slate-100 shrink-0">
+        <button
+          onClick={() => router.push("/settings")}
+          className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+            pathname === "/settings"
+              ? "bg-slate-100 text-slate-800"
+              : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+          }`}
+        >
+          <span className="text-sm">⚙️</span>
+          Setting
+        </button>
       </div>
     </aside>
   );

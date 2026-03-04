@@ -60,3 +60,9 @@ export const generateTasks = (topic: string, model: string) =>
     method: "POST",
     body: JSON.stringify({ topic, model }),
   });
+
+export const testGenerateTasks = (topic: string, model: string) =>
+  apiFetch<{ tasks: Task[]; searchContext?: string; fullPrompt: string }>(
+    "/research/test/generate-tasks",
+    { method: "POST", body: JSON.stringify({ topic, model }) }
+  );
