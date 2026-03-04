@@ -66,3 +66,20 @@ export const testGenerateTasks = (topic: string, model: string) =>
     "/research/test/generate-tasks",
     { method: "POST", body: JSON.stringify({ topic, model }) }
   );
+
+export const getPipelineStatus = () =>
+  apiFetch<{ tavily: boolean; serper: boolean; naver: boolean; brave: boolean; ollama: boolean }>(
+    "/research/pipeline-status"
+  );
+
+export const testSearchEngine = (engine: string, query: string) =>
+  apiFetch<{ result: string }>("/research/test/search", {
+    method: "POST",
+    body: JSON.stringify({ engine, query }),
+  });
+
+export const testOllamaFilter = (query: string, context: string) =>
+  apiFetch<{ result: string }>("/research/test/ollama-filter", {
+    method: "POST",
+    body: JSON.stringify({ query, context }),
+  });

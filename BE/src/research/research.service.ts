@@ -48,6 +48,33 @@ export class ResearchService {
     return models;
   }
 
+  // ─── 파이프라인 상태 및 개별 테스트 ────────────────────────────────────────
+
+  getPipelineStatus() {
+    const isSet = (key: string | undefined) => !!(key && !key.startsWith('your_'));
+    return {
+      tavily: isSet(process.env.TAVILY_API_KEY),
+      serper: isSet(process.env.SERPER_API_KEY),
+      naver: isSet(process.env.NAVER_CLIENT_ID),
+      brave: isSet(process.env.BRAVE_API_KEY),
+      ollama: true,
+    };
+  }
+
+  async testSearchEngine(engine: 'tavily' | 'serper' | 'naver' | 'brave', query: string) {
+    switch (engine) {
+      case 'tavily': return { result: await this.searchTavily(query) };
+      case 'serper': return { result: await this.searchSerper(query) };
+      case 'naver': return { result: await this.searchNaver(query) };
+      case 'brave': return { result: await this.searchBrave(query) };
+    }
+  }
+
+  async testOllamaFilter(query: string, context: string) {
+    const result = await this.filterWithOllama(query, context);
+    return { result };
+  }
+
   // ─── 태스크 생성 ────────────────────────────────────────────────────────────
 
   async generateTasks(topic: string, model: string) {

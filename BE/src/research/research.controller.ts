@@ -29,4 +29,19 @@ export class ResearchController {
   testGenerateTasks(@Body() body: { topic: string; model: string }) {
     return this.researchService.testGenerateTasks(body.topic, body.model);
   }
+
+  @Get('pipeline-status')
+  getPipelineStatus() {
+    return this.researchService.getPipelineStatus();
+  }
+
+  @Post('test/search')
+  testSearch(@Body() body: { engine: string; query: string }) {
+    return this.researchService.testSearchEngine(body.engine as any, body.query);
+  }
+
+  @Post('test/ollama-filter')
+  testOllamaFilter(@Body() body: { query: string; context: string }) {
+    return this.researchService.testOllamaFilter(body.query, body.context);
+  }
 }
