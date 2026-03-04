@@ -39,8 +39,22 @@ else
   echo "⚠️  Docker 미설치 — Qdrant 없이 실행 (벡터 검색 비활성화)"
 fi
 
-# ── 임베딩 모델 (nomic-embed-text) ───────────────────────────────────────────
+# ── Ollama 서버 ──────────────────────────────────────────────────────────────
 if command -v ollama &>/dev/null; then
+  if ! curl -sf http://localhost:11434 >/dev/null 2>&1; then
+    echo "🦙 Ollama 서버 시작 중..."
+    ollama serve &>/dev/null &
+    # 준비 대기 (최대 10초)
+    for i in $(seq 1 10); do
+      if curl -sf http://localhost:11434 >/dev/null 2>&1; then break; fi
+      sleep 1
+    done
+    echo "🦙 Ollama 서버 실행 중"
+  else
+    echo "🦙 Ollama 이미 실행 중"
+  fi
+
+  # ── 임베딩 모델 (nomic-embed-text) ─────────────────────────────────────────
   if ! ollama list 2>/dev/null | grep -q 'nomic-embed-text'; then
     echo "⬇️  임베딩 모델 다운로드 중 (nomic-embed-text, 약 274MB)..."
     ollama pull nomic-embed-text
@@ -48,7 +62,7 @@ if command -v ollama &>/dev/null; then
     echo "📊 임베딩 모델 준비됨 (nomic-embed-text)"
   fi
 else
-  echo "⚠️  Ollama 미설치 — 임베딩 비활성화"
+  echo "⚠️  Ollama 미설치 — Ollama 및 임베딩 비활성화"
 fi
 
 # ── 의존성 설치 ──────────────────────────────────────────────────────────────
