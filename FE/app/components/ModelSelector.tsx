@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ModelDefinition } from "@/types";
 
 const PROVIDER_META: Record<
@@ -132,6 +132,17 @@ export function ModelSelector({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    const delay = open ? 50 : 300; // 열릴 땐 DOM 펼쳐진 후, 닫힐 땐 애니메이션 끝난 후
+    const timer = setTimeout(() => {
+      containerRef.current?.scrollIntoView({ behavior: "smooth", block: open ? "center" : "nearest" });
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [open]);
 
   const grouped = models.reduce<Record<string, ModelDefinition[]>>((acc, m) => {
     (acc[m.provider] ??= []).push(m);
@@ -141,7 +152,7 @@ export function ModelSelector({
   const selectedName = models.find((m) => m.id === selectedModel)?.name;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div ref={containerRef} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       {/* 헤더 (항상 표시) */}
       <button
         type="button"
@@ -161,45 +172,47 @@ export function ModelSelector({
         </div>
       </button>
 
-      {/* 콘텐츠 (토글) */}
-      {open && (
-        <div className="px-6 pb-6 border-t border-slate-100">
-          {loading ? (
-            <div className="text-slate-400 text-sm text-center py-6 animate-pulse">
-              모델 목록 불러오는 중...
-            </div>
-          ) : models.length === 0 ? (
-            <div className="text-slate-400 text-sm text-center py-6">
-              {emptyMessage ?? "사용 가능한 모델이 없습니다."}
-            </div>
-          ) : (
-            <div className="space-y-5 pt-4">
-              {PROVIDER_ORDER.map((provider) => {
-                const group = grouped[provider];
-                if (!group?.length) return null;
-                const meta = PROVIDER_META[provider];
-                return (
-                  <div key={provider}>
-                    <div className={`text-xs font-bold ${meta.color} mb-2 flex items-center gap-1`}>
-                      {meta.logo} {meta.label}
+      {/* 콘텐츠 (grid-rows 트랜지션으로 부드럽게 열고 닫힘) */}
+      <div className={`grid transition-all duration-300 ease-in-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="overflow-hidden">
+          <div className="px-6 pb-6 border-t border-slate-100">
+            {loading ? (
+              <div className="text-slate-400 text-sm text-center py-6 animate-pulse">
+                모델 목록 불러오는 중...
+              </div>
+            ) : models.length === 0 ? (
+              <div className="text-slate-400 text-sm text-center py-6">
+                {emptyMessage ?? "사용 가능한 모델이 없습니다."}
+              </div>
+            ) : (
+              <div className="space-y-5 pt-4">
+                {PROVIDER_ORDER.map((provider) => {
+                  const group = grouped[provider];
+                  if (!group?.length) return null;
+                  const meta = PROVIDER_META[provider];
+                  return (
+                    <div key={provider}>
+                      <div className={`text-xs font-bold ${meta.color} mb-2 flex items-center gap-1`}>
+                        {meta.logo} {meta.label}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {group.map((m) => (
+                          <ModelCard
+                            key={m.id}
+                            model={m}
+                            selected={selectedModel === m.id}
+                            onSelect={() => onSelect(m.id)}
+                          />
+                        ))}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {group.map((m) => (
-                        <ModelCard
-                          key={m.id}
-                          model={m}
-                          selected={selectedModel === m.id}
-                          onSelect={() => onSelect(m.id)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -1,22 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { lightResearch, createSession, getModels } from "@/lib/api";
 import { Task, ModelDefinition } from "@/types";
 import { TopicInput } from "@/components/TopicInput";
 import { ModelSelector } from "@/components/ModelSelector";
+import { TaskList } from "@/sessions/components/TaskList";
 
 export default function NewSession() {
   const router = useRouter();
   const [models, setModels] = useState<ModelDefinition[]>([]);
-  const [selectedApiModel, setSelectedApiModel] = useState("claude-sonnet-4-6");
+  const [selectedApiModel, setSelectedApiModel] = useState("claude-haiku-4-5");
   const [selectedLocalModel, setSelectedLocalModel] = useState("");
   const [topic, setTopic] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [generating, setGenerating] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const taskListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     getModels().then((m) => {
@@ -33,6 +35,7 @@ export default function NewSession() {
     try {
       const { tasks: generated } = await lightResearch(topic.trim(), selectedApiModel);
       setTasks(generated);
+      setTimeout(() => taskListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "태스크 생성 실패");
     } finally {
@@ -79,7 +82,7 @@ export default function NewSession() {
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-8 py-8">
-        <div className="max-w-5xl space-y-6">
+        <div className="max-w-5xl mx-auto space-y-6">
           {/* API 모델 */}
           <ModelSelector
             title="API 모델"
@@ -123,56 +126,14 @@ export default function NewSession() {
           )}
 
           {/* Tasks */}
-          {tasks.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-slate-700">
-                  조사 항목 ({tasks.length}개)
-                </h2>
-                <p className="text-xs text-slate-400">수정하거나 직접 추가 가능</p>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {tasks.map((task, idx) => (
-                  <div
-                    key={task.id}
-                    className="border border-slate-100 rounded-xl p-4 hover:border-indigo-200 transition-colors group"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1 min-w-0">
-                        <input
-                          value={task.title}
-                          onChange={(e) => updateTask(idx, "title", e.target.value)}
-                          placeholder="항목 제목"
-                          className="w-full font-semibold text-sm text-slate-800 border-0 focus:outline-none mb-1 bg-transparent"
-                        />
-                        <textarea
-                          value={task.prompt}
-                          onChange={(e) => updateTask(idx, "prompt", e.target.value)}
-                          placeholder="검색 프롬프트"
-                          rows={2}
-                          className="w-full text-xs text-slate-500 border border-slate-100 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200 resize-none"
-                        />
-                      </div>
-                      <button
-                        onClick={() => removeTask(idx)}
-                        className="text-slate-200 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 mt-1 shrink-0"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                onClick={addTask}
-                className="mt-3 w-full border-2 border-dashed border-slate-200 text-slate-400 hover:border-indigo-300 hover:text-indigo-500 rounded-xl py-3 text-sm font-medium transition-colors"
-              >
-                + 항목 직접 추가
-              </button>
-            </div>
-          )}
+          <div ref={taskListRef}>
+            <TaskList
+              tasks={tasks}
+              onUpdate={updateTask}
+              onRemove={removeTask}
+              onAdd={addTask}
+            />
+          </div>
 
           {/* Start button */}
           {tasks.length > 0 && (

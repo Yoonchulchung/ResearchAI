@@ -138,13 +138,6 @@ export function TopicInput({
           </button>
         </div>
       </div>
-
-      {generating && (
-        <p className="text-xs text-indigo-500 mt-2 flex items-center gap-1">
-          <span className="animate-pulse">●</span>
-          {generatingLabel ?? (`${[apiName, localName].filter(Boolean).join(" + ") || "AI"}이(가) 리서치 항목을 생성하고 있습니다...`)}
-        </p>
-      )}
     </div>
   );
 }

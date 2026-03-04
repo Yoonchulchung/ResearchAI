@@ -28,7 +28,7 @@ export default function OverviewPage() {
 
   return (
     <div className="min-h-full bg-slate-50">
-      <PageHeader loading={loading} operational={!!tavily?.configured} />
+      <PageHeader loading={loading} />
 
       <div className="px-8 py-8 space-y-6 max-w-4xl mx-auto">
         <TavilyCard loading={loading} tavily={tavily} />

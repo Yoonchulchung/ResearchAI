@@ -8,6 +8,7 @@ interface Props {
   onRunAll: () => void;
   onCancel: () => void;
   onExport: () => void;
+  onViewDetail: () => void;
 }
 
 export function SessionHeader({
@@ -18,9 +19,10 @@ export function SessionHeader({
   onRunAll,
   onCancel,
   onExport,
+  onViewDetail,
 }: Props) {
   return (
-    <div className="px-8 py-2.5 pb-3.5 border-b border-slate-200 bg-white sticky top-0 z-10">
+    <div className="px-8 pt-4 py-2.5 border-b border-slate-200 bg-white sticky top-0 z-10">
       <div className="flex items-center gap-3 mb-3">
         <h1 className="font-bold text-lg text-slate-800 truncate flex-1">
           {topic}
@@ -44,13 +46,22 @@ export function SessionHeader({
             ⏹ 중단
           </button>
         )}
-        <button
-          onClick={onRunAll}
-          disabled={isRunning || allDone}
-          className="bg-indigo-600 text-white font-bold text-sm px-5 py-2 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
-        >
-          {isRunning ? "분석 중..." : allDone ? "완료" : "전체 실행"}
-        </button>
+        {allDone ? (
+          <button
+            onClick={onViewDetail}
+            className="bg-indigo-600 text-white font-bold text-sm px-5 py-2 rounded-xl hover:bg-indigo-700 transition-colors shrink-0"
+          >
+            한 번에 보기
+          </button>
+        ) : (
+          <button
+            onClick={onRunAll}
+            disabled={isRunning}
+            className="bg-indigo-600 text-white font-bold text-sm px-5 py-2 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+          >
+            {isRunning ? "분석 중..." : "전체 실행"}
+          </button>
+        )}
       </div>
     </div>
   );

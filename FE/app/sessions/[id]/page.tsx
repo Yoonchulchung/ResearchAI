@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, memo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getSession, getChatHistory, clearChatHistory, chatStream, getModels, triggerCompaction, getCompactionStatus } from "@/lib/api";
 import { Session, Task, TaskStatus, SearchSources, ChatMessage, ModelDefinition } from "@/types";
@@ -11,20 +11,62 @@ import { ChatSection } from "@/sessions/components/ChatSection";
 import { TopicInput } from "@/components/TopicInput";
 import { useResearchQueue } from "@/contexts/ResearchQueueContext";
 
+// 입력 상태를 격리하여 타이핑 시 상위 컴포넌트 리렌더 방지
+const ChatInputArea = memo(function ChatInputArea({
+  onSend,
+  generating,
+  apiModels,
+  localModels,
+  defaultModel,
+}: {
+  onSend: (message: string, model: string) => void;
+  generating: boolean;
+  apiModels: ModelDefinition[];
+  localModels: ModelDefinition[];
+  defaultModel: string;
+}) {
+  const [value, setValue] = useState("");
+  const [selectedModel, setSelectedModel] = useState(defaultModel);
+
+  useEffect(() => { setSelectedModel(defaultModel); }, [defaultModel]);
+
+  const handleSend = useCallback(() => {
+    const msg = value.trim();
+    if (!msg || generating) return;
+    setValue("");
+    onSend(msg, selectedModel);
+  }, [value, generating, selectedModel, onSend]);
+
+  return (
+    <TopicInput
+      value={value}
+      onChange={setValue}
+      onGenerate={handleSend}
+      generating={generating}
+      placeholder="리서치 내용에 대해 질문하세요..."
+      generatingLabel="AI가 답변을 생성하고 있습니다..."
+      apiModels={apiModels}
+      localModels={localModels}
+      selectedApiModel={selectedModel}
+      selectedLocalModel={selectedModel}
+      onApiModelChange={setSelectedModel}
+      onLocalModelChange={setSelectedModel}
+    />
+  );
+});
+
 export default function SessionPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [inputValue, setInputValue] = useState("");
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const [models, setModels] = useState<ModelDefinition[]>([]);
-  const [selectedChatModel, setSelectedChatModel] = useState("");
   const [compactionStatus, setCompactionStatus] = useState<"idle" | "running" | "done">("idle");
 
   const { jobs: allJobs, enqueueSession, enqueueTask, cancelSession } = useResearchQueue();
@@ -45,7 +87,7 @@ export default function SessionPage() {
     setSession(null);
     setChatMessages([]);
     getSession(id)
-      .then((s) => { setSession(s); setSelectedChatModel(s.model); })
+      .then((s) => { setSession(s); })
       .catch(() => router.push("/"))
       .finally(() => setLoading(false));
     getChatHistory(id).then(setChatMessages).catch(() => {});
@@ -122,10 +164,8 @@ export default function SessionPage() {
     cancelSession(id);
   }, [cancelSession, id]);
 
-  const handleChatSend = useCallback(async () => {
-    if (!inputValue.trim() || !session || chatLoading) return;
-    const message = inputValue.trim();
-    setInputValue("");
+  const handleChatSend = useCallback(async (message: string, model: string) => {
+    if (!session || chatLoading) return;
     setChatLoading(true);
 
     // user 메시지 즉시 표시 + AI 응답 placeholder 추가
@@ -135,18 +175,31 @@ export default function SessionPage() {
       { role: "assistant", content: "" },
     ]);
 
-    try {
-      await chatStream(id, message, selectedChatModel || session.model, (chunk) => {
-        setChatMessages((prev) => {
-          const updated = [...prev];
-          const last = updated[updated.length - 1];
-          if (last?.role === "assistant") {
-            updated[updated.length - 1] = { ...last, content: last.content + chunk };
-          }
-          return updated;
-        });
+    // 청크를 누적했다가 rAF 단위(~16ms)로 한 번만 setState
+    let accumulated = "";
+    let rafId: number | null = null;
+    const flush = () => {
+      const text = accumulated;
+      setChatMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last?.role === "assistant") {
+          updated[updated.length - 1] = { ...last, content: text };
+        }
+        return updated;
       });
+      rafId = null;
+    };
+
+    try {
+      await chatStream(id, message, model || session.model, (chunk) => {
+        accumulated += chunk;
+        if (rafId === null) rafId = requestAnimationFrame(flush);
+      });
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      flush();
     } catch {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       setChatMessages((prev) => {
         const updated = [...prev];
         const last = updated[updated.length - 1];
@@ -158,7 +211,7 @@ export default function SessionPage() {
     } finally {
       setChatLoading(false);
     }
-  }, [inputValue, session, chatLoading, id, selectedChatModel]);
+  }, [session, chatLoading, id]);
 
   const handleClearChat = useCallback(async () => {
     await clearChatHistory(id);
@@ -205,8 +258,6 @@ export default function SessionPage() {
     };
   }, [session, statuses, isRunning, id]);
 
-  // ── Skeleton ─────────────────────────────────────────────────────────────
-
   if (loading) {
     return <SessionSkeleton />;
   }
@@ -248,6 +299,7 @@ export default function SessionPage() {
         onRunAll={handleRunAll}
         onCancel={handleCancel}
         onExport={exportMarkdown}
+        onViewDetail={() => router.push(`/sessions/${id}/detail`)}
       />
 
       {/* Scrollable content */}
@@ -277,19 +329,12 @@ export default function SessionPage() {
 
       {/* Bottom input */}
       <div className="px-8 py-4 border-t border-slate-100 bg-white shrink-0">
-        <TopicInput
-          value={inputValue}
-          onChange={setInputValue}
-          onGenerate={handleChatSend}
+        <ChatInputArea
+          onSend={handleChatSend}
           generating={chatLoading}
-          placeholder="리서치 내용에 대해 질문하세요..."
-          generatingLabel="AI가 답변을 생성하고 있습니다..."
           apiModels={models.filter((m) => m.provider !== "ollama")}
           localModels={models.filter((m) => m.provider === "ollama")}
-          selectedApiModel={selectedChatModel}
-          selectedLocalModel={selectedChatModel}
-          onApiModelChange={setSelectedChatModel}
-          onLocalModelChange={setSelectedChatModel}
+          defaultModel={session.model}
         />
       </div>
     </div>

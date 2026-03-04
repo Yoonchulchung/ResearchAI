@@ -70,25 +70,6 @@ export function TavilyCard({ loading, tavily }: { loading: boolean; tavily: Tavi
             <UsageRow label="Research" value={account.research_usage} />
           </div>
         )}
-
-        {/* PAYG */}
-        <div className="flex items-center gap-2">
-          <div
-            className={`w-9 h-5 rounded-full flex items-center px-0.5 ${
-              hasPaygo ? "bg-teal-400 justify-end" : "bg-slate-300 justify-start"
-            }`}
-          >
-            <div className="w-4 h-4 bg-white rounded-full shadow-sm" />
-          </div>
-          <span className="text-sm text-slate-600">
-            Pay as you go
-            {hasPaygo && paygoUsed > 0 && (
-              <span className="ml-1 text-slate-400">
-                ({paygoUsed.toLocaleString()} credits used)
-              </span>
-            )}
-          </span>
-        </div>
       </div>
     </GradientCard>
   );

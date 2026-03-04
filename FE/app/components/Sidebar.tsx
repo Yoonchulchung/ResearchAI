@@ -55,7 +55,7 @@ export function Sidebar() {
   return (
     <aside className="w-64 shrink-0 flex flex-col h-screen bg-white border-r border-slate-200 overflow-hidden">
       {/* Logo */}
-      <div className="px-4 py-5 border-b border-slate-100">
+      <div className="px-4 py-5">
         <div
           onClick={() => router.push("/sessions/new")}
           className="flex items-center gap-2.5 cursor-pointer group"
@@ -73,7 +73,7 @@ export function Sidebar() {
       </div>
 
       {/* New session button */}
-      <div className="px-3 py-3 border-b border-slate-100">
+      <div className="px-3 py-3">
         <button
           onClick={() => router.push("/sessions/new")}
           className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
