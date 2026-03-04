@@ -9,15 +9,25 @@ interface Props {
   chatMessages: ChatMessage[];
   chatBottomRef: RefObject<HTMLDivElement | null>;
   onClearChat: () => void;
+  compactionStatus?: "idle" | "running" | "done";
 }
 
-export function ChatSection({ chatMessages, chatBottomRef, onClearChat }: Props) {
+export function ChatSection({ chatMessages, chatBottomRef, onClearChat, compactionStatus }: Props) {
   return (
     <div className="mt-8">
       <div className="flex items-center gap-3 mb-4">
         <div className="flex-1 h-px bg-slate-200" />
         <span className="text-xs font-semibold text-slate-400">리서치 기반 채팅</span>
         <div className="flex-1 h-px bg-slate-200" />
+        {compactionStatus === "running" && (
+          <span className="text-xs text-indigo-400 flex items-center gap-1 shrink-0">
+            <span className="animate-spin inline-block">◌</span>
+            컨텍스트 압축 중
+          </span>
+        )}
+        {compactionStatus === "done" && (
+          <span className="text-xs text-emerald-500 shrink-0">✦ 압축됨</span>
+        )}
         {chatMessages.length > 0 && (
           <button
             onClick={onClearChat}

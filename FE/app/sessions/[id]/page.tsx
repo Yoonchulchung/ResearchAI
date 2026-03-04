@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getSession, getChatHistory, clearChatHistory, chatStream, getModels } from "@/lib/api";
+import { getSession, getChatHistory, clearChatHistory, chatStream, getModels, triggerCompaction, getCompactionStatus } from "@/lib/api";
 import { Session, Task, TaskStatus, SearchSources, ChatMessage, ModelDefinition } from "@/types";
 import { TaskCard, type Phase } from "@/sessions/components/TaskCard";
 import { SessionHeader } from "@/sessions/components/SessionHeader";
@@ -25,6 +25,7 @@ export default function SessionPage() {
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const [models, setModels] = useState<ModelDefinition[]>([]);
   const [selectedChatModel, setSelectedChatModel] = useState("");
+  const [compactionStatus, setCompactionStatus] = useState<"idle" | "running" | "done">("idle");
 
   const { jobs: allJobs, enqueueSession, enqueueTask, cancelSession } = useResearchQueue();
 
@@ -164,6 +165,46 @@ export default function SessionPage() {
     setChatMessages([]);
   }, [id]);
 
+  // ── Background compaction ─────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!session) return;
+    const total = session.tasks?.length ?? 0;
+    const done = Object.values(statuses).filter((s) => s === "done").length;
+    if (done !== total || total === 0 || isRunning) return;
+
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    getCompactionStatus(id)
+      .then((s) => {
+        if (s.status === "done") {
+          setCompactionStatus("done");
+          return;
+        }
+        setCompactionStatus("running");
+        triggerCompaction(id).catch(() => {});
+        interval = setInterval(() => {
+          getCompactionStatus(id)
+            .then((res) => {
+              setCompactionStatus(res.status);
+              if (res.status === "done" && interval) {
+                clearInterval(interval);
+                interval = null;
+              }
+            })
+            .catch(() => {
+              if (interval) clearInterval(interval);
+              interval = null;
+            });
+        }, 2000);
+      })
+      .catch(() => {});
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [session, statuses, isRunning, id]);
+
   // ── Skeleton ─────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -230,6 +271,7 @@ export default function SessionPage() {
           chatMessages={chatMessages}
           chatBottomRef={chatBottomRef}
           onClearChat={handleClearChat}
+          compactionStatus={compactionStatus}
         />
       </div>
 

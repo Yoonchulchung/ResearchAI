@@ -54,4 +54,15 @@ export class ChatController {
     this.chatService.clearHistory(sessionId);
     return { ok: true };
   }
+
+  @Post(':sessionId/compact')
+  triggerCompaction(@Param('sessionId') sessionId: string) {
+    this.chatService.scheduleCompaction(sessionId);
+    return { ok: true };
+  }
+
+  @Get(':sessionId/compaction')
+  getCompactionStatus(@Param('sessionId') sessionId: string) {
+    return this.chatService.getCompactionStatus(sessionId);
+  }
 }

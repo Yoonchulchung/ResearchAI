@@ -201,6 +201,14 @@ export const queueDismissCompleted = () =>
 export const getChatHistory = (sessionId: string) =>
   apiFetch<ChatMessage[]>(`/chat/${sessionId}/history`);
 
+export const triggerCompaction = (sessionId: string) =>
+  apiFetch<{ ok: boolean }>(`/chat/${sessionId}/compact`, { method: "POST" });
+
+export const getCompactionStatus = (sessionId: string) =>
+  apiFetch<{ status: "idle" | "running" | "done"; compactedAt?: string }>(
+    `/chat/${sessionId}/compaction`,
+  );
+
 export const clearChatHistory = (sessionId: string) =>
   apiFetch<{ ok: boolean }>(`/chat/${sessionId}/history`, { method: "DELETE" });
 

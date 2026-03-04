@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { SearchSources } from '../research/domain/model/search-sources.model';
+import { VectorService } from '../vector/vector.service';
 
 export interface Task {
   id: number;
@@ -29,6 +30,8 @@ interface DB {
 @Injectable()
 export class SessionsService {
   private readonly dbPath = path.join(__dirname, '../../data/sessions.json');
+
+  constructor(private readonly vectorService: VectorService) {}
 
   private readDB(): DB {
     const raw = fs.readFileSync(this.dbPath, 'utf-8');
@@ -88,6 +91,7 @@ export class SessionsService {
     if (idx === -1) throw new NotFoundException('Session not found');
     db.sessions.splice(idx, 1);
     this.writeDB(db);
+    this.vectorService.deleteSession(id).catch(() => {});
     return { ok: true };
   }
 
@@ -102,6 +106,19 @@ export class SessionsService {
     session.statuses[taskId] = status;
     if (sources) session.sources[taskId] = sources;
     this.writeDB(db);
+    // 완료된 task 결과를 백그라운드에서 벡터 인덱싱
+    if (status === 'done' && result) {
+      const task = session.tasks?.find((t) => t.id === taskId);
+      this.vectorService
+        .indexTaskResult(
+          sessionId,
+          String(taskId),
+          task?.title ?? String(taskId),
+          task?.icon ?? '📄',
+          result,
+        )
+        .catch(() => {});
+    }
     return { ok: true };
   }
 }
