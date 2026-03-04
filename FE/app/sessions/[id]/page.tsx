@@ -179,7 +179,7 @@ export default function SessionPage() {
   return (
     <div className="h-full flex flex-col">
       {/* Sticky top bar */}
-      <div className="px-8 py-4 border-b border-slate-200 bg-white sticky top-0 z-10">
+      <div className="px-8 py-2.5 pb-3.5 border-b border-slate-200 bg-white sticky top-0 z-10">
         <div className="flex items-center gap-3 mb-3">
           <h1 className="font-bold text-lg text-slate-800 truncate flex-1">
             {session.topic}
@@ -214,7 +214,7 @@ export default function SessionPage() {
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="bg-grey flex-1 overflow-y-auto px-8 py-6">
         <div className="space-y-3">
           {tasks.map((task) => (
             <TaskCard

@@ -139,11 +139,6 @@ export default function NewSession() {
                     className="border border-slate-100 rounded-xl p-4 hover:border-indigo-200 transition-colors group"
                   >
                     <div className="flex items-start gap-3">
-                      <input
-                        value={task.icon}
-                        onChange={(e) => updateTask(idx, "icon", e.target.value)}
-                        className="w-9 text-center border border-slate-200 rounded-lg px-1 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
-                      />
                       <div className="flex-1 min-w-0">
                         <input
                           value={task.title}

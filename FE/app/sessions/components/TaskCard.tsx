@@ -33,7 +33,7 @@ export function TaskCard({
   onCancel: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<"result" | keyof SearchSources>("result");
+  const [activeTab, setActiveTab] = useState<"result" | "prompt" | keyof SearchSources>("result");
 
   const availableSources = SOURCE_LABELS.filter((s) => sources?.[s.key]);
   const hasContent = !!result || availableSources.length > 0;
@@ -55,16 +55,7 @@ export function TaskCard({
       setActiveTab("result");
     }
   }, [status, result]);
-
-  const borderColorMap: Record<string, string> = {
-    done: "#22c55e",
-    loading: "#6366f1",
-    queued: "#f59e0b",
-    error: "#ef4444",
-    idle: "#e2e8f0",
-  };
-  const borderColor = borderColorMap[status] ?? "#e2e8f0";
-
+  
   const badgeStyleMap: Record<string, string> = {
     done: "bg-green-100 text-green-700",
     loading: "bg-indigo-100 text-indigo-700",
@@ -87,14 +78,26 @@ export function TaskCard({
     status === "idle"
       ? "클릭하여 분석 시작"
       : status === "queued"
-      ? "⏳ 큐 대기 중..."
+      ? "큐 대기 중..."
       : status === "loading" && phase === "searching"
-      ? `🔍 웹 검색 중...${availableSources.length > 0 ? ` · ${availableSources.length}개 완료` : ""}`
+      ? `웹 검색 중...${availableSources.length > 0 ? ` · ${availableSources.length}개 완료` : ""}`
       : status === "loading" && phase === "analyzing"
-      ? `🤖 AI 분석 중...${hasContent ? " · 클릭하여 검색 결과 보기" : ""}`
+      ? `AI 분석 중...${hasContent ? " · 클릭하여 검색 결과 보기" : ""}`
       : status === "done"
-      ? "✅ 완료 · 클릭하여 결과 보기"
+      ? "클릭하여 결과 보기"
       : "❌ 오류 발생";
+
+  const [animatedText, setAnimatedText] = useState(subText);
+  useEffect(() => {
+    setAnimatedText("");
+    let i = 0;
+    const timer = setInterval(() => {
+      i++;
+      setAnimatedText(subText.slice(0, i));
+      if (i >= subText.length) clearInterval(timer);
+    }, 25);
+    return () => clearInterval(timer);
+  }, [subText]);
 
   const handleCardClick = () => {
     if (status === "idle") onRun();
@@ -102,10 +105,12 @@ export function TaskCard({
   };
 
   return (
+
+    
     <div
-      style={{ borderColor }}
-      className="border-2 rounded-2xl bg-white shadow-sm overflow-hidden transition-colors"
+      className="rounded-2xl bg-white shadow-sm overflow-hidden transition-colors"
     >
+      {/* 메인  헤더*/}
       <div
         onClick={handleCardClick}
         style={{
@@ -114,12 +119,11 @@ export function TaskCard({
         }}
         className="flex items-center gap-3 px-5 py-4"
       >
-        <span className="text-2xl shrink-0">{task.icon}</span>
         <div className="flex-1 min-w-0">
           <div className="font-bold text-slate-800 text-sm">
-            {task.id}. {task.title}
+            {task.title}
           </div>
-          <div className="text-xs text-slate-400 mt-0.5">{subText}</div>
+          <div className="text-xs text-slate-400 mt-0.5">{animatedText}</div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {availableSources.length > 0 && (
@@ -150,7 +154,7 @@ export function TaskCard({
           )}
         </div>
       </div>
-
+        
       {expanded && hasContent && (
         <div className="border-t border-slate-100">
           {/* 탭 바 */}
@@ -178,10 +182,26 @@ export function TaskCard({
                 🔍 {label}
               </button>
             ))}
+          <button
+              onClick={() => setActiveTab("prompt")}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-t-lg border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "prompt"
+                  ? "border-indigo-500 text-indigo-700 bg-white"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              프롬프트
+            </button>
           </div>
 
           {/* 탭 콘텐츠 */}
-          {activeTab === "result" ? (
+          {activeTab === "prompt" ? (
+            <div className="px-5 py-4 bg-slate-50 max-h-150 overflow-y-auto">
+              <pre className="text-xs text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
+                {task.prompt || "(프롬프트 없음)"}
+              </pre>
+            </div>
+          ) : activeTab === "result" ? (
             result ? (
               <div className="px-5 py-4 bg-slate-50 max-h-150 overflow-y-auto prose prose-sm prose-slate max-w-none
                 [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
@@ -208,12 +228,28 @@ export function TaskCard({
               </div>
             )
           ) : (
-            <div className="px-5 py-4 bg-slate-50 max-h-150 overflow-y-auto">
-              <pre className="text-xs text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
-                {sources?.[activeTab as keyof SearchSources]}
-              </pre>
+            <div className="px-5 py-4 bg-slate-50 max-h-150 overflow-y-auto prose prose-sm prose-slate max-w-none
+              [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
+              [&_th]:bg-slate-200 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
+              [&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:border-slate-200
+              [&_tr:nth-child(even)]:bg-white [&_tr:nth-child(odd)]:bg-slate-50/50
+              [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:text-slate-800
+              [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-slate-800
+              [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:text-slate-700
+              [&_strong]:font-bold [&_strong]:text-slate-800
+              [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2
+              [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2
+              [&_li]:my-0.5 [&_li]:text-slate-700
+              [&_p]:my-2 [&_p]:leading-relaxed [&_p]:text-slate-700
+              [&_code]:bg-slate-200 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700
+              [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
+              [&_hr]:border-slate-200 [&_hr]:my-3">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {sources?.[activeTab as keyof SearchSources] ?? ""}
+              </ReactMarkdown>
             </div>
           )}
+          
         </div>
       )}
     </div>

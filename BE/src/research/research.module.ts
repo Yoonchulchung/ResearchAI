@@ -9,5 +9,6 @@ import { DeepResearchPipelineService } from './application/pipeline/deep-researc
 @Module({
   controllers: [ResearchController],
   providers: [ModelsService, WebSearchService, LightResearchPipelineService, DeepResearchPipelineService, AiSearchService],
+  exports: [WebSearchService, AiSearchService],
 })
 export class ResearchModule {}

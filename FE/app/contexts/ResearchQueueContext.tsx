@@ -4,34 +4,25 @@ import {
   createContext,
   useContext,
   useState,
-  useRef,
   useCallback,
   useEffect,
   useMemo,
 } from "react";
-import { Task, SearchSources } from "@/types";
-import { searchPipelineStream, deepResearch, saveTaskResult } from "@/lib/api";
+import { Task, QueueJob } from "@/types";
+import {
+  queueGetJobs,
+  queueEnqueueSession,
+  queueEnqueueTask,
+  queueCancelSession,
+  queueDismissCompleted,
+  QueueTaskPayload,
+} from "@/lib/api";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// re-export for consumers that import from this file
+export type { QueueJob };
+export type { QueueJobStatus, QueueJobPhase } from "@/types";
 
-export type QueueJobStatus = "pending" | "running" | "done" | "error";
-export type QueueJobPhase = "searching" | "analyzing";
-
-export interface QueueJob {
-  jobId: string;
-  sessionId: string;
-  sessionTopic: string;
-  taskId: number;
-  taskTitle: string;
-  taskIcon: string;
-  taskPrompt: string;
-  model: string;
-  status: QueueJobStatus;
-  seen: boolean;
-  phase?: QueueJobPhase;
-  sources?: SearchSources;
-  result?: string;
-}
+const API_BASE = "http://localhost:3001/api";
 
 interface ResearchQueueContextValue {
   jobs: QueueJob[];
@@ -53,8 +44,6 @@ interface ResearchQueueContextValue {
   getSessionJobs: (sessionId: string) => QueueJob[];
 }
 
-// ─── Context ─────────────────────────────────────────────────────────────────
-
 const ResearchQueueContext = createContext<ResearchQueueContextValue | null>(null);
 
 export function useResearchQueue() {
@@ -67,91 +56,45 @@ export function useResearchQueue() {
 
 export function ResearchQueueProvider({ children }: { children: React.ReactNode }) {
   const [jobs, setJobs] = useState<QueueJob[]>([]);
-  const [workerTick, setWorkerTick] = useState(0);
-  const activeJobIdRef = useRef<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
-  // ── helpers ──────────────────────────────────────────────────────────────
-
-  const updateJob = useCallback((jobId: string, updates: Partial<QueueJob>) => {
-    setJobs((prev) => prev.map((j) => (j.jobId === jobId ? { ...j, ...updates } : j)));
-  }, []);
-
-  // ── job runner ───────────────────────────────────────────────────────────
-
-  const runJob = useCallback(
-    async (job: QueueJob) => {
-      const controller = new AbortController();
-      abortRef.current = controller;
-      const { signal } = controller;
-
-      updateJob(job.jobId, { status: "running", phase: "searching" });
-
-      let context = "";
-      let localSources: SearchSources = {};
-
-      // 1. Search pipeline
-      try {
-        const { context: ctx } = await searchPipelineStream(
-          job.taskPrompt,
-          (key, result) => {
-            localSources = { ...localSources, [key]: result };
-            setJobs((prev) =>
-              prev.map((j) =>
-                j.jobId === job.jobId ? { ...j, sources: localSources } : j,
-              ),
-            );
-          },
-          signal,
-        );
-        context = ctx;
-      } catch (e: unknown) {
-        if (signal.aborted || (e instanceof Error && e.name === "AbortError")) return;
-        // search failure → proceed to AI without context
-      }
-
-      if (signal.aborted) return;
-
-      // 2. AI analysis
-      updateJob(job.jobId, { phase: "analyzing" });
-
-      try {
-        const { result } = await deepResearch(
-          job.taskPrompt,
-          job.model,
-          context || undefined,
-          signal,
-        );
-        const sourcesToSave =
-          Object.keys(localSources).length > 0 ? localSources : undefined;
-        await saveTaskResult(job.sessionId, job.taskId, result, "done", sourcesToSave);
-        updateJob(job.jobId, { status: "done", phase: undefined, result });
-      } catch (e: unknown) {
-        if (signal.aborted || (e instanceof Error && e.name === "AbortError")) return;
-        const msg = e instanceof Error ? e.message : "오류";
-        await saveTaskResult(job.sessionId, job.taskId, msg, "error").catch(() => {});
-        updateJob(job.jobId, { status: "error", phase: undefined, result: msg });
-      }
-    },
-    [updateJob],
-  );
-
-  // ── sequential worker ─────────────────────────────────────────────────────
+  // ── SSE 구독 ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (activeJobIdRef.current) return;
-    const nextPending = jobs.find((j) => j.status === "pending");
-    if (!nextPending) return;
+    // 초기 상태 로드
+    queueGetJobs().then(setJobs).catch(() => {});
 
-    activeJobIdRef.current = nextPending.jobId;
-    runJob(nextPending).finally(() => {
-      activeJobIdRef.current = null;
-      setWorkerTick((t) => t + 1);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobs, workerTick]);
+    // SSE 연결
+    const es = new EventSource(`${API_BASE}/queue/events`);
+    es.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data);
+        if (event.type === "sync") setJobs(event.jobs);
+      } catch {
+        // ignore parse errors
+      }
+    };
+    es.onerror = () => {
+      // 재연결은 브라우저가 자동으로 처리
+    };
+    return () => es.close();
+  }, []);
 
-  // ── public API ────────────────────────────────────────────────────────────
+  // ── Public API ────────────────────────────────────────────────────────────
+
+  const toPayload = (
+    sessionId: string,
+    sessionTopic: string,
+    task: Task,
+    model: string,
+  ): QueueTaskPayload => ({
+    sessionId,
+    sessionTopic,
+    taskId: task.id,
+    taskTitle: task.title,
+    taskIcon: task.icon,
+    taskPrompt: task.prompt,
+    model,
+  });
 
   const enqueueSession = useCallback(
     (
@@ -161,97 +104,25 @@ export function ResearchQueueProvider({ children }: { children: React.ReactNode 
       model: string,
       doneTaskIds: number[] = [],
     ) => {
-      setJobs((prev) => {
-        const newJobs: QueueJob[] = tasks
-          .filter((t) => !doneTaskIds.includes(t.id))
-          .filter(
-            (t) =>
-              !prev.some(
-                (j) =>
-                  j.sessionId === sessionId &&
-                  j.taskId === t.id &&
-                  (j.status === "pending" || j.status === "running"),
-              ),
-          )
-          .map((t) => ({
-            jobId: `${sessionId}-${t.id}-${Date.now()}`,
-            sessionId,
-            sessionTopic,
-            taskId: t.id,
-            taskTitle: t.title,
-            taskIcon: t.icon,
-            taskPrompt: t.prompt,
-            model,
-            status: "pending" as const,
-            seen: false,
-          }));
-        return newJobs.length > 0 ? [...prev, ...newJobs] : prev;
-      });
+      const payloads = tasks.map((t) => toPayload(sessionId, sessionTopic, t, model));
+      queueEnqueueSession(payloads, doneTaskIds).catch(() => {});
     },
     [],
   );
 
   const enqueueTask = useCallback(
     (sessionId: string, sessionTopic: string, task: Task, model: string) => {
-      setJobs((prev) => {
-        // If this task is currently running, abort it
-        const runningThisTask = prev.find(
-          (j) =>
-            j.sessionId === sessionId &&
-            j.taskId === task.id &&
-            j.status === "running",
-        );
-        if (runningThisTask) {
-          abortRef.current?.abort();
-          abortRef.current = null;
-          activeJobIdRef.current = null;
-        }
-        // Remove existing entry for this task, add new pending
-        const filtered = prev.filter(
-          (j) => !(j.sessionId === sessionId && j.taskId === task.id),
-        );
-        const newJob: QueueJob = {
-          jobId: `${sessionId}-${task.id}-${Date.now()}`,
-          sessionId,
-          sessionTopic,
-          taskId: task.id,
-          taskTitle: task.title,
-          taskIcon: task.icon,
-          taskPrompt: task.prompt,
-          model,
-          status: "pending",
-          seen: false,
-        };
-        return [...filtered, newJob];
-      });
+      queueEnqueueTask(toPayload(sessionId, sessionTopic, task, model)).catch(() => {});
     },
     [],
   );
 
   const cancelSession = useCallback((sessionId: string) => {
-    setJobs((prev) => {
-      const hasRunning = prev.some(
-        (j) => j.sessionId === sessionId && j.status === "running",
-      );
-      if (hasRunning) {
-        abortRef.current?.abort();
-        abortRef.current = null;
-        // activeJobIdRef will be cleared by the runJob finally block
-      }
-      return prev.filter(
-        (j) =>
-          !(
-            j.sessionId === sessionId &&
-            (j.status === "pending" || j.status === "running")
-          ),
-      );
-    });
+    queueCancelSession(sessionId).catch(() => {});
   }, []);
 
   const dismissCompleted = useCallback(() => {
-    setJobs((prev) =>
-      prev.filter((j) => j.status === "pending" || j.status === "running"),
-    );
+    queueDismissCompleted().catch(() => {});
   }, []);
 
   const getSessionJobs = useCallback(
