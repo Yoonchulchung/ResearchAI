@@ -95,6 +95,20 @@ export class SessionsService {
     return { ok: true };
   }
 
+  updateTaskSources(sessionId: string, taskId: number, additionalSources: Partial<SearchSources>) {
+    try {
+      const db = this.readDB();
+      const session = db.sessions.find((s) => s.id === sessionId);
+      if (!session) return;
+      if (!session.sources) session.sources = {};
+      session.sources[String(taskId)] = {
+        ...(session.sources[String(taskId)] ?? {}),
+        ...additionalSources,
+      };
+      this.writeDB(db);
+    } catch {}
+  }
+
   updateTask(sessionId: string, taskId: number, result: string, status: string, sources?: SearchSources) {
     const db = this.readDB();
     const session = db.sessions.find((s) => s.id === sessionId);

@@ -4,6 +4,7 @@ import { WebSearchService } from '../research/application/web-search.service';
 import { AiSearchService } from '../research/application/ai-search.service';
 import { SessionsService } from '../sessions/sessions.service';
 import { SearchSources } from '../research/domain/model/search-sources.model';
+import { filterWithOllama } from '../research/infrastructure/search/ollama-filter.search';
 
 export type QueueJobStatus = 'pending' | 'running' | 'done' | 'error';
 export type QueueJobPhase = 'searching' | 'analyzing';
@@ -200,6 +201,18 @@ export class QueueService implements OnModuleDestroy {
     }
 
     if (signal.aborted) return;
+
+    // 1-1. 백그라운드 Ollama filter (소스 탭 표시용, 분석 차단 안 함)
+    if (context) {
+      filterWithOllama(job.taskPrompt, context)
+        .then((filtered) => {
+          if (!filtered || signal.aborted) return;
+          localSources = { ...localSources, ollama: filtered };
+          this.updateJob(job.jobId, { sources: { ...localSources } });
+          this.sessionsService.updateTaskSources(job.sessionId, job.taskId, { ollama: filtered });
+        })
+        .catch(() => {});
+    }
 
     // 2. AI 분석
     this.updateJob(job.jobId, { phase: 'analyzing' });

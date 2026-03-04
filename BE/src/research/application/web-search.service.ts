@@ -61,20 +61,6 @@ export class WebSearchService {
     const parts: string[] = [];
     let completed = 0;
 
-    const runOllama = async () => {
-      const raw = parts.join('\n\n---\n\n');
-      try {
-        const filtered = await filterWithOllama(query, raw);
-        if (filtered && filtered !== raw) {
-          sources.ollama = filtered;
-          emit({ type: 'source', key: 'ollama', result: filtered });
-        }
-        emit({ type: 'done', sources, context: filtered || raw });
-      } catch {
-        emit({ type: 'done', sources, context: raw });
-      }
-    };
-
     for (const { key, fn } of tasks) {
       fn()
         .then((result) => {
@@ -87,7 +73,9 @@ export class WebSearchService {
         .catch(() => {})
         .finally(() => {
           completed++;
-          if (completed === tasks.length) runOllama();
+          if (completed === tasks.length) {
+            emit({ type: 'done', sources, context: parts.join('\n\n---\n\n') });
+          }
         });
     }
 
@@ -142,12 +130,6 @@ export class WebSearchService {
       }
     });
 
-    const raw = parts.join('\n\n---\n\n');
-    const filtered = await filterWithOllama(query, raw);
-    if (filtered && filtered !== raw) {
-      sources.ollama = filtered;
-    }
-
-    return { combined: filtered || raw, sources };
+    return { combined: parts.join('\n\n---\n\n'), sources };
   }
 }
