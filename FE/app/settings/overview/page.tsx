@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getTavilyOverview, getAnthropicUsage } from "../../lib/api";
+import { getTavilyOverview, getAnthropicUsage } from "@/lib/api";
 import {
   type TavilyOverview,
   type AnthropicUsage,

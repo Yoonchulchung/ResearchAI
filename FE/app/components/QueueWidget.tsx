@@ -1,6 +1,6 @@
 "use client";
 
-import { useResearchQueue } from "../contexts/ResearchQueueContext";
+import { useResearchQueue } from "@/contexts/ResearchQueueContext";
 
 export function QueueWidget() {
   const { jobs, dismissCompleted } = useResearchQueue();

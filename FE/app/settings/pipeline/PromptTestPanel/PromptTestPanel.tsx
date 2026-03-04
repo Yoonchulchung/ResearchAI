@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { testGenerateTasks, getPromptTemplates } from "../lib/api";
-import { ModelDefinition, Task } from "../types";
+import { testGenerateTasks, getPromptTemplates } from "@/lib/api";
+import { ModelDefinition, Task } from "@/types";
 
 type Panel = "prompt" | "search" | "tasks";
 

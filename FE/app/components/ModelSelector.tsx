@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ModelDefinition } from "../types";
+import { ModelDefinition } from "@/types";
 
 const PROVIDER_META: Record<
   string,

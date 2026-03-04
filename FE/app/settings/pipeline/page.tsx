@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getModels } from "../../lib/api";
-import { ModelDefinition } from "../../types";
-import { PromptTestPanel } from "../../components/PromptTestPanel";
-import { PipelineDiagram } from "../../components/PipelineDiagram";
+import { getModels } from "@/lib/api";
+import { ModelDefinition } from "@/types";
+import { PromptTestPanel } from "@/settings/pipeline/PromptTestPanel/PromptTestPanel";
+import { PipelineDiagram } from "@/settings/pipeline/PipelineDiagram/PipelineDiagram";
 
 type Tab = "pipeline" | "api" | "local";
 

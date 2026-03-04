@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getSession } from "../../lib/api";
-import { Session, Task, TaskStatus, SearchSources } from "../../types";
-import { TaskCard, type Phase } from "../components/TaskCard";
-import { TopicInput } from "../../components/TopicInput";
-import { useResearchQueue } from "../../contexts/ResearchQueueContext";
+import { getSession } from "@/lib/api";
+import { Session, Task, TaskStatus, SearchSources } from "@/types";
+import { TaskCard, type Phase } from "@/sessions/components/TaskCard";
+import { TopicInput } from "@/components/TopicInput";
+import { useResearchQueue } from "@/contexts/ResearchQueueContext";
 
 export default function SessionPage() {
   const { id } = useParams<{ id: string }>();

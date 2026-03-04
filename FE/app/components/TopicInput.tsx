@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { ModelDefinition } from "../types";
+import { ModelDefinition } from "@/types";
 
 function ModelSelect({
   models,

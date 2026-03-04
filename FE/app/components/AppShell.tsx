@@ -1,7 +1,7 @@
 "use client";
 
 import { Sidebar } from "./Sidebar";
-import { ResearchQueueProvider } from "../contexts/ResearchQueueContext";
+import { ResearchQueueProvider } from "@/contexts/ResearchQueueContext";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (

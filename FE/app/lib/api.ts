@@ -1,4 +1,4 @@
-import { Session, Task, ModelDefinition, SearchSources } from "../types";
+import { Session, Task, ModelDefinition, SearchSources } from "@/types";
 
 const API_BASE = "http://localhost:3001/api";
 

@@ -9,8 +9,8 @@ import {
   useEffect,
   useMemo,
 } from "react";
-import { Task, SearchSources } from "../types";
-import { searchPipelineStream, runResearch, saveTaskResult } from "../lib/api";
+import { Task, SearchSources } from "@/types";
+import { searchPipelineStream, runResearch, saveTaskResult } from "@/lib/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

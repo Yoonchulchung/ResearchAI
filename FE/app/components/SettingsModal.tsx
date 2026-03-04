@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getModels } from "../lib/api";
-import { ModelDefinition } from "../types";
-import { PipelineDiagram } from "./PipelineDiagram";
-import { PromptTestPanel } from "./PromptTestPanel";
+import { getModels } from "@/lib/api";
+import { ModelDefinition } from "@/types";
+import { PipelineDiagram } from "@/settings/pipeline/PipelineDiagram/PipelineDiagram";
+import { PromptTestPanel } from "@/settings/pipeline/PromptTestPanel/PromptTestPanel";
 
 type Section = "overview" | "pipeline" | "ai-test";
 

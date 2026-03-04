@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { generateTasks, createSession, getModels } from "../../lib/api";
-import { Task, ModelDefinition } from "../../types";
-import { TopicInput } from "../../components/TopicInput";
-import { ModelSelector } from "../../components/ModelSelector";
+import { generateTasks, createSession, getModels } from "@/lib/api";
+import { Task, ModelDefinition } from "@/types";
+import { TopicInput } from "@/components/TopicInput";
+import { ModelSelector } from "@/components/ModelSelector";
 
 export default function NewSession() {
   const router = useRouter();

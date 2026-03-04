@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { getSessions, deleteSession } from "../lib/api";
-import { Session } from "../types";
+import { getSessions, deleteSession } from "@/lib/api";
+import { Session } from "@/types";
 import { SettingsMenu } from "./SettingsMenu";
 import { QueueWidget } from "./QueueWidget";
 
