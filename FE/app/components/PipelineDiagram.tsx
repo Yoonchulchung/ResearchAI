@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   getPipelineStatus,
+  getPromptTemplates,
   testSearchEngine,
   testOllamaFilter,
   testGenerateTasks,
@@ -82,6 +83,7 @@ function NodeCard({
   state,
   onRun,
   disabled,
+  extraActions,
 }: {
   icon: string;
   label: string;
@@ -89,6 +91,7 @@ function NodeCard({
   state: NodeState;
   onRun: () => void;
   disabled?: boolean;
+  extraActions?: React.ReactNode;
 }) {
   const cfg = STATUS_CONFIG[state.status];
 
@@ -138,6 +141,7 @@ function NodeCard({
             )}
             테스트
           </button>
+          {extraActions}
         </div>
       </div>
 
@@ -212,6 +216,12 @@ export function PipelineDiagram({ apiModels }: { apiModels: ModelDefinition[] })
   const [selectedModel, setSelectedModel] = useState("");
   const [runningAll, setRunningAll] = useState(false);
 
+  // 프롬프트 편집
+  const [showAiEditor, setShowAiEditor] = useState(false);
+  const [aiDefaults, setAiDefaults] = useState({ generateTasks: "", system: "" });
+  const [aiCustomPrompt, setAiCustomPrompt] = useState("");
+  const [aiCustomSystem, setAiCustomSystem] = useState("");
+
   const [nodes, setNodes] = useState<
     Record<SearchEngine | "ollama" | "ai", NodeState>
   >({
@@ -226,6 +236,13 @@ export function PipelineDiagram({ apiModels }: { apiModels: ModelDefinition[] })
   useEffect(() => {
     getPipelineStatus()
       .then(setPipelineStatus)
+      .catch(() => {});
+    getPromptTemplates()
+      .then((t) => {
+        setAiDefaults({ generateTasks: t.generateTasks, system: t.system });
+        setAiCustomPrompt(t.generateTasks);
+        setAiCustomSystem(t.system);
+      })
       .catch(() => {});
   }, []);
 
@@ -286,8 +303,14 @@ export function PipelineDiagram({ apiModels }: { apiModels: ModelDefinition[] })
     if (!query.trim() || !selectedModel) return;
     const t0 = Date.now();
     setNode("ai", { status: "running", result: undefined, error: undefined });
+    const isModified =
+      aiCustomPrompt !== aiDefaults.generateTasks || aiCustomSystem !== aiDefaults.system;
     try {
-      const { tasks } = await testGenerateTasks(query.trim(), selectedModel);
+      const { tasks } = await testGenerateTasks(
+        query.trim(),
+        selectedModel,
+        isModified ? { customPrompt: aiCustomPrompt, customSystem: aiCustomSystem } : undefined,
+      );
       setNode("ai", {
         status: "ok",
         result: `[생성된 태스크 ${tasks.length}개]\n\n${tasks.map((t: { icon: string; title: string; prompt: string }) => `${t.icon} ${t.title}\n  ${t.prompt}`).join("\n\n")}`,
@@ -446,7 +469,8 @@ export function PipelineDiagram({ apiModels }: { apiModels: ModelDefinition[] })
             </select>
           )}
         </div>
-        <div className="max-w-sm mx-auto">
+        {/* AI node + prompt editor — wider when editor is open */}
+        <div className={showAiEditor ? "w-full" : "max-w-sm mx-auto"}>
           <NodeCard
             icon="🤖"
             label={apiModels.find((m) => m.id === selectedModel)?.name ?? "AI 모델"}
@@ -454,13 +478,103 @@ export function PipelineDiagram({ apiModels }: { apiModels: ModelDefinition[] })
             state={nodes.ai}
             onRun={runAI}
             disabled={!query.trim() || !selectedModel}
+            extraActions={
+              <button
+                onClick={() => setShowAiEditor((v) => !v)}
+                className={`flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                  showAiEditor
+                    ? "bg-orange-100 text-orange-600"
+                    : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                } ${
+                  (aiCustomPrompt !== aiDefaults.generateTasks || aiCustomSystem !== aiDefaults.system)
+                    ? "ring-1 ring-orange-300"
+                    : ""
+                }`}
+              >
+                ✏️ 프롬프트
+              </button>
+            }
           />
+
+          {/* Inline prompt editor */}
+          {showAiEditor && (
+            <div className="mt-3 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
+                <span className="text-xs font-semibold text-slate-600">프롬프트 편집</span>
+                <div className="flex items-center gap-3">
+                  {(aiCustomPrompt !== aiDefaults.generateTasks || aiCustomSystem !== aiDefaults.system) && (
+                    <>
+                      <span className="text-xs text-orange-500 font-medium">수정됨 — 테스트에 반영</span>
+                      <button
+                        onClick={() => {
+                          setAiCustomPrompt(aiDefaults.generateTasks);
+                          setAiCustomSystem(aiDefaults.system);
+                        }}
+                        className="text-xs text-slate-400 hover:text-slate-600 underline"
+                      >
+                        초기화
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="p-4 space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                      시스템 프롬프트
+                    </label>
+                    {aiCustomSystem !== aiDefaults.system && (
+                      <button
+                        onClick={() => setAiCustomSystem(aiDefaults.system)}
+                        className="text-xs text-slate-400 hover:text-slate-600 underline"
+                      >
+                        초기화
+                      </button>
+                    )}
+                  </div>
+                  <textarea
+                    value={aiCustomSystem}
+                    onChange={(e) => setAiCustomSystem(e.target.value)}
+                    rows={6}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 font-mono leading-relaxed focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 resize-y"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                      태스크 생성 프롬프트
+                    </label>
+                    {aiCustomPrompt !== aiDefaults.generateTasks && (
+                      <button
+                        onClick={() => setAiCustomPrompt(aiDefaults.generateTasks)}
+                        className="text-xs text-slate-400 hover:text-slate-600 underline"
+                      >
+                        초기화
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 mb-1.5">
+                    변수: <code className="bg-slate-100 px-1 rounded">{"{{topic}}"}</code> (주제),{" "}
+                    <code className="bg-slate-100 px-1 rounded">{"{{searchContext}}"}</code> (검색 결과)
+                  </p>
+                  <textarea
+                    value={aiCustomPrompt}
+                    onChange={(e) => setAiCustomPrompt(e.target.value)}
+                    rows={12}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 font-mono leading-relaxed focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 resize-y"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {nodes.ai.result && (
             <button
               onClick={() => toggleExpand("ai")}
               className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1"
             >
-              {nodes.ai.expanded ? "▲ 접기" : `▼ 결과 보기`}
+              {nodes.ai.expanded ? "▲ 접기" : "▼ 결과 보기"}
             </button>
           )}
         </div>

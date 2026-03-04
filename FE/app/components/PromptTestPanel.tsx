@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { testGenerateTasks } from "../lib/api";
+import { testGenerateTasks, getPromptTemplates } from "../lib/api";
 import { ModelDefinition, Task } from "../types";
 
 type Panel = "prompt" | "search" | "tasks";
@@ -10,6 +10,11 @@ type TestResult = {
   tasks: Task[];
   searchContext?: string;
   fullPrompt: string;
+};
+
+type PromptTemplates = {
+  generateTasks: string;
+  system: string;
 };
 
 function ResultPanel({
@@ -52,6 +57,53 @@ function ResultPanel({
   );
 }
 
+function PromptEditor({
+  label,
+  hint,
+  value,
+  defaultValue,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: string;
+  defaultValue: string;
+  onChange: (v: string) => void;
+}) {
+  const isModified = value !== defaultValue;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+          {label}
+        </label>
+        <div className="flex items-center gap-2">
+          {isModified && (
+            <span className="text-xs text-orange-500 font-medium">수정됨</span>
+          )}
+          {isModified && (
+            <button
+              onClick={() => onChange(defaultValue)}
+              className="text-xs text-slate-400 hover:text-slate-600 underline"
+            >
+              초기화
+            </button>
+          )}
+        </div>
+      </div>
+      {hint && (
+        <p className="text-xs text-slate-400 mb-1.5">{hint}</p>
+      )}
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={10}
+        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 font-mono leading-relaxed focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 resize-y"
+      />
+    </div>
+  );
+}
+
 export function PromptTestPanel({ models }: { models: ModelDefinition[] }) {
   const [topic, setTopic] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
@@ -59,10 +111,34 @@ export function PromptTestPanel({ models }: { models: ModelDefinition[] }) {
   const [result, setResult] = useState<TestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<Panel>("prompt");
+  const [showEditor, setShowEditor] = useState(false);
+
+  // 프롬프트 편집 상태
+  const [defaults, setDefaults] = useState<PromptTemplates>({ generateTasks: "", system: "" });
+  const [customGenerateTasks, setCustomGenerateTasks] = useState("");
+  const [customSystem, setCustomSystem] = useState("");
 
   useEffect(() => {
     if (models.length > 0) setSelectedModel(models[0].id);
   }, [models]);
+
+  useEffect(() => {
+    getPromptTemplates()
+      .then((t) => {
+        setDefaults({ generateTasks: t.generateTasks, system: t.system });
+        setCustomGenerateTasks(t.generateTasks);
+        setCustomSystem(t.system);
+      })
+      .catch(() => {});
+  }, []);
+
+  const isPromptModified =
+    customGenerateTasks !== defaults.generateTasks || customSystem !== defaults.system;
+
+  const resetAll = () => {
+    setCustomGenerateTasks(defaults.generateTasks);
+    setCustomSystem(defaults.system);
+  };
 
   const handleTest = async () => {
     if (!topic.trim() || !selectedModel) return;
@@ -70,7 +146,10 @@ export function PromptTestPanel({ models }: { models: ModelDefinition[] }) {
     setError(null);
     setResult(null);
     try {
-      const data = await testGenerateTasks(topic.trim(), selectedModel);
+      const opts = isPromptModified
+        ? { customPrompt: customGenerateTasks, customSystem }
+        : undefined;
+      const data = await testGenerateTasks(topic.trim(), selectedModel, opts);
       setResult(data);
       setActivePanel("prompt");
     } catch (e) {
@@ -116,6 +195,55 @@ export function PromptTestPanel({ models }: { models: ModelDefinition[] }) {
               </option>
             ))}
           </select>
+        </div>
+
+        {/* 프롬프트 편집 토글 */}
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowEditor((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-slate-600">프롬프트 편집</span>
+              {isPromptModified && (
+                <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-medium">
+                  수정됨 — 테스트에 반영
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {isPromptModified && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); resetAll(); }}
+                  className="text-xs text-slate-400 hover:text-slate-600 underline"
+                >
+                  전체 초기화
+                </button>
+              )}
+              <span className={`text-xs text-slate-400 transition-transform ${showEditor ? "rotate-180" : ""}`}>
+                ▼
+              </span>
+            </div>
+          </button>
+
+          {showEditor && (
+            <div className="border-t border-slate-100 p-4 space-y-5 bg-slate-50">
+              <PromptEditor
+                label="시스템 프롬프트"
+                value={customSystem}
+                defaultValue={defaults.system}
+                onChange={setCustomSystem}
+              />
+              <PromptEditor
+                label="태스크 생성 프롬프트"
+                hint="변수: {{topic}} (주제), {{searchContext}} (검색 결과 삽입 위치)"
+                value={customGenerateTasks}
+                defaultValue={defaults.generateTasks}
+                onChange={setCustomGenerateTasks}
+              />
+            </div>
+          )}
         </div>
 
         <button

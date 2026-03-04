@@ -25,9 +25,17 @@ export class ResearchController {
     return this.researchService.generateTasks(body.topic, body.model);
   }
 
+  @Get('prompts')
+  getPromptTemplates() {
+    return this.researchService.getPromptTemplates();
+  }
+
   @Post('test/generate-tasks')
-  testGenerateTasks(@Body() body: { topic: string; model: string }) {
-    return this.researchService.testGenerateTasks(body.topic, body.model);
+  testGenerateTasks(@Body() body: { topic: string; model: string; customPrompt?: string; customSystem?: string }) {
+    return this.researchService.testGenerateTasks(body.topic, body.model, {
+      customPrompt: body.customPrompt,
+      customSystem: body.customSystem,
+    });
   }
 
   @Get('pipeline-status')

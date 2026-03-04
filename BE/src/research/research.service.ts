@@ -50,6 +50,14 @@ export class ResearchService {
 
   // ─── 파이프라인 상태 및 개별 테스트 ────────────────────────────────────────
 
+  getPromptTemplates() {
+    return {
+      generateTasks: PROMPTS.generateTasks('{{topic}}', '{{searchContext}}'),
+      system: PROMPTS.system,
+      ollamaFilter: PROMPTS.ollamaFilter('{{query}}', '{{context}}'),
+    };
+  }
+
   getPipelineStatus() {
     const isSet = (key: string | undefined) => !!(key && !key.startsWith('your_'));
     return {
@@ -82,7 +90,11 @@ export class ResearchService {
     return { tasks };
   }
 
-  async testGenerateTasks(topic: string, model: string) {
+  async testGenerateTasks(
+    topic: string,
+    model: string,
+    opts?: { customPrompt?: string; customSystem?: string },
+  ) {
     let searchContext: string | undefined;
     if (process.env.TAVILY_API_KEY && !process.env.TAVILY_API_KEY.startsWith('your_')) {
       try {
@@ -92,8 +104,13 @@ export class ResearchService {
       }
     }
 
-    const fullPrompt = PROMPTS.generateTasks(topic, searchContext);
-    const raw = await this.callAI(model, fullPrompt, false);
+    const fullPrompt = opts?.customPrompt
+      ? opts.customPrompt
+          .replaceAll('{{topic}}', topic)
+          .replaceAll('{{searchContext}}', searchContext ?? '')
+      : PROMPTS.generateTasks(topic, searchContext);
+
+    const raw = await this.callAI(model, fullPrompt, false, '', opts?.customSystem);
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
     const tasks = JSON.parse(jsonMatch[0]);
@@ -264,8 +281,9 @@ export class ResearchService {
     prompt: string,
     useBuiltinSearch: boolean,
     context = '',
+    systemOverride?: string,
   ): Promise<string> {
-    const system = PROMPTS.system;
+    const system = systemOverride ?? PROMPTS.system;
     const fullPrompt = context ? PROMPTS.withSearchContext(context, prompt) : prompt;
 
     if (model.startsWith('claude')) {
