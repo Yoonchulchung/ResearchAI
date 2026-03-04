@@ -41,6 +41,8 @@ export function TopicInput({
   onChange,
   onGenerate,
   generating,
+  placeholder = "리서치 주제를 입력하세요...",
+  generatingLabel,
   apiModels = [],
   localModels = [],
   selectedApiModel = "",
@@ -52,6 +54,8 @@ export function TopicInput({
   onChange: (value: string) => void;
   onGenerate: () => void;
   generating: boolean;
+  placeholder?: string;
+  generatingLabel?: string;
   apiModels?: ModelDefinition[];
   localModels?: ModelDefinition[];
   selectedApiModel?: string;
@@ -78,12 +82,12 @@ export function TopicInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             onGenerate();
           }
         }}
-        placeholder="리서치 주제를 입력하세요..."
+        placeholder={placeholder}
         rows={1}
         className="w-full resize-none text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none bg-transparent leading-relaxed mb-3 min-h-8"
       />
@@ -138,7 +142,7 @@ export function TopicInput({
       {generating && (
         <p className="text-xs text-indigo-500 mt-2 flex items-center gap-1">
           <span className="animate-pulse">●</span>
-          {[apiName, localName].filter(Boolean).join(" + ") || "AI"}이(가) 리서치 항목을 생성하고 있습니다...
+          {generatingLabel ?? (`${[apiName, localName].filter(Boolean).join(" + ") || "AI"}이(가) 리서치 항목을 생성하고 있습니다...`)}
         </p>
       )}
     </div>

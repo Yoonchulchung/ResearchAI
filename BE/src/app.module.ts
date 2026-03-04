@@ -4,6 +4,7 @@ import { ResearchModule } from './research/research.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { OverviewModule } from './overview/overview.module';
 import { QueueModule } from './queue/queue.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { QueueModule } from './queue/queue.module';
     SessionsModule,
     OverviewModule,
     QueueModule,
+    ChatModule,
   ],
 })
 export class AppModule {}

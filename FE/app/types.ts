@@ -46,6 +46,11 @@ export interface QueueJob {
   result?: string;
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface Session {
   id: string;
   topic: string;

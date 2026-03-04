@@ -1,4 +1,4 @@
-import { Session, Task, ModelDefinition, SearchSources, QueueJob } from "@/types";
+import { Session, Task, ModelDefinition, SearchSources, QueueJob, ChatMessage } from "@/types";
 
 const API_BASE = "http://localhost:3001/api";
 
@@ -195,3 +195,53 @@ export const queueCancelSession = (sessionId: string) =>
 
 export const queueDismissCompleted = () =>
   apiFetch<{ ok: boolean }>("/queue/completed", { method: "DELETE" });
+
+// ── Chat API ─────────────────────────────────────────────────────────────────
+
+export const getChatHistory = (sessionId: string) =>
+  apiFetch<ChatMessage[]>(`/chat/${sessionId}/history`);
+
+export const clearChatHistory = (sessionId: string) =>
+  apiFetch<{ ok: boolean }>(`/chat/${sessionId}/history`, { method: "DELETE" });
+
+export async function chatStream(
+  sessionId: string,
+  message: string,
+  model: string,
+  onChunk: (text: string) => void,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/chat/${sessionId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, model }),
+  });
+
+  if (!res.ok || !res.body) throw new Error("Chat stream failed");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === "chunk") onChunk(event.text);
+          else if (event.type === "done") return;
+          else if (event.type === "error") throw new Error(event.message);
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}

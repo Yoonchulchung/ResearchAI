@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getSession } from "@/lib/api";
-import { Session, Task, TaskStatus, SearchSources } from "@/types";
+import { getSession, getChatHistory, clearChatHistory, chatStream, getModels } from "@/lib/api";
+import { Session, Task, TaskStatus, SearchSources, ChatMessage, ModelDefinition } from "@/types";
 import { TaskCard, type Phase } from "@/sessions/components/TaskCard";
+import { SessionHeader } from "@/sessions/components/SessionHeader";
+import { SessionSkeleton } from "@/sessions/components/SessionSkeleton";
+import { ChatSection } from "@/sessions/components/ChatSection";
 import { TopicInput } from "@/components/TopicInput";
 import { useResearchQueue } from "@/contexts/ResearchQueueContext";
 
@@ -16,6 +19,13 @@ export default function SessionPage() {
   const [loading, setLoading] = useState(true);
   const [inputValue, setInputValue] = useState("");
 
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const [models, setModels] = useState<ModelDefinition[]>([]);
+  const [selectedChatModel, setSelectedChatModel] = useState("");
+
   const { jobs: allJobs, enqueueSession, enqueueTask, cancelSession } = useResearchQueue();
 
   const sessionJobs = useMemo(
@@ -24,13 +34,26 @@ export default function SessionPage() {
   );
 
   useEffect(() => {
+    getModels().then((m) => {
+      setModels(m);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     setLoading(true);
     setSession(null);
+    setChatMessages([]);
     getSession(id)
-      .then(setSession)
+      .then((s) => { setSession(s); setSelectedChatModel(s.model); })
       .catch(() => router.push("/"))
       .finally(() => setLoading(false));
+    getChatHistory(id).then(setChatMessages).catch(() => {});
   }, [id, router]);
+
+  // 새 채팅 메시지가 추가되면 하단으로 스크롤
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
   const statuses = useMemo<Record<string, TaskStatus>>(() => {
     const base: Record<string, TaskStatus> = { ...(session?.statuses ?? {}) };
@@ -96,36 +119,55 @@ export default function SessionPage() {
 
   const handleCancel = useCallback(() => {
     cancelSession(id);
-    // statuses/phases는 큐 job이 제거되면 useMemo가 자동 재계산
   }, [cancelSession, id]);
+
+  const handleChatSend = useCallback(async () => {
+    if (!inputValue.trim() || !session || chatLoading) return;
+    const message = inputValue.trim();
+    setInputValue("");
+    setChatLoading(true);
+
+    // user 메시지 즉시 표시 + AI 응답 placeholder 추가
+    setChatMessages((prev) => [
+      ...prev,
+      { role: "user", content: message },
+      { role: "assistant", content: "" },
+    ]);
+
+    try {
+      await chatStream(id, message, selectedChatModel || session.model, (chunk) => {
+        setChatMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === "assistant") {
+            updated[updated.length - 1] = { ...last, content: last.content + chunk };
+          }
+          return updated;
+        });
+      });
+    } catch {
+      setChatMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last?.role === "assistant" && !last.content) {
+          updated[updated.length - 1] = { ...last, content: "오류가 발생했습니다. 다시 시도해 주세요." };
+        }
+        return updated;
+      });
+    } finally {
+      setChatLoading(false);
+    }
+  }, [inputValue, session, chatLoading, id, selectedChatModel]);
+
+  const handleClearChat = useCallback(async () => {
+    await clearChatHistory(id);
+    setChatMessages([]);
+  }, [id]);
 
   // ── Skeleton ─────────────────────────────────────────────────────────────
 
   if (loading) {
-    return (
-      <div className="h-full flex flex-col animate-pulse">
-        <div className="px-8 py-2.5 pb-3.5 border-b border-slate-200 bg-white sticky top-0 z-10">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="h-6 bg-slate-200 rounded-lg flex-1 max-w-xs" />
-            <div className="h-6 w-28 bg-slate-100 rounded-full shrink-0" />
-            <div className="h-8 w-20 bg-slate-200 rounded-xl shrink-0" />
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto px-8 py-6">
-          <div className="space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-2xl bg-white shadow-sm px-5 py-4 flex items-center gap-3">
-                <div className="flex-1 min-w-0 space-y-2">
-                  <div className="h-4 bg-slate-200 rounded w-1/3" />
-                  <div className="h-3 bg-slate-100 rounded w-1/4" />
-                </div>
-                <div className="h-6 w-12 bg-slate-100 rounded-full shrink-0" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return <SessionSkeleton />;
   }
 
   if (!session) return null;
@@ -157,40 +199,15 @@ export default function SessionPage() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Sticky top bar */}
-      <div className="px-8 py-2.5 pb-3.5 border-b border-slate-200 bg-white sticky top-0 z-10">
-        <div className="flex items-center gap-3 mb-3">
-          <h1 className="font-bold text-lg text-slate-800 truncate flex-1">
-            {session.topic}
-          </h1>
-          <span className="text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full font-medium shrink-0">
-            {session.model}
-          </span>
-          {allDone && (
-            <button
-              onClick={exportMarkdown}
-              className="text-slate-500 hover:text-indigo-600 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 hover:border-indigo-300 transition-colors shrink-0"
-            >
-              내보내기
-            </button>
-          )}
-          {isRunning && (
-            <button
-              onClick={handleCancel}
-              className="text-red-500 hover:text-red-600 font-bold text-sm px-4 py-2 rounded-xl border border-red-200 hover:border-red-300 hover:bg-red-50 transition-colors shrink-0"
-            >
-              ⏹ 중단
-            </button>
-          )}
-          <button
-            onClick={handleRunAll}
-            disabled={isRunning || allDone}
-            className="bg-indigo-600 text-white font-bold text-sm px-5 py-2 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
-          >
-            {isRunning ? "분석 중..." : allDone ? "완료" : "전체 실행"}
-          </button>
-        </div>
-      </div>
+      <SessionHeader
+        topic={session.topic}
+        model={session.model}
+        isRunning={isRunning}
+        allDone={allDone}
+        onRunAll={handleRunAll}
+        onCancel={handleCancel}
+        onExport={exportMarkdown}
+      />
 
       {/* Scrollable content */}
       <div className="bg-grey flex-1 overflow-y-auto px-8 py-6">
@@ -208,6 +225,12 @@ export default function SessionPage() {
             />
           ))}
         </div>
+
+        <ChatSection
+          chatMessages={chatMessages}
+          chatBottomRef={chatBottomRef}
+          onClearChat={handleClearChat}
+        />
       </div>
 
       {/* Bottom input */}
@@ -215,8 +238,16 @@ export default function SessionPage() {
         <TopicInput
           value={inputValue}
           onChange={setInputValue}
-          onGenerate={() => {}}
-          generating={false}
+          onGenerate={handleChatSend}
+          generating={chatLoading}
+          placeholder="리서치 내용에 대해 질문하세요..."
+          generatingLabel="AI가 답변을 생성하고 있습니다..."
+          apiModels={models.filter((m) => m.provider !== "ollama")}
+          localModels={models.filter((m) => m.provider === "ollama")}
+          selectedApiModel={selectedChatModel}
+          selectedLocalModel={selectedChatModel}
+          onApiModelChange={setSelectedChatModel}
+          onLocalModelChange={setSelectedChatModel}
         />
       </div>
     </div>
