@@ -1,15 +1,15 @@
 import { Controller, Get, Post, Body, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ModelsService } from '../application/models.service';
-import { SearchService } from '../application/search.service';
-import { AiService } from '../application/ai.service';
+import { WebSearchService } from '../application/web-search.service';
+import { AiSearchService } from '../application/ai-search.service';
 
 @Controller('research')
 export class ResearchController {
   constructor(
     private readonly modelsService: ModelsService,
-    private readonly searchService: SearchService,
-    private readonly aiService: AiService,
+    private readonly searchService: WebSearchService,
+    private readonly aiService: AiSearchService,
   ) {}
 
   @Get('models')
@@ -39,13 +39,13 @@ export class ResearchController {
   }
 
   @Post()
-  runResearch(@Body() body: { prompt: string; model: string; context?: string }) {
-    return this.aiService.runResearch(body.prompt, body.model, body.context);
+  deepResearch(@Body() body: { prompt: string; model: string; context?: string }) {
+    return this.aiService.deepResearch(body.prompt, body.model, body.context);
   }
 
   @Post('generate-tasks')
-  generateTasks(@Body() body: { topic: string; model: string }) {
-    return this.aiService.generateTasks(body.topic, body.model);
+  lightResearch(@Body() body: { topic: string; model: string }) {
+    return this.aiService.lightResearch(body.topic, body.model);
   }
 
   @Post('test/generate-tasks')

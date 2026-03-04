@@ -7,7 +7,7 @@ import { searchBrave } from '../infrastructure/search/brave.search';
 import { filterWithOllama } from '../infrastructure/search/ollama-filter.search';
 
 @Injectable()
-export class SearchService {
+export class WebSearchService {
   hasExternalSearch(): boolean {
     return [
       process.env.TAVILY_API_KEY,

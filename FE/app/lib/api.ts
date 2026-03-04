@@ -94,14 +94,14 @@ export async function searchPipelineStream(
   return { sources: {}, context: "" };
 }
 
-export const runResearch = (prompt: string, model: string, context?: string, signal?: AbortSignal) =>
+export const deepResearch = (prompt: string, model: string, context?: string, signal?: AbortSignal) =>
   apiFetch<{ result: string }>("/research", {
     method: "POST",
     body: JSON.stringify({ prompt, model, context }),
     signal,
   });
 
-export const generateTasks = (topic: string, model: string) =>
+export const lightResearch = (topic: string, model: string) =>
   apiFetch<{ tasks: Task[] }>("/research/generate-tasks", {
     method: "POST",
     body: JSON.stringify({ topic, model }),

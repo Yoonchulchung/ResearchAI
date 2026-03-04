@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { generateTasks, createSession, getModels } from "@/lib/api";
+import { lightResearch, createSession, getModels } from "@/lib/api";
 import { Task, ModelDefinition } from "@/types";
 import { TopicInput } from "@/components/TopicInput";
 import { ModelSelector } from "@/components/ModelSelector";
@@ -31,7 +31,7 @@ export default function NewSession() {
     setGenerating(true);
     setError("");
     try {
-      const { tasks: generated } = await generateTasks(topic.trim(), selectedApiModel);
+      const { tasks: generated } = await lightResearch(topic.trim(), selectedApiModel);
       setTasks(generated);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "태스크 생성 실패");
@@ -40,7 +40,7 @@ export default function NewSession() {
     }
   };
 
-  const handleStart = async () => {
+  const handleResearchStart = async () => {
     if (!topic.trim() || tasks.length === 0) return;
     setCreating(true);
     setError("");
@@ -182,11 +182,11 @@ export default function NewSession() {
           {/* Start button */}
           {tasks.length > 0 && (
             <button
-              onClick={handleStart}
+              onClick={handleResearchStart}
               disabled={creating || !topic.trim()}
               className="w-full bg-linear-to-r from-indigo-600 to-indigo-500 text-white font-bold text-base py-4 rounded-2xl hover:from-indigo-700 hover:to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-200"
             >
-              {creating ? "⏳ 세션 생성 중..." : "🚀 리서치 세션 시작"}
+              {creating ? "⏳ 세션 생성 중..." : "리서치 세션 시작"}
             </button>
           )}
         </div>

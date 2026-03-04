@@ -10,7 +10,7 @@ import {
   useMemo,
 } from "react";
 import { Task, SearchSources } from "@/types";
-import { searchPipelineStream, runResearch, saveTaskResult } from "@/lib/api";
+import { searchPipelineStream, deepResearch, saveTaskResult } from "@/lib/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -116,7 +116,7 @@ export function ResearchQueueProvider({ children }: { children: React.ReactNode 
       updateJob(job.jobId, { phase: "analyzing" });
 
       try {
-        const { result } = await runResearch(
+        const { result } = await deepResearch(
           job.taskPrompt,
           job.model,
           context || undefined,
