@@ -48,6 +48,52 @@ export const searchPipeline = (prompt: string, signal?: AbortSignal) =>
     signal,
   });
 
+export async function searchPipelineStream(
+  prompt: string,
+  onSource: (key: keyof SearchSources, result: string) => void,
+  signal?: AbortSignal,
+): Promise<{ sources: SearchSources; context: string }> {
+  const res = await fetch(`${API_BASE}/research/search/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+    signal,
+  });
+
+  if (!res.ok || !res.body) throw new Error("Search stream failed");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === "source") {
+            onSource(event.key, event.result);
+          } else if (event.type === "done") {
+            return { sources: event.sources, context: event.context };
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return { sources: {}, context: "" };
+}
+
 export const runResearch = (prompt: string, model: string, context?: string, signal?: AbortSignal) =>
   apiFetch<{ result: string }>("/research", {
     method: "POST",
@@ -93,7 +139,10 @@ export const getAnthropicUsage = () =>
 export const getTavilyOverview = () =>
   apiFetch<{
     configured: boolean;
-    usage: { used?: number; limit?: number; plan_id?: string; [key: string]: any } | null;
+    usage: {
+      key: { usage: number; limit: number | null; search_usage: number; crawl_usage: number; extract_usage: number; map_usage: number; research_usage: number };
+      account: { current_plan: string; plan_usage: number; plan_limit: number | null; search_usage: number; crawl_usage: number; extract_usage: number; map_usage: number; research_usage: number; paygo_usage: number; paygo_limit: number | null };
+    } | null;
     apiKey: string | null;
   }>("/research/tavily/overview");
 

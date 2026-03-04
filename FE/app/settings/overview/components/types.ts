@@ -1,6 +1,25 @@
+type TavilyUsageBreakdown = {
+  usage: number;
+  limit: number | null;
+  search_usage: number;
+  crawl_usage: number;
+  extract_usage: number;
+  map_usage: number;
+  research_usage: number;
+};
+
 export type TavilyOverview = {
   configured: boolean;
-  usage: { used?: number; limit?: number; plan_id?: string; [key: string]: any } | null;
+  usage: {
+    key: TavilyUsageBreakdown;
+    account: TavilyUsageBreakdown & {
+      current_plan: string;
+      plan_usage: number;
+      plan_limit: number | null;
+      paygo_usage: number;
+      paygo_limit: number | null;
+    };
+  } | null;
   apiKey: string | null;
 };
 

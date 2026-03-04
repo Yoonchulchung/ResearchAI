@@ -14,6 +14,10 @@ export interface SearchSources {
   ollama?: string;
 }
 
+export type SearchStreamEvent =
+  | { type: 'source'; key: keyof SearchSources; result: string }
+  | { type: 'done'; sources: SearchSources; context: string };
+
 const TTL_MS = 60_000; // 60초 캐시
 
 function makeCache<T>() {
@@ -235,6 +239,84 @@ export class ResearchService {
     }
     const { combined, sources } = await this.runSearchPipeline(prompt);
     return { sources, context: combined };
+  }
+
+  // ─── 검색 파이프라인 SSE 스트리밍 ──────────────────────────────────────────
+
+  async *runSearchStream(query: string): AsyncGenerator<SearchStreamEvent> {
+    if (!this.hasExternalSearch()) {
+      yield { type: 'done', sources: {}, context: '' };
+      return;
+    }
+
+    const tasks: { key: keyof SearchSources; fn: () => Promise<string> }[] = [];
+    if (process.env.TAVILY_API_KEY && !process.env.TAVILY_API_KEY.startsWith('your_')) {
+      tasks.push({ key: 'tavily', fn: () => this.searchTavily(query) });
+    }
+    if (process.env.SERPER_API_KEY && !process.env.SERPER_API_KEY.startsWith('your_')) {
+      tasks.push({ key: 'serper', fn: () => this.searchSerper(query) });
+    }
+    if (process.env.NAVER_CLIENT_ID && !process.env.NAVER_CLIENT_ID.startsWith('your_')) {
+      tasks.push({ key: 'naver', fn: () => this.searchNaver(query) });
+    }
+    if (process.env.BRAVE_API_KEY && !process.env.BRAVE_API_KEY.startsWith('your_')) {
+      tasks.push({ key: 'brave', fn: () => this.searchBrave(query) });
+    }
+
+    if (tasks.length === 0) {
+      yield { type: 'done', sources: {}, context: '' };
+      return;
+    }
+
+    const queue: SearchStreamEvent[] = [];
+    let waiter: (() => void) | null = null;
+    const emit = (event: SearchStreamEvent) => {
+      queue.push(event);
+      if (waiter) { const w = waiter; waiter = null; w(); }
+    };
+
+    const sources: SearchSources = {};
+    const parts: string[] = [];
+    let completed = 0;
+
+    const runOllama = async () => {
+      const raw = parts.join('\n\n---\n\n');
+      try {
+        const filtered = await this.filterWithOllama(query, raw);
+        if (filtered && filtered !== raw) {
+          sources.ollama = filtered;
+          emit({ type: 'source', key: 'ollama', result: filtered });
+        }
+        emit({ type: 'done', sources, context: filtered || raw });
+      } catch {
+        emit({ type: 'done', sources, context: raw });
+      }
+    };
+
+    for (const { key, fn } of tasks) {
+      fn()
+        .then((result) => {
+          if (result) {
+            sources[key] = result;
+            parts.push(result);
+            emit({ type: 'source', key, result });
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          completed++;
+          if (completed === tasks.length) runOllama();
+        });
+    }
+
+    while (true) {
+      while (queue.length > 0) {
+        const event = queue.shift()!;
+        yield event;
+        if (event.type === 'done') return;
+      }
+      await new Promise<void>((resolve) => { waiter = resolve; });
+    }
   }
 
   // ─── AI 분석 실행 ────────────────────────────────────────────────────────────

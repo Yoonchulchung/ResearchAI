@@ -38,16 +38,16 @@ export function TaskCard({
   const availableSources = SOURCE_LABELS.filter((s) => sources?.[s.key]);
   const hasContent = !!result || availableSources.length > 0;
 
-  // 소스가 새로 생기면 자동 펼침
+  // 소스가 새로 생기면 자동 펼침 (검색/분석 단계 모두)
   useEffect(() => {
-    if (availableSources.length > 0 && status === "loading" && phase === "analyzing") {
+    if (availableSources.length > 0 && status === "loading") {
       setExpanded(true);
       if (activeTab === "result" && !result) {
         setActiveTab(availableSources[0].key);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableSources.length, phase]);
+  }, [availableSources.length]);
 
   // 분석 완료 시 AI 결과 탭으로 이동
   useEffect(() => {
@@ -56,32 +56,40 @@ export function TaskCard({
     }
   }, [status, result]);
 
-  const borderColor = {
+  const borderColorMap: Record<string, string> = {
     done: "#22c55e",
     loading: "#6366f1",
+    queued: "#f59e0b",
     error: "#ef4444",
     idle: "#e2e8f0",
-  }[status];
+  };
+  const borderColor = borderColorMap[status] ?? "#e2e8f0";
 
-  const badgeStyle = {
+  const badgeStyleMap: Record<string, string> = {
     done: "bg-green-100 text-green-700",
     loading: "bg-indigo-100 text-indigo-700",
+    queued: "bg-amber-100 text-amber-700",
     error: "bg-red-100 text-red-700",
     idle: "bg-slate-100 text-slate-500",
-  }[status];
+  };
+  const badgeStyle = badgeStyleMap[status] ?? "bg-slate-100 text-slate-500";
 
-  const badgeLabel = {
+  const badgeLabelMap: Record<string, string> = {
     done: "완료",
     loading: phase === "searching" ? "검색 중" : "분석 중",
+    queued: "대기 중",
     error: "오류",
     idle: "대기",
-  }[status];
+  };
+  const badgeLabel = badgeLabelMap[status] ?? "대기";
 
   const subText =
     status === "idle"
       ? "클릭하여 분석 시작"
+      : status === "queued"
+      ? "⏳ 큐 대기 중..."
       : status === "loading" && phase === "searching"
-      ? "🔍 웹 검색 중..."
+      ? `🔍 웹 검색 중...${availableSources.length > 0 ? ` · ${availableSources.length}개 완료` : ""}`
       : status === "loading" && phase === "analyzing"
       ? `🤖 AI 분석 중...${hasContent ? " · 클릭하여 검색 결과 보기" : ""}`
       : status === "done"
@@ -129,6 +137,15 @@ export function TaskCard({
               title="중단"
             >
               ✕
+            </button>
+          )}
+          {status === "error" && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRun(); }}
+              className="text-xs font-semibold text-slate-400 hover:text-indigo-500 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+              title="재시도"
+            >
+              ↺
             </button>
           )}
         </div>

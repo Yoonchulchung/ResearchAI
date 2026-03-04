@@ -13,7 +13,7 @@ export interface SearchSources {
   ollama?: string;
 }
 
-export type TaskStatus = "idle" | "loading" | "done" | "error";
+export type TaskStatus = "idle" | "queued" | "loading" | "done" | "error";
 
 export type Provider = "anthropic" | "openai" | "google" | "ollama";
 

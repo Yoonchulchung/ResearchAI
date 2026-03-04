@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { getSessions, deleteSession } from "../lib/api";
 import { Session } from "../types";
 import { SettingsMenu } from "./SettingsMenu";
+import { QueueWidget } from "./QueueWidget";
 
 type SessionSummary = Omit<Session, "results"> & { doneCount: number };
 
@@ -25,6 +26,7 @@ function StatusDot({ status }: { status: "idle" | "partial" | "done" }) {
   }[status];
   return <span className={`w-2 h-2 rounded-full shrink-0 ${cls}`} />;
 }
+
 
 export function Sidebar() {
   const router = useRouter();
@@ -96,6 +98,7 @@ export function Sidebar() {
             <div className="px-2 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
               리서치 목록 ({sessions.length})
             </div>
+            <QueueWidget />
             {sessions.map((s) => {
               const total = s.tasks.length;
               const done = s.doneCount;
