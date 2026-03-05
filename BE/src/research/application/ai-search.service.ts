@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { LightResearchPipelineService } from './pipeline/light-research-pipeline.service';
+import { LightResearchPipelineService, LightResearchEvent } from './pipeline/light-research-pipeline.service';
 import { DeepResearchPipelineService } from './pipeline/deep-research-pipeline.service';
+import { SearchSource } from './search-planner.service';
 
 @Injectable()
 export class AiSearchService {
@@ -10,9 +11,17 @@ export class AiSearchService {
   ) {}
 
   // FE에서 첫 서치 요청하면 이쪽으로 들어옴.
-  // Tavily 검색 (선택적) → AI로 조사 항목(태스크) 목록 생성
-  async lightResearch(topic: string, model: string) {
-    return this.lightPipeline.run(topic, model);
+  // Ollama 라우터 → 검색 소스 결정 → AI로 조사 항목(태스크) 목록 생성
+  async lightResearch(topic: string, model: string, searchMode: SearchSource | 'auto' = 'auto') {
+    return this.lightPipeline.run(topic, model, searchMode);
+  }
+
+  lightResearchStream(
+    topic: string,
+    model: string,
+    searchMode: SearchSource | 'auto' = 'auto',
+  ): AsyncGenerator<LightResearchEvent> {
+    return this.lightPipeline.runStream(topic, model, searchMode);
   }
 
   // FE에서 첫 서치 이후 세부 서치 요청을 요청하면 이쪽으로 들어옴.
@@ -25,7 +34,7 @@ export class AiSearchService {
   async testGenerateTasks(
     topic: string,
     model: string,
-    opts?: { customPrompt?: string; customSystem?: string },
+    opts?: { customPrompt?: string; customSystem?: string; searchMode?: SearchSource | 'auto' },
   ) {
     return this.lightPipeline.testRun(topic, model, opts);
   }

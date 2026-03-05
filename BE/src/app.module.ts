@@ -5,6 +5,7 @@ import { SessionsModule } from './sessions/sessions.module';
 import { OverviewModule } from './overview/overview.module';
 import { QueueModule } from './queue/queue.module';
 import { ChatModule } from './chat/chat.module';
+import { RecruitModule } from './recruit/recruit.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ChatModule } from './chat/chat.module';
     OverviewModule,
     QueueModule,
     ChatModule,
+    RecruitModule,
   ],
 })
 export class AppModule {}

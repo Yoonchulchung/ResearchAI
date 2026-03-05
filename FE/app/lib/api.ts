@@ -95,17 +95,69 @@ export async function searchPipelineStream(
 }
 
 export const deepResearch = (prompt: string, model: string, context?: string, signal?: AbortSignal) =>
-  apiFetch<{ result: string }>("/research", {
+  apiFetch<{ result: string }>("/research/deep-search", {
     method: "POST",
     body: JSON.stringify({ prompt, model, context }),
     signal,
   });
 
 export const lightResearch = (topic: string, model: string) =>
-  apiFetch<{ tasks: Task[] }>("/research/generate-tasks", {
+  apiFetch<{ tasks: Task[]; searchPlan?: { source: "web" | "recruit" | "both"; reason: string } }>(
+    "/research/light-search",
+    {
+      method: "POST",
+      body: JSON.stringify({ topic, model }),
+    }
+  );
+
+export type LightResearchEvent =
+  | { type: "start" }
+  | { type: "plan"; source: "web" | "recruit" | "both"; reason: string }
+  | { type: "searching"; target: "web" | "recruit" }
+  | { type: "generating"; model: string }
+  | { type: "done"; tasks: Task[]; searchPlan: { source: "web" | "recruit" | "both"; reason: string } };
+
+export async function lightResearchStream(
+  topic: string,
+  model: string,
+  onEvent: (event: LightResearchEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/research/light-search/stream`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ topic, model }),
+    signal,
   });
+
+  if (!res.ok || !res.body) throw new Error("light-search stream 실패");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const event = JSON.parse(line.slice(6)) as LightResearchEvent;
+          onEvent(event);
+          if (event.type === "done") return;
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
 
 export const getPromptTemplates = () =>
   apiFetch<{ generateTasks: string; system: string; ollamaFilter: string }>("/overview/prompts");
@@ -116,7 +168,7 @@ export const testGenerateTasks = (
   opts?: { customPrompt?: string; customSystem?: string }
 ) =>
   apiFetch<{ tasks: Task[]; searchContext?: string; fullPrompt: string }>(
-    "/research/test/generate-tasks",
+    "/research/test/light-search",
     { method: "POST", body: JSON.stringify({ topic, model, ...opts }) }
   );
 

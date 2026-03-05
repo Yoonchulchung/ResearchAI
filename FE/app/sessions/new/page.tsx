@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { lightResearch, createSession, getModels } from "@/lib/api";
+import { lightResearchStream, createSession, getModels } from "@/lib/api";
 import { Task, ModelDefinition } from "@/types";
 import { TopicInput } from "@/components/TopicInput";
 import { ModelSelector } from "@/components/ModelSelector";
@@ -15,7 +15,9 @@ export default function NewSession() {
   const [selectedLocalModel, setSelectedLocalModel] = useState("");
   const [topic, setTopic] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [searchSource, setSearchSource] = useState<"web" | "recruit" | "both" | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [progressStep, setProgressStep] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const taskListRef = useRef<HTMLDivElement>(null);
@@ -31,13 +33,33 @@ export default function NewSession() {
   const handleGenerate = async () => {
     if (!topic.trim()) return;
     setGenerating(true);
+    setProgressStep("시작 중...");
     setError("");
     try {
-      const { tasks: generated } = await lightResearch(topic.trim(), selectedApiModel);
-      setTasks(generated);
-      setTimeout(() => taskListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+      await lightResearchStream(
+        topic.trim(),
+        selectedApiModel,
+        (event) => {
+          if (event.type === "start") {
+            setProgressStep("검색 소스 결정 중...");
+          } else if (event.type === "plan") {
+            const label = event.source === "web" ? "웹" : event.source === "recruit" ? "채용 공고" : "웹 + 채용 공고";
+            setProgressStep(`${label} 검색 예정`);
+          } else if (event.type === "searching") {
+            setProgressStep(event.target === "web" ? "웹 검색 중..." : "채용 공고 검색 중...");
+          } else if (event.type === "generating") {
+            setProgressStep("AI 조사 항목 생성 중...");
+          } else if (event.type === "done") {
+            setTasks(event.tasks);
+            setSearchSource(event.searchPlan.source);
+            setProgressStep(null);
+            setTimeout(() => taskListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+          }
+        },
+      );
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "태스크 생성 실패");
+      setProgressStep(null);
     } finally {
       setGenerating(false);
     }
@@ -118,6 +140,14 @@ export default function NewSession() {
             onLocalModelChange={setSelectedLocalModel}
           />
 
+          {/* Progress */}
+          {progressStep && (
+            <div className="flex items-center gap-3 text-sm text-slate-500 px-1">
+              <span className="inline-block w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin shrink-0" />
+              {progressStep}
+            </div>
+          )}
+
           {/* Error */}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm">
@@ -132,6 +162,7 @@ export default function NewSession() {
               onUpdate={updateTask}
               onRemove={removeTask}
               onAdd={addTask}
+              searchSource={searchSource}
             />
           </div>
 

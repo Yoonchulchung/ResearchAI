@@ -27,6 +27,8 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@tavily/core": "^0.7.2",
+    "better-sqlite3": "^12.6.2",
+    "cheerio": "^1.2.0",
     "openai": "^6.25.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
@@ -37,6 +39,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
@@ -72,5 +75,10 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
   }
 }

@@ -2,24 +2,34 @@
 
 import { Task } from "@/types";
 
+const SOURCE_LABEL: Record<string, string> = {
+  web: "웹 조사 항목",
+  recruit: "채용 조사 항목",
+  both: "웹 + 채용 조사 항목",
+};
+
 export function TaskList({
   tasks,
   onUpdate,
   onRemove,
   onAdd,
+  searchSource,
 }: {
   tasks: Task[];
   onUpdate: (idx: number, field: keyof Task, value: string) => void;
   onRemove: (idx: number) => void;
   onAdd: () => void;
+  searchSource?: "web" | "recruit" | "both" | null;
 }) {
   if (tasks.length === 0) return null;
+
+  const label = searchSource ? SOURCE_LABEL[searchSource] : "조사 항목";
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-slate-700">
-          조사 항목 ({tasks.length}개)
+          {label} ({tasks.length}개)
         </h2>
         <p className="text-xs text-slate-400">수정하거나 직접 추가 가능</p>
       </div>
