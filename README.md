@@ -1,113 +1,138 @@
 # ResearchAI
 
-**맥북 에어 16GB / 24GB에서 로컬 AI + 클라우드 AI를 함께 사용하는 리서치 자동화 도구**
-
-주제를 입력하면 AI가 조사 항목을 자동 생성하고, 각 항목을 병렬로 리서치해 마크다운 보고서로 정리합니다.
-클라우드 API 없이 Ollama 로컬 모델만으로도 완전히 동작합니다.
+주제를 입력하면 AI가 리서치 항목을 자동 생성하고, 웹 검색 + AI 분석을 통해 구조화된 보고서를 만들어주는 도구입니다.
+클라우드 API 없이 Ollama 로컬 모델만으로도 동작합니다.
 
 ---
 
-## 특징
-
-- **로컬 + 클라우드 동시 선택** — 태스크 생성은 API 모델로, 검색 필터링은 Ollama 로컬 모델로 역할 분담
-- **맥북 에어 24GB 최적화** — llama3.2:3b, qwen2.5:7b, gemma2:9b 등 메모리 효율 모델 권장
-- **다중 검색 파이프라인** — Tavily · Serper · 네이버 · Brave 를 병렬 실행 후 Ollama로 압축
-- **클라우드 AI 지원** — Claude (Anthropic) · GPT (OpenAI) · Gemini (Google) 전환 가능
-- **실시간 진행 확인** — 검색 결과와 AI 분석을 탭으로 분리해 단계별로 확인
-- **프롬프트 테스트** — 설정 페이지에서 태스크 생성 파이프라인을 API / 로컬 모델별로 직접 실험
-
----
-
-## 구조
+## 동작 방식 (한눈에)
 
 ```
-ResearchAI/
-├── BE/   # NestJS 백엔드 (포트 3001)
-└── FE/   # Next.js 프론트엔드 (포트 3000)
+① 주제 입력
+    "FastAPI 신입 채용 공고 찾아줘. 대기업·외국계 위주로"
+         │
+         ▼
+② [LightResearch] 검색 계획 수립 (Ollama)
+    → source: "recruit", keyword: "FastAPI 백엔드",
+      companyTypes: ["대기업", "외국계"], jobTypes: ["신입"]
+         │
+         ├─ 웹 검색 (Tavily)            ← source가 "web" 또는 "both"일 때
+         └─ 채용 공고 크롤링 (사람인)    ← source가 "recruit" 또는 "both"일 때
+               • 기업유형 필터 (emp_tp)
+               • 경력 구분 필터 (career_cd / job_type)
+         │
+         ▼
+③ AI → 5~7개 리서치 태스크 생성
+    [{"title": "FastAPI 백엔드 신입 우대 스킬", ...}, ...]
+         │
+         ▼
+④ [DeepResearch] 태스크별 분석 (순차 실행)
+    Phase 1: 웹 검색 병렬 실행 (Tavily / Serper / Naver / Brave)
+    Phase 2: AI 분석 → 마크다운 보고서 생성
+         │
+         ▼
+⑤ RAG 채팅
+    Qdrant 시맨틱 검색 → 관련 리서치 청크 → AI 응답
 ```
 
 ---
 
-## 시작하기
+## 기능
 
-### 1. Ollama 설치 (로컬 AI)
+| 기능 | 설명 |
+|------|------|
+| **검색 소스 자동 판단** | Ollama가 주제를 보고 웹 / 채용 공고 / 둘 다 중 선택 |
+| **채용 공고 검색** | 사람인 크롤러 (기업유형·경력 필터 지원) |
+| **멀티 검색 엔진** | Tavily · Serper · Naver · Brave 병렬 실행 |
+| **다중 AI 지원** | Claude · GPT · Gemini · Ollama 전환 가능 |
+| **벡터 RAG 채팅** | Qdrant 시맨틱 검색 기반 Q&A |
+| **실시간 진행 확인** | SSE로 단계별 로그 스트리밍 |
+| **검색 중단** | 진행 중 검색을 언제든 취소 가능 |
+
+---
+
+## 빠른 시작
+
+### 사전 요구사항
+
+- Node.js 20+
+- Docker (Qdrant 벡터 DB)
+- Ollama (로컬 AI / 검색 계획 / 임베딩)
+
+### 1. Ollama 모델 준비
 
 ```bash
-# https://ollama.com 에서 설치 후
-ollama pull llama3.2:3b      # 맥북 에어 16GB 이상 권장
-ollama pull qwen2.5:7b       # 24GB 권장
-ollama pull gemma2:9b        # 24GB 권장
+ollama pull llama3.1         # 검색 계획·필터링용 (필수)
+ollama pull nomic-embed-text # RAG 임베딩용 (필수)
+ollama pull llama3.2:3b      # 가벼운 모델 (16GB 이상)
 ```
 
-### 2. 백엔드 설정
+### 2. 환경 변수 설정
 
 ```bash
-cd BE
-cp .env.example .env
-# .env 파일에서 사용할 API 키 입력
-npm install
-npm run start:dev
+cp BE/.env.example BE/.env
+# BE/.env 에 API 키 입력
 ```
 
-### 3. 프론트엔드 실행
+최소 **클라우드 AI 키 1개** + **웹 검색 키 1개** 이상을 권장합니다.
+
+### 3. 실행
 
 ```bash
-cd FE
-npm install
-npm run dev
+./run.sh
 ```
 
-브라우저에서 `http://localhost:3000` 접속
+`run.sh`가 자동으로: Qdrant 시작 → 의존성 설치 → 백엔드(3001) + 프론트엔드(3000) 동시 실행
+→ **http://localhost:3000** 접속
 
 ---
 
-## 환경 변수 (.env)
+## 환경 변수 요약
 
-### 클라우드 AI (하나 이상 설정)
+### 클라우드 AI
 
-| 변수 | 발급처 |
-|------|--------|
-| `ANTHROPIC_API_KEY` | https://console.anthropic.com |
-| `OPENAI_API_KEY` | https://platform.openai.com |
-| `GOOGLE_API_KEY` | https://aistudio.google.com |
+```env
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GOOGLE_API_KEY=AIz...
+```
 
-### 웹 검색 (선택, 하나 이상 설정 시 파이프라인 활성화)
+### 웹 검색
 
-| 변수 | 무료 한도 | 발급처 |
-|------|-----------|--------|
-| `TAVILY_API_KEY` | 1,000회/월 | https://app.tavily.com |
-| `SERPER_API_KEY` | 2,500회 | https://serper.dev |
-| `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 한국어 특화 | https://developers.naver.com |
-| `BRAVE_API_KEY` | 2,000회/월 | https://api.search.brave.com |
+```env
+TAVILY_API_KEY=tvly-...     # 무료 1,000회/월
+SERPER_API_KEY=...           # 무료 2,500회
+NAVER_CLIENT_ID=...          # 한국어 검색
+NAVER_CLIENT_SECRET=...
+BRAVE_API_KEY=...            # 무료 2,000회/월
+```
 
-검색 API를 설정하지 않으면 각 클라우드 모델의 내장 웹 검색을 사용합니다.
-
-### 로컬 AI (Ollama)
+### Ollama
 
 ```env
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.2:3b   # 검색 결과 압축에 사용
+OLLAMA_PLANNER_MODEL=llama3.1    # 검색 계획 (web/recruit/both 판단)
+OLLAMA_MODEL=llama3.2:3b         # 웹 검색 결과 필터링
+OLLAMA_EMBED_MODEL=nomic-embed-text
+OLLAMA_COMPRESS_MODEL=llama3.1   # RAG 컨텍스트 압축
 ```
-
----
-
-## 로컬 모델 선택 가이드 (맥 기준)
-
-| 모델 | 권장 메모리 | 특징 |
-|------|-------------|------|
-| `llama3.2:3b` | 8GB+ | 빠른 응답, 영어 중심 |
-| `qwen2.5:7b` | 16GB+ | 한국어·중국어 강점 |
-| `gemma2:9b` | 24GB+ | 균형 잡힌 성능 |
-| `phi4` | 16GB+ | 추론 특화, MS |
-
-맥북 에어 24GB 환경에서는 `qwen2.5:7b` 또는 `gemma2:9b`를 권장합니다.
 
 ---
 
 ## 기술 스택
 
-- **Backend** — NestJS · TypeScript
-- **Frontend** — Next.js 14 · Tailwind CSS
-- **Local AI** — Ollama (OpenAI-compatible API)
-- **Cloud AI** — Anthropic SDK · OpenAI SDK · Google GenAI SDK
-- **Search** — Tavily SDK · Serper · Naver Search API · Brave Search API
+```
+Backend   NestJS + TypeScript       :3001
+Frontend  Next.js 14 + Tailwind     :3000
+Vector DB Qdrant                    :6333 (Docker)
+Local AI  Ollama                    :11434
+```
+
+---
+
+## 문서
+
+| 파일 | 내용 |
+|------|------|
+| [docs/architecture.md](./docs/architecture.md) | 전체 아키텍처, 모듈 구조, 데이터 흐름 |
+| [docs/api-reference.md](./docs/api-reference.md) | API 엔드포인트 레퍼런스 |

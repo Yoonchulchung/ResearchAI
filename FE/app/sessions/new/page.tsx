@@ -35,6 +35,7 @@ export default function NewSession() {
   const [error, setError] = useState("");
   const [initialized, setInitialized] = useState(false);
   const taskListRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Restore draft on mount
   useEffect(() => {
@@ -77,6 +78,8 @@ export default function NewSession() {
 
   const handleGenerate = async () => {
     if (!topic.trim()) return;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setGenerating(true);
     setProgressStep("시작 중...");
     setTerminalLogs([]);
@@ -102,15 +105,26 @@ export default function NewSession() {
             setTimeout(() => taskListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
           }
         },
+        controller.signal,
       );
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "태스크 생성 실패";
-      setError(msg);
-      setProgressStep(null);
-      pushLog(`오류: ${msg}`);
+      if (e instanceof Error && e.name === "AbortError") {
+        setProgressStep(null);
+        pushLog("검색이 중단되었습니다.");
+      } else {
+        const msg = e instanceof Error ? e.message : "태스크 생성 실패";
+        setError(msg);
+        setProgressStep(null);
+        pushLog(`오류: ${msg}`);
+      }
     } finally {
+      abortControllerRef.current = null;
       setGenerating(false);
     }
+  };
+
+  const handleCancel = () => {
+    abortControllerRef.current?.abort();
   };
 
   const handleResearchStart = async () => {
@@ -189,7 +203,11 @@ export default function NewSession() {
           />
 
           {/* Terminal log */}
-          <PipelineTerminal logs={terminalLogs} progressStep={progressStep} />
+          <PipelineTerminal
+            logs={terminalLogs}
+            progressStep={progressStep}
+            onCancel={generating ? handleCancel : undefined}
+          />
 
           {/* Error */}
           {error && (

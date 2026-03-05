@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Body, Res } from '@nestjs/common';
-import type { Response } from 'express';
+import { Controller, Get, Post, Body, Res, Req } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { ModelsService } from '../application/models.service';
 import { WebSearchService } from '../application/web-search.service';
 import { AiSearchService } from '../application/ai-search.service';
@@ -45,6 +45,7 @@ export class ResearchController {
   @Post('light-search/stream')
   async lightResearchStream(
     @Body() body: { topic: string; model: string; searchMode?: SearchSource | 'auto' },
+    @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
     res.setHeader('Content-Type', 'text/event-stream');
@@ -52,10 +53,14 @@ export class ResearchController {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
+    let aborted = false;
+    req.on('close', () => { aborted = true; });
+
     try {
       for await (const event of this.aiService.lightResearchStream(
         body.topic, body.model, body.searchMode ?? 'auto',
       )) {
+        if (aborted) break;
         res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
     } finally {

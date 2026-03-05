@@ -3,6 +3,7 @@ import { useRef, useEffect, useState } from "react";
 interface PipelineTerminalProps {
   logs: string[];
   progressStep: string | null;
+  onCancel?: () => void;
 }
 
 interface TypingState {
@@ -42,7 +43,7 @@ function LogLines({
   );
 }
 
-export function PipelineTerminal({ logs, progressStep }: PipelineTerminalProps) {
+export function PipelineTerminal({ logs, progressStep, onCancel }: PipelineTerminalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const modalScrollRef = useRef<HTMLDivElement>(null);
   const logsRef = useRef(logs);
@@ -140,6 +141,15 @@ export function PipelineTerminal({ logs, progressStep }: PipelineTerminalProps) 
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
             {progressStep}
           </span>
+        )}
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="text-xs font-semibold text-slate-400 hover:text-red-500 px-2 py-0.5 rounded-md hover:bg-red-50 transition-colors"
+            title="검색 중단"
+          >
+            중단
+          </button>
         )}
         {onExpand && (
           <button
