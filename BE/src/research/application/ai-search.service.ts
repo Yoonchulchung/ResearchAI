@@ -10,12 +10,7 @@ export class AiSearchService {
     private readonly deepPipeline: DeepResearchPipelineService,
   ) {}
 
-  // FE에서 첫 서치 요청하면 이쪽으로 들어옴.
   // Ollama 라우터 → 검색 소스 결정 → AI로 조사 항목(태스크) 목록 생성
-  async lightResearch(topic: string, model: string, searchMode: SearchSource | 'auto' = 'auto') {
-    return this.lightPipeline.run(topic, model, searchMode);
-  }
-
   lightResearchStream(
     topic: string,
     model: string,
@@ -23,7 +18,7 @@ export class AiSearchService {
   ): AsyncGenerator<LightResearchEvent> {
     return this.lightPipeline.runStream(topic, model, searchMode);
   }
-
+  
   // FE에서 첫 서치 이후 세부 서치 요청을 요청하면 이쪽으로 들어옴.
   // Tavily 등 외부 검색 → Claude 심층 분석
   async deepResearch(prompt: string, model: string, context = '') {

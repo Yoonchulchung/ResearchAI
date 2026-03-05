@@ -15,6 +15,7 @@ export type LightResearchEvent =
   | { type: 'start' }
   | { type: 'plan'; source: SearchSource; reason: string }
   | { type: 'searching'; target: 'web' | 'recruit' }
+  | { type: 'log'; message: string }
   | { type: 'generating'; model: string }
   | { type: 'done'; tasks: any[]; searchPlan: SearchPlan };
 
@@ -46,121 +47,34 @@ export class LightResearchPipelineService {
     private readonly recruitContext: RecruitContextService,
   ) {}
 
-  // *********** //
-  // 파이프라인 실행 //
-  // *********** //
-  async run(
-    topic: string,
-    model: string,
-    searchMode: SearchSource | 'auto' = 'auto',
-  ): Promise<{ tasks: any[]; searchPlan: SearchPlan }> {
-    const { tasks, searchPlan } = await this.generate(topic, model, searchMode);
-    return { tasks, searchPlan };
-  }
-
   /** 파이프라인 테스트용 — fullPrompt, searchContext, searchPlan 포함 반환 */
   async testRun(
     topic: string,
     model: string,
     opts?: { customPrompt?: string; customSystem?: string; searchMode?: SearchSource | 'auto' },
   ) {
-    return this.generate(topic, model, opts?.searchMode ?? 'auto', opts);
-  }
-
-  // *************** //
-  // 파이프라인 상태 확인 //
-  // *************** //
-  async *runStream(
-    topic: string,
-    model: string,
-    searchMode: SearchSource | 'auto' = 'auto',
-  ): AsyncGenerator<LightResearchEvent> {
-    yield { type: 'start' };
-
-    // ── Step 0: 검색 소스 결정 ──
+    const searchMode = opts?.searchMode ?? 'auto';
     const searchPlan: SearchPlan = searchMode === 'auto'
       ? await this.planner.plan(topic)
-      : { source: searchMode, reason: '수동 지정' };
+      : { source: searchMode, reason: '수동 지정', keyword: topic };
 
-    yield { type: 'plan', source: searchPlan.source, reason: searchPlan.reason };
+    const { source, keyword } = searchPlan;
 
-    const { source } = searchPlan;
-    this.logger.log(`[LightSearch] ${source}`);
-
-    // ── Step 1a: 웹 검색 ──
     let webContext: string | undefined;
     if ((source === 'web' || source === 'both') && this.hasTavily()) {
-      yield { type: 'searching', target: 'web' };
-      try {
-        webContext = await searchTavily(topic);
-      } catch {
-        // 실패 시 무시
+      try { webContext = await searchTavily(keyword); } catch { /* 무시 */ }
+    }
+
+    let recruitCtx: string | undefined;
+    if (source === 'recruit' || source === 'both') {
+      for await (const event of this.recruitContext.liveSearch({ keyword, companyType: searchPlan.companyType })) {
+        if (event.type === 'result' && event.result) recruitCtx = event.result;
       }
     }
 
-    // ── Step 1b: 채용 공고 크롤러 실시간 실행 ──
-    let recruitCtx: string | undefined;
-    if (source === 'recruit' || source === 'both') {
-      yield { type: 'searching', target: 'recruit' };
-      const result = await this.recruitContext.liveSearch(topic);
-      this.logger.log(`[채용 공고 검색] ${result ? `${result.split('\n').length}줄 수집` : '결과 없음'}\n${result ?? ''}`);
-      if (result) recruitCtx = result;
-    }
-
-    // ── Step 2: AI 태스크 생성 ──
-    yield { type: 'generating', model };
-
-    const parts = [webContext, recruitCtx].filter(Boolean) as string[];
-    const searchContext = parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
-    const fullPrompt = source === 'recruit' && recruitCtx
-      ? PROMPTS.generateTasksForRecruit(topic, recruitCtx)
-      : PROMPTS.generateTasks(topic, searchContext);
-    const raw = await this.callAI(model, fullPrompt);
-    const jsonMatch = raw.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
-    const tasks = JSON.parse(jsonMatch[0]);
-
-    yield { type: 'done', tasks, searchPlan };
-  }
-
-  // ******************** //
-  // 파이프라인 - Deprecated //
-  // ******************** //
-  private async generate(
-    topic: string,
-    model: string,
-    searchMode: SearchSource | 'auto' = 'auto',
-    opts?: { customPrompt?: string; customSystem?: string },
-  ) {
-    // ── Step 0: 검색 소스 결정 ──
-    const searchPlan: SearchPlan = searchMode === 'auto'
-      ? await this.planner.plan(topic)
-      : { source: searchMode, reason: '수동 지정' };
-
-    const { source } = searchPlan;
-
-    // ── Step 1a: 웹 검색 ──
-    let webContext: string | undefined;
-    if ((source === 'web' || source === 'both') && this.hasTavily()) {
-      try {
-        webContext = await searchTavily(topic);
-      } catch {
-        // 실패 시 무시
-      }
-    }
-
-    // ── Step 1b: 채용 공고 크롤러 실시간 실행 ──
-    let recruitCtx: string | undefined;
-    if (source === 'recruit' || source === 'both') {
-      const result = await this.recruitContext.liveSearch(topic);
-      if (result) recruitCtx = result;
-    }
-
-    // ── context 합산 ──
     const parts = [webContext, recruitCtx].filter(Boolean) as string[];
     const searchContext = parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
 
-    // ── Step 2: AI 태스크 생성 ──
     const fullPrompt = opts?.customPrompt
       ? opts.customPrompt
           .replaceAll('{{topic}}', topic)
@@ -175,6 +89,77 @@ export class LightResearchPipelineService {
     const tasks = JSON.parse(jsonMatch[0]);
 
     return { tasks, searchContext, fullPrompt, searchPlan };
+  }
+
+  // *********** //
+  // 파이프라인 실행 //
+  // *********** //
+  async *runStream(
+    topic: string,
+    model: string,
+    searchMode: SearchSource | 'auto' = 'auto',
+  ): AsyncGenerator<LightResearchEvent> {
+    
+    yield* this.printFront(`검색 소스 결정 중...`);
+
+    const searchPlan: SearchPlan = searchMode === 'auto'
+      ? await this.planner.plan(topic)
+      : { source: searchMode, reason: '수동 지정', keyword: topic };
+
+    if (searchPlan.model) {
+      yield* this.printFront(`플래에 사용된 모델: ${searchPlan.model}`);
+      yield* this.printFront(`플랜 결과: ${searchPlan.source}`);
+      yield* this.printFront(`플랜 이유: ${searchPlan.reason}`);
+    }
+
+    const { source, keyword } = searchPlan;
+
+    let webContext: string | undefined;
+    if ((source === 'web' || source === 'both') && this.hasTavily()) {
+      yield* this.printFront(`웹 검색 중...`);
+
+      try {
+        webContext = await searchTavily(keyword);
+        const lines = webContext?.split('\n').length ?? 0;
+        yield* this.printFront(`웹 검색 완료 — ${lines}줄 수집`);
+      } catch {
+        yield* this.printFront('웹 검색 실패 (무시됨)');
+      }
+    }
+
+    let recruitCtx: string | undefined;
+    if (source === 'recruit' || source === 'both') {
+      yield* this.printFront(`채용 공고 검색을 시작하겠습니다. 잠시만 기다려주세요.`);
+      yield* this.printFront(`검색 키워드: ${keyword}${searchPlan.companyType ? ` / 기업유형: ${searchPlan.companyType}` : ''}`);
+
+      for await (const event of this.recruitContext.liveSearch({ keyword, companyType: searchPlan.companyType })) {
+        if (event.type === 'log') yield* this.printFront(event.message);
+        else if (event.type === 'result' && event.result) recruitCtx = event.result;
+      }
+    }
+
+    // ── Step 2: AI 태스크 생성 ──
+    yield* this.printFront(`AI 검색 실행을 시작하겠습니다. 잠시만 기다려주세요.`);
+    yield* this.printFront(`사용된 모델: ${model}`);
+
+    const parts = [webContext, recruitCtx].filter(Boolean) as string[];
+    const searchContext = parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
+    const fullPrompt = source === 'recruit' && recruitCtx
+      ? PROMPTS.generateTasksForRecruit(topic, recruitCtx)
+      : PROMPTS.generateTasks(topic, searchContext);
+    const raw = await this.callAI(model, fullPrompt);
+    const jsonMatch = raw.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
+    const tasks = JSON.parse(jsonMatch[0]);
+
+    this.logger.log(`[AI 답변] ${JSON.stringify(tasks, null, 2)}`);
+    yield* this.printFront(`AI 응답 — 태스크 ${tasks.length}개 파싱 완료`);
+
+    yield { type: 'done', tasks, searchPlan };
+  }
+
+  private *printFront(message: string): Generator<LightResearchEvent> {
+    yield { type: 'log', message };
   }
 
   private hasTavily(): boolean {

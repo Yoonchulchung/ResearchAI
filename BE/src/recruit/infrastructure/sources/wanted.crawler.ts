@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { JobPosting } from '../../domain/job-posting.model';
 import { CollectQuery, JobSource } from '../../domain/job-source.interface';
 
@@ -42,6 +41,8 @@ export class WantedCrawler implements JobSource {
       url.searchParams.set('offset', String(offset));
       url.searchParams.set('keyword', query.keyword);
 
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
       let data: WantedResponse;
       try {
         const res = await fetch(url.toString(), {
@@ -49,18 +50,24 @@ export class WantedCrawler implements JobSource {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
             'Accept': 'application/json',
             'Referer': `${BASE_URL}/`,
+            'Origin': BASE_URL,
           },
+          signal: controller.signal,
         });
-        if (!res.ok) break;
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         data = await res.json() as WantedResponse;
-      } catch {
-        break;
+      } catch (e) {
+        const name = (e as Error).name;
+        throw new Error(name === 'AbortError' ? '요청 시간 초과 (10s)' : String(e));
+      } finally {
+        clearTimeout(timer);
       }
 
       if (!data.data || data.data.length === 0) break;
 
       for (const job of data.data) {
         if (collected >= limit) break;
+        if (!job.title || !job.company?.name) continue;
 
         const skills = [
           ...(job.tags ?? []).map((t) => t.title),

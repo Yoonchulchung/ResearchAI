@@ -114,6 +114,7 @@ export type LightResearchEvent =
   | { type: "start" }
   | { type: "plan"; source: "web" | "recruit" | "both"; reason: string }
   | { type: "searching"; target: "web" | "recruit" }
+  | { type: "log"; message: string }
   | { type: "generating"; model: string }
   | { type: "done"; tasks: Task[]; searchPlan: { source: "web" | "recruit" | "both"; reason: string } };
 

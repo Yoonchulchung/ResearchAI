@@ -3,7 +3,6 @@ import { WebSearchService } from '../../research/application/web-search.service'
 import { AiSearchService } from '../../research/application/ai-search.service';
 import { SessionsService } from '../../sessions/application/sessions.service';
 import { SearchSources } from '../../research/domain/model/search-sources.model';
-import { filterWithOllama } from '../../research/infrastructure/search/ollama-filter.search';
 import { QueueJob } from '../domain/queue-job.model';
 
 export type OnJobUpdate = (updates: Partial<QueueJob>) => void;
@@ -36,18 +35,6 @@ export class JobRunnerService {
     }
 
     if (signal.aborted) return;
-
-    // 1-1. 백그라운드 Ollama filter (소스 탭 표시용, 분석 차단 안 함)
-    if (context) {
-      filterWithOllama(job.taskPrompt, context)
-        .then((filtered) => {
-          if (!filtered || signal.aborted) return;
-          localSources = { ...localSources, ollama: filtered };
-          onUpdate({ sources: { ...localSources } });
-          this.sessionsService.updateTaskSources(job.sessionId, job.taskId, { ollama: filtered });
-        })
-        .catch(() => {});
-    }
 
     // 2. AI 분석
     onUpdate({ phase: 'analyzing' });

@@ -42,11 +42,6 @@ export class ResearchController {
   // *** //
   // 서칭 //
   // *** //
-  @Post('light-search')
-  lightResearch(@Body() body: { topic: string; model: string; searchMode?: SearchSource | 'auto' }) {
-    return this.aiService.lightResearch(body.topic, body.model, body.searchMode ?? 'auto');
-  }
-
   @Post('light-search/stream')
   async lightResearchStream(
     @Body() body: { topic: string; model: string; searchMode?: SearchSource | 'auto' },

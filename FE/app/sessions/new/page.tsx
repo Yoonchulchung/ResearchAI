@@ -7,6 +7,18 @@ import { Task, ModelDefinition } from "@/types";
 import { TopicInput } from "@/components/TopicInput";
 import { ModelSelector } from "@/components/ModelSelector";
 import { TaskList } from "@/sessions/components/TaskList";
+import { PipelineTerminal } from "@/sessions/components/PipelineTerminal";
+
+const STORAGE_KEY = "new-session-draft";
+
+interface DraftState {
+  topic: string;
+  tasks: Task[];
+  searchSource: "web" | "recruit" | "both" | null;
+  terminalLogs: string[];
+  selectedApiModel: string;
+  selectedLocalModel: string;
+}
 
 export default function NewSession() {
   const router = useRouter();
@@ -18,9 +30,37 @@ export default function NewSession() {
   const [searchSource, setSearchSource] = useState<"web" | "recruit" | "both" | null>(null);
   const [generating, setGenerating] = useState(false);
   const [progressStep, setProgressStep] = useState<string | null>(null);
+  const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [initialized, setInitialized] = useState(false);
   const taskListRef = useRef<HTMLDivElement>(null);
+
+  // Restore draft on mount
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const draft: DraftState = JSON.parse(raw);
+        if (draft.topic) setTopic(draft.topic);
+        if (draft.tasks?.length) setTasks(draft.tasks);
+        if (draft.searchSource) setSearchSource(draft.searchSource);
+        if (draft.terminalLogs?.length) setTerminalLogs(draft.terminalLogs);
+        if (draft.selectedApiModel) setSelectedApiModel(draft.selectedApiModel);
+        if (draft.selectedLocalModel) setSelectedLocalModel(draft.selectedLocalModel);
+      }
+    } catch {}
+    setInitialized(true);
+  }, []);
+
+  // Persist draft — only after restore is complete
+  useEffect(() => {
+    if (!initialized) return;
+    try {
+      const draft: DraftState = { topic, tasks, searchSource, terminalLogs, selectedApiModel, selectedLocalModel };
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+    } catch {}
+  }, [initialized, topic, tasks, searchSource, terminalLogs, selectedApiModel, selectedLocalModel]);
 
   useEffect(() => {
     getModels().then((m) => {
@@ -30,25 +70,31 @@ export default function NewSession() {
     }).catch(() => {});
   }, []);
 
+  const pushLog = (line: string) => {
+    const ts = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    setTerminalLogs((prev) => [...prev, `[${ts}] ${line}`]);
+  };
+
   const handleGenerate = async () => {
     if (!topic.trim()) return;
     setGenerating(true);
     setProgressStep("시작 중...");
+    setTerminalLogs([]);
+    setTasks([]);
+    setSearchSource(null);
     setError("");
     try {
       await lightResearchStream(
         topic.trim(),
         selectedApiModel,
         (event) => {
-          if (event.type === "start") {
-            setProgressStep("검색 소스 결정 중...");
-          } else if (event.type === "plan") {
+          if (event.type === "plan") {
             const label = event.source === "web" ? "웹" : event.source === "recruit" ? "채용 공고" : "웹 + 채용 공고";
-            setProgressStep(`${label} 검색 예정`);
-          } else if (event.type === "searching") {
-            setProgressStep(event.target === "web" ? "웹 검색 중..." : "채용 공고 검색 중...");
+            setProgressStep(`${label} 검색 중...`);
           } else if (event.type === "generating") {
-            setProgressStep("AI 조사 항목 생성 중...");
+            setProgressStep("AI 태스크 생성 중...");
+          } else if (event.type === "log") {
+            pushLog(event.message);
           } else if (event.type === "done") {
             setTasks(event.tasks);
             setSearchSource(event.searchPlan.source);
@@ -58,8 +104,10 @@ export default function NewSession() {
         },
       );
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "태스크 생성 실패");
+      const msg = e instanceof Error ? e.message : "태스크 생성 실패";
+      setError(msg);
       setProgressStep(null);
+      pushLog(`오류: ${msg}`);
     } finally {
       setGenerating(false);
     }
@@ -140,13 +188,8 @@ export default function NewSession() {
             onLocalModelChange={setSelectedLocalModel}
           />
 
-          {/* Progress */}
-          {progressStep && (
-            <div className="flex items-center gap-3 text-sm text-slate-500 px-1">
-              <span className="inline-block w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin shrink-0" />
-              {progressStep}
-            </div>
-          )}
+          {/* Terminal log */}
+          <PipelineTerminal logs={terminalLogs} progressStep={progressStep} />
 
           {/* Error */}
           {error && (
