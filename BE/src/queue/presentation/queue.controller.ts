@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Delete, Param, Body, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { QueueService, EnqueueTaskDto } from './queue.service';
+import { QueueService } from '../application/queue.service';
+import { EnqueueTaskDto } from '../domain/enqueue-task.dto';
 
 @Controller('queue')
 export class QueueController {

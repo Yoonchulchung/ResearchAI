@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Delete, Put, Param, Body } from '@nestjs/common';
-import { SessionsService } from './sessions.service';
-import { SearchSources } from '../research/domain/model/search-sources.model';
+import { SessionsService } from '../application/sessions.service';
+import { SearchSources } from '../../research/domain/model/search-sources.model';
 
 @Controller('sessions')
 export class SessionsController {

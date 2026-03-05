@@ -1,0 +1,72 @@
+import { Injectable } from '@nestjs/common';
+import { WebSearchService } from '../../research/application/web-search.service';
+import { AiSearchService } from '../../research/application/ai-search.service';
+import { SessionsService } from '../../sessions/application/sessions.service';
+import { SearchSources } from '../../research/domain/model/search-sources.model';
+import { filterWithOllama } from '../../research/infrastructure/search/ollama-filter.search';
+import { QueueJob } from '../domain/queue-job.model';
+
+export type OnJobUpdate = (updates: Partial<QueueJob>) => void;
+
+@Injectable()
+export class JobRunnerService {
+  constructor(
+    private readonly searchService: WebSearchService,
+    private readonly aiService: AiSearchService,
+    private readonly sessionsService: SessionsService,
+  ) {}
+
+  async runJob(job: QueueJob, onUpdate: OnJobUpdate, signal: AbortSignal): Promise<void> {
+    let context = '';
+    let localSources: SearchSources = {};
+
+    // 1. 웹 검색 스트리밍
+    try {
+      for await (const event of this.searchService.runSearchStream(job.taskPrompt)) {
+        if (signal.aborted) return;
+        if (event.type === 'source') {
+          localSources = { ...localSources, [event.key]: event.result };
+          onUpdate({ sources: { ...localSources } });
+        } else if (event.type === 'done') {
+          context = event.context;
+        }
+      }
+    } catch (e) {
+      if (signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
+    }
+
+    if (signal.aborted) return;
+
+    // 1-1. 백그라운드 Ollama filter (소스 탭 표시용, 분석 차단 안 함)
+    if (context) {
+      filterWithOllama(job.taskPrompt, context)
+        .then((filtered) => {
+          if (!filtered || signal.aborted) return;
+          localSources = { ...localSources, ollama: filtered };
+          onUpdate({ sources: { ...localSources } });
+          this.sessionsService.updateTaskSources(job.sessionId, job.taskId, { ollama: filtered });
+        })
+        .catch(() => {});
+    }
+
+    // 2. AI 분석
+    onUpdate({ phase: 'analyzing' });
+
+    try {
+      const { result } = await this.aiService.deepResearch(
+        job.taskPrompt,
+        job.model,
+        context || undefined,
+      );
+      if (signal.aborted) return;
+      const sourcesToSave = Object.keys(localSources).length > 0 ? localSources : undefined;
+      await this.sessionsService.updateTask(job.sessionId, job.taskId, result, 'done', sourcesToSave);
+      onUpdate({ status: 'done', phase: undefined, result });
+    } catch (e) {
+      if (signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
+      const msg = e instanceof Error ? e.message : '오류';
+      try { this.sessionsService.updateTask(job.sessionId, job.taskId, msg, 'error'); } catch {}
+      onUpdate({ status: 'error', phase: undefined, result: msg });
+    }
+  }
+}

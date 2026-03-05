@@ -16,7 +16,7 @@ export class AiSearchService {
   }
 
   // FE에서 첫 서치 이후 세부 서치 요청을 요청하면 이쪽으로 들어옴.
-  // Tavily 등 외부 검색 → Ollama 필터링 → Claude 심층 분석
+  // Tavily 등 외부 검색 → Claude 심층 분석
   async deepResearch(prompt: string, model: string, context = '') {
     const { result } = await this.deepPipeline.run(prompt, model, context || undefined);
     return { result };
