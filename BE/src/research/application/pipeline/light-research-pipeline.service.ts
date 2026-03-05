@@ -67,7 +67,7 @@ export class LightResearchPipelineService {
 
     let recruitCtx: string | undefined;
     if (source === 'recruit' || source === 'both') {
-      for await (const event of this.recruitContext.liveSearch({ keyword, companyType: searchPlan.companyType })) {
+      for await (const event of this.recruitContext.liveSearch({ keyword, companyTypes: searchPlan.companyTypes, jobTypes: searchPlan.jobTypes })) {
         if (event.type === 'result' && event.result) recruitCtx = event.result;
       }
     }
@@ -130,9 +130,13 @@ export class LightResearchPipelineService {
     let recruitCtx: string | undefined;
     if (source === 'recruit' || source === 'both') {
       yield* this.printFront(`채용 공고 검색을 시작하겠습니다. 잠시만 기다려주세요.`);
-      yield* this.printFront(`검색 키워드: ${keyword}${searchPlan.companyType ? ` / 기업유형: ${searchPlan.companyType}` : ''}`);
+      const filterDesc = [
+        searchPlan.companyTypes?.length ? `기업유형: ${searchPlan.companyTypes.join(', ')}` : '',
+        searchPlan.jobTypes?.length ? `경력: ${searchPlan.jobTypes.join(', ')}` : '',
+      ].filter(Boolean).join(' / ');
+      yield* this.printFront(`검색 키워드: ${keyword}${filterDesc ? ` / ${filterDesc}` : ''}`);
 
-      for await (const event of this.recruitContext.liveSearch({ keyword, companyType: searchPlan.companyType })) {
+      for await (const event of this.recruitContext.liveSearch({ keyword, companyTypes: searchPlan.companyTypes, jobTypes: searchPlan.jobTypes })) {
         if (event.type === 'log') yield* this.printFront(event.message);
         else if (event.type === 'result' && event.result) recruitCtx = event.result;
       }
@@ -152,7 +156,6 @@ export class LightResearchPipelineService {
     if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
     const tasks = JSON.parse(jsonMatch[0]);
 
-    this.logger.log(`[AI 답변] ${JSON.stringify(tasks, null, 2)}`);
     yield* this.printFront(`AI 응답 — 태스크 ${tasks.length}개 파싱 완료`);
 
     yield { type: 'done', tasks, searchPlan };

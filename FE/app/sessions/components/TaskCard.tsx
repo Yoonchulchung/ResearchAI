@@ -108,10 +108,10 @@ export function TaskCard({
     setAnimatedText("");
     let i = 0;
     const timer = setInterval(() => {
-      i++;
+      i += 2.5;
       setAnimatedText(subText.slice(0, i));
       if (i >= subText.length) clearInterval(timer);
-    }, 25);
+    }, 15);
     return () => clearInterval(timer);
   }, [subText]);
 

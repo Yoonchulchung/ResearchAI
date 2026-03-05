@@ -19,6 +19,20 @@ const EMP_TYPE_MAP: Record<string, string> = {
   '벤처':    '6',
 };
 
+/**
+ * 사람인 career_cd 매핑 (경력 구분)
+ * 신입=1, 경력=2, 인턴은 job_type=3 으로 별도 처리
+ */
+const CAREER_CD_MAP: Record<string, string> = {
+  '신입': '1',
+  '경력': '2',
+};
+
+/** 사람인 job_type 매핑 (고용 형태) — 인턴십=3 */
+const JOB_TYPE_MAP: Record<string, string> = {
+  '인턴': '3',
+};
+
 export class SaraminCrawler implements JobSource {
   readonly name = 'saramin';
   readonly type = 'crawler' as const;
@@ -38,9 +52,15 @@ export class SaraminCrawler implements JobSource {
       url.searchParams.set('recruitPage', String(page));
       url.searchParams.set('recruitPageCount', '40');
       if (query.location) url.searchParams.set('loc_mcd', query.location);
-      if (query.companyType) {
-        const empTp = EMP_TYPE_MAP[query.companyType];
-        if (empTp) url.searchParams.set('emp_tp', empTp);
+      for (const ct of query.companyTypes ?? []) {
+        const empTp = EMP_TYPE_MAP[ct];
+        if (empTp) url.searchParams.append('emp_tp', empTp);
+      }
+      for (const jt of query.jobTypes ?? []) {
+        const careerCd = CAREER_CD_MAP[jt];
+        if (careerCd) url.searchParams.append('career_cd', careerCd);
+        const jobType = JOB_TYPE_MAP[jt];
+        if (jobType) url.searchParams.append('job_type', jobType);
       }
 
       const controller = new AbortController();

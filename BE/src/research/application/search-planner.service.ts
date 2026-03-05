@@ -6,7 +6,8 @@ export interface SearchPlan {
   source: SearchSource;
   reason: string;
   keyword: string;
-  companyType?: string;
+  companyTypes?: string[];
+  jobTypes?: string[];
   model?: string;
 }
 
@@ -37,16 +38,22 @@ export class SearchPlannerService {
 - 특정 기술의 취업 시장 동향, 인기 스택 → "both"
 
 반드시 JSON만 반환:
-{ "source": "web" | "recruit" | "both", "reason": "판단 이유 한 문장", "keyword": "검색 엔진에 바로 입력할 핵심 키워드 (직무명·기술명·주제어만, 한국어 조사·요청문 제거)", "companyType": "대기업 | 중견기업 | 중소기업 | 스타트업 | 외국계 | 공기업 | null" }
+{ "source": "web" | "recruit" | "both", "reason": "판단 이유 한 문장", "keyword": "검색 엔진에 바로 입력할 핵심 키워드 (직무명·기술명·주제어만, 한국어 조사·요청문 제거)", "companyTypes": ["대기업", "중견기업"], "jobTypes": ["신입"] }
 
-companyType 판단 기준:
+companyTypes 판단 기준 (해당하는 것 모두 배열에 포함, 없으면 빈 배열 []):
 - 대기업, 삼성, 현대, LG, SK, 카카오, 네이버, 쿠팡 등 언급 → "대기업"
 - 중견기업 언급 → "중견기업"
 - 중소기업, 소규모 언급 → "중소기업"
 - 스타트업, 벤처 언급 → "스타트업"
 - 외국계, 글로벌 기업 언급 → "외국계"
 - 공기업, 공공기관 언급 → "공기업"
-- 기업 규모 언급 없음 → null`;
+- 기업 규모 언급 없음 → []
+
+jobTypes 판단 기준 (해당하는 것 모두 배열에 포함, 없으면 빈 배열 []):
+- 신입, 신입 채용, 경력 없음, 갓 졸업 언급 → "신입"
+- 경력, 경력직, n년 이상, 시니어 언급 → "경력"
+- 인턴, 인턴십 언급 → "인턴"
+- 경력 구분 언급 없음 → []`;
 
     try {
       const res = await fetch(`${ollamaUrl}/api/chat`, {
@@ -71,17 +78,27 @@ companyType 판단 기준:
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return this.fallback(ollamaModel, topic, 'JSON 파싱 실패');
 
-      const parsed = JSON.parse(jsonMatch[0]) as { source?: string; reason?: string; keyword?: string; companyType?: string | null };
+      const parsed = JSON.parse(jsonMatch[0]) as { source?: string; reason?: string; keyword?: string; companyTypes?: unknown; jobTypes?: unknown };
       if (!(['web', 'recruit', 'both'] as string[]).includes(parsed.source ?? '')) {
         return this.fallback(ollamaModel, topic, '유효하지 않은 source 값');
       }
 
       const source = parsed.source as SearchSource;
       const keyword = parsed.keyword?.trim() || topic;
-      const companyType = parsed.companyType && parsed.companyType !== 'null' ? parsed.companyType : undefined;
+      const companyTypes = Array.isArray(parsed.companyTypes) && parsed.companyTypes.length > 0
+        ? (parsed.companyTypes as string[]).filter((v) => typeof v === 'string')
+        : undefined;
+      const jobTypes = Array.isArray(parsed.jobTypes) && parsed.jobTypes.length > 0
+        ? (parsed.jobTypes as string[]).filter((v) => typeof v === 'string')
+        : undefined;
 
-      const plan: SearchPlan = { source, reason: parsed.reason ?? '', keyword, companyType, model: ollamaModel };
-      this.logger.log(`[플래너] topic="${topic}" model=${ollamaModel} → ${plan.source} | keyword="${keyword}" | ${plan.reason}`);
+      const plan: SearchPlan = { source, reason: parsed.reason ?? '', keyword, companyTypes, jobTypes, model: ollamaModel };
+      this.logger.log(
+        `[플래너] topic="${topic}" model=${ollamaModel} → ${plan.source} | keyword="${keyword}"` +
+        `${companyTypes ? ` | 기업유형: ${companyTypes.join(', ')}` : ''}` +
+        `${jobTypes ? ` | 경력: ${jobTypes.join(', ')}` : ''}` +
+        ` | ${plan.reason}`,
+      );
       return plan;
     } catch {
       return this.fallback(ollamaModel, topic, 'Ollama 호출 실패 (미설치 또는 타임아웃)');

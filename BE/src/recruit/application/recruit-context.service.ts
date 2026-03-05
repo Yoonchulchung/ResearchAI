@@ -24,8 +24,11 @@ export class RecruitContextService {
     const sources = this.registry.getAvailable();
     const jobs: { title: string; company: string; source: string; location?: string | null; skills: string[]; description?: string | null; url: string }[] = [];
 
-    const filterDesc = query.companyType ? ` / 기업유형: ${query.companyType}` : '';
-    yield { type: 'log', message: `사용 가능한 소스: ${sources.length > 0 ? sources.map(s => s.name).join(', ') : '없음'}${filterDesc}` };
+    const filterDesc = [
+      query.companyTypes?.length ? `기업유형: ${query.companyTypes.join(', ')}` : '',
+      query.jobTypes?.length ? `경력: ${query.jobTypes.join(', ')}` : '',
+    ].filter(Boolean).join(' / ');
+    yield { type: 'log', message: `사용 가능한 소스: ${sources.length > 0 ? sources.map(s => s.name).join(', ') : '없음'}${filterDesc ? ` / ${filterDesc}` : ''}` };
 
     for (const source of sources) {
       let count = 0;
