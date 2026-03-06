@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Put, Body } from '@nestjs/common';
 import { OverviewService } from '../application/overview.service';
 
 @Controller('overview')
@@ -23,5 +23,15 @@ export class OverviewController {
   @Get('anthropic/usage')
   getAnthropicUsage() {
     return this.overviewService.getAnthropicUsage();
+  }
+
+  @Get('api-keys')
+  getApiKeys() {
+    return this.overviewService.getApiKeys();
+  }
+
+  @Put('api-keys')
+  updateApiKey(@Body() body: { key: string; value: string }) {
+    return this.overviewService.updateApiKey(body.key, body.value);
   }
 }

@@ -1,13 +1,84 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import { PROMPTS } from '../../research/domain/prompt/research.prompts';
 import { makeCache } from '../../research/infrastructure/cache/ttl-cache';
 import { fetchTavilyUsage } from '../infrastructure/tavily.client';
 import { fetchAnthropicUsageReport } from '../infrastructure/anthropic.client';
 
+const ALLOWED_KEYS = [
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_ADMIN_API_KEY',
+  'OPENAI_API_KEY',
+  'GOOGLE_API_KEY',
+  'TAVILY_API_KEY',
+  'SERPER_API_KEY',
+  'NAVER_CLIENT_ID',
+  'BRAVE_API_KEY',
+] as const;
+
+type AllowedKey = (typeof ALLOWED_KEYS)[number];
+
+const KEY_LABELS: Record<AllowedKey, string> = {
+  ANTHROPIC_API_KEY: 'Anthropic',
+  ANTHROPIC_ADMIN_API_KEY: 'Anthropic Admin',
+  OPENAI_API_KEY: 'OpenAI',
+  GOOGLE_API_KEY: 'Google',
+  TAVILY_API_KEY: 'Tavily',
+  SERPER_API_KEY: 'Serper',
+  NAVER_CLIENT_ID: 'Naver',
+  BRAVE_API_KEY: 'Brave',
+};
+
 @Injectable()
 export class OverviewService {
+  private readonly envPath = path.resolve(process.cwd(), '.env');
   private tavilyCache = makeCache<Awaited<ReturnType<OverviewService['getTavilyOverview']>>>();
   private anthropicCache = makeCache<Awaited<ReturnType<OverviewService['getAnthropicUsage']>>>();
+
+  private maskKey(value: string | undefined): string | null {
+    if (!value || value.startsWith('your_')) return null;
+    if (value.length <= 8) return value.slice(0, 2) + '****';
+    return value.slice(0, 10) + '*'.repeat(Math.min(value.length - 10, 20)) + value.slice(-4);
+  }
+
+  getApiKeys() {
+    return ALLOWED_KEYS.map((key) => ({
+      key,
+      label: KEY_LABELS[key],
+      masked: this.maskKey(process.env[key]),
+      configured: !!(process.env[key] && !process.env[key]!.startsWith('your_')),
+    }));
+  }
+
+  updateApiKey(key: string, value: string) {
+    if (!(ALLOWED_KEYS as readonly string[]).includes(key)) {
+      throw new BadRequestException('허용되지 않은 키입니다.');
+    }
+
+    let content = '';
+    try {
+      content = fs.readFileSync(this.envPath, 'utf-8');
+    } catch {
+      // .env 없으면 새로 생성
+    }
+
+    const regex = new RegExp(`^${key}=.*$`, 'm');
+    if (regex.test(content)) {
+      content = content.replace(regex, `${key}=${value}`);
+    } else {
+      content = content.trimEnd() + `\n${key}=${value}\n`;
+    }
+
+    fs.writeFileSync(this.envPath, content, 'utf-8');
+    process.env[key] = value;
+
+    // 관련 캐시 무효화
+    this.tavilyCache.invalidate();
+    this.anthropicCache.invalidate();
+
+    return { ok: true };
+  }
 
   getPromptTemplates() {
     return {

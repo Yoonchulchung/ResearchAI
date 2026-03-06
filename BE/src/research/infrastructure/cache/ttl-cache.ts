@@ -6,5 +6,6 @@ export function makeCache<T>() {
   return {
     get: () => (Date.now() < expireAt ? value : null),
     set: (v: T) => { value = v; expireAt = Date.now() + TTL_MS; },
+    invalidate: () => { value = null; expireAt = 0; },
   };
 }

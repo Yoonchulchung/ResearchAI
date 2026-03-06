@@ -9,6 +9,10 @@ export interface DeepResearchResult {
   sources: SearchSources;
 }
 
+export type DeepResearchEvent =
+  | { type: 'log'; message: string }
+  | { type: 'done'; result: string; sources: SearchSources };
+
 /**
  * DeepResearch 2단계 파이프라인 (Tavily → Claude)
  *
@@ -53,6 +57,45 @@ export class DeepResearchPipelineService {
     // Step 2: AI 심층 분석
     const result = await this.deepAnalyze(model, prompt, context);
     return { result, sources };
+  }
+
+  async *runStream(
+    prompt: string,
+    model: string,
+    contextOverride?: string,
+  ): AsyncGenerator<DeepResearchEvent> {
+    let context = contextOverride ?? '';
+    let sources: SearchSources = {};
+
+    // Step 1: Tavily 검색
+    if (!contextOverride) {
+      if (process.env.TAVILY_API_KEY && !process.env.TAVILY_API_KEY.startsWith('your_')) {
+        yield { type: 'log', message: 'Tavily 웹 검색 중...' };
+        try {
+          const tavilyResult = await searchTavily(prompt);
+          if (tavilyResult) {
+            context = tavilyResult;
+            sources = { tavily: tavilyResult };
+            const lines = tavilyResult.split('\n').length;
+            yield { type: 'log', message: `웹 검색 완료 — ${lines}줄 수집` };
+          } else {
+            yield { type: 'log', message: '웹 검색 결과 없음 — AI 직접 분석으로 진행' };
+          }
+        } catch {
+          yield { type: 'log', message: '웹 검색 실패 — AI 직접 분석으로 진행' };
+        }
+      } else {
+        yield { type: 'log', message: 'Tavily 미설정 — AI 내장 웹 검색 사용' };
+      }
+    } else {
+      yield { type: 'log', message: '기존 검색 컨텍스트 사용' };
+    }
+
+    // Step 2: AI 심층 분석
+    yield { type: 'log', message: `AI 심층 분석 중... (모델: ${model})` };
+    const result = await this.deepAnalyze(model, prompt, context);
+
+    yield { type: 'done', result, sources };
   }
 
   private deepAnalyze(model: string, prompt: string, context: string): Promise<string> {

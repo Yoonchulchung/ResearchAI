@@ -16,4 +16,5 @@ export interface Session {
   results: Record<string, string>;
   statuses: Record<string, string>;
   sources: Record<string, SearchSources>;
+  summary?: string;
 }

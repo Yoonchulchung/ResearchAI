@@ -105,4 +105,33 @@ export class SessionsService {
   chatPath(sessionId: string): string {
     return this.repository.chatPath(sessionId);
   }
+
+  getSummary(id: string): { summary: string | null } {
+    const session = this.repository.read(id);
+    return { summary: session.summary ?? null };
+  }
+
+  saveSummary(id: string, summary: string): void {
+    const session = this.repository.read(id);
+    session.summary = summary;
+    this.repository.write(session);
+  }
+
+  buildSummaryContext(id: string): { model: string; system: string; prompt: string } | null {
+    const session = this.repository.read(id);
+    const doneResults = Object.entries(session.results ?? {})
+      .filter(([taskId]) => session.statuses?.[taskId] === 'done')
+      .map(([taskId, result]) => {
+        const task = session.tasks?.find((t) => String(t.id) === taskId);
+        return task ? `## ${task.icon} ${task.title}\n${result}` : result;
+      });
+
+    if (doneResults.length === 0) return null;
+
+    const model = process.env.OLLAMA_MODEL || 'llama3.2';
+    const system = '당신은 리서치 결과를 간결하고 명확하게 요약하는 전문가입니다. 핵심 인사이트를 추출하여 체계적으로 정리해주세요.';
+    const prompt = `다음은 "${session.topic}" 주제로 수행된 리서치 결과입니다:\n\n${doneResults.join('\n\n---\n\n')}\n\n위 내용을 바탕으로 핵심 인사이트와 주요 포인트를 한국어로 요약해주세요. 마크다운 형식으로 작성해주세요.`;
+
+    return { model, system, prompt };
+  }
 }

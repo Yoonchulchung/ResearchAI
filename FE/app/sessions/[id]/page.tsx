@@ -8,6 +8,7 @@ import { TaskCard, type Phase } from "@/sessions/components/TaskCard";
 import { SessionHeader } from "@/sessions/components/SessionHeader";
 import { SessionSkeleton } from "@/sessions/components/SessionSkeleton";
 import { ChatSection } from "@/sessions/components/ChatSection";
+import { SummarySection } from "@/sessions/components/SummarySection";
 import { TopicInput } from "@/components/TopicInput";
 import { useResearchQueue } from "@/contexts/ResearchQueueContext";
 
@@ -268,6 +269,7 @@ export default function SessionPage() {
   const doneCount = Object.values(statuses).filter((s) => s === "done").length;
   const total = tasks.length;
   const allDone = doneCount === total && total > 0 && !isRunning;
+  const localModel = models.find((m) => m.provider === "ollama")?.id ?? "";
 
   const exportMarkdown = () => {
     const lines = [
@@ -304,6 +306,8 @@ export default function SessionPage() {
 
       {/* Scrollable content */}
       <div className="bg-grey flex-1 overflow-y-auto px-8 py-6">
+        <SummarySection sessionId={id} localModel={localModel} allDone={allDone} />
+
         <div className="space-y-3">
           {tasks.map((task) => (
             <TaskCard

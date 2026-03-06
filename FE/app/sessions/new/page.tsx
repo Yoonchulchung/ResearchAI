@@ -17,6 +17,7 @@ interface DraftState {
   tasks: Task[];
   searchSource: "web" | "recruit" | "both" | null;
   terminalLogs: string[];
+  jobPostings: JobItem[];
   selectedApiModel: string;
   selectedLocalModel: string;
 }
@@ -51,6 +52,7 @@ export default function NewSession() {
         if (draft.tasks?.length) setTasks(draft.tasks);
         if (draft.searchSource) setSearchSource(draft.searchSource);
         if (draft.terminalLogs?.length) setTerminalLogs(draft.terminalLogs);
+        if (draft.jobPostings?.length) setJobPostings(draft.jobPostings);
         if (draft.selectedApiModel) setSelectedApiModel(draft.selectedApiModel);
         if (draft.selectedLocalModel) setSelectedLocalModel(draft.selectedLocalModel);
       }
@@ -62,6 +64,7 @@ export default function NewSession() {
       searchIdRef.current = pendingSearchId;
       setGenerating(true);
       setProgressStep("검색 재연결 중...");
+      setTerminalLogs([]);
       const controller = new AbortController();
       abortControllerRef.current = controller;
       reconnectLightResearch(
@@ -102,10 +105,10 @@ export default function NewSession() {
   useEffect(() => {
     if (!initialized) return;
     try {
-      const draft: DraftState = { topic, tasks, searchSource, terminalLogs, selectedApiModel, selectedLocalModel };
+      const draft: DraftState = { topic, tasks, searchSource, terminalLogs, jobPostings, selectedApiModel, selectedLocalModel };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
     } catch {}
-  }, [initialized, topic, tasks, searchSource, terminalLogs, selectedApiModel, selectedLocalModel]);
+  }, [initialized, topic, tasks, searchSource, terminalLogs, jobPostings, selectedApiModel, selectedLocalModel]);
 
   useEffect(() => {
     getModels().then((m) => {
