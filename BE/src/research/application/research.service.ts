@@ -4,7 +4,7 @@ import { DeepResearchPipelineService } from './pipeline/deep-research-pipeline.s
 import { SearchSource } from './search-planner.service';
 
 @Injectable()
-export class AiSearchService {
+export class ResearchService {
   constructor(
     private readonly lightPipeline: LightResearchPipelineService,
     private readonly deepPipeline: DeepResearchPipelineService,

@@ -1,14 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
-import OpenAI from 'openai';
-import { GoogleGenAI } from '@google/genai';
 import { searchTavily } from '../../infrastructure/search/tavily.search';
 import { PROMPTS } from '../../domain/prompt/research.prompts';
 import { SearchSources } from '../../domain/model/search-sources.model';
-import { callAnthropic } from '../../infrastructure/ai/anthropic.ai';
-import { callOpenAI } from '../../infrastructure/ai/openai.ai';
-import { callGoogle } from '../../infrastructure/ai/google.ai';
-import { callOllama } from '../../infrastructure/ai/ollama.ai';
+import { AiClientService } from '../../../ai/application/ai-client.service';
 
 export interface DeepResearchResult {
   result: string;
@@ -30,9 +24,7 @@ export interface DeepResearchResult {
  */
 @Injectable()
 export class DeepResearchPipelineService {
-  private anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  private openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  private google = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
+  constructor(private readonly aiClient: AiClientService) {}
 
   async run(
     prompt: string,
@@ -63,20 +55,10 @@ export class DeepResearchPipelineService {
     return { result, sources };
   }
 
-  private async deepAnalyze(model: string, prompt: string, context: string): Promise<string> {
-    const system = PROMPTS.system;
+  private deepAnalyze(model: string, prompt: string, context: string): Promise<string> {
     const fullPrompt = context ? PROMPTS.withSearchContext(context, prompt) : prompt;
-    // 검색 컨텍스트가 없을 때만 Claude 내장 웹서치 사용
+    // 검색 컨텍스트가 없을 때만 내장 웹서치 사용
     const useBuiltinSearch = !context;
-
-    if (model.startsWith('claude')) {
-      return callAnthropic(this.anthropic, model, system, fullPrompt, useBuiltinSearch);
-    } else if (model.startsWith('gemini')) {
-      return callGoogle(this.google, model, system + '\n\n' + fullPrompt, useBuiltinSearch);
-    } else if (model.startsWith('ollama:')) {
-      return callOllama(model.slice('ollama:'.length), system, fullPrompt);
-    } else {
-      return callOpenAI(this.openai, model, system, fullPrompt);
-    }
+    return this.aiClient.call(model, PROMPTS.system, fullPrompt, { useBuiltinSearch });
   }
 }

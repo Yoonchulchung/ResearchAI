@@ -10,3 +10,15 @@ export async function searchTavily(query: string): Promise<string> {
       .join('\n\n') ?? ''
   );
 }
+
+/** light search 전용 — URL 제외 */
+export async function searchTavilyLight(query: string): Promise<string> {
+  const depth = (process.env.TAVILY_SEARCH_DEPTH || 'basic') as 'basic' | 'advanced';
+  const client = tavily({ apiKey: process.env.TAVILY_API_KEY! });
+  const response = await client.search(query, { searchDepth: depth, maxResults: 5 });
+  return (
+    response.results
+      .map((r) => `[${r.title}]\n${r.content}`)
+      .join('\n\n') ?? ''
+  );
+}

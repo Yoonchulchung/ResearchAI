@@ -1,24 +1,23 @@
 import { Module } from '@nestjs/common';
 import { ResearchController } from './presentation/research.controller';
-import { ModelsService } from './application/models.service';
 import { WebSearchService } from './application/web-search.service';
-import { AiSearchService } from './application/ai-search.service';
+import { ResearchService } from './application/research.service';
 import { SearchPlannerService } from './application/search-planner.service';
 import { LightResearchPipelineService } from './application/pipeline/light-research-pipeline.service';
 import { DeepResearchPipelineService } from './application/pipeline/deep-research-pipeline.service';
 import { RecruitModule } from '../recruit/recruit.module';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
-  imports: [RecruitModule],
+  imports: [RecruitModule, AiModule],
   controllers: [ResearchController],
   providers: [
-    ModelsService,
     WebSearchService,
     SearchPlannerService,
     LightResearchPipelineService,
     DeepResearchPipelineService,
-    AiSearchService,
+    ResearchService,
   ],
-  exports: [WebSearchService, AiSearchService],
+  exports: [WebSearchService, ResearchService],
 })
 export class ResearchModule {}

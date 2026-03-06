@@ -1,21 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
-import OpenAI from 'openai';
-import { GoogleGenAI } from '@google/genai';
 import { PROMPTS } from '../../domain/prompt/research.prompts';
-import { searchTavily } from '../../infrastructure/search/tavily.search';
-import { callAnthropic } from '../../infrastructure/ai/anthropic.ai';
-import { callOpenAI } from '../../infrastructure/ai/openai.ai';
-import { callGoogle } from '../../infrastructure/ai/google.ai';
-import { callOllama } from '../../infrastructure/ai/ollama.ai';
+import { searchTavilyLight } from '../../infrastructure/search/tavily.search';
 import { SearchPlannerService, SearchPlan, SearchSource } from '../search-planner.service';
 import { RecruitContextService } from '../../../recruit/application/recruit-context.service';
+import { AiClientService } from '../../../ai/application/ai-client.service';
+
+export type JobItem = { title: string; company: string; location?: string | null; description?: string | null; skills: string[]; url: string };
 
 export type LightResearchEvent =
   | { type: 'start' }
   | { type: 'plan'; source: SearchSource; reason: string }
   | { type: 'searching'; target: 'web' | 'recruit' }
   | { type: 'log'; message: string }
+  | { type: 'jobs'; jobs: JobItem[] }
   | { type: 'generating'; model: string }
   | { type: 'done'; tasks: any[]; searchPlan: SearchPlan };
 
@@ -38,13 +35,10 @@ export type LightResearchEvent =
 export class LightResearchPipelineService {
   private readonly logger = new Logger(LightResearchPipelineService.name);
 
-  private anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  private openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  private google = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
-
   constructor(
     private readonly planner: SearchPlannerService,
     private readonly recruitContext: RecruitContextService,
+    private readonly aiClient: AiClientService,
   ) {}
 
   /** 파이프라인 테스트용 — fullPrompt, searchContext, searchPlan 포함 반환 */
@@ -62,7 +56,7 @@ export class LightResearchPipelineService {
 
     let webContext: string | undefined;
     if ((source === 'web' || source === 'both') && this.hasTavily()) {
-      try { webContext = await searchTavily(keyword); } catch { /* 무시 */ }
+      try { webContext = await searchTavilyLight(keyword); } catch { /* 무시 */ }
     }
 
     let recruitCtx: string | undefined;
@@ -110,16 +104,17 @@ export class LightResearchPipelineService {
       yield* this.printFront(`플래에 사용된 모델: ${searchPlan.model}`);
       yield* this.printFront(`플랜 결과: ${searchPlan.source}`);
       yield* this.printFront(`플랜 이유: ${searchPlan.reason}`);
+      yield* this.printFront(`서칭 키워드: ${searchPlan.keyword}`);
     }
 
     const { source, keyword } = searchPlan;
 
     let webContext: string | undefined;
     if ((source === 'web' || source === 'both') && this.hasTavily()) {
-      yield* this.printFront(`웹 검색 중...`);
+      yield* this.printFront(`웹 검색을 시작하겠습니다. 잠시만 기다려주세요.`);
 
       try {
-        webContext = await searchTavily(keyword);
+        webContext = await searchTavilyLight(keyword);
         const lines = webContext?.split('\n').length ?? 0;
         yield* this.printFront(`웹 검색 완료 — ${lines}줄 수집`);
       } catch {
@@ -138,6 +133,7 @@ export class LightResearchPipelineService {
 
       for await (const event of this.recruitContext.liveSearch({ keyword, companyTypes: searchPlan.companyTypes, jobTypes: searchPlan.jobTypes })) {
         if (event.type === 'log') yield* this.printFront(event.message);
+        else if (event.type === 'jobs') yield { type: 'jobs', jobs: event.jobs };
         else if (event.type === 'result' && event.result) recruitCtx = event.result;
       }
     }
@@ -151,6 +147,13 @@ export class LightResearchPipelineService {
     const fullPrompt = source === 'recruit' && recruitCtx
       ? PROMPTS.generateTasksForRecruit(topic, recruitCtx)
       : PROMPTS.generateTasks(topic, searchContext);
+    const promptChars = fullPrompt.length;
+    const approxTokens = Math.round(promptChars / 4);
+    const inputCostPer1M = this.aiClient.getInputCostPer1M(model);
+    const estimatedCost = inputCostPer1M != null
+      ? ` / 입력 비용 약 $${((approxTokens / 1_000_000) * inputCostPer1M).toFixed(5)}`
+      : '';
+    yield* this.printFront(`프롬프트 크기: ${promptChars.toLocaleString()}자 / 약 ${approxTokens.toLocaleString()} 토큰${estimatedCost}`);
     const raw = await this.callAI(model, fullPrompt);
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
@@ -171,21 +174,11 @@ export class LightResearchPipelineService {
 
   private async callAI(model: string, prompt: string, systemOverride?: string): Promise<string> {
     const system = systemOverride ?? PROMPTS.system;
-
-    if (model.startsWith('claude')) {
-      this.logger.log(`[태스크 생성] Anthropic — model=${model}`);
-      return callAnthropic(this.anthropic, model, system, prompt, false);
-    } else if (model.startsWith('gemini')) {
-      this.logger.log(`[태스크 생성] Google — model=${model}`);
-      return callGoogle(this.google, model, system + '\n\n' + prompt, false);
-    } else if (model.startsWith('ollama:')) {
-      const ollamaModel = model.slice('ollama:'.length);
-      const ollamaUrl = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
-      this.logger.log(`[태스크 생성] Ollama — model=${ollamaModel} url=${ollamaUrl}`);
-      return callOllama(ollamaModel, system, prompt);
-    } else {
-      this.logger.log(`[태스크 생성] OpenAI — model=${model}`);
-      return callOpenAI(this.openai, model, system, prompt);
-    }
+    const provider = model.startsWith('claude') ? 'Anthropic'
+      : model.startsWith('gemini') ? 'Google'
+      : model.startsWith('ollama:') ? `Ollama (${model.slice('ollama:'.length)})`
+      : 'OpenAI';
+    this.logger.log(`[태스크 생성] ${provider} — model=${model}`);
+    return this.aiClient.call(model, system, prompt);
   }
 }

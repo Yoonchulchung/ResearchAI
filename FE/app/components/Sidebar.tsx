@@ -33,6 +33,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     getSessions().then(setSessions).catch(() => {});
@@ -52,10 +53,72 @@ export function Sidebar() {
     if (currentId === id) router.push("/");
   };
 
+  if (collapsed) {
+    return (
+      <aside className="w-12 shrink-0 flex flex-col h-screen bg-white border-r border-slate-200 overflow-hidden transition-all duration-200">
+        <div className="flex flex-col items-center gap-3 py-4">
+          {/* Logo icon */}
+          <div
+            onClick={() => router.push("/sessions/new")}
+            className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-bold cursor-pointer hover:bg-indigo-700 transition-colors"
+          >
+            AI
+          </div>
+          {/* Expand button */}
+          <button
+            onClick={() => setCollapsed(false)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            title="사이드바 펼치기"
+          >
+            ▶
+          </button>
+          {/* New session icon */}
+          <button
+            onClick={() => router.push("/sessions/new")}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg text-base font-bold transition-colors ${
+              pathname === "/sessions/new"
+                ? "bg-indigo-600 text-white"
+                : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+            }`}
+            title="새 리서치"
+          >
+            +
+          </button>
+        </div>
+        {/* Session dots */}
+        <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1.5 py-2 min-h-0">
+          {sessions.map((s) => {
+            const total = s.tasks.length;
+            const done = s.doneCount;
+            const dotStatus: "idle" | "partial" | "done" =
+              done === total && total > 0
+                ? "done"
+                : done > 0
+                ? "partial"
+                : "idle";
+            const isActive = currentId === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => router.push(`/sessions/${s.id}`)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                  isActive ? "bg-indigo-50" : "hover:bg-slate-50"
+                }`}
+                title={s.topic}
+              >
+                <StatusDot status={dotStatus} />
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+    );
+  }
+
   return (
-    <aside className="w-64 shrink-0 flex flex-col h-screen bg-white border-r border-slate-200 overflow-hidden">
+    <aside className="w-64 shrink-0 flex flex-col h-screen bg-white border-r border-slate-200 overflow-hidden transition-all duration-200">
       {/* Logo */}
-      <div className="px-4 py-5">
+      <div className="px-4 py-5 flex items-center justify-between">
         <div
           onClick={() => router.push("/sessions/new")}
           className="flex items-center gap-2.5 cursor-pointer group"
@@ -70,6 +133,14 @@ export function Sidebar() {
             <div className="text-[10px] text-slate-400">Research System</div>
           </div>
         </div>
+        {/* Collapse button */}
+        <button
+          onClick={() => setCollapsed(true)}
+          className="w-6 h-6 flex items-center justify-center rounded-md text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition-colors text-xs"
+          title="사이드바 접기"
+        >
+          ◀
+        </button>
       </div>
 
       {/* New session button */}

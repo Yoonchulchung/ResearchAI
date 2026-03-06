@@ -110,11 +110,21 @@ export const lightResearch = (topic: string, model: string) =>
     }
   );
 
+export interface JobItem {
+  title: string;
+  company: string;
+  location?: string | null;
+  description?: string | null;
+  skills: string[];
+  url: string;
+}
+
 export type LightResearchEvent =
   | { type: "start" }
   | { type: "plan"; source: "web" | "recruit" | "both"; reason: string }
   | { type: "searching"; target: "web" | "recruit" }
   | { type: "log"; message: string }
+  | { type: "jobs"; jobs: JobItem[] }
   | { type: "generating"; model: string }
   | { type: "done"; tasks: Task[]; searchPlan: { source: "web" | "recruit" | "both"; reason: string } };
 

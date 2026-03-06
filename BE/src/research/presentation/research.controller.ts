@@ -1,8 +1,8 @@
 import { Controller, Get, Post, Body, Res, Req } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { ModelsService } from '../application/models.service';
+import { ModelsService } from '../../ai/application/models.service';
 import { WebSearchService } from '../application/web-search.service';
-import { AiSearchService } from '../application/ai-search.service';
+import { ResearchService } from '../application/research.service';
 import { SearchSource } from '../application/search-planner.service';
 
 @Controller('research')
@@ -10,7 +10,7 @@ export class ResearchController {
   constructor(
     private readonly modelsService: ModelsService,
     private readonly searchService: WebSearchService,
-    private readonly aiService: AiSearchService,
+    private readonly aiService: ResearchService,
   ) {}
 
   @Get('models')

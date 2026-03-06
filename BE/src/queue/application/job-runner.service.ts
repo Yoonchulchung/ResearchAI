@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { WebSearchService } from '../../research/application/web-search.service';
-import { AiSearchService } from '../../research/application/ai-search.service';
+import { ResearchService } from '../../research/application/research.service';
 import { SessionsService } from '../../sessions/application/sessions.service';
 import { SearchSources } from '../../research/domain/model/search-sources.model';
 import { QueueJob } from '../domain/queue-job.model';
@@ -11,7 +11,7 @@ export type OnJobUpdate = (updates: Partial<QueueJob>) => void;
 export class JobRunnerService {
   constructor(
     private readonly searchService: WebSearchService,
-    private readonly aiService: AiSearchService,
+    private readonly aiService: ResearchService,
     private readonly sessionsService: SessionsService,
   ) {}
 

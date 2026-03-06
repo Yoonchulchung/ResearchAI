@@ -1,10 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
-import OpenAI from 'openai';
-import { GoogleGenAI } from '@google/genai';
 import { SessionsService } from '../../sessions/application/sessions.service';
 import { VectorService } from '../../vector/vector.service';
-import { callOllama } from '../../research/infrastructure/ai/ollama.ai';
+import { callOllama } from '../../ai/infrastructure/ollama.ai';
+import { AiClientService } from '../../ai/application/ai-client.service';
 import { ChatMessage } from '../domain/chat-message.model';
 import { ChatHistoryService } from './chat-history.service';
 import { ContextCompactorService } from './context-compactor.service';
@@ -13,15 +11,12 @@ import { ContextCompactorService } from './context-compactor.service';
 export class ChatService {
   private indexedSessions = new Set<string>();
 
-  private anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  private openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  private google = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
-
   constructor(
     private readonly sessionsService: SessionsService,
     private readonly vectorService: VectorService,
     private readonly historyService: ChatHistoryService,
     private readonly compactor: ContextCompactorService,
+    private readonly aiClient: AiClientService,
   ) {}
 
   private async ensureSessionIndexed(sessionId: string): Promise<void> {
@@ -108,7 +103,7 @@ ${ragContext}`;
     let fullResponse = '';
 
     if (model.startsWith('claude')) {
-      const stream = await this.anthropic.messages.stream({
+      const stream = await this.aiClient.anthropic.messages.stream({
         model,
         max_tokens: 4000,
         system: systemPrompt,
@@ -129,7 +124,7 @@ ${ragContext}`;
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }],
       }));
-      const result = await this.google.models.generateContent({
+      const result = await this.aiClient.google.models.generateContent({
         model,
         config: { systemInstruction: systemPrompt, maxOutputTokens: 4000 },
         contents,
@@ -147,7 +142,7 @@ ${ragContext}`;
       fullResponse = await callOllama(ollamaModel, systemPrompt, prompt);
       yield fullResponse;
     } else {
-      const completion = await this.openai.chat.completions.create({
+      const completion = await this.aiClient.openai.chat.completions.create({
         model,
         max_tokens: 4000,
         messages: [

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { lightResearchStream, createSession, getModels } from "@/lib/api";
+import { lightResearchStream, createSession, getModels, JobItem } from "@/lib/api";
 import { Task, ModelDefinition } from "@/types";
 import { TopicInput } from "@/components/TopicInput";
 import { ModelSelector } from "@/components/ModelSelector";
@@ -28,6 +28,8 @@ export default function NewSession() {
   const [topic, setTopic] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [searchSource, setSearchSource] = useState<"web" | "recruit" | "both" | null>(null);
+  const [jobPostings, setJobPostings] = useState<JobItem[]>([]);
+  const [jobsExpanded, setJobsExpanded] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [progressStep, setProgressStep] = useState<string | null>(null);
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
@@ -85,6 +87,7 @@ export default function NewSession() {
     setTerminalLogs([]);
     setTasks([]);
     setSearchSource(null);
+    setJobPostings([]);
     setError("");
     try {
       await lightResearchStream(
@@ -98,6 +101,8 @@ export default function NewSession() {
             setProgressStep("AI 태스크 생성 중...");
           } else if (event.type === "log") {
             pushLog(event.message);
+          } else if (event.type === "jobs") {
+            setJobPostings(event.jobs);
           } else if (event.type === "done") {
             setTasks(event.tasks);
             setSearchSource(event.searchPlan.source);
@@ -208,6 +213,56 @@ export default function NewSession() {
             progressStep={progressStep}
             onCancel={generating ? handleCancel : undefined}
           />
+
+          {/* Job Postings */}
+          {jobPostings.length > 0 && (
+            <div className="space-y-2">
+              <button
+                onClick={() => setJobsExpanded((v) => !v)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider px-1 hover:text-slate-600 transition-colors"
+              >
+                <span className={`transition-transform duration-200 ${jobsExpanded ? "rotate-0" : "-rotate-90"}`}>▾</span>
+                채용 공고 {jobPostings.length}건
+              </button>
+              {jobsExpanded && <div className="grid gap-2">
+                {jobPostings.map((job, i) => (
+                  <a
+                    key={i}
+                    href={job.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block bg-white border border-slate-200 rounded-xl px-4 py-3 hover:border-indigo-300 hover:shadow-sm transition-all group"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-800 truncate group-hover:text-indigo-600 transition-colors">
+                          {job.title}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-slate-600">{job.company}</span>
+                          {job.location && <span>· {job.location}</span>}
+                          {job.description && <span>· {job.description}</span>}
+                        </div>
+                        {job.skills.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {job.skills.slice(0, 5).map((s, j) => (
+                              <span key={j} className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md font-medium">
+                                {s}
+                              </span>
+                            ))}
+                            {job.skills.length > 5 && (
+                              <span className="text-[10px] text-slate-400">+{job.skills.length - 5}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-slate-300 group-hover:text-indigo-400 transition-colors shrink-0 text-sm mt-0.5">↗</span>
+                    </div>
+                  </a>
+                ))}
+              </div>}
+            </div>
+          )}
 
           {/* Error */}
           {error && (

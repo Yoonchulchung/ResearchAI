@@ -1,4 +1,9 @@
-export async function callOllama(model: string, system: string, prompt: string): Promise<string> {
+export async function callOllama(
+  model: string,
+  system: string,
+  prompt: string,
+  timeoutMs?: number,
+): Promise<string> {
   const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
   const res = await fetch(`${ollamaUrl}/api/chat`, {
     method: 'POST',
@@ -11,6 +16,7 @@ export async function callOllama(model: string, system: string, prompt: string):
         { role: 'user', content: prompt },
       ],
     }),
+    signal: timeoutMs != null ? AbortSignal.timeout(timeoutMs) : undefined,
   });
   if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
   const data = (await res.json()) as any;
