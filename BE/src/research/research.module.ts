@@ -5,6 +5,7 @@ import { ResearchService } from './application/research.service';
 import { SearchPlannerService } from './application/search-planner.service';
 import { LightResearchPipelineService } from './application/pipeline/light-research-pipeline.service';
 import { DeepResearchPipelineService } from './application/pipeline/deep-research-pipeline.service';
+import { SearchJobService } from './application/search-job.service';
 import { RecruitModule } from '../recruit/recruit.module';
 import { AiModule } from '../ai/ai.module';
 
@@ -16,6 +17,7 @@ import { AiModule } from '../ai/ai.module';
     SearchPlannerService,
     LightResearchPipelineService,
     DeepResearchPipelineService,
+    SearchJobService,
     ResearchService,
   ],
   exports: [WebSearchService, ResearchService],

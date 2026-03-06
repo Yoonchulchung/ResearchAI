@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { lightResearchStream, createSession, getModels, JobItem } from "@/lib/api";
+import { lightResearchStream, reconnectLightResearch, createSession, getModels, JobItem, LightResearchEvent } from "@/lib/api";
 import { Task, ModelDefinition } from "@/types";
 import { TopicInput } from "@/components/TopicInput";
 import { ModelSelector } from "@/components/ModelSelector";
@@ -10,6 +10,7 @@ import { TaskList } from "@/sessions/components/TaskList";
 import { PipelineTerminal } from "@/sessions/components/PipelineTerminal";
 
 const STORAGE_KEY = "new-session-draft";
+const SEARCH_JOB_KEY = "new-session-search-job";
 
 interface DraftState {
   topic: string;
@@ -38,8 +39,9 @@ export default function NewSession() {
   const [initialized, setInitialized] = useState(false);
   const taskListRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const searchIdRef = useRef<string | null>(null);
 
-  // Restore draft on mount
+  // Restore draft on mount + reconnect if search was in progress
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -53,8 +55,48 @@ export default function NewSession() {
         if (draft.selectedLocalModel) setSelectedLocalModel(draft.selectedLocalModel);
       }
     } catch {}
+
+    // 검색 중 다른 페이지를 갔다가 돌아온 경우 재연결
+    const pendingSearchId = sessionStorage.getItem(SEARCH_JOB_KEY);
+    if (pendingSearchId) {
+      searchIdRef.current = pendingSearchId;
+      setGenerating(true);
+      setProgressStep("검색 재연결 중...");
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      reconnectLightResearch(
+        pendingSearchId,
+        (event) => {
+          if (event.type === "plan") {
+            const label = event.source === "web" ? "웹" : event.source === "recruit" ? "채용 공고" : "웹 + 채용 공고";
+            setProgressStep(`${label} 검색 중...`);
+          } else if (event.type === "generating") {
+            setProgressStep("AI 태스크 생성 중...");
+          } else if (event.type === "log") {
+            const ts = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+            setTerminalLogs((prev) => [...prev, `[${ts}] ${event.message}`]);
+          } else if (event.type === "jobs") {
+            setJobPostings(event.jobs);
+          } else if (event.type === "done") {
+            sessionStorage.removeItem(SEARCH_JOB_KEY);
+            setTasks(event.tasks);
+            setSearchSource(event.searchPlan.source);
+            setProgressStep(null);
+          }
+        },
+        controller.signal,
+      )
+        .catch(() => {})
+        .finally(() => {
+          sessionStorage.removeItem(SEARCH_JOB_KEY);
+          abortControllerRef.current = null;
+          setGenerating(false);
+          setProgressStep(null);
+        });
+    }
+
     setInitialized(true);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist draft — only after restore is complete
   useEffect(() => {
@@ -78,8 +120,30 @@ export default function NewSession() {
     setTerminalLogs((prev) => [...prev, `[${ts}] ${line}`]);
   };
 
+  const handleSearchEvent = (event: LightResearchEvent) => {
+    if (event.type === "plan") {
+      const label = event.source === "web" ? "웹" : event.source === "recruit" ? "채용 공고" : "웹 + 채용 공고";
+      setProgressStep(`${label} 검색 중...`);
+    } else if (event.type === "generating") {
+      setProgressStep("AI 태스크 생성 중...");
+    } else if (event.type === "log") {
+      pushLog(event.message);
+    } else if (event.type === "jobs") {
+      setJobPostings(event.jobs);
+    } else if (event.type === "done") {
+      sessionStorage.removeItem(SEARCH_JOB_KEY);
+      setTasks(event.tasks);
+      setSearchSource(event.searchPlan.source);
+      setProgressStep(null);
+      setTimeout(() => taskListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!topic.trim()) return;
+    const searchId = crypto.randomUUID();
+    searchIdRef.current = searchId;
+    sessionStorage.setItem(SEARCH_JOB_KEY, searchId);
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setGenerating(true);
@@ -93,27 +157,13 @@ export default function NewSession() {
       await lightResearchStream(
         topic.trim(),
         selectedApiModel,
-        (event) => {
-          if (event.type === "plan") {
-            const label = event.source === "web" ? "웹" : event.source === "recruit" ? "채용 공고" : "웹 + 채용 공고";
-            setProgressStep(`${label} 검색 중...`);
-          } else if (event.type === "generating") {
-            setProgressStep("AI 태스크 생성 중...");
-          } else if (event.type === "log") {
-            pushLog(event.message);
-          } else if (event.type === "jobs") {
-            setJobPostings(event.jobs);
-          } else if (event.type === "done") {
-            setTasks(event.tasks);
-            setSearchSource(event.searchPlan.source);
-            setProgressStep(null);
-            setTimeout(() => taskListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
-          }
-        },
+        searchId,
+        handleSearchEvent,
         controller.signal,
       );
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") {
+        sessionStorage.removeItem(SEARCH_JOB_KEY);
         setProgressStep(null);
         pushLog("검색이 중단되었습니다.");
       } else {
