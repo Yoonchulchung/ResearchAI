@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { getSessions, deleteSession } from "@/lib/api";
 import { Session } from "@/types";
+
 import { SettingsMenu } from "./SettingsMenu";
 import { QueueWidget } from "./QueueWidget";
 
-type SessionSummary = Omit<Session, "results"> & { doneCount: number };
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString("ko-KR", {
@@ -31,7 +31,7 @@ function StatusDot({ status }: { status: "idle" | "partial" | "done" }) {
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -93,14 +93,9 @@ export function Sidebar() {
         {/* Session dots */}
         <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1.5 py-2 min-h-0">
           {sessions.map((s) => {
-            const total = s.tasks.length;
-            const done = s.doneCount;
+            const done = s.doneCount ?? 0;
             const dotStatus: "idle" | "partial" | "done" =
-              done === total && total > 0
-                ? "done"
-                : done > 0
-                ? "partial"
-                : "idle";
+              done > 0 ? "partial" : "idle";
             const isActive = currentId === s.id;
             return (
               <button
@@ -194,14 +189,9 @@ export function Sidebar() {
             </div>
             <QueueWidget />
             {filteredSessions.map((s) => {
-              const total = s.tasks.length;
-              const done = s.doneCount;
+              const done = s.doneCount ?? 0;
               const dotStatus: "idle" | "partial" | "done" =
-                done === total && total > 0
-                  ? "done"
-                  : done > 0
-                  ? "partial"
-                  : "idle";
+                done > 0 ? "partial" : "idle";
               const isActive = currentId === s.id;
 
               return (
@@ -225,7 +215,7 @@ export function Sidebar() {
                     </div>
                     <div className="text-[10px] text-slate-400 mt-0.5">
                       {formatDate(s.createdAt)}
-                      {total > 0 && ` · ${done}/${total}`}
+                      {done > 0 && ` · ${done}완료`}
                     </div>
                   </div>
                   <button

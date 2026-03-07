@@ -187,7 +187,7 @@ export function useNewSession(models: ModelDefinition[]) {
     setCreating(true);
     setError("");
     try {
-      const session = await createSession(topic.trim(), selectedApiModel, tasks);
+      const session = await createSession(topic.trim(), selectedApiModel, selectedLocalModel, tasks);
       router.push(`/sessions/${session.id}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "세션 생성 실패");

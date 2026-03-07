@@ -6,6 +6,9 @@ import { ChatService } from '../application/chat.service';
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
+  // ******* //
+  // 채팅 생성 //
+  // ******* //
   @Post(':sessionId')
   async chat(
     @Param('sessionId') sessionId: string,
@@ -55,14 +58,14 @@ export class ChatController {
     return { ok: true };
   }
 
-  @Post(':sessionId/compact')
-  triggerCompaction(@Param('sessionId') sessionId: string) {
-    this.chatService.scheduleCompaction(sessionId);
-    return { ok: true };
-  }
+  // @Post(':sessionId/compact')
+  // triggerCompaction(@Param('sessionId') sessionId: string) {
+  //   this.chatService.scheduleCompaction(sessionId);
+  //   return { ok: true };
+  // }
 
-  @Get(':sessionId/compaction')
-  getCompactionStatus(@Param('sessionId') sessionId: string) {
-    return this.chatService.getCompactionStatus(sessionId);
-  }
+  // @Get(':sessionId/compaction')
+  // getCompactionStatus(@Param('sessionId') sessionId: string) {
+  //   return this.chatService.getCompactionStatus(sessionId);
+  // }
 }

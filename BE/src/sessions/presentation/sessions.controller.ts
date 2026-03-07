@@ -1,13 +1,18 @@
 import { Controller, Get, Post, Delete, Put, Param, Body, Req, Res, BadRequestException } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { SessionsService } from '../application/sessions.service';
-import { SearchSources } from '../../research/domain/model/search-sources.model';
 import { streamOllama } from '../../ai/infrastructure/ollama.ai';
+import { CreateSessionDto } from './dto/request/create-session.dto';
+import { UpdateTaskDto } from './dto/request/update-task.dto';
+import { StreamSummaryDto } from './dto/request/stream-summary.dto';
 
 @Controller('sessions')
 export class SessionsController {
   constructor(private readonly sessionsService: SessionsService) {}
-
+  
+  // ******* //
+  // 새션 조회 //
+  // ******* //
   @Get()
   findAll() {
     return this.sessionsService.findAll();
@@ -18,9 +23,12 @@ export class SessionsController {
     return this.sessionsService.findOne(id);
   }
 
+  // ******* //
+  // 새션 생성 //
+  // ******* //
   @Post()
-  create(@Body() body: { topic: string; model: string; tasks: any[] }) {
-    return this.sessionsService.create(body.topic, body.model, body.tasks);
+  create(@Body() body: CreateSessionDto) {
+    return this.sessionsService.create(body.topic, body.researchAiModel, body.researchWebModel, body.tasks);
   }
 
   @Delete(':id')
@@ -32,25 +40,31 @@ export class SessionsController {
   updateTask(
     @Param('id') id: string,
     @Param('taskId') taskId: string,
-    @Body() body: { result: string; status: string; sources?: SearchSources },
+    @Body() body: UpdateTaskDto,
   ) {
-    return this.sessionsService.updateTask(id, parseInt(taskId), body.result, body.status, body.sources);
+    return this.sessionsService.updateTask(id, parseInt(taskId), body.result, body.status);
   }
-
+  
+  // ************ //
+  // 새션 서머리 요청 //
+  // ************ //
   @Get(':id/summary')
   getSummary(@Param('id') id: string) {
     return this.sessionsService.getSummary(id);
   }
-
+  
+  // ************** //
+  // 세션의 요약본 생성 //
+  // ************** //
   @Post(':id/summary/stream')
   async streamSummary(
     @Param('id') id: string,
-    @Body() body: { model?: string },
+    @Body() body: StreamSummaryDto,
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
     // 기존 서머리가 있으면 즉시 반환
-    const existing = this.sessionsService.getSummary(id);
+    const existing = await this.sessionsService.getSummary(id);
     if (existing.summary) {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -62,7 +76,7 @@ export class SessionsController {
       return;
     }
 
-    const ctx = this.sessionsService.buildSummaryContext(id);
+    const ctx = await this.sessionsService.buildSummaryContext(id);
     if (!ctx) throw new BadRequestException('완료된 태스크가 없습니다.');
 
     const model = body?.model || ctx.model;
@@ -79,7 +93,7 @@ export class SessionsController {
         fullText += chunk;
         res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
       }
-      if (fullText) this.sessionsService.saveSummary(id, fullText);
+      if (fullText) await this.sessionsService.saveSummary(id, fullText);
       res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
     } catch (e: any) {
       res.write(`data: ${JSON.stringify({ type: 'error', message: e.message })}\n\n`);

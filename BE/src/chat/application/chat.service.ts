@@ -5,42 +5,15 @@ import { callOllama } from '../../ai/infrastructure/ollama.ai';
 import { AiClientService } from '../../ai/application/ai-client.service';
 import { ChatMessage } from '../domain/chat-message.model';
 import { ChatHistoryService } from './chat-history.service';
-import { ContextCompactorService } from './context-compactor.service';
 
 @Injectable()
 export class ChatService {
-  private indexedSessions = new Set<string>();
-
   constructor(
     private readonly sessionsService: SessionsService,
     private readonly vectorService: VectorService,
     private readonly historyService: ChatHistoryService,
-    private readonly compactor: ContextCompactorService,
     private readonly aiClient: AiClientService,
   ) {}
-
-  private async ensureSessionIndexed(sessionId: string): Promise<void> {
-    if (this.indexedSessions.has(sessionId)) return;
-    if (!this.vectorService.isAvailable()) return;
-    this.indexedSessions.add(sessionId);
-    try {
-      const session = this.sessionsService.findOne(sessionId);
-      for (const task of session.tasks ?? []) {
-        const result = session.results?.[task.id];
-        if (result) {
-          await this.vectorService.indexTaskResult(
-            sessionId,
-            String(task.id),
-            task.title,
-            task.icon,
-            result,
-          );
-        }
-      }
-    } catch {
-      this.indexedSessions.delete(sessionId);
-    }
-  }
 
   getHistory(sessionId: string): ChatMessage[] {
     return this.historyService.get(sessionId);
@@ -50,25 +23,12 @@ export class ChatService {
     this.historyService.clear(sessionId);
   }
 
-  getCompactionStatus(sessionId: string) {
-    return this.compactor.getStatus(sessionId);
-  }
-
-  scheduleCompaction(sessionId: string): void {
-    this.compactor.schedule(sessionId);
-  }
-
   async *chatStream(
     sessionId: string,
     message: string,
     model: string,
   ): AsyncGenerator<string> {
-    const session = this.sessionsService.findOne(sessionId);
-    const ragParts = (session.tasks ?? [])
-      .filter((t) => session.results?.[t.id])
-      .map((t) => `### ${t.icon} ${t.title}\n${session.results[t.id]}`);
-
-    this.ensureSessionIndexed(sessionId).catch(() => {});
+    const session = await this.sessionsService.findOne(sessionId);
 
     let ragContext: string;
     const vectorResults = await this.vectorService.search(sessionId, message, 6);
@@ -77,13 +37,15 @@ export class ChatService {
       ragContext = vectorResults
         .map((r) => `### ${r.taskIcon} ${r.taskTitle}\n${r.text}`)
         .join('\n\n---\n\n');
-    } else if (ragParts.length > 0) {
-      const rawContext = ragParts.join('\n\n---\n\n');
-      const hash = this.compactor.computeHash(ragParts);
-      const cached = this.compactor.getCached(sessionId);
-      ragContext = cached?.hash === hash ? cached.text : rawContext;
     } else {
-      ragContext = '아직 완료된 리서치 결과가 없습니다.';
+      const items = await this.sessionsService.findItemsWithResults(sessionId);
+      if (items.length > 0) {
+        ragContext = items
+          .map((item) => `### ${item.topic}\n${item.aiResult}`)
+          .join('\n\n---\n\n');
+      } else {
+        ragContext = '아직 완료된 리서치 결과가 없습니다.';
+      }
     }
 
     const systemPrompt = `당신은 "${session.topic}" 리서치 프로젝트의 전문 분석가입니다.

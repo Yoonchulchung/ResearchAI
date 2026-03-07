@@ -64,7 +64,7 @@ export class QueueRepository {
     values.push(jobId);
     this.queueDb.get()
       .prepare(`UPDATE queue_jobs SET ${fields.join(', ')} WHERE job_id = ?`)
-      .run(...(values as Parameters<ReturnType<Database.Database['prepare']>['run']>));
+      .run(...(values as any[]));
   }
 
   delete(jobId: string): void {

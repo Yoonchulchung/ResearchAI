@@ -1,5 +1,3 @@
-import { SearchSources } from '../../research/domain/model/search-sources.model';
-
 export interface Task {
   id: number;
   title: string;
@@ -7,14 +5,17 @@ export interface Task {
   prompt: string;
 }
 
+export interface TaskWithResult extends Task {
+  result: string | null;
+}
+
 export interface Session {
   id: string;
   topic: string;
-  model: string;
+  researchAiModel: string;
+  researchWebModel: string;
   createdAt: string;
-  tasks: Task[];
-  results: Record<string, string>;
-  statuses: Record<string, string>;
-  sources: Record<string, SearchSources>;
-  summary?: string;
+  summary?: string | null;
+  tasks?: TaskWithResult[];
+  doneCount?: number;
 }

@@ -1,136 +1,128 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { SearchSources } from '../../research/domain/model/search-sources.model';
 import { VectorService } from '../../vector/vector.service';
 import { Task, Session } from '../domain/session.model';
-import { SessionRepository } from '../infrastructure/session-repository';
+import { SessionRepository } from '../domain/repository/session.repository';
+import { SessionItemRepository } from '../domain/repository/session-item.repository';
+import { ResearchState } from '../domain/entity/session.entity';
 
 @Injectable()
 export class SessionsService {
   constructor(
-    private readonly repository: SessionRepository,
+    private readonly sessionRepository: SessionRepository,
+    private readonly sessionItemRepository: SessionItemRepository,
     private readonly vectorService: VectorService,
   ) {}
 
-  findAll() {
-    const ids = this.repository.listIds();
-    const sessions: ReturnType<typeof this.toListItem>[] = [];
-    for (const id of ids) {
-      try {
-        const s = this.repository.read(id);
-        sessions.push(this.toListItem(s));
-      } catch {}
-    }
-    return sessions.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  // ******* //
+  // 세션 조회 //
+  // ******* //
+  async findAll(): Promise<Session[]> {
+    return this.sessionRepository.findAll();
   }
 
-  private toListItem(s: Session) {
-    const statuses = s.statuses ?? {};
-    const { results, sources, ...rest } = s;
-    return {
-      ...rest,
-      statuses,
-      doneCount: Object.values(statuses).filter((v) => v === 'done').length,
-    };
+  async findOne(id: string): Promise<Session> {
+    return this.sessionRepository.findById(id);
   }
 
-  findOne(id: string) {
-    const session = this.repository.read(id);
-    return {
-      ...session,
-      results: session.results ?? {},
-      statuses:
-        session.statuses ??
-        Object.fromEntries((session.tasks ?? []).map((t) => [t.id, 'idle'])),
-    };
-  }
-
-  create(topic: string, model: string, tasks: Task[]) {
+  // ******* //
+  // 세션 생성 //
+  // ******* //
+  async create(topic: string, researchAiModel: string, researchWebModel: string, tasks: Task[]): Promise<Session> {
     const session: Session = {
       id: randomUUID(),
       topic,
-      model,
+      researchAiModel,
+      researchWebModel,
       createdAt: new Date().toISOString(),
-      tasks,
-      results: {},
-      statuses: Object.fromEntries(tasks.map((t) => [t.id, 'idle'])),
-      sources: {},
     };
-    this.repository.write(session);
+    await this.sessionRepository.save(session);
+
+    await Promise.all(
+      tasks.map((task) =>
+        this.sessionItemRepository.save({
+          id: randomUUID(),
+          sessionId: session.id,
+          topic: task.title,
+          taskIcon: task.icon,
+          webPrompt: task.prompt,
+        }),
+      ),
+    );
+
     return session;
   }
 
-  remove(id: string) {
-    this.repository.deleteDir(id);
+  // ********* //
+  // 태스크 업데이트 //
+  // ********* //
+  async updateTask(sessionId: string, taskId: number, result: string, status: string): Promise<{ ok: boolean }> {
+    const items = await this.sessionItemRepository.findBySessionId(sessionId);
+    // taskId는 1부터 시작하는 순서 기반 인덱스
+    const item = items[taskId - 1];
+    if (item && status === 'done') {
+      await this.sessionItemRepository.updateResult(item.id, result);
+      this.vectorService
+        .indexTaskResult(sessionId, String(taskId), item.topic, '📄', result)
+        .catch(() => {});
+    }
+
+    const allItems = await this.sessionItemRepository.findBySessionId(sessionId);
+    const allDone = allItems.every((i) => i.aiResult);
+    if (allDone) {
+      await this.sessionRepository.updateState(sessionId, ResearchState.DONE);
+    } else if (status === 'error') {
+      await this.sessionRepository.updateState(sessionId, ResearchState.ERROR);
+    }
+
+    return { ok: true };
+  }
+
+  async findItemsWithResults(sessionId: string): Promise<{ topic: string; aiResult: string }[]> {
+    const items = await this.sessionItemRepository.findBySessionId(sessionId);
+    return items
+      .filter((item) => item.aiResult)
+      .map((item) => ({ topic: item.topic, aiResult: item.aiResult }));
+  }
+
+  async remove(id: string): Promise<{ ok: boolean }> {
+    await this.sessionRepository.delete(id);
     this.vectorService.deleteSession(id).catch(() => {});
     return { ok: true };
   }
 
-  updateTaskSources(sessionId: string, taskId: number, additionalSources: Partial<SearchSources>) {
-    try {
-      const session = this.repository.read(sessionId);
-      if (!session.sources) session.sources = {};
-      session.sources[String(taskId)] = {
-        ...(session.sources[String(taskId)] ?? {}),
-        ...additionalSources,
-      };
-      this.repository.write(session);
-    } catch {}
-  }
-
-  updateTask(sessionId: string, taskId: number, result: string, status: string, sources?: SearchSources) {
-    const session = this.repository.read(sessionId);
-    if (!session.results) session.results = {};
-    if (!session.statuses) session.statuses = {};
-    if (!session.sources) session.sources = {};
-    session.results[taskId] = result;
-    session.statuses[taskId] = status;
-    if (sources) session.sources[taskId] = sources;
-    this.repository.write(session);
-    if (status === 'done' && result) {
-      const task = session.tasks?.find((t) => t.id === taskId);
-      this.vectorService
-        .indexTaskResult(
-          sessionId,
-          String(taskId),
-          task?.title ?? String(taskId),
-          task?.icon ?? '📄',
-          result,
-        )
-        .catch(() => {});
-    }
-    return { ok: true };
-  }
-
-  chatPath(sessionId: string): string {
-    return this.repository.chatPath(sessionId);
-  }
-
-  getSummary(id: string): { summary: string | null } {
-    const session = this.repository.read(id);
+  // ************ //
+  // 세션 서머리 조회 //
+  // ************ //
+  async getSummary(id: string): Promise<{ summary: string | null }> {
+    const session = await this.sessionRepository.findById(id);
     return { summary: session.summary ?? null };
   }
 
-  saveSummary(id: string, summary: string): void {
-    const session = this.repository.read(id);
-    session.summary = summary;
-    this.repository.write(session);
+  // ************ //
+  // 세션 서머리 저장 //
+  // ************ //
+  async saveSummary(id: string, summary: string): Promise<void> {
+    await this.sessionRepository.updateSummary(id, summary);
   }
 
-  buildSummaryContext(id: string): { model: string; system: string; prompt: string } | null {
-    const session = this.repository.read(id);
-    const doneResults = Object.entries(session.results ?? {})
-      .filter(([taskId]) => session.statuses?.[taskId] === 'done')
-      .map(([taskId, result]) => {
-        const task = session.tasks?.find((t) => String(t.id) === taskId);
-        return task ? `## ${task.icon} ${task.title}\n${result}` : result;
-      });
+  // ****************** //
+  // 서머리 생성용 컨텍스트 //
+  // ****************** //
+  async buildSummaryContext(id: string): Promise<{ model: string; system: string; prompt: string } | null> {
+    const session = await this.sessionRepository.findById(id);
+    const items = await this.sessionItemRepository.findBySessionId(id);
 
-    if (doneResults.length === 0) return null;
+    const doneItems = items.filter((item) => item.aiResult);
+    if (doneItems.length === 0) return null;
 
-    const model = process.env.OLLAMA_MODEL || 'llama3.2';
+    const resultsText = doneItems
+      .map((item) => `## ${item.topic}\n${item.aiResult}`)
+      .join('\n\n---\n\n');
+
+    const model = session.researchAiModel || process.env.OLLAMA_MODEL || 'llama3.2';
     const system = '당신은 리서치 결과를 간결하고 명확하게 요약하는 전문가입니다. 핵심 인사이트를 추출하여 체계적으로 정리해주세요.';
-    const prompt = `다음은 "${session.topic}" 주제로 수행된 리서치 결과입니다:\n\n${doneResults.join('\n\n---\n\n')}\n\n위 내용을 바탕으로 핵심 인사이트와 주요 포인트를 한국어로 요약해주세요. 마크다운 형식으로 작성해주세요.`;
+    const prompt = `다음은 "${session.topic}" 주제로 수행된 리서치 결과입니다:\n\n${resultsText}\n\n위 내용을 바탕으로 핵심 인사이트와 주요 포인트를 한국어로 요약해주세요. 마크다운 형식으로 작성해주세요.`;
 
     return { model, system, prompt };
   }

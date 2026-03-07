@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { WebSearchService } from '../../research/application/web-search.service';
 import { ResearchService } from '../../research/application/research.service';
 import { SessionsService } from '../../sessions/application/sessions.service';
-import { SearchSources } from '../../research/domain/model/search-sources.model';
 import { QueueJob } from '../domain/queue-job.model';
 
 export type OnJobUpdate = (updates: Partial<QueueJob>) => void;
@@ -17,7 +16,7 @@ export class JobRunnerService {
 
   async runJob(job: QueueJob, onUpdate: OnJobUpdate, signal: AbortSignal): Promise<void> {
     let context = '';
-    let localSources: SearchSources = {};
+    let localSources: Record<string, unknown> = {};
 
     // 1. 웹 검색 스트리밍
     try {
@@ -46,8 +45,7 @@ export class JobRunnerService {
         context || undefined,
       );
       if (signal.aborted) return;
-      const sourcesToSave = Object.keys(localSources).length > 0 ? localSources : undefined;
-      await this.sessionsService.updateTask(job.sessionId, job.taskId, result, 'done', sourcesToSave);
+      await this.sessionsService.updateTask(job.sessionId, job.taskId, result, 'done');
       onUpdate({ status: 'done', phase: undefined, result });
     } catch (e) {
       if (signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;

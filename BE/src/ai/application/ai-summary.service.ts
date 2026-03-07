@@ -22,7 +22,7 @@ export class AiSummaryService {
 
       try {
         // 이미 저장된 서머리가 있으면 그대로 전송
-        const { summary: existing } = this.sessionsService.getSummary(sessionId);
+        const { summary: existing } = await this.sessionsService.getSummary(sessionId);
         if (existing) {
           log('저장된 서머리를 불러옵니다...');
           this.summaryJobService.push(jobId, { type: 'chunk', text: existing });
@@ -31,7 +31,7 @@ export class AiSummaryService {
         }
 
         log('리서치 결과를 수집하는 중...');
-        const ctx = this.sessionsService.buildSummaryContext(sessionId);
+        const ctx = await this.sessionsService.buildSummaryContext(sessionId);
         if (!ctx) {
           this.summaryJobService.push(jobId, { type: 'error', message: '완료된 태스크가 없습니다.' });
           return;

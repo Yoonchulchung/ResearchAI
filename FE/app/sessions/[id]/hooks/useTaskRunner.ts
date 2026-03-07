@@ -23,7 +23,6 @@ export function useTaskRunner(session: Session | null, id: string) {
     [queueJobs, id],
   );
 
-  // id 변경 시 상태 초기화
   useEffect(() => {
     setTaskRunStates({});
   }, [id]);
@@ -31,7 +30,10 @@ export function useTaskRunner(session: Session | null, id: string) {
   // ── Derived state ─────────────────────────────────────────────────────────
 
   const statuses = useMemo<Record<string, TaskStatus>>(() => {
-    const base: Record<string, TaskStatus> = { ...(session?.statuses ?? {}) };
+    const base: Record<string, TaskStatus> = {};
+    for (const task of session?.tasks ?? []) {
+      base[String(task.id)] = task.result ? "done" : "idle";
+    }
     for (const job of sessionQueueJobs) {
       const key = String(job.taskId);
       if (base[key] === "done" || base[key] === "error") continue;
@@ -56,7 +58,10 @@ export function useTaskRunner(session: Session | null, id: string) {
   }, [taskRunStates, sessionQueueJobs]);
 
   const results = useMemo<Record<string, string>>(() => {
-    const base = { ...(session?.results ?? {}) };
+    const base: Record<string, string> = {};
+    for (const task of session?.tasks ?? []) {
+      if (task.result) base[String(task.id)] = task.result;
+    }
     for (const [key, state] of Object.entries(taskRunStates)) {
       if (state.result) base[key] = state.result;
     }
@@ -64,12 +69,12 @@ export function useTaskRunner(session: Session | null, id: string) {
   }, [session, taskRunStates]);
 
   const sources = useMemo<Record<string, SearchSources>>(() => {
-    const base = { ...(session?.sources ?? {}) };
+    const base: Record<string, SearchSources> = {};
     for (const [key, state] of Object.entries(taskRunStates)) {
       if (state.sources) base[key] = state.sources;
     }
     return base;
-  }, [session, taskRunStates]);
+  }, [taskRunStates]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -86,13 +91,13 @@ export function useTaskRunner(session: Session | null, id: string) {
       taskTitle: task.title,
       taskIcon: task.icon,
       taskPrompt: task.prompt,
-      model: session.model,
+      model: session.researchAiModel,
     }).then((job) => { queueJobId = job.jobId; }).catch(() => {});
 
     try {
       await deepResearchStream(
         task.prompt,
-        session.model,
+        session.researchAiModel,
         undefined,
         (event) => {
           if (event.type === "log") {
@@ -102,7 +107,7 @@ export function useTaskRunner(session: Session | null, id: string) {
           } else if (event.type === "done") {
             const src = event.sources as unknown as SearchSources;
             setTaskRunStates((prev) => ({ ...prev, [key]: { status: "done", result: event.result, sources: src } }));
-            updateTask(id, task.id, event.result, "done", event.sources).catch(() => {});
+            updateTask(id, task.id, event.result, "done").catch(() => {});
             if (queueJobId) queueUpdateJob(queueJobId, { status: "done" }).catch(() => {});
           }
         },
@@ -142,9 +147,9 @@ export function useTaskRunner(session: Session | null, id: string) {
 
   const handleRunAll = useCallback(async () => {
     if (isRunningRef.current || !session) return;
-    const pendingTasks = session.tasks.filter((t) => {
-      const s = (session.statuses ?? {})[String(t.id)];
-      if (s === "done") return false;
+    const pendingTasks = (session.tasks ?? []).filter((t) => {
+      const s = statuses[String(t.id)];
+      if (s === "done" || s === "loading") return false;
       const queueJob = sessionQueueJobs.find((j) => j.taskId === t.id);
       if (queueJob?.status === "pending" || queueJob?.status === "running") return false;
       return !s || s === "idle" || s === "error";
@@ -165,7 +170,7 @@ export function useTaskRunner(session: Session | null, id: string) {
       setIsRunning(false);
       abortRef.current = null;
     }
-  }, [session, runTask, sessionQueueJobs]);
+  }, [session, statuses, runTask, sessionQueueJobs]);
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort();

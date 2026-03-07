@@ -3,6 +3,7 @@ export interface Task {
   title: string;
   icon: string;
   prompt: string;
+  result?: string | null;
 }
 
 export interface SearchSources {
@@ -54,11 +55,10 @@ export interface ChatMessage {
 export interface Session {
   id: string;
   topic: string;
-  model: string;
+  researchAiModel: string;
+  researchWebModel: string;
   createdAt: string;
-  tasks: Task[];
-  results: Record<string, string>;
-  statuses: Record<string, TaskStatus>;
-  sources?: Record<string, SearchSources>;
+  summary?: string | null;
+  tasks?: Task[];
   doneCount?: number;
 }

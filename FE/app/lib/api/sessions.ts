@@ -2,14 +2,14 @@ import { Session, Task, ChatMessage } from "@/types";
 import { apiFetch, API_BASE, readSSE } from "./base";
 
 export const getSessions = () =>
-  apiFetch<(Omit<Session, "results"> & { doneCount: number })[]>("/sessions");
+  apiFetch<Session[]>("/sessions");
 
 export const getSession = (id: string) => apiFetch<Session>(`/sessions/${id}`);
 
-export const createSession = (topic: string, model: string, tasks: Task[]) =>
+export const createSession = (topic: string, researchAiModel: string, researchWebModel: string, tasks: Task[]) =>
   apiFetch<Session>("/sessions", {
     method: "POST",
-    body: JSON.stringify({ topic, model, tasks }),
+    body: JSON.stringify({ topic, researchAiModel, researchWebModel, tasks }),
   });
 
 export const deleteSession = (id: string) =>
@@ -20,11 +20,10 @@ export const updateTask = (
   taskId: number,
   result: string,
   status: string,
-  sources?: Record<string, string>,
 ) =>
   apiFetch<{ ok: boolean }>(`/sessions/${sessionId}/tasks/${taskId}`, {
     method: "PUT",
-    body: JSON.stringify({ result, status, sources }),
+    body: JSON.stringify({ result, status }),
   });
 
 // ── Summary ───────────────────────────────────────────────────────────────────

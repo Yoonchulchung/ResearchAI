@@ -1,0 +1,20 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id        String  @id
+  topic     String
+  model     String
+  createdAt String
+  tasks     String  // JSON: Task[]
+  results   String  @default("{}")  // JSON: Record<string, string>
+  statuses  String  @default("{}")  // JSON: Record<string, string>
+  sources   String  @default("{}")  // JSON: Record<string, SearchSources>
+  summary   String?
+}

@@ -15,7 +15,6 @@ import { useTaskRunner } from "./hooks/useTaskRunner";
 import { useChatHandler } from "./hooks/useChatHandler";
 import { useCompaction } from "./hooks/useCompaction";
 
-// 입력 상태를 격리하여 타이핑 시 상위 컴포넌트 리렌더 방지
 const ChatInputArea = memo(function ChatInputArea({
   onSend,
   generating,
@@ -71,7 +70,7 @@ export default function SessionPage() {
   if (loading) return <SessionSkeleton />;
   if (!session) return null;
 
-  const tasks: Task[] = session.tasks;
+  const tasks: Task[] = session.tasks ?? [];
   const doneCount = Object.values(statuses).filter((s) => s === "done").length;
   const total = tasks.length;
   const allDone = doneCount === total && total > 0 && !isRunning;
@@ -100,7 +99,7 @@ export default function SessionPage() {
     <div className="h-full flex flex-col">
       <SessionHeader
         topic={session.topic}
-        model={session.model}
+        model={session.researchAiModel}
         isRunning={isRunning}
         allDone={allDone}
         onRunAll={handleRunAll}
@@ -109,7 +108,6 @@ export default function SessionPage() {
         onViewDetail={() => router.push(`/sessions/${id}/detail`)}
       />
 
-      {/* Scrollable content */}
       <div className="bg-grey flex-1 overflow-y-auto px-8 py-6">
         <SummarySection sessionId={id} topic={session.topic} localModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} />
 
@@ -136,14 +134,13 @@ export default function SessionPage() {
         />
       </div>
 
-      {/* Bottom input */}
       <div className="px-8 py-4 border-t border-slate-100 bg-white shrink-0">
         <ChatInputArea
           onSend={handleChatSend}
           generating={chatLoading}
           apiModels={models.filter((m) => m.provider !== "ollama")}
           localModels={models.filter((m) => m.provider === "ollama")}
-          defaultModel={session.model}
+          defaultModel={session.researchAiModel}
         />
       </div>
     </div>
