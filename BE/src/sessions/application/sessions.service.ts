@@ -24,11 +24,23 @@ export class SessionsService {
   async findOne(id: string): Promise<Session> {
     return this.sessionRepository.findById(id);
   }
+  
+  async findItemsWithResults(sessionId: string): Promise<{ topic: string; aiResult: string }[]> {
+    const items = await this.sessionItemRepository.findBySessionId(sessionId);
+    return items
+      .filter((item) => item.aiResult)
+      .map((item) => ({ topic: item.topic, aiResult: item.aiResult }));
+  }
+
+  async getSummary(id: string): Promise<{ summary: string | null }> {
+    const session = await this.sessionRepository.findById(id);
+    return { summary: session.summary ?? null };
+  }
 
   // ******* //
   // 세션 생성 //
   // ******* //
-  async create(topic: string, researchAiModel: string, researchWebModel: string, tasks: Task[]): Promise<Session> {
+  async createSession(topic: string, researchAiModel: string, researchWebModel: string, tasks: Task[]): Promise<Session> {
     const session: Session = {
       id: randomUUID(),
       topic,
@@ -53,14 +65,18 @@ export class SessionsService {
     return session;
   }
 
-  // ********* //
-  // 태스크 업데이트 //
-  // ********* //
-  async updateTask(sessionId: string, taskId: number, result: string, status: string): Promise<{ ok: boolean }> {
+  // ************** //
+  // 세션 상태 업데이트 //
+  // ************** //
+  async updateSession(sessionId: string, taskId: number, result: string, status: ResearchState): Promise<{ ok: boolean }> {
+
+    // Todo: Session Item의 상태도 변경될 수 있도록 변경.
+    // Todo: RUNNING 상태 저장 방법 추가.
+
     const items = await this.sessionItemRepository.findBySessionId(sessionId);
     // taskId는 1부터 시작하는 순서 기반 인덱스
     const item = items[taskId - 1];
-    if (item && status === 'done') {
+    if (item && status === ResearchState.DONE) {
       await this.sessionItemRepository.updateResult(item.id, result);
       this.vectorService
         .indexTaskResult(sessionId, String(taskId), item.topic, '📄', result)
@@ -71,32 +87,17 @@ export class SessionsService {
     const allDone = allItems.every((i) => i.aiResult);
     if (allDone) {
       await this.sessionRepository.updateState(sessionId, ResearchState.DONE);
-    } else if (status === 'error') {
+    } else if (status === ResearchState.ERROR) {
       await this.sessionRepository.updateState(sessionId, ResearchState.ERROR);
     }
 
     return { ok: true };
   }
 
-  async findItemsWithResults(sessionId: string): Promise<{ topic: string; aiResult: string }[]> {
-    const items = await this.sessionItemRepository.findBySessionId(sessionId);
-    return items
-      .filter((item) => item.aiResult)
-      .map((item) => ({ topic: item.topic, aiResult: item.aiResult }));
-  }
-
   async remove(id: string): Promise<{ ok: boolean }> {
     await this.sessionRepository.delete(id);
     this.vectorService.deleteSession(id).catch(() => {});
     return { ok: true };
-  }
-
-  // ************ //
-  // 세션 서머리 조회 //
-  // ************ //
-  async getSummary(id: string): Promise<{ summary: string | null }> {
-    const session = await this.sessionRepository.findById(id);
-    return { summary: session.summary ?? null };
   }
 
   // ************ //

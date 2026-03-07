@@ -4,9 +4,9 @@
   "settings": {
     "width": 2000,
     "height": 2000,
-    "scrollTop": -1,
-    "scrollLeft": 0,
-    "zoomLevel": 1,
+    "scrollTop": -200.7113,
+    "scrollLeft": -360,
+    "zoomLevel": 0.76,
     "show": 431,
     "database": 4,
     "databaseName": "",
@@ -72,15 +72,15 @@
           "zwF-UDv3YWr81Pv2UtHFn"
         ],
         "ui": {
-          "x": 263,
-          "y": 492,
+          "x": 264.6667,
+          "y": 418.6316,
           "zIndex": 2,
           "widthName": 60,
           "widthComment": 60,
           "color": ""
         },
         "meta": {
-          "updateAt": 1772883140090,
+          "updateAt": 1772886190239,
           "createAt": 1772880489428
         }
       },
@@ -95,6 +95,7 @@
           "2ym2Sh0OFG5eg98lyi7ko",
           "ZNFrj6zeR1wP-1PpWIf2p",
           "59kMs3UqsKcK7woShMZLG",
+          "51gXoSkq1M55_huGRwjLF",
           "8C34Jg0f8vXu9BMFs16It"
         ],
         "seqColumnIds": [
@@ -105,20 +106,21 @@
           "Bi70xa76Jto6yIXS5vrhF",
           "ZNFrj6zeR1wP-1PpWIf2p",
           "59kMs3UqsKcK7woShMZLG",
+          "51gXoSkq1M55_huGRwjLF",
           "F0toqlDcZHyos2o8Apd__",
           "bJcO74-U3orklqu4QFPWr",
           "8C34Jg0f8vXu9BMFs16It"
         ],
         "ui": {
-          "x": 839,
-          "y": 463,
+          "x": 924,
+          "y": 502,
           "zIndex": 22,
           "widthName": 76,
           "widthComment": 60,
           "color": ""
         },
         "meta": {
-          "updateAt": 1772883130352,
+          "updateAt": 1772886195710,
           "createAt": 1772880522739
         }
       }
@@ -388,19 +390,19 @@
         "id": "sTTVArXrQXc323R1cBAJI",
         "tableId": "VG3Cr4NdIZ8y3l2d4zCAr",
         "name": "research_state",
-        "comment": "",
+        "comment": "최종 세션의 검색 상태",
         "dataType": "ENUM",
         "default": "",
         "options": 8,
         "ui": {
           "keys": 0,
           "widthName": 86,
-          "widthComment": 60,
+          "widthComment": 106,
           "widthDataType": 60,
           "widthDefault": 60
         },
         "meta": {
-          "updateAt": 1772881029280,
+          "updateAt": 1772886122914,
           "createAt": 1772880988412
         }
       },
@@ -549,7 +551,7 @@
         "tableId": "IZ2_y6XfZoLbvSCKgcvzp",
         "name": "topic",
         "comment": "",
-        "dataType": "",
+        "dataType": "VARCHAR",
         "default": "",
         "options": 0,
         "ui": {
@@ -560,7 +562,7 @@
           "widthDefault": 60
         },
         "meta": {
-          "updateAt": 1772883176978,
+          "updateAt": 1772886202392,
           "createAt": 1772882357161
         }
       },
@@ -589,9 +591,9 @@
         "tableId": "VG3Cr4NdIZ8y3l2d4zCAr",
         "name": "research_web_model",
         "comment": "",
-        "dataType": "",
+        "dataType": "VARCHAR",
         "default": "",
-        "options": 0,
+        "options": 8,
         "ui": {
           "keys": 0,
           "widthName": 122,
@@ -600,8 +602,28 @@
           "widthDefault": 60
         },
         "meta": {
-          "updateAt": 1772883138434,
+          "updateAt": 1772886111102,
           "createAt": 1772883131952
+        }
+      },
+      "51gXoSkq1M55_huGRwjLF": {
+        "id": "51gXoSkq1M55_huGRwjLF",
+        "tableId": "IZ2_y6XfZoLbvSCKgcvzp",
+        "name": "research_state",
+        "comment": "",
+        "dataType": "ENUM",
+        "default": "",
+        "options": 0,
+        "ui": {
+          "keys": 0,
+          "widthName": 86,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1772886096136,
+          "createAt": 1772886080452
         }
       }
     },
@@ -616,8 +638,8 @@
           "columnIds": [
             "gs6biDyEwHvMzjv6uSQoU"
           ],
-          "x": 691,
-          "y": 604,
+          "x": 738.6667,
+          "y": 530.6315999999999,
           "direction": 2
         },
         "end": {
@@ -625,8 +647,8 @@
           "columnIds": [
             "9IwLoE9kSJmS7QtxHScUe"
           ],
-          "x": 839,
-          "y": 575,
+          "x": 924,
+          "y": 626,
           "direction": 1
         },
         "meta": {

@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Delete, Put, Param, Body, Req, Res, BadRequestException } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { SessionsService } from '../application/sessions.service';
+import { ResearchState } from '../domain/entity/session.entity';
 import { streamOllama } from '../../ai/infrastructure/ollama.ai';
 import { CreateSessionDto } from './dto/request/create-session.dto';
 import { UpdateTaskDto } from './dto/request/update-task.dto';
@@ -28,7 +29,7 @@ export class SessionsController {
   // ******* //
   @Post()
   create(@Body() body: CreateSessionDto) {
-    return this.sessionsService.create(body.topic, body.researchAiModel, body.researchWebModel, body.tasks);
+    return this.sessionsService.createSession(body.topic, body.researchAiModel, body.researchWebModel, body.tasks);
   }
 
   @Delete(':id')
@@ -42,7 +43,7 @@ export class SessionsController {
     @Param('taskId') taskId: string,
     @Body() body: UpdateTaskDto,
   ) {
-    return this.sessionsService.updateTask(id, parseInt(taskId), body.result, body.status);
+    return this.sessionsService.updateSession(id, parseInt(taskId), body.result, body.status as ResearchState);
   }
   
   // ************ //

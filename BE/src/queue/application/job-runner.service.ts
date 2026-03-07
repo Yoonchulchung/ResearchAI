@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { WebSearchService } from '../../research/application/web-search.service';
 import { ResearchService } from '../../research/application/research.service';
 import { SessionsService } from '../../sessions/application/sessions.service';
+import { ResearchState } from '../../sessions/domain/entity/session.entity';
 import { QueueJob } from '../domain/queue-job.model';
 
 export type OnJobUpdate = (updates: Partial<QueueJob>) => void;
@@ -45,12 +46,12 @@ export class JobRunnerService {
         context || undefined,
       );
       if (signal.aborted) return;
-      await this.sessionsService.updateTask(job.sessionId, job.taskId, result, 'done');
+      await this.sessionsService.updateSession(job.sessionId, job.taskId, result, ResearchState.DONE);
       onUpdate({ status: 'done', phase: undefined, result });
     } catch (e) {
       if (signal.aborted || (e instanceof Error && e.name === 'AbortError')) return;
       const msg = e instanceof Error ? e.message : '오류';
-      try { this.sessionsService.updateTask(job.sessionId, job.taskId, msg, 'error'); } catch {}
+      try { this.sessionsService.updateSession(job.sessionId, job.taskId, msg, ResearchState.ERROR); } catch {}
       onUpdate({ status: 'error', phase: undefined, result: msg });
     }
   }

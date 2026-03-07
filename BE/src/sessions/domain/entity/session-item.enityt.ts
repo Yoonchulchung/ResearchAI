@@ -1,6 +1,13 @@
 import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryColumn, JoinColumn } from 'typeorm';
 import { SessionEntity } from './session.entity';
 
+export enum ResearchState {
+  IDLE = 'idle',
+  RUNNING = 'running',
+  DONE = 'done',
+  ERROR = 'error',
+}
+
 @Entity('session_item')
 export class SessionItemEntity {
   @PrimaryColumn()
@@ -31,6 +38,9 @@ export class SessionItemEntity {
 
   @Column({ name: 'ai_result', nullable: true })
   aiResult: string;
+
+  @Column({ name: 'research_state', type: 'simple-enum', enum: ResearchState, default: ResearchState.IDLE })
+  researchState: ResearchState;
 
   @CreateDateColumn()
   created_at: Date;

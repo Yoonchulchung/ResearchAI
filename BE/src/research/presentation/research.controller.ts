@@ -18,9 +18,9 @@ export class ResearchController {
     return this.modelsService.getModels();
   }
 
-  // *** //
-  // 서칭 //
-  // *** //
+  // ******** //
+  // 리서처 요청 //
+  // ******** //
   @Post('light-search/stream')
   async lightResearchStream(
     @Body() body: { topic: string; model: string; searchMode?: SearchSource | 'auto'; searchId: string },
