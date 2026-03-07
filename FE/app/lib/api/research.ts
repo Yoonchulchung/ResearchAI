@@ -66,13 +66,12 @@ export async function reconnectLightResearch(
 
 export async function deepResearch(
   sessionId: string,
-  taskId: number,
-  prompt: string,
+  tasks: { itemId: string; prompt: string }[],
   model: string,
 ): Promise<{ status: string; sessionId: string }> {
   return apiFetch<{ status: string; sessionId: string }>("/research/deep-search", {
     method: "POST",
-    body: JSON.stringify({ sessionId, taskId, prompt, model }),
+    body: JSON.stringify({ sessionId, tasks, model }),
   });
 }
 

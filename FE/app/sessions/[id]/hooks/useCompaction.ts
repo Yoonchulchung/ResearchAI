@@ -12,7 +12,7 @@ export function useCompaction(
 
   useEffect(() => {
     if (!session) return;
-    const total = session.tasks?.length ?? 0;
+    const total = session.items?.length ?? 0;
     const done = Object.values(statuses).filter((s) => s === "done").length;
     if (done !== total || total === 0 || isRunning) return;
 

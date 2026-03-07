@@ -25,7 +25,7 @@ export function useSessionData(id: string) {
   }, [id, router]);
 
   // 완료되지 않은 task가 있을 때만 폴링
-  const hasPendingTasks = session?.tasks?.some((t) => !t.result) ?? false;
+  const hasPendingTasks = session?.items?.some((t) => !t.result) ?? false;
 
   useEffect(() => {
     if (!hasPendingTasks) return;

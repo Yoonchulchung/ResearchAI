@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Session, TaskWithResult } from '../session.model';
+import { Session, ItemWithResult } from '../session.model';
 import { ResearchState, SessionEntity } from '../entity/session.entity';
 
 @Injectable()
@@ -54,11 +54,13 @@ export class SessionRepository {
 
     const doneCount = sortedItems.filter((i) => i.aiResult).length;
 
-    const tasks: TaskWithResult[] = sortedItems.map((item, idx) => ({
+    const items: ItemWithResult[] = sortedItems.map((item, idx) => ({
       id: idx + 1,
+      itemId: item.id,
       title: item.topic,
       icon: item.taskIcon || '📄',
       prompt: item.webPrompt,
+      status: item.researchState,
       result: item.aiResult || null,
     }));
 
@@ -71,7 +73,7 @@ export class SessionRepository {
       researchState: row.researchState,
       createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
       summary: row.summary,
-      tasks: withTasks ? tasks : undefined,
+      items: withTasks ? items : undefined,
       doneCount,
     };
   }

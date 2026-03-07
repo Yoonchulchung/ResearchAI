@@ -70,7 +70,7 @@ export default function SessionPage() {
   if (loading) return <SessionSkeleton />;
   if (!session) return null;
 
-  const tasks: Task[] = session.tasks ?? [];
+  const tasks: Task[] = session.items ?? [];
   const doneCount = Object.values(statuses).filter((s) => s === "done").length;
   const total = tasks.length;
   const allDone = doneCount === total && total > 0 && !isRunning;

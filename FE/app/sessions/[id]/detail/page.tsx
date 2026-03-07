@@ -30,7 +30,7 @@ export default function DetailPage() {
 
   if (!session) return null;
 
-  const doneTasks = (session.tasks ?? []).filter((t) => t.result);
+  const doneTasks = (session.items ?? []).filter((t) => t.result);
 
   return (
     <div className="h-full flex flex-col">

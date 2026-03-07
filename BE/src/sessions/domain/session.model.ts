@@ -5,7 +5,9 @@ export interface Task {
   prompt: string;
 }
 
-export interface TaskWithResult extends Task {
+export interface ItemWithResult extends Task {
+  itemId: string;
+  status: string;
   result: string | null;
 }
 
@@ -18,6 +20,6 @@ export interface Session {
   researchState?: string;
   createdAt: string;
   summary?: string | null;
-  tasks?: TaskWithResult[];
+  items?: ItemWithResult[];
   doneCount?: number;
 }

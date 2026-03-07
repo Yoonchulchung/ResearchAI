@@ -4,6 +4,7 @@ import { SearchSource } from './search-planner.service';
 import { SearchJobService } from './search-job.service';
 import { LightResearchRepository } from '../domain/repository/light-research.repository';
 import { SessionsService } from '../../sessions/application/sessions.service';
+import { SessionItemService } from '../../sessions/application/session-item.service';
 import { ResearchState } from '../../sessions/domain/entity/session.entity';
 import { QueueService } from '../../queue/application/queue.service';
 
@@ -14,6 +15,7 @@ export class ResearchService {
     private readonly searchJobService: SearchJobService,
     private readonly lightResearchRepository: LightResearchRepository,
     private readonly sessionsService: SessionsService,
+    private readonly sessionItemService: SessionItemService,
     @Inject(forwardRef(() => QueueService))
     private readonly queueService: QueueService,
   ) {}
@@ -66,20 +68,22 @@ export class ResearchService {
 
   async deepResearch(
     sessionId: string,
-    taskId: number,
-    prompt: string,
+    tasks: { itemId: string; prompt: string }[],
     model: string,
-    _context?: string,
   ): Promise<{ status: string; sessionId: string }> {
     const session = await this.sessionsService.findOne(sessionId).catch(() => null);
     if (!session) throw new NotFoundException(`세션을 찾을 수 없습니다: ${sessionId}`);
 
-    this.queueService.enqueueDeepResearch({
-      sessionId,
-      taskId,
-      taskPrompt: prompt,
-      model,
-    });
+    
+    for (const task of tasks) {
+      this.sessionItemService.updateStatus(task.itemId, ResearchState.PENDING).catch(() => {});
+      this.queueService.enqueueDeepResearch({
+        sessionId,
+        itemId: task.itemId,
+        taskPrompt: task.prompt,
+        model,
+      });
+    }
 
     await this.sessionsService.updateSessionState(sessionId, ResearchState.PENDING);
 

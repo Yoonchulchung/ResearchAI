@@ -36,13 +36,13 @@ export class SessionsController {
     return this.sessionsService.remove(id);
   }
 
-  @Put(':id/tasks/:taskId')
+  @Put(':id/items/:itemId')
   updateTask(
     @Param('id') id: string,
-    @Param('taskId') taskId: string,
+    @Param('itemId') itemId: string,
     @Body() body: UpdateTaskDto,
   ) {
-    return this.sessionsService.updateSession(id, parseInt(taskId), body.result, body.status as ResearchState);
+    return this.sessionsService.updateSession(id, itemId, body.result, body.status as ResearchState);
   }
   
   // ************ //

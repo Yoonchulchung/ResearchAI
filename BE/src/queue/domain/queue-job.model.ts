@@ -12,7 +12,7 @@ export namespace QueueJob {
 export interface QueueJob {
   jobId: string;
   sessionId: string;
-  taskId: number;
+  itemId: string;
   taskPrompt: string;
   taskType: QueueJob.TaskType;
   model: string;

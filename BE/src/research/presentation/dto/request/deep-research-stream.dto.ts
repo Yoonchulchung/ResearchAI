@@ -1,7 +1,10 @@
+export class DeepResearchTaskDto {
+  itemId: string;
+  prompt: string;
+}
+
 export class DeepResearchStreamDto {
   sessionId: string;
-  taskId: number;
-  prompt: string;
+  tasks: DeepResearchTaskDto[];
   model: string;
-  context?: string;
 }

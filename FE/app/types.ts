@@ -1,8 +1,10 @@
 export interface Task {
   id: number;
+  itemId: string;
   title: string;
   icon: string;
   prompt: string;
+  status?: string;
   result?: string | null;
 }
 
@@ -63,6 +65,6 @@ export interface Session {
   researchState?: ResearchState;
   createdAt: string;
   summary?: string | null;
-  tasks?: Task[];
+  items?: Task[];
   doneCount?: number;
 }

@@ -3,6 +3,7 @@ import { deepResearch } from "@/lib/api/research";
 import { Session, Task, TaskStatus, SearchSources } from "@/types";
 import { type Phase } from "@/sessions/components/TaskCard";
 
+
 export function useTaskRunner(session: Session | null, id: string) {
   const [taskRunStates, setTaskRunStates] = useState<Record<string, {
     status: TaskStatus;
@@ -21,7 +22,7 @@ export function useTaskRunner(session: Session | null, id: string) {
   const statuses = useMemo<Record<string, TaskStatus>>(() => {
     const isInProgress = session?.researchState === "pending" || session?.researchState === "running";
     const base: Record<string, TaskStatus> = {};
-    for (const task of session?.tasks ?? []) {
+    for (const task of session?.items ?? []) {
       if (task.result) {
         base[String(task.id)] = "done";
       } else {
@@ -44,7 +45,7 @@ export function useTaskRunner(session: Session | null, id: string) {
 
   const results = useMemo<Record<string, string>>(() => {
     const base: Record<string, string> = {};
-    for (const task of session?.tasks ?? []) {
+    for (const task of session?.items ?? []) {
       if (task.result) base[String(task.id)] = task.result;
     }
     for (const [key, state] of Object.entries(taskRunStates)) {
@@ -63,16 +64,29 @@ export function useTaskRunner(session: Session | null, id: string) {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const enqueueTask = useCallback(async (task: Task) => {
-    if (!session) return;
-    const key = String(task.id);
-    setTaskRunStates((prev) => ({ ...prev, [key]: { status: "loading", phase: "searching" } }));
+  const runTasks = useCallback(async (tasks: Task[]) => {
+    if (!session || tasks.length === 0) return;
+    const updates: Record<string, { status: TaskStatus; phase: Phase }> = {};
+    for (const task of tasks) {
+      updates[String(task.id)] = { status: "loading", phase: "searching" };
+    }
+    setTaskRunStates((prev) => ({ ...prev, ...updates }));
 
     try {
-      await deepResearch(id, task.id, task.prompt, session.researchCloudAIModel);
+      await deepResearch(
+        id,
+        tasks.map((t) => ({ itemId: t.itemId, prompt: t.prompt })),
+        session.researchCloudAIModel,
+      );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "오류";
-      setTaskRunStates((prev) => ({ ...prev, [key]: { status: "error", result: msg } }));
+      setTaskRunStates((prev) => {
+        const next = { ...prev };
+        for (const task of tasks) {
+          next[String(task.id)] = { status: "error", result: msg };
+        }
+        return next;
+      });
     }
   }, [session, id]);
 
@@ -80,26 +94,26 @@ export function useTaskRunner(session: Session | null, id: string) {
     if (isRunning) return;
     setIsRunning(true);
     try {
-      await enqueueTask(task);
+      await runTasks([task]);
     } finally {
       setIsRunning(false);
     }
-  }, [isRunning, enqueueTask]);
+  }, [isRunning, runTasks]);
 
   const handleRunAll = useCallback(async () => {
     if (isRunning || !session) return;
-    const pendingTasks = (session.tasks ?? []).filter((t) => {
+    const pendingTasks = (session.items ?? []).filter((t) => {
       const s = statuses[String(t.id)];
       return !s || s === "idle" || s === "error";
     });
 
     setIsRunning(true);
     try {
-      await Promise.all(pendingTasks.map((task) => enqueueTask(task)));
+      await runTasks(pendingTasks);
     } finally {
       setIsRunning(false);
     }
-  }, [isRunning, session, statuses, enqueueTask]);
+  }, [isRunning, session, statuses, runTasks]);
 
   const handleCancel = useCallback(() => {
     // 큐 기반으로 취소는 서버에서 처리됨

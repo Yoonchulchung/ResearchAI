@@ -26,14 +26,14 @@ export class QueueService implements OnModuleDestroy {
   // *********** //
   enqueueDeepResearch(params: {
     sessionId: string;
-    taskId: number;
+    itemId: string;
     taskPrompt: string;
     model: string;
   }): void {
     const job: QueueJob = {
-      jobId: `${params.sessionId}-${params.taskId}-${Date.now()}`,
+      jobId: `${params.sessionId}-${params.itemId}-${Date.now()}`,
       sessionId: params.sessionId,
-      taskId: params.taskId,
+      itemId: params.itemId,
       taskPrompt: params.taskPrompt,
       taskType: QueueJob.TaskType.DEEPRESEARCH,
       model: params.model,
@@ -73,13 +73,13 @@ export class QueueService implements OnModuleDestroy {
       if (job.taskType === QueueJob.TaskType.DEEPRESEARCH) {
         await this.sessionsService.updateSessionState(job.sessionId, ResearchState.RUNNING);
         const { result, sources } = await this.deepPipeline.run(job.taskPrompt, job.model);
-        await this.sessionsService.updateSession(job.sessionId, job.taskId, result, ResearchState.DONE);
+        await this.sessionsService.updateSession(job.sessionId, job.itemId, result, ResearchState.DONE);
         this.updateJob(job.jobId, { status: 'done', phase: undefined, result, sources });
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '오류';
       this.updateJob(job.jobId, { status: 'error', phase: undefined, result: msg });
-      this.sessionsService.updateSession(job.sessionId, job.taskId, msg, ResearchState.ERROR).catch(() => {});
+      this.sessionsService.updateSession(job.sessionId, job.itemId, msg, ResearchState.ERROR).catch(() => {});
     } finally {
       this.abortControllers.delete(job.jobId);
     }

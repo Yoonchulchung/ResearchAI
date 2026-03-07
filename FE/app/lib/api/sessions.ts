@@ -17,11 +17,11 @@ export const deleteSession = (id: string) =>
 
 export const updateTask = (
   sessionId: string,
-  taskId: number,
+  itemId: string,
   result: string,
   status: string,
 ) =>
-  apiFetch<{ ok: boolean }>(`/sessions/${sessionId}/tasks/${taskId}`, {
+  apiFetch<{ ok: boolean }>(`/sessions/${sessionId}/items/${itemId}`, {
     method: "PUT",
     body: JSON.stringify({ result, status }),
   });

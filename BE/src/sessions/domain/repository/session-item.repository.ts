@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SessionItemEntity } from '../entity/session-item.enityt';
+import { ResearchState } from '../entity/session.entity';
 
 @Injectable()
 export class SessionItemRepository {
@@ -34,8 +35,12 @@ export class SessionItemRepository {
     return this.repo.save(item);
   }
 
-  async updateResult(id: string, aiResult: string): Promise<void> {
-    await this.repo.update(id, { aiResult });
+  async updateResult(id: string, aiResult: string, state?: ResearchState): Promise<void> {
+    await this.repo.update(id, { aiResult, ...(state && { researchState: state as any }) });
+  }
+
+  async updateStatus(id: string, state: ResearchState): Promise<void> {
+    await this.repo.update(id, { researchState: state as any });
   }
 
   async delete(id: string): Promise<void> {

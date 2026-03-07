@@ -1,19 +1,23 @@
-import { Session, TaskWithResult } from '../../../domain/session.model';
+import { Session, ItemWithResult } from '../../../domain/session.model';
 
-export class TaskResponseDto {
+export class ItemResponseDto {
   id: number;
+  itemId: string;
   title: string;
   icon: string;
   prompt: string;
+  status: string;
   result: string | null;
 
-  static from(task: TaskWithResult): TaskResponseDto {
-    const dto = new TaskResponseDto();
-    dto.id = task.id;
-    dto.title = task.title;
-    dto.icon = task.icon;
-    dto.prompt = task.prompt;
-    dto.result = task.result;
+  static from(item: ItemWithResult): ItemResponseDto {
+    const dto = new ItemResponseDto();
+    dto.id = item.id;
+    dto.itemId = item.itemId;
+    dto.title = item.title;
+    dto.icon = item.icon;
+    dto.prompt = item.prompt;
+    dto.status = item.status;
+    dto.result = item.result;
     return dto;
   }
 }
@@ -27,7 +31,7 @@ export class SessionResponseDto {
   researchState?: string;
   createdAt: string;
   summary?: string | null;
-  tasks?: TaskResponseDto[];
+  items?: ItemResponseDto[];
   doneCount?: number;
 
   static from(session: Session): SessionResponseDto {
@@ -40,7 +44,7 @@ export class SessionResponseDto {
     dto.researchState = session.researchState;
     dto.createdAt = session.createdAt;
     dto.summary = session.summary;
-    dto.tasks = session.tasks?.map(TaskResponseDto.from);
+    dto.items = session.items?.map(ItemResponseDto.from);
     dto.doneCount = session.doneCount;
     return dto;
   }

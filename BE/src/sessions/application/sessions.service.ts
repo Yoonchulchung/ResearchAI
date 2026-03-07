@@ -72,18 +72,12 @@ export class SessionsService {
   // ************** //
   // 세션 상태 업데이트 //
   // ************** //
-  async updateSession(sessionId: string, taskId: number, result: string, status: ResearchState): Promise<{ ok: boolean }> {
-
-    // Todo: Session Item의 상태도 변경될 수 있도록 변경.
-    // Todo: RUNNING 상태 저장 방법 추가.
-
-    const items = await this.sessionItemRepository.findBySessionId(sessionId);
-    // taskId는 1부터 시작하는 순서 기반 인덱스
-    const item = items[taskId - 1];
-    if (item && status === ResearchState.DONE) {
-      await this.sessionItemRepository.updateResult(item.id, result);
+  async updateSession(sessionId: string, itemId: string, result: string, status: ResearchState): Promise<{ ok: boolean }> {
+    if (status === ResearchState.DONE) {
+      const item = await this.sessionItemRepository.findById(itemId);
+      await this.sessionItemRepository.updateResult(itemId, result, ResearchState.DONE);
       this.vectorService
-        .indexTaskResult(sessionId, String(taskId), item.topic, '📄', result)
+        .indexTaskResult(sessionId, itemId, item.topic, '📄', result)
         .catch(() => {});
     }
 
