@@ -160,7 +160,11 @@ export function useNewSession(models: ModelDefinition[]) {
     setJobPostings([]);
     setError("");
     try {
-      await lightResearchStream(topic.trim(), selectedApiModel, searchId, handleSearchEvent, controller.signal);
+      await lightResearchStream(
+        { topic: topic.trim(), searchId, cloudAIModel: selectedApiModel, localAIModel: selectedLocalModel, webModel: 'tavily' },
+        handleSearchEvent,
+        controller.signal,
+      );
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") {
         sessionStorage.removeItem(SEARCH_JOB_KEY);

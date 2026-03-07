@@ -1,6 +1,9 @@
 import { Controller, Post, Get, Delete, Param, Body, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ChatService } from '../application/chat.service';
+import { ChatMessageDto } from './dto/request/chat-message.dto';
+import { ChatHistoryResponseDto } from './dto/response/chat-history.response.dto';
+import { ClearHistoryResponseDto } from './dto/response/clear-history.response.dto';
 
 @Controller('chat')
 export class ChatController {
@@ -12,7 +15,7 @@ export class ChatController {
   @Post(':sessionId')
   async chat(
     @Param('sessionId') sessionId: string,
-    @Body() body: { message: string; model: string },
+    @Body() body: ChatMessageDto,
     @Req() req: Request,
     @Res() res: Response,
   ) {
@@ -48,24 +51,14 @@ export class ChatController {
   }
 
   @Get(':sessionId/history')
-  getHistory(@Param('sessionId') sessionId: string) {
-    return this.chatService.getHistory(sessionId);
+  async getHistory(@Param('sessionId') sessionId: string): Promise<ChatHistoryResponseDto[]> {
+    const messages = await this.chatService.getHistory(sessionId);
+    return messages.map(ChatHistoryResponseDto.from);
   }
 
   @Delete(':sessionId/history')
-  clearHistory(@Param('sessionId') sessionId: string) {
-    this.chatService.clearHistory(sessionId);
-    return { ok: true };
+  async clearHistory(@Param('sessionId') sessionId: string): Promise<ClearHistoryResponseDto> {
+    await this.chatService.clearHistory(sessionId);
+    return ClearHistoryResponseDto.success();
   }
-
-  // @Post(':sessionId/compact')
-  // triggerCompaction(@Param('sessionId') sessionId: string) {
-  //   this.chatService.scheduleCompaction(sessionId);
-  //   return { ok: true };
-  // }
-
-  // @Get(':sessionId/compaction')
-  // getCompactionStatus(@Param('sessionId') sessionId: string) {
-  //   return this.chatService.getCompactionStatus(sessionId);
-  // }
 }

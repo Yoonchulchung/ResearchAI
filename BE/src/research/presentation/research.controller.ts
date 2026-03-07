@@ -3,7 +3,12 @@ import type { Request, Response } from 'express';
 import { ModelsService } from '../../ai/application/models.service';
 import { WebSearchService } from '../application/web-search.service';
 import { ResearchService } from '../application/research.service';
-import { SearchSource } from '../application/search-planner.service';
+import { LightResearchStreamDto } from './dto/request/light-research-stream.dto';
+import { DeepResearchStreamDto } from './dto/request/deep-research-stream.dto';
+import { TestLightSearchDto } from './dto/request/test-light-search.dto';
+import { TestSearchDto } from './dto/request/test-search.dto';
+import { TestOllamaFilterDto } from './dto/request/test-ollama-filter.dto';
+import { TestLightSearchResponseDto } from './dto/response/test-light-search.response.dto';
 
 @Controller('research')
 export class ResearchController {
@@ -23,7 +28,7 @@ export class ResearchController {
   // ******** //
   @Post('light-search/stream')
   async lightResearchStream(
-    @Body() body: { topic: string; model: string; searchMode?: SearchSource | 'auto'; searchId: string },
+    @Body() body: LightResearchStreamDto,
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
@@ -34,7 +39,7 @@ export class ResearchController {
 
     // 파이프라인을 백그라운드에서 실행 — 클라이언트 연결이 끊겨도 완료까지 실행됨
     this.aiService.startLightResearch(
-      body.searchId, body.topic, body.model, body.searchMode ?? 'auto',
+      body.searchId, body.topic, body.localAIModel, body.cloudAIModel, body.webModel, body.searchMode ?? 'auto',
     );
 
     await new Promise<void>((resolve) => {
@@ -77,7 +82,7 @@ export class ResearchController {
 
   @Post('deep-search/stream')
   async deepResearchStream(
-    @Body() body: { prompt: string; model: string; context?: string },
+    @Body() body: DeepResearchStreamDto,
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
@@ -103,27 +108,22 @@ export class ResearchController {
   // 서칭 프롬프트 디버그 //
   // *************** //
   @Post('test/light-search')
-  testGenerateTasks(@Body() body: {
-    topic: string;
-    model: string;
-    customPrompt?: string;
-    customSystem?: string;
-    searchMode?: SearchSource | 'auto';
-  }) {
-    return this.aiService.testGenerateTasks(body.topic, body.model, {
+  async testGenerateTasks(@Body() body: TestLightSearchDto): Promise<TestLightSearchResponseDto> {
+    const result = await this.aiService.testGenerateTasks(body.topic, body.model, {
       customPrompt: body.customPrompt,
       customSystem: body.customSystem,
       searchMode: body.searchMode,
     });
+    return TestLightSearchResponseDto.from(result);
   }
 
   @Post('test/search')
-  testSearch(@Body() body: { engine: string; query: string }) {
+  testSearch(@Body() body: TestSearchDto) {
     return this.searchService.testSearchEngine(body.engine as any, body.query);
   }
 
   @Post('test/ollama-filter')
-  testOllamaFilter(@Body() body: { query: string; context: string; customFilterPrompt?: string }) {
+  testOllamaFilter(@Body() body: TestOllamaFilterDto) {
     return this.searchService.testOllamaFilter(body.query, body.context, body.customFilterPrompt);
   }
 }

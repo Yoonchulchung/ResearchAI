@@ -6,11 +6,10 @@ import { streamOllama } from '../../ai/infrastructure/ollama.ai';
 import { CreateSessionDto } from './dto/request/create-session.dto';
 import { UpdateTaskDto } from './dto/request/update-task.dto';
 import { StreamSummaryDto } from './dto/request/stream-summary.dto';
-
 @Controller('sessions')
 export class SessionsController {
   constructor(private readonly sessionsService: SessionsService) {}
-  
+
   // ******* //
   // 새션 조회 //
   // ******* //
@@ -29,7 +28,7 @@ export class SessionsController {
   // ******* //
   @Post()
   create(@Body() body: CreateSessionDto) {
-    return this.sessionsService.createSession(body.topic, body.researchAiModel, body.researchWebModel, body.tasks);
+    return this.sessionsService.createSession(body.topic, body.researchCloudAIModel, body.researchLocalAIModel, body.researchWebModel, body.tasks);
   }
 
   @Delete(':id')

@@ -12,7 +12,8 @@ export interface TaskWithResult extends Task {
 export interface Session {
   id: string;
   topic: string;
-  researchAiModel: string;
+  researchCloudAIModel: string;
+  researchLocalAIModel: string;
   researchWebModel: string;
   createdAt: string;
   summary?: string | null;

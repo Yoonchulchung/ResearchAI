@@ -7,7 +7,11 @@ export class CreateSessionDto {
 
   @IsString()
   @IsNotEmpty()
-  researchAiModel: string;
+  researchCloudAIModel: string;
+
+  @IsString()
+  @IsNotEmpty()
+  researchLocalAIModel: string;
 
   @IsString()
   @IsNotEmpty()

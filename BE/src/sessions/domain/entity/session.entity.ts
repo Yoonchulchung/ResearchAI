@@ -16,12 +16,16 @@ export class SessionEntity {
   @Column()
   topic: string;
 
-  @Column({ name: 'research_ai_model' })
-  researchAiModel: string;
+  @Column({ name: 'research_cloud_ai_model' })
+  researchCloudAIModel: string;
+
+  @Column({ name: 'research_local_ai_model' })
+  researchLocalAIModel: string;
 
   @Column({ name: 'research_web_model' })
   researchWebModel: string;
 
+  // 최종 세션의 리서치 상태
   @Column({ name: 'research_state', type: 'simple-enum', enum: ResearchState, default: ResearchState.IDLE })
   researchState: ResearchState;
 
@@ -31,6 +35,6 @@ export class SessionEntity {
   @Column({ name: 'summary', nullable: true })
   summary: string;
 
-  @CreateDateColumn()
-  created_at: Date;
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
 }

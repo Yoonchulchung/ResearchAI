@@ -18,8 +18,9 @@ const SYSTEM = '당신은 리서치 쿼리를 분류하는 전문가입니다. J
 export class SearchPlannerService {
   private readonly logger = new Logger(SearchPlannerService.name);
 
-  async plan(topic: string): Promise<SearchPlan> {
-    const ollamaModel = process.env.OLLAMA_PLANNER_MODEL
+  async plan(topic: string, model?: string): Promise<SearchPlan> {
+    const ollamaModel = model
+      ?? process.env.OLLAMA_PLANNER_MODEL
       ?? process.env.OLLAMA_MODEL
       ?? 'llama3.1';
 

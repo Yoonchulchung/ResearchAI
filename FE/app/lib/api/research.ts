@@ -25,16 +25,21 @@ export type LightResearchEvent =
   | { type: "done"; tasks: Task[]; searchPlan: { source: "web" | "recruit" | "both"; reason: string } };
 
 export async function lightResearchStream(
-  topic: string,
-  model: string,
-  searchId: string,
+  params: {
+    topic: string;
+    searchId: string;
+    localAIModel: string;
+    cloudAIModel: string;
+    webModel: "tavily" | "serper" | "naver" | "brave";
+    searchMode?: "web" | "recruit" | "both" | "auto";
+  },
   onEvent: (event: LightResearchEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/research/light-search/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ topic, model, searchId }),
+    body: JSON.stringify(params),
     signal,
   });
   if (!res.ok || !res.body) throw new Error("light-search stream 실패");
@@ -88,9 +93,9 @@ export async function deepResearchStream(
 export const testGenerateTasks = (
   topic: string,
   model: string,
-  opts?: { customPrompt?: string; customSystem?: string },
+  opts?: { customPrompt?: string; customSystem?: string; searchMode?: "web" | "recruit" | "both" | "auto" },
 ) =>
-  apiFetch<{ tasks: Task[]; searchContext?: string; fullPrompt: string }>(
+  apiFetch<{ tasks: Task[]; searchContext?: string; fullPrompt: string; searchPlan: { source: "web" | "recruit" | "both"; reason: string; keyword: string } }>(
     "/research/test/light-search",
     { method: "POST", body: JSON.stringify({ topic, model, ...opts }) },
   );

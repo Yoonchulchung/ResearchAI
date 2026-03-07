@@ -3,6 +3,7 @@ import { LightResearchPipelineService, LightResearchEvent } from './pipeline/lig
 import { DeepResearchPipelineService, DeepResearchEvent } from './pipeline/deep-research-pipeline.service';
 import { SearchSource } from './search-planner.service';
 import { SearchJobService } from './search-job.service';
+import { LightResearchRepository } from '../domain/repository/light-research.repository';
 
 @Injectable()
 export class ResearchService {
@@ -10,6 +11,7 @@ export class ResearchService {
     private readonly lightPipeline: LightResearchPipelineService,
     private readonly deepPipeline: DeepResearchPipelineService,
     private readonly searchJobService: SearchJobService,
+    private readonly lightResearchRepository: LightResearchRepository,
   ) {}
 
   /**
@@ -19,14 +21,25 @@ export class ResearchService {
   startLightResearch(
     searchId: string,
     topic: string,
-    model: string,
+    localAIModel: string,
+    cloudAIModel: string,
+    webModel: string,
     searchMode: SearchSource | 'auto' = 'auto',
   ): void {
     this.searchJobService.create(searchId);
+    
+    this.lightResearchRepository.save({
+      id: searchId,
+      requestQuestion: topic,
+      researchCloudAiModel: cloudAIModel,
+      researchLocalAIModel: localAIModel,
+      researchWebModel: webModel,
+    }).catch(() => {});
+
     // fire-and-forget: 클라이언트 연결 상태와 무관하게 끝까지 실행
     (async () => {
       try {
-        for await (const event of this.lightPipeline.runStream(topic, model, searchMode)) {
+        for await (const event of this.lightPipeline.runStream(topic, localAIModel, cloudAIModel, webModel, searchMode, searchId)) {
           this.searchJobService.push(searchId, event);
         }
       } finally {

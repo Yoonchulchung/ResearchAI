@@ -18,7 +18,7 @@ export class SessionRepository {
   }
 
   async findAll(): Promise<Session[]> {
-    const rows = await this.repo.find({ order: { created_at: 'DESC' }, relations: { items: true } });
+    const rows = await this.repo.find({ order: { createdAt: 'DESC' }, relations: { items: true } });
     return rows.map((r) => this.toModel(r, false));
   }
 
@@ -26,7 +26,8 @@ export class SessionRepository {
     await this.repo.save({
       id: session.id,
       topic: session.topic,
-      researchAiModel: session.researchAiModel,
+      researchCloudAIModel: session.researchCloudAIModel,
+      researchLocalAIModel: session.researchLocalAIModel,
       researchWebModel: session.researchWebModel,
       researchState: state ?? ResearchState.IDLE,
     });
@@ -64,9 +65,10 @@ export class SessionRepository {
     return {
       id: row.id,
       topic: row.topic,
-      researchAiModel: row.researchAiModel,
+      researchCloudAIModel: row.researchCloudAIModel,
+      researchLocalAIModel: row.researchLocalAIModel,
       researchWebModel: row.researchWebModel,
-      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
       summary: row.summary,
       tasks: withTasks ? tasks : undefined,
       doneCount,
