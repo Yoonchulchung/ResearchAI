@@ -8,7 +8,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ResearchQueueProvider>
       <SummaryProgressProvider>
-        <div className="flex h-screen overflow-hidden bg-slate-50">
+        <div className="flex h-screen overflow-hidden bg-[var(--background)]">
           <Sidebar />
           <main className="flex-1 overflow-y-auto">{children}</main>
         </div>

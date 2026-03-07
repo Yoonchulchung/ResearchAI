@@ -34,10 +34,15 @@ export function Sidebar() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     getSessions().then(setSessions).catch(() => {});
   }, [pathname]);
+
+  const filteredSessions = searchQuery.trim()
+    ? sessions.filter((s) => s.topic.toLowerCase().includes(searchQuery.toLowerCase()))
+    : sessions;
 
   const currentId = pathname.startsWith("/sessions/")
     ? pathname.split("/sessions/")[1]
@@ -55,7 +60,7 @@ export function Sidebar() {
 
   if (collapsed) {
     return (
-      <aside className="w-12 shrink-0 flex flex-col h-screen bg-white border-r border-slate-200 overflow-hidden transition-all duration-200">
+      <aside className="w-12 shrink-0 flex flex-col h-screen bg-[var(--sidebar)] border-r border-slate-200 overflow-hidden transition-all duration-200">
         <div className="flex flex-col items-center gap-3 py-4">
           {/* Logo icon */}
           <div
@@ -116,7 +121,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-64 shrink-0 flex flex-col h-screen bg-white border-r border-slate-200 overflow-hidden transition-all duration-200">
+    <aside className="w-64 shrink-0 flex flex-col h-screen bg-[var(--sidebar)] border-r border-slate-200 overflow-hidden transition-all duration-200">
       {/* Logo */}
       <div className="px-4 py-5 flex items-center justify-between">
         <div
@@ -158,19 +163,37 @@ export function Sidebar() {
         </button>
       </div>
 
+      {/* Search */}
+      <div className="px-3 pb-2">
+        <div className="relative">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none">🔍</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="리서치 검색..."
+            className="w-full pl-7 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 placeholder-slate-300 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300"
+          />
+        </div>
+      </div>
+
       {/* Sessions list */}
       <div className="flex-1 overflow-y-auto py-2 min-h-0">
         {sessions.length === 0 ? (
           <div className="px-4 py-6 text-center text-slate-400 text-xs">
             세션이 없습니다
           </div>
+        ) : filteredSessions.length === 0 ? (
+          <div className="px-4 py-6 text-center text-slate-400 text-xs">
+            '{searchQuery}'에 대한 결과가 없습니다
+          </div>
         ) : (
           <div className="space-y-0.5 px-2">
             <div className="px-2 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-              리서치 목록 ({sessions.length})
+              리서치 목록 ({filteredSessions.length}{searchQuery ? `/${sessions.length}` : ""})
             </div>
             <QueueWidget />
-            {sessions.map((s) => {
+            {filteredSessions.map((s) => {
               const total = s.tasks.length;
               const done = s.doneCount;
               const dotStatus: "idle" | "partial" | "done" =
