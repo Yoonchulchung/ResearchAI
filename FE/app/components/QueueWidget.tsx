@@ -1,23 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useResearchQueue } from "@/contexts/ResearchQueueContext";
 import { useSummaryProgress } from "@/contexts/SummaryProgressContext";
 
 export function QueueWidget() {
-  const { jobs, dismissCompleted } = useResearchQueue();
   const { items: summaryItems, dismiss: dismissSummary } = useSummaryProgress();
   const [collapsed, setCollapsed] = useState(false);
 
-  if (jobs.length === 0 && summaryItems.length === 0) return null;
-
-  const runningCount = jobs.filter((j) => j.status === "running").length;
-  const pendingCount = jobs.filter((j) => j.status === "pending").length;
-  const completedCount = jobs.filter(
-    (j) => j.status === "done" || j.status === "error",
-  ).length;
-  const total = jobs.length;
-  const progressPct = total > 0 ? (completedCount / total) * 100 : 0;
+  if (summaryItems.length === 0) return null;
 
   return (
     <div className="mx-2 mb-1 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2.5">
@@ -34,77 +24,40 @@ export function QueueWidget() {
           </span>
           리서치 큐
         </button>
-        {!collapsed && completedCount > 0 && (
-          <button
-            onClick={dismissCompleted}
-            className="text-[10px] font-semibold text-indigo-400 hover:text-indigo-600 transition-colors"
-          >
-            확인
-          </button>
-        )}
       </div>
-      {!collapsed && (
-        <>
-          {jobs.length > 0 && (
-            <>
-              <div className="flex items-center gap-2 text-[11px] text-slate-500 flex-wrap">
-                {runningCount > 0 && (
-                  <span className="flex items-center gap-0.5 text-indigo-600 font-medium">
-                    <span className="animate-pulse">▶</span> {runningCount} 실행
-                  </span>
+      {!collapsed && summaryItems.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {summaryItems.map((item) => (
+            <div key={item.sessionId} className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                {item.status === "streaming" ? (
+                  <span className="text-indigo-400 animate-pulse text-[10px]">●</span>
+                ) : item.status === "done" ? (
+                  <span className="text-green-500 text-[10px]">✓</span>
+                ) : (
+                  <span className="text-red-400 text-[10px]">✕</span>
                 )}
-                {pendingCount > 0 && (
-                  <span>⏳ {pendingCount} 대기</span>
-                )}
-                {completedCount > 0 && (
-                  <span className="text-green-600">{completedCount} 완료</span>
+                <span className="text-[11px] text-slate-600 truncate">{item.topic} 서머리</span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <span className={`text-[10px] font-medium ${
+                  item.status === "streaming" ? "text-indigo-500" :
+                  item.status === "done" ? "text-green-600" : "text-red-500"
+                }`}>
+                  {item.status === "streaming" ? "생성 중" : item.status === "done" ? "완료" : "오류"}
+                </span>
+                {(item.status === "done" || item.status === "error") && (
+                  <button
+                    onClick={() => dismissSummary(item.sessionId)}
+                    className="text-[10px] text-slate-400 hover:text-slate-600 px-1"
+                  >
+                    ✕
+                  </button>
                 )}
               </div>
-              {total > 0 && (
-                <div className="mt-2 h-1 bg-white rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-indigo-400 rounded-full transition-all duration-300"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-              )}
-            </>
-          )}
-          {summaryItems.length > 0 && (
-            <div className={`flex flex-col gap-1 ${jobs.length > 0 ? "mt-2 pt-2 border-t border-indigo-100" : ""}`}>
-              {summaryItems.map((item) => (
-                <div key={item.sessionId} className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    {item.status === "streaming" ? (
-                      <span className="text-indigo-400 animate-pulse text-[10px]">●</span>
-                    ) : item.status === "done" ? (
-                      <span className="text-green-500 text-[10px]">✓</span>
-                    ) : (
-                      <span className="text-red-400 text-[10px]">✕</span>
-                    )}
-                    <span className="text-[11px] text-slate-600 truncate">{item.topic} 서머리</span>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <span className={`text-[10px] font-medium ${
-                      item.status === "streaming" ? "text-indigo-500" :
-                      item.status === "done" ? "text-green-600" : "text-red-500"
-                    }`}>
-                      {item.status === "streaming" ? "생성 중" : item.status === "done" ? "완료" : "오류"}
-                    </span>
-                    {(item.status === "done" || item.status === "error") && (
-                      <button
-                        onClick={() => dismissSummary(item.sessionId)}
-                        className="text-[10px] text-slate-400 hover:text-slate-600 px-1"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
             </div>
-          )}
-        </>
+          ))}
+        </div>
       )}
     </div>
   );

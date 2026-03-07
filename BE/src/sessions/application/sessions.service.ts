@@ -18,12 +18,14 @@ export class SessionsService {
   // ******* //
   // 세션 조회 //
   // ******* //
-  async findAll(): Promise<Session[]> {
-    return this.sessionRepository.findAll();
+  async findAll(): Promise<SessionResponseDto[]> {
+    const sessions = await this.sessionRepository.findAll();
+    return sessions.map(SessionResponseDto.from);
   }
 
-  async findOne(id: string): Promise<Session> {
-    return this.sessionRepository.findById(id);
+  async findOne(id: string): Promise<SessionResponseDto> {
+    const session = await this.sessionRepository.findById(id);
+    return SessionResponseDto.from(session);
   }
   
   async findItemsWithResults(sessionId: string): Promise<{ topic: string; aiResult: string }[]> {
@@ -94,6 +96,10 @@ export class SessionsService {
     }
 
     return { ok: true };
+  }
+
+  async updateSessionState(sessionId: string, state: ResearchState): Promise<void> {
+    await this.sessionRepository.updateState(sessionId, state);
   }
 
   async remove(id: string): Promise<{ ok: boolean }> {

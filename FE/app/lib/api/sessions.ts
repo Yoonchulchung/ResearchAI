@@ -6,10 +6,10 @@ export const getSessions = () =>
 
 export const getSession = (id: string) => apiFetch<Session>(`/sessions/${id}`);
 
-export const createSession = (topic: string, researchAiModel: string, researchWebModel: string, tasks: Task[]) =>
+export const createSession = (topic: string, researchCloudAIModel: string, researchLocalAIModel: string, researchWebModel: string, tasks: Task[]) =>
   apiFetch<Session>("/sessions", {
     method: "POST",
-    body: JSON.stringify({ topic, researchAiModel, researchWebModel, tasks }),
+    body: JSON.stringify({ topic, researchCloudAIModel, researchLocalAIModel, researchWebModel, tasks }),
   });
 
 export const deleteSession = (id: string) =>

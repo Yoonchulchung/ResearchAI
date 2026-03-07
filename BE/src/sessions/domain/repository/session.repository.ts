@@ -68,6 +68,7 @@ export class SessionRepository {
       researchCloudAIModel: row.researchCloudAIModel,
       researchLocalAIModel: row.researchLocalAIModel,
       researchWebModel: row.researchWebModel,
+      researchState: row.researchState,
       createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
       summary: row.summary,
       tasks: withTasks ? tasks : undefined,

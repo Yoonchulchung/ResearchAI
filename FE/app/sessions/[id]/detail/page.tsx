@@ -47,7 +47,7 @@ export default function DetailPage() {
             {session.topic}
           </h1>
           <span className="ml-auto text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full font-medium shrink-0 z-10">
-            {session.researchAiModel}
+            {session.researchCloudAIModel}
           </span>
         </div>
       </div>

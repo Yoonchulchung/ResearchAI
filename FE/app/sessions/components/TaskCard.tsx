@@ -101,7 +101,7 @@ export function TaskCard({
       ? `AI 분석 중...${hasContent ? " · 클릭하여 검색 결과 보기" : ""}`
       : status === "done"
       ? "클릭하여 결과 보기"
-      : "❌ 오류 발생";
+      : "...";
 
   const [animatedText, setAnimatedText] = useState(subText);
   useEffect(() => {

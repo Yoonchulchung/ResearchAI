@@ -1,17 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, forwardRef } from '@nestjs/common';
 import { LightResearchPipelineService, LightResearchEvent } from './pipeline/light-research-pipeline.service';
-import { DeepResearchPipelineService, DeepResearchEvent } from './pipeline/deep-research-pipeline.service';
 import { SearchSource } from './search-planner.service';
 import { SearchJobService } from './search-job.service';
 import { LightResearchRepository } from '../domain/repository/light-research.repository';
+import { SessionsService } from '../../sessions/application/sessions.service';
+import { ResearchState } from '../../sessions/domain/entity/session.entity';
+import { QueueService } from '../../queue/application/queue.service';
 
 @Injectable()
 export class ResearchService {
   constructor(
     private readonly lightPipeline: LightResearchPipelineService,
-    private readonly deepPipeline: DeepResearchPipelineService,
     private readonly searchJobService: SearchJobService,
     private readonly lightResearchRepository: LightResearchRepository,
+    private readonly sessionsService: SessionsService,
+    @Inject(forwardRef(() => QueueService))
+    private readonly queueService: QueueService,
   ) {}
 
   /**
@@ -27,7 +31,7 @@ export class ResearchService {
     searchMode: SearchSource | 'auto' = 'auto',
   ): void {
     this.searchJobService.create(searchId);
-    
+
     this.lightResearchRepository.save({
       id: searchId,
       requestQuestion: topic,
@@ -60,19 +64,26 @@ export class ResearchService {
     return this.searchJobService.replay(searchId, onEvent, onDone);
   }
 
-  // FE에서 첫 서치 이후 세부 서치 요청을 요청하면 이쪽으로 들어옴.
-  // Tavily 등 외부 검색 → Claude 심층 분석
-  async deepResearch(prompt: string, model: string, context = '') {
-    const { result } = await this.deepPipeline.run(prompt, model, context || undefined);
-    return { result };
-  }
-
-  deepResearchStream(
+  async deepResearch(
+    sessionId: string,
+    taskId: number,
     prompt: string,
     model: string,
-    context?: string,
-  ): AsyncGenerator<DeepResearchEvent> {
-    return this.deepPipeline.runStream(prompt, model, context || undefined);
+    _context?: string,
+  ): Promise<{ status: string; sessionId: string }> {
+    const session = await this.sessionsService.findOne(sessionId).catch(() => null);
+    if (!session) throw new NotFoundException(`세션을 찾을 수 없습니다: ${sessionId}`);
+
+    this.queueService.enqueueDeepResearch({
+      sessionId,
+      taskId,
+      taskPrompt: prompt,
+      model,
+    });
+
+    await this.sessionsService.updateSessionState(sessionId, ResearchState.PENDING);
+
+    return { status: 'running', sessionId };
   }
 
   async testGenerateTasks(

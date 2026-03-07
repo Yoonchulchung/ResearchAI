@@ -99,7 +99,7 @@ export default function SessionPage() {
     <div className="h-full flex flex-col">
       <SessionHeader
         topic={session.topic}
-        model={session.researchAiModel}
+        model={session.researchCloudAIModel}
         isRunning={isRunning}
         allDone={allDone}
         onRunAll={handleRunAll}
@@ -140,7 +140,7 @@ export default function SessionPage() {
           generating={chatLoading}
           apiModels={models.filter((m) => m.provider !== "ollama")}
           localModels={models.filter((m) => m.provider === "ollama")}
-          defaultModel={session.researchAiModel}
+          defaultModel={session.researchCloudAIModel}
         />
       </div>
     </div>

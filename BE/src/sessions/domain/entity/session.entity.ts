@@ -3,6 +3,7 @@ import { SessionItemEntity } from './session-item.enityt';
 
 export enum ResearchState {
   IDLE = 'idle',
+  PENDING = 'pending',
   RUNNING = 'running',
   DONE = 'done',
   ERROR = 'error',

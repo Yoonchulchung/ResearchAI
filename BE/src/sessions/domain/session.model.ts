@@ -15,6 +15,7 @@ export interface Session {
   researchCloudAIModel: string;
   researchLocalAIModel: string;
   researchWebModel: string;
+  researchState?: string;
   createdAt: string;
   summary?: string | null;
   tasks?: TaskWithResult[];

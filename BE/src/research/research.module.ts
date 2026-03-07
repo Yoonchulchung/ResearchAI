@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ResearchController } from './presentation/research.controller';
 import { WebSearchService } from './application/web-search.service';
@@ -15,9 +15,11 @@ import { LightResearchEntity } from './domain/entity/lightsearch.entity';
 import { SearchListEntity } from './domain/entity/searchlist.entity';
 import { RecruitModule } from '../recruit/recruit.module';
 import { AiModule } from '../ai/ai.module';
+import { SessionsModule } from '../sessions/sessions.module';
+import { QueueModule } from '../queue/queue.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ResearchRecruitEntity, LightResearchEntity, SearchListEntity]), RecruitModule, AiModule],
+  imports: [TypeOrmModule.forFeature([ResearchRecruitEntity, LightResearchEntity, SearchListEntity]), RecruitModule, AiModule, SessionsModule, forwardRef(() => QueueModule)],
   controllers: [ResearchController],
   providers: [
     WebSearchService,
@@ -30,6 +32,6 @@ import { AiModule } from '../ai/ai.module';
     LightResearchRepository,
     SearchListRepository,
   ],
-  exports: [WebSearchService, ResearchService, ResearchRecruitRepository, LightResearchRepository, SearchListRepository],
+  exports: [WebSearchService, ResearchService, DeepResearchPipelineService, ResearchRecruitRepository, LightResearchRepository, SearchListRepository],
 })
 export class ResearchModule {}

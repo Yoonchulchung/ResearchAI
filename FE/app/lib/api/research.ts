@@ -64,27 +64,15 @@ export async function reconnectLightResearch(
 
 // ── Deep Research ─────────────────────────────────────────────────────────────
 
-export type DeepResearchEvent =
-  | { type: "log"; message: string }
-  | { type: "done"; result: string; sources: Record<string, string> };
-
-export async function deepResearchStream(
+export async function deepResearch(
+  sessionId: string,
+  taskId: number,
   prompt: string,
   model: string,
-  context: string | undefined,
-  onEvent: (event: DeepResearchEvent) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  const res = await fetch(`${API_BASE}/research/deep-search/stream`, {
+): Promise<{ status: string; sessionId: string }> {
+  return apiFetch<{ status: string; sessionId: string }>("/research/deep-search", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, model, context }),
-    signal,
-  });
-  if (!res.ok || !res.body) throw new Error("deep-search stream 실패");
-  await readSSE<DeepResearchEvent>(res, (event) => {
-    onEvent(event);
-    if (event.type === "done") return true;
+    body: JSON.stringify({ sessionId, taskId, prompt, model }),
   });
 }
 

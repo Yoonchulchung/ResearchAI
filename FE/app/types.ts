@@ -52,11 +52,15 @@ export interface ChatMessage {
   content: string;
 }
 
+export type ResearchState = "idle" | "pending" | "running" | "done" | "error";
+
 export interface Session {
   id: string;
   topic: string;
-  researchAiModel: string;
+  researchCloudAIModel: string;
+  researchLocalAIModel: string;
   researchWebModel: string;
+  researchState?: ResearchState;
   createdAt: string;
   summary?: string | null;
   tasks?: Task[];
