@@ -15,6 +15,18 @@ export const createSession = (topic: string, model: string, tasks: Task[]) =>
 export const deleteSession = (id: string) =>
   apiFetch<{ ok: boolean }>(`/sessions/${id}`, { method: "DELETE" });
 
+export const updateTask = (
+  sessionId: string,
+  taskId: number,
+  result: string,
+  status: string,
+  sources?: Record<string, string>,
+) =>
+  apiFetch<{ ok: boolean }>(`/sessions/${sessionId}/tasks/${taskId}`, {
+    method: "PUT",
+    body: JSON.stringify({ result, status, sources }),
+  });
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 export const getSessionSummary = (sessionId: string) =>

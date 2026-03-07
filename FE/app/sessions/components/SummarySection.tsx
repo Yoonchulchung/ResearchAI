@@ -1,121 +1,221 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { getSessionSummary, streamSessionSummary } from "@/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { streamAiSummary } from "@/lib/api/ai";
+import { getSessionSummary } from "@/lib/api/sessions";
+import { useSummaryProgress } from "@/contexts/SummaryProgressContext";
+import { ModelDefinition } from "@/types";
 
 interface Props {
   sessionId: string;
-  localModel: string;
+  topic: string;
+  localModels: ModelDefinition[];
   allDone: boolean;
 }
 
-type Status = "idle" | "loading" | "streaming" | "done" | "error" | "no-model";
+type Status = "idle" | "loading" | "streaming" | "done" | "error" | "cancelled";
 
-export function SummarySection({ sessionId, localModel, allDone }: Props) {
+export function SummarySection({ sessionId, topic, localModels, allDone }: Props) {
   const [summary, setSummary] = useState<string>("");
   const [status, setStatus] = useState<Status>("idle");
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [progressLogs, setProgressLogs] = useState<string[]>([]);
   const [expanded, setExpanded] = useState(true);
+  const [selectedModel, setSelectedModel] = useState(() => localModels[0]?.id ?? "");
   const abortRef = useRef<AbortController | null>(null);
-  const triggeredRef = useRef(false);
 
-  // 기존 서머리 로드
+  // 세션별 UUID — localStorage에 저장해 새로고침 후에도 동일한 jobId 사용
+  const summaryUuidKey = `summary-uuid-${sessionId}`;
+  const initialJobId = localStorage.getItem(summaryUuidKey) ?? (() => {
+    const id = crypto.randomUUID();
+    localStorage.setItem(summaryUuidKey, id);
+    return id;
+  })();
+  const jobIdRef = useRef<string>(initialJobId);
+
+  // localModels가 나중에 로드될 경우 selectedModel 초기화
   useEffect(() => {
-    getSessionSummary(sessionId)
-      .then(({ summary: s }) => {
-        if (s) {
-          setSummary(s);
-          setStatus("done");
-          triggeredRef.current = true;
-        }
-      })
-      .catch(() => {});
+    if (selectedModel === "" && localModels.length > 0) {
+      setSelectedModel(localModels[0].id);
+    }
+  }, [localModels, selectedModel]);
+
+  // 마운트 시 기존 저장된 서머리 로드 (BE 호출 없이 표시)
+  useEffect(() => {
+    getSessionSummary(sessionId).then(({ summary: saved }) => {
+      if (saved) { setSummary(saved); setStatus("done"); }
+    }).catch(() => {});
   }, [sessionId]);
 
-  // allDone이 되면 자동 생성 (로컬 모델 필요, 아직 생성 안 된 경우만)
-  useEffect(() => {
-    if (!allDone || triggeredRef.current) return;
-    if (!localModel) {
-      setStatus("no-model");
-      return;
-    }
+  const { register, update, dismiss } = useSummaryProgress();
 
-    triggeredRef.current = true;
+  const startSummary = useCallback((jobId: string, modelId: string) => {
+    abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
     setStatus("streaming");
     setSummary("");
+    setProgressLogs([]);
+    register(sessionId, topic);
 
     let accumulated = "";
     let rafId: number | null = null;
-    const flush = () => {
-      setSummary(accumulated);
-      rafId = null;
-    };
+    const flush = () => { setSummary(accumulated); rafId = null; };
 
-    streamSessionSummary(sessionId, localModel, (chunk) => {
-      accumulated += chunk;
-      if (rafId === null) rafId = requestAnimationFrame(flush);
-    }, controller.signal)
-      .then(() => {
-        if (rafId !== null) cancelAnimationFrame(rafId);
+    streamAiSummary(jobId, sessionId, modelId, (event) => {
+      if (event.type === "log") {
+        setProgressLogs((prev) => [...prev, event.message]);
+      } else if (event.type === "chunk") {
+        accumulated += event.text;
+        if (rafId === null) rafId = requestAnimationFrame(flush);
+      } else if (event.type === "done") {
+        if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
         setSummary(accumulated);
         setStatus("done");
-      })
+        update(sessionId, "done");
+      } else if (event.type === "error") {
+        if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+        setErrorMessage(event.message ?? "");
+        setStatus("error");
+        update(sessionId, "error");
+      }
+    }, controller.signal)
       .catch((e: unknown) => {
         if (rafId !== null) cancelAnimationFrame(rafId);
-        if (e instanceof Error && e.name === "AbortError") return;
+        if (e instanceof Error && e.name === "AbortError") {
+          setStatus("cancelled");
+          dismiss(sessionId);
+          return;
+        }
+        setErrorMessage(e instanceof Error ? e.message : "");
         setStatus("error");
+        update(sessionId, "error");
       })
-      .finally(() => {
-        abortRef.current = null;
-      });
+      .finally(() => { abortRef.current = null; });
+  }, [sessionId, topic, register, update, dismiss]);
 
-    return () => {
-      controller.abort();
-    };
-  }, [allDone, sessionId, localModel]);
+  const handleCancel = () => abortRef.current?.abort();
 
-  // 노출 조건: allDone이 아니면 숨김
-  if (!allDone && status === "idle") return null;
-  if (status === "no-model") return null;
-  if (!summary && status === "idle") return null;
+  // 생성: FE 멱등성 — streaming/done이면 재요청하지 않음
+  const handleGenerate = () => {
+    if (status === "done" || status === "streaming" || !selectedModel) return;
+    startSummary(jobIdRef.current, selectedModel);
+  };
+
+  // 재시도: 새 UUID 발급 → localStorage 갱신
+  const handleRetry = () => {
+    const newId = crypto.randomUUID();
+    localStorage.setItem(summaryUuidKey, newId);
+    jobIdRef.current = newId;
+    startSummary(newId, selectedModel);
+  };
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-3">
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors"
-      >
-        <div className="flex items-center gap-2">
+      <div className="w-full flex items-center justify-between px-5 py-3.5 gap-3">
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="flex items-center gap-2 shrink-0 text-left"
+        >
           <span className="text-sm font-semibold text-slate-700">AI 서머리</span>
           {status === "streaming" && (
             <span className="text-[11px] text-indigo-500 font-medium animate-pulse">생성 중...</span>
           )}
-          {status === "done" && (
-            <span className="text-[11px] text-slate-400 font-medium">{localModel}</span>
-          )}
           {status === "loading" && (
             <span className="text-[11px] text-slate-400 animate-pulse">불러오는 중...</span>
           )}
+        </button>
+
+        <div className="flex items-center gap-1 shrink-0">
+          {/* 모델 선택 */}
+          {localModels.length > 0 && (
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              disabled={status === "streaming"}
+              className="text-sm text-slate-500 bg-transparent focus:outline-none cursor-pointer max-w-36 truncate disabled:opacity-50 disabled:cursor-not-allowed mr-1"
+            >
+              {localModels.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          )}
+          {status === "idle" && (
+            <button
+              onClick={handleGenerate}
+              disabled={!selectedModel}
+              className="text-xs font-semibold text-slate-400 hover:text-indigo-500 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="서머리 생성"
+            >
+              생성
+            </button>
+          )}
+          {status === "streaming" && (
+            <button
+              onClick={handleCancel}
+              className="text-xs font-semibold text-slate-400 hover:text-red-500 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
+              title="중단"
+            >
+              ✕
+            </button>
+          )}
+          {(status === "error" || status === "cancelled") && (
+            <button
+              onClick={handleRetry}
+              className="text-xs font-semibold text-slate-400 hover:text-indigo-500 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+              title="재시도"
+            >
+              ↺
+            </button>
+          )}
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="text-slate-400 text-sm px-1"
+          >
+            <span className={`inline-block transition-transform duration-200 ${expanded ? "" : "-rotate-90"}`}>▾</span>
+          </button>
         </div>
-        <span className={`text-slate-400 text-sm transition-transform duration-200 ${expanded ? "" : "-rotate-90"}`}>
-          ▾
-        </span>
-      </button>
+      </div>
 
       {expanded && (
         <div className="px-5 pb-5 border-t border-slate-100">
           {status === "error" ? (
-            <p className="text-sm text-red-500 pt-4">서머리 생성 중 오류가 발생했습니다.</p>
-          ) : summary ? (
-            <div className="prose prose-sm prose-slate max-w-none pt-4 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-              {summary}
+            <div className="flex flex-col gap-1 pt-4">
+              <p className="text-sm text-red-500">서머리 생성 중 오류가 발생했습니다.</p>
+              {errorMessage && <p className="text-xs text-red-400 font-mono">{errorMessage}</p>}
+            </div>
+          ) : status === "cancelled" ? (
+            <div className="flex items-center gap-2 pt-4">
+              <p className="text-sm text-slate-400">서머리 생성이 중단되었습니다.</p>
+            </div>
+          ) : localModels.length === 0 ? (
+            <div className="pt-4">
+              <p className="text-sm text-slate-400">로컬 LLM 모델이 없어 서머리를 생성할 수 없습니다.</p>
+            </div>
+          ) : summary || status === "streaming" ? (
+            <div className="prose prose-sm prose-slate max-w-none pt-4">
+              {!summary && progressLogs.length > 0 && (
+                <div className="not-prose flex flex-col gap-0.5 mb-2">
+                  {progressLogs.map((msg, i) => (
+                    <p key={i} className={`text-slate-400 text-xs ${i === progressLogs.length - 1 ? "animate-pulse" : ""}`}>{msg}</p>
+                  ))}
+                </div>
+              )}
+              {summary ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
+              ) : null}
+              {status === "streaming" && (
+                <span className="inline-block w-0.5 h-4 bg-indigo-400 ml-0.5 align-middle animate-pulse" />
+              )}
             </div>
           ) : (
-            <div className="flex items-center gap-2 pt-4">
-              <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm text-slate-400">로컬 LLM으로 서머리를 생성하고 있습니다...</span>
+            <div className="pt-4">
+              <p className="text-sm text-slate-400">
+                {allDone ? "서머리 생성 중..." : "리서치가 완료되면 AI 서머리가 자동으로 생성됩니다."}
+              </p>
             </div>
           )}
         </div>

@@ -1,17 +1,34 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import type { Response } from 'express';
 import { QueueJob } from '../domain/queue-job.model';
 import { EnqueueTaskDto } from '../domain/enqueue-task.dto';
 import { JobRunnerService } from './job-runner.service';
+import { QueueRepository } from '../infrastructure/queue-repository';
 
 @Injectable()
-export class QueueService implements OnModuleDestroy {
+export class QueueService implements OnModuleInit, OnModuleDestroy {
   private jobs: QueueJob[] = [];
   private abortControllers = new Map<string, AbortController>();
   private sseClients: Response[] = [];
   private running = false;
 
-  constructor(private readonly jobRunner: JobRunnerService) {}
+  constructor(
+    private readonly jobRunner: JobRunnerService,
+    private readonly repo: QueueRepository,
+  ) {}
+
+  onModuleInit() {
+    // 서버 재시작 시 DB의 active 작업 복구 — running은 pending으로 되돌림
+    const active = this.repo.findActive();
+    for (const job of active) {
+      if (job.status === 'running') {
+        job.status = 'pending';
+        this.repo.update(job.jobId, { status: 'pending' });
+      }
+      this.jobs.push(job);
+    }
+    if (this.jobs.length > 0) this.runNext();
+  }
 
   onModuleDestroy() {
     for (const ctrl of this.abortControllers.values()) {
@@ -47,6 +64,10 @@ export class QueueService implements OnModuleDestroy {
     return this.jobs;
   }
 
+  getHistory(limit = 200): QueueJob[] {
+    return this.repo.findRecent(limit);
+  }
+
   enqueueSession(tasks: EnqueueTaskDto[], doneTaskIds: number[] = []) {
     let changed = false;
     for (const t of tasks) {
@@ -55,7 +76,9 @@ export class QueueService implements OnModuleDestroy {
         (j) => j.sessionId === t.sessionId && j.taskId === t.taskId,
       );
       if (alreadyQueued) continue;
-      this.jobs.push(this.makeJob(t));
+      const job = this.makeJob(t);
+      this.jobs.push(job);
+      this.repo.insert(job);
       changed = true;
     }
     if (changed) {
@@ -79,7 +102,9 @@ export class QueueService implements OnModuleDestroy {
     this.jobs = this.jobs.filter(
       (j) => !(j.sessionId === t.sessionId && j.taskId === t.taskId),
     );
-    this.jobs.push(this.makeJob(t));
+    const job = this.makeJob(t);
+    this.jobs.push(job);
+    this.repo.insert(job);
     this.broadcast();
     this.runNext();
   }
@@ -92,6 +117,12 @@ export class QueueService implements OnModuleDestroy {
       this.abortControllers.get(running.jobId)?.abort();
       this.abortControllers.delete(running.jobId);
     }
+    const cancelled = this.jobs.filter(
+      (j) => j.sessionId === sessionId && (j.status === 'pending' || j.status === 'running'),
+    );
+    for (const job of cancelled) {
+      this.repo.update(job.jobId, { status: 'error' });
+    }
     this.jobs = this.jobs.filter(
       (j) => !(j.sessionId === sessionId && (j.status === 'pending' || j.status === 'running')),
     );
@@ -100,6 +131,31 @@ export class QueueService implements OnModuleDestroy {
 
   dismissCompleted() {
     this.jobs = this.jobs.filter((j) => j.status === 'pending' || j.status === 'running');
+    this.broadcast();
+  }
+
+  // ── External tracking (FE가 직접 실행, 큐는 상태만 추적) ─────────────────────
+
+  registerExternal(task: EnqueueTaskDto): QueueJob {
+    this.jobs = this.jobs.filter(
+      (j) => !(j.sessionId === task.sessionId && j.taskId === task.taskId),
+    );
+    const job = this.makeJob(task);
+    job.status = 'running';
+    this.jobs.push(job);
+    this.repo.insert(job);
+    this.broadcast();
+    return job;
+  }
+
+  updateJobExternal(jobId: string, updates: Pick<Partial<QueueJob>, 'status' | 'phase'>): void {
+    this.repo.update(jobId, updates);
+    this.updateJob(jobId, updates);
+  }
+
+  removeJob(jobId: string): void {
+    this.repo.delete(jobId);
+    this.jobs = this.jobs.filter((j) => j.jobId !== jobId);
     this.broadcast();
   }
 
@@ -142,9 +198,17 @@ export class QueueService implements OnModuleDestroy {
     const controller = new AbortController();
     this.abortControllers.set(job.jobId, controller);
     this.updateJob(job.jobId, { status: 'running', phase: 'searching' });
+    this.repo.update(job.jobId, { status: 'running', phase: 'searching' });
 
     try {
-      await this.jobRunner.runJob(job, (updates) => this.updateJob(job.jobId, updates), controller.signal);
+      await this.jobRunner.runJob(
+        job,
+        (updates) => {
+          this.updateJob(job.jobId, updates);
+          this.repo.update(job.jobId, updates);
+        },
+        controller.signal,
+      );
     } finally {
       this.abortControllers.delete(job.jobId);
     }

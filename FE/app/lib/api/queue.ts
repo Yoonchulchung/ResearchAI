@@ -31,3 +31,20 @@ export const queueCancelSession = (sessionId: string) =>
 
 export const queueDismissCompleted = () =>
   apiFetch<{ ok: boolean }>("/queue/completed", { method: "DELETE" });
+
+// ── External tracking ─────────────────────────────────────────────────────────
+
+export const queueRegisterJob = (task: QueueTaskPayload) =>
+  apiFetch<QueueJob>("/queue/register", {
+    method: "POST",
+    body: JSON.stringify(task),
+  });
+
+export const queueUpdateJob = (jobId: string, updates: { status?: string; phase?: string }) =>
+  apiFetch<{ ok: boolean }>(`/queue/jobs/${jobId}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+  });
+
+export const queueRemoveJob = (jobId: string) =>
+  apiFetch<{ ok: boolean }>(`/queue/jobs/${jobId}`, { method: "DELETE" });

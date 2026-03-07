@@ -16,7 +16,7 @@ export class ResearchService {
    * 파이프라인을 클라이언트 연결과 독립적으로 백그라운드에서 실행한다.
    * 이벤트는 SearchJobService에 버퍼링되므로 클라이언트가 재접속해도 재생 가능하다.
    */
-  startLightResearchJob(
+  startLightResearch(
     searchId: string,
     topic: string,
     model: string,

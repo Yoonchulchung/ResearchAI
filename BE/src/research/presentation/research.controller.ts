@@ -33,7 +33,7 @@ export class ResearchController {
     res.flushHeaders();
 
     // 파이프라인을 백그라운드에서 실행 — 클라이언트 연결이 끊겨도 완료까지 실행됨
-    this.aiService.startLightResearchJob(
+    this.aiService.startLightResearch(
       body.searchId, body.topic, body.model, body.searchMode ?? 'auto',
     );
 

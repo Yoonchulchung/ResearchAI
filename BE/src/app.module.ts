@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AiModule } from './ai/ai.module';
 import { ResearchModule } from './research/research.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { OverviewModule } from './overview/overview.module';
@@ -10,6 +11,7 @@ import { RecruitModule } from './recruit/recruit.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    AiModule,
     ResearchModule,
     SessionsModule,
     OverviewModule,

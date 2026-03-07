@@ -3,6 +3,9 @@
 import { useEffect, useState, useCallback, useMemo, useRef, memo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getSession, getChatHistory, clearChatHistory, chatStream, getModels, triggerCompaction, getCompactionStatus } from "@/lib/api";
+import { deepResearchStream } from "@/lib/api/research";
+import { updateTask } from "@/lib/api/sessions";
+import { queueRegisterJob, queueUpdateJob, queueRemoveJob } from "@/lib/api/queue";
 import { Session, Task, TaskStatus, SearchSources, ChatMessage, ModelDefinition } from "@/types";
 import { TaskCard, type Phase } from "@/sessions/components/TaskCard";
 import { SessionHeader } from "@/sessions/components/SessionHeader";
@@ -70,23 +73,33 @@ export default function SessionPage() {
   const [models, setModels] = useState<ModelDefinition[]>([]);
   const [compactionStatus, setCompactionStatus] = useState<"idle" | "running" | "done">("idle");
 
-  const { jobs: allJobs, enqueueSession, enqueueTask, cancelSession } = useResearchQueue();
+  // 태스크별 스트리밍 실행 상태
+  const [taskRunStates, setTaskRunStates] = useState<Record<string, {
+    status: TaskStatus;
+    phase?: Phase;
+    result?: string;
+    sources?: SearchSources;
+  }>>({});
+  const abortRef = useRef<AbortController | null>(null);
+  const isRunningRef = useRef(false);
+  const [isRunning, setIsRunning] = useState(false);
 
-  const sessionJobs = useMemo(
-    () => allJobs.filter((j) => j.sessionId === id),
-    [allJobs, id],
+  // 큐 DB 상태 구독
+  const { jobs: queueJobs } = useResearchQueue();
+  const sessionQueueJobs = useMemo(
+    () => queueJobs.filter((j) => j.sessionId === id),
+    [queueJobs, id],
   );
 
   useEffect(() => {
-    getModels().then((m) => {
-      setModels(m);
-    }).catch(() => {});
+    getModels().then(setModels).catch(() => {});
   }, []);
 
   useEffect(() => {
     setLoading(true);
     setSession(null);
     setChatMessages([]);
+    setTaskRunStates({});
     getSession(id)
       .then((s) => { setSession(s); })
       .catch(() => router.push("/"))
@@ -99,71 +112,154 @@ export default function SessionPage() {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
+  // ── Derived ──────────────────────────────────────────────────────────────
+
   const statuses = useMemo<Record<string, TaskStatus>>(() => {
     const base: Record<string, TaskStatus> = { ...(session?.statuses ?? {}) };
-    for (const job of sessionJobs) {
+    // 큐 DB 상태 반영 (done/error는 session이 우선)
+    for (const job of sessionQueueJobs) {
       const key = String(job.taskId);
-      if (job.status === "pending") base[key] = "queued";
-      else if (job.status === "running") base[key] = "loading";
-      else if (job.status === "done") base[key] = "done";
-      else if (job.status === "error") base[key] = "error";
+      if (base[key] === "done" || base[key] === "error") continue;
+      if (job.status === "running") base[key] = "loading";
+      else if (job.status === "pending") base[key] = base[key] ?? "idle";
+    }
+    // 로컬 스트리밍 상태가 최우선
+    for (const [key, state] of Object.entries(taskRunStates)) {
+      base[key] = state.status;
     }
     return base;
-  }, [session, sessionJobs]);
+  }, [session, taskRunStates, sessionQueueJobs]);
 
   const phases = useMemo<Record<string, Phase>>(() => {
     const p: Record<string, Phase> = {};
-    for (const job of sessionJobs) {
-      if (job.status === "running" && job.phase) {
-        p[String(job.taskId)] = job.phase;
-      }
+    // 큐 DB의 phase 반영
+    for (const job of sessionQueueJobs) {
+      if (job.status === "running" && job.phase) p[String(job.taskId)] = job.phase;
+    }
+    // 로컬 스트리밍 phase가 최우선
+    for (const [key, state] of Object.entries(taskRunStates)) {
+      if (state.status === "loading" && state.phase) p[key] = state.phase;
     }
     return p;
-  }, [sessionJobs]);
+  }, [taskRunStates, sessionQueueJobs]);
 
   const results = useMemo<Record<string, string>>(() => {
     const base = { ...(session?.results ?? {}) };
-    for (const job of sessionJobs) {
-      if (job.result) base[String(job.taskId)] = job.result;
+    for (const [key, state] of Object.entries(taskRunStates)) {
+      if (state.result) base[key] = state.result;
     }
     return base;
-  }, [session, sessionJobs]);
+  }, [session, taskRunStates]);
 
   const sources = useMemo<Record<string, SearchSources>>(() => {
     const base = { ...(session?.sources ?? {}) };
-    for (const job of sessionJobs) {
-      if (job.sources) base[String(job.taskId)] = job.sources;
+    for (const [key, state] of Object.entries(taskRunStates)) {
+      if (state.sources) base[key] = state.sources;
     }
     return base;
-  }, [session, sessionJobs]);
-
-  // ── Derived ──────────────────────────────────────────────────────────────
-
-  const isRunning = sessionJobs.some(
-    (j) => j.status === "pending" || j.status === "running",
-  );
+  }, [session, taskRunStates]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
-  const handleRunAll = useCallback(() => {
+  const runTask = useCallback(async (task: Task, signal: AbortSignal) => {
     if (!session) return;
-    const doneTaskIds = Object.entries(statuses)
-      .filter(([, s]) => s === "done")
-      .map(([k]) => Number(k));
-    enqueueSession(id, session.topic, session.tasks, session.model, doneTaskIds);
-  }, [session, statuses, id, enqueueSession]);
+    const key = String(task.id);
+    setTaskRunStates((prev) => ({ ...prev, [key]: { status: "loading", phase: "searching" } }));
 
-  const handleRunTask = useCallback(
-    (task: Task) => {
-      if (!session) return;
-      enqueueTask(id, session.topic, task, session.model);
-    },
-    [session, id, enqueueTask],
-  );
+    // 큐에 외부 추적 등록
+    let queueJobId: string | null = null;
+    queueRegisterJob({
+      sessionId: id,
+      sessionTopic: session.topic,
+      taskId: task.id,
+      taskTitle: task.title,
+      taskIcon: task.icon,
+      taskPrompt: task.prompt,
+      model: session.model,
+    }).then((job) => { queueJobId = job.jobId; }).catch(() => {});
+
+    try {
+      await deepResearchStream(
+        task.prompt,
+        session.model,
+        undefined,
+        (event) => {
+          if (event.type === "log") {
+            const phase: Phase = event.message.includes("AI 심층") ? "analyzing" : "searching";
+            setTaskRunStates((prev) => ({ ...prev, [key]: { ...prev[key], status: "loading", phase } }));
+            if (queueJobId) queueUpdateJob(queueJobId, { phase }).catch(() => {});
+          } else if (event.type === "done") {
+            const src = event.sources as unknown as SearchSources;
+            setTaskRunStates((prev) => ({ ...prev, [key]: { status: "done", result: event.result, sources: src } }));
+            updateTask(id, task.id, event.result, "done", event.sources).catch(() => {});
+            if (queueJobId) queueUpdateJob(queueJobId, { status: "done" }).catch(() => {});
+          }
+        },
+        signal,
+      );
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === "AbortError") {
+        setTaskRunStates((prev) => ({ ...prev, [key]: { ...prev[key], status: "idle" } }));
+        if (queueJobId) queueRemoveJob(queueJobId).catch(() => {});
+        throw e;
+      }
+      const msg = e instanceof Error ? e.message : "오류";
+      setTaskRunStates((prev) => ({ ...prev, [key]: { status: "error", result: msg } }));
+      updateTask(id, task.id, msg, "error").catch(() => {});
+      if (queueJobId) queueUpdateJob(queueJobId, { status: "error" }).catch(() => {});
+    }
+  }, [session, id]);
+
+  const handleRunTask = useCallback(async (task: Task) => {
+    // 큐 DB에 이미 pending/running인 작업이 있으면 중복 실행 방지
+    const queueJob = sessionQueueJobs.find((j) => j.taskId === task.id);
+    if (queueJob?.status === "pending" || queueJob?.status === "running") return;
+
+    if (isRunningRef.current) return;
+    const abort = new AbortController();
+    abortRef.current = abort;
+    isRunningRef.current = true;
+    setIsRunning(true);
+    try {
+      await runTask(task, abort.signal);
+    } catch { /* AbortError는 runTask 내부에서 처리됨 */ }
+    finally {
+      isRunningRef.current = false;
+      setIsRunning(false);
+      abortRef.current = null;
+    }
+  }, [runTask, sessionQueueJobs]);
+
+  const handleRunAll = useCallback(async () => {
+    if (isRunningRef.current || !session) return;
+    const pendingTasks = session.tasks.filter((t) => {
+      const s = (session.statuses ?? {})[String(t.id)];
+      if (s === "done") return false;
+      // 큐 DB에 active 작업이 있으면 건너뜀
+      const queueJob = sessionQueueJobs.find((j) => j.taskId === t.id);
+      if (queueJob?.status === "pending" || queueJob?.status === "running") return false;
+      return !s || s === "idle" || s === "error";
+    });
+    const abort = new AbortController();
+    abortRef.current = abort;
+    isRunningRef.current = true;
+    setIsRunning(true);
+    try {
+      for (const task of pendingTasks) {
+        if (abort.signal.aborted) break;
+        await runTask(task, abort.signal);
+      }
+    } catch { /* AbortError로 루프 중단 */ }
+    finally {
+      isRunningRef.current = false;
+      setIsRunning(false);
+      abortRef.current = null;
+    }
+  }, [session, runTask, sessionQueueJobs]);
 
   const handleCancel = useCallback(() => {
-    cancelSession(id);
-  }, [cancelSession, id]);
+    abortRef.current?.abort();
+  }, []);
 
   const handleChatSend = useCallback(async (message: string, model: string) => {
     if (!session || chatLoading) return;
@@ -269,8 +365,6 @@ export default function SessionPage() {
   const doneCount = Object.values(statuses).filter((s) => s === "done").length;
   const total = tasks.length;
   const allDone = doneCount === total && total > 0 && !isRunning;
-  const localModel = models.find((m) => m.provider === "ollama")?.id ?? "";
-
   const exportMarkdown = () => {
     const lines = [
       `# ${session.topic} - 리서치 결과`,
@@ -306,7 +400,7 @@ export default function SessionPage() {
 
       {/* Scrollable content */}
       <div className="bg-grey flex-1 overflow-y-auto px-8 py-6">
-        <SummarySection sessionId={id} localModel={localModel} allDone={allDone} />
+        <SummarySection sessionId={id} topic={session.topic} localModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} />
 
         <div className="space-y-3">
           {tasks.map((task) => (
