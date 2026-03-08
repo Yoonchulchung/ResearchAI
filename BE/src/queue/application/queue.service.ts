@@ -1,19 +1,24 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, MessageEvent } from '@nestjs/common';
+import { Subject, Observable } from 'rxjs';
 import { QueueJob, QueueJobStatus, QueueJobPhase } from '../domain/queue-job.model';
 import { DeepResearchPipelineService } from '../../research/application/pipeline/deep-research-pipeline.service';
-import { SessionCommandService } from 'src/sessions/application/command/session-command.service';
+import { SessionQueryService } from '../../sessions/application/query/session-query.service';
+import { SessionCommandService } from '../../sessions/application/command/session-command.service';
 import { SessionItemService } from '../../sessions/application/session-item.service';
 import { ResearchState } from '../../sessions/domain/entity/session.entity';
 import { QueueStatusDto } from '../presentation/dto/response/queue-status.dto';
+import { streamOllama } from '../../ai/infrastructure/ollama.ai';
 
 @Injectable()
 export class QueueService implements OnModuleDestroy {
   private jobs: QueueJob[] = [];
   private abortControllers = new Map<string, AbortController>();
+  private summarySubjects = new Map<string, Subject<MessageEvent>>();
   private running = false;
 
   constructor(
     private readonly deepPipeline: DeepResearchPipelineService,
+    private readonly sessionQueryService: SessionQueryService,
     private readonly sessionCommandService: SessionCommandService,
     private readonly sessionItemService: SessionItemService,
   ) {}
@@ -21,6 +26,9 @@ export class QueueService implements OnModuleDestroy {
   onModuleDestroy() {
     for (const ctrl of this.abortControllers.values()) {
       ctrl.abort();
+    }
+    for (const subject of this.summarySubjects.values()) {
+      subject.complete();
     }
   }
 
@@ -45,6 +53,13 @@ export class QueueService implements OnModuleDestroy {
         phase,
       })),
     };
+  }
+
+  // ************* //
+  // SSE Observable //
+  // ************* //
+  getSummaryObservable(sessionId: string): Observable<MessageEvent> | null {
+    return this.summarySubjects.get(sessionId) ?? null;
   }
 
   // *********** //
@@ -72,14 +87,15 @@ export class QueueService implements OnModuleDestroy {
   }
 
   enqueueSummary(sessionId: string, localAIModel: string): void {
+    this.summarySubjects.set(sessionId, new Subject<MessageEvent>());
     const job: QueueJob = {
       jobId: `${sessionId}-summary-${Date.now()}`,
       sessionId,
-      itemId: "",
-      itemPrompt: "",
+      itemId: '',
+      itemPrompt: '',
       taskType: QueueJob.TaskType.SUMMARY,
       localAIModel,
-      CloudAIModel: "",
+      CloudAIModel: '',
       status: QueueJobStatus.PENDING,
     };
     this.jobs.push(job);
@@ -153,11 +169,33 @@ export class QueueService implements OnModuleDestroy {
         const { result, sources } = await this.deepPipeline.run(job.itemPrompt, job.CloudAIModel);
         await this.sessionCommandService.updateSession(job.sessionId, job.itemId, result, ResearchState.DONE);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result, sources });
+      } else if (job.taskType === QueueJob.TaskType.SUMMARY) {
+        const subject = this.summarySubjects.get(job.sessionId);
+        const ctx = await this.sessionQueryService.buildSummaryContext(job.sessionId);
+        if (!ctx) throw new Error('완료된 태스크가 없습니다.');
+        const model = job.localAIModel || ctx.model;
+        let fullText = '';
+        for await (const chunk of streamOllama(model, ctx.system, ctx.prompt)) {
+          fullText += chunk;
+          subject?.next({ data: { type: 'chunk', text: chunk } });
+        }
+        if (fullText) await this.sessionCommandService.saveSummary(job.sessionId, fullText);
+        subject?.next({ data: { type: 'done' } });
+        subject?.complete();
+        this.summarySubjects.delete(job.sessionId);
+        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '오류';
       this.updateJob(job.jobId, { status: QueueJobStatus.ERROR, phase: undefined, result: msg });
-      this.sessionCommandService.updateSession(job.sessionId, job.itemId, msg, ResearchState.ERROR).catch(() => {});
+      const subject = this.summarySubjects.get(job.sessionId);
+      if (subject) {
+        subject.next({ data: { type: 'error', message: msg } });
+        subject.complete();
+        this.summarySubjects.delete(job.sessionId);
+      } else {
+        this.sessionCommandService.updateSession(job.sessionId, job.itemId, msg, ResearchState.ERROR).catch(() => {});
+      }
     } finally {
       this.abortControllers.delete(job.jobId);
     }

@@ -4,7 +4,7 @@ import { ResearchState } from '../domain/entity/session.entity';
 import { SessionResponseDto } from '../presentation/dto/response/session.response.dto';
 import { SessionQueryService } from './query/session-query.service';
 import { SessionCommandService } from './command/session-command.service';
-import { QueueService } from 'src/queue/application/queue.service';
+
 /**
  * Facade — 기존 의존성(QueueService, ResearchService 등)이 그대로 사용할 수 있도록 유지.
  * 내부적으로 Query / Command 서비스에 위임합니다.
@@ -14,7 +14,6 @@ export class SessionsService {
   constructor(
     private readonly query: SessionQueryService,
     private readonly command: SessionCommandService,
-    private readonly queueService: QueueService,
   ) {}
 
   // *********** //
@@ -39,12 +38,5 @@ export class SessionsService {
   removeItem(itemId: string)                                  { return this.command.removeItem(itemId); }
   remove(id: string)                                          { return this.command.remove(id); }
   saveSummary(id: string, summary: string)                    { return this.command.saveSummary(id, summary); }
-
-  // ************ //
-  // 서머리 요청 로직 //
-  // ************ //
-  createSummary(sessionId: string, localAIModel: string) {
-    this.queueService.enqueueSummary(sessionId, localAIModel);
-  }
 
 }

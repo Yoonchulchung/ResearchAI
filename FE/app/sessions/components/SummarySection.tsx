@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { streamAiSummary } from "@/lib/api/ai";
-import { getSessionSummary } from "@/lib/api/sessions";
+import { getSessionSummary, requestSessionSummary, streamSessionSummary } from "@/lib/api/sessions";
 import { useSummaryProgress } from "@/contexts/SummaryProgressContext";
 import { ModelDefinition } from "@/types";
 
@@ -21,19 +20,9 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
   const [summary, setSummary] = useState<string>("");
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
-  const [progressLogs, setProgressLogs] = useState<string[]>([]);
   const [expanded, setExpanded] = useState(true);
   const [selectedModel, setSelectedModel] = useState(() => localModels[0]?.id ?? "");
   const abortRef = useRef<AbortController | null>(null);
-
-  // 세션별 UUID — localStorage에 저장해 새로고침 후에도 동일한 jobId 사용
-  const summaryUuidKey = `summary-uuid-${sessionId}`;
-  const initialJobId = localStorage.getItem(summaryUuidKey) ?? (() => {
-    const id = crypto.randomUUID();
-    localStorage.setItem(summaryUuidKey, id);
-    return id;
-  })();
-  const jobIdRef = useRef<string>(initialJobId);
 
   // localModels가 나중에 로드될 경우 selectedModel 초기화
   useEffect(() => {
@@ -51,66 +40,53 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
 
   const { register, update, dismiss } = useSummaryProgress();
 
-  const startSummary = useCallback((jobId: string, modelId: string) => {
+  const startSummary = useCallback(async (modelId: string) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
     setStatus("streaming");
     setSummary("");
-    setProgressLogs([]);
     register(sessionId, topic);
 
     let accumulated = "";
     let rafId: number | null = null;
     const flush = () => { setSummary(accumulated); rafId = null; };
 
-    streamAiSummary(jobId, sessionId, modelId, (event) => {
-      if (event.type === "log") {
-        setProgressLogs((prev) => [...prev, event.message]);
-      } else if (event.type === "chunk") {
-        accumulated += event.text;
+    try {
+      await requestSessionSummary(sessionId, modelId);
+      await streamSessionSummary(sessionId, (chunk) => {
+        accumulated += chunk;
         if (rafId === null) rafId = requestAnimationFrame(flush);
-      } else if (event.type === "done") {
-        if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
-        setSummary(accumulated);
-        setStatus("done");
-        update(sessionId, "done");
-      } else if (event.type === "error") {
-        if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
-        setErrorMessage(event.message ?? "");
-        setStatus("error");
-        update(sessionId, "error");
+      }, controller.signal);
+      if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+      setSummary(accumulated);
+      setStatus("done");
+      update(sessionId, "done");
+    } catch (e: unknown) {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (e instanceof Error && e.name === "AbortError") {
+        setStatus("cancelled");
+        dismiss(sessionId);
+        return;
       }
-    }, controller.signal)
-      .catch((e: unknown) => {
-        if (rafId !== null) cancelAnimationFrame(rafId);
-        if (e instanceof Error && e.name === "AbortError") {
-          setStatus("cancelled");
-          dismiss(sessionId);
-          return;
-        }
-        setErrorMessage(e instanceof Error ? e.message : "");
-        setStatus("error");
-        update(sessionId, "error");
-      })
-      .finally(() => { abortRef.current = null; });
+      setErrorMessage(e instanceof Error ? e.message : "");
+      setStatus("error");
+      update(sessionId, "error");
+    } finally {
+      abortRef.current = null;
+    }
   }, [sessionId, topic, register, update, dismiss]);
 
   const handleCancel = () => abortRef.current?.abort();
 
-  // 생성: FE 멱등성 — streaming/done이면 재요청하지 않음
   const handleGenerate = () => {
     if (status === "done" || status === "streaming" || !selectedModel) return;
-    startSummary(jobIdRef.current, selectedModel);
+    startSummary(selectedModel);
   };
 
-  // 재시도: 새 UUID 발급 → localStorage 갱신
   const handleRetry = () => {
-    const newId = crypto.randomUUID();
-    localStorage.setItem(summaryUuidKey, newId);
-    jobIdRef.current = newId;
-    startSummary(newId, selectedModel);
+    startSummary(selectedModel);
   };
 
   return (
@@ -197,13 +173,6 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
             </div>
           ) : summary || status === "streaming" ? (
             <div className="prose prose-sm prose-slate max-w-none pt-4">
-              {!summary && progressLogs.length > 0 && (
-                <div className="not-prose flex flex-col gap-0.5 mb-2">
-                  {progressLogs.map((msg, i) => (
-                    <p key={i} className={`text-slate-400 text-xs ${i === progressLogs.length - 1 ? "animate-pulse" : ""}`}>{msg}</p>
-                  ))}
-                </div>
-              )}
               {summary ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
               ) : null}

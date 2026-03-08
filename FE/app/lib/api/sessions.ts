@@ -34,16 +34,25 @@ export const updateTask = (
 export const getSessionSummary = (sessionId: string) =>
   apiFetch<{ summary: string | null }>(`/sessions/${sessionId}/summary`);
 
+export async function requestSessionSummary(
+  sessionId: string,
+  localAIModel: string,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/queue/sessions/${sessionId}/summary`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ localAIModel }),
+  });
+  if (!res.ok) throw new Error("Summary 요청 실패");
+}
+
 export async function streamSessionSummary(
   sessionId: string,
-  model: string,
   onChunk: (text: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}/summary/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model }),
+  const res = await fetch(`${API_BASE}/queue/sessions/${sessionId}/summary/stream`, {
+    method: "GET",
     signal,
   });
   if (!res.ok || !res.body) throw new Error("Summary stream 실패");
