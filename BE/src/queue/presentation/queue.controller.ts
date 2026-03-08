@@ -31,7 +31,7 @@ export class QueueController {
     const ctx = await this.sessionQueryService.buildSummaryContext(id);
     if (!ctx) throw new BadRequestException('완료된 태스크가 없습니다.');
 
-    this.queueService.enqueueSummary(id, body.localAIModel || ctx.model);
+    await this.queueService.enqueueSummary(id, body.localAIModel || ctx.model);
     return { ok: true };
   }
 

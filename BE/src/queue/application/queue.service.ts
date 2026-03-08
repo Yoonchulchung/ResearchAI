@@ -5,7 +5,7 @@ import { DeepResearchPipelineService } from '../../research/application/pipeline
 import { SessionQueryService } from '../../sessions/application/query/session-query.service';
 import { SessionCommandService } from '../../sessions/application/command/session-command.service';
 import { SessionItemService } from '../../sessions/application/session-item.service';
-import { ResearchState } from '../../sessions/domain/entity/session.entity';
+import { ResearchState, SummaryState } from '../../sessions/domain/entity/session.entity';
 import { QueueStatusDto } from '../presentation/dto/response/queue-status.dto';
 import { streamOllama } from '../../ai/infrastructure/ollama.ai';
 
@@ -87,8 +87,10 @@ export class QueueService implements OnModuleDestroy {
     this.runNext();
   }
 
-  enqueueSummary(sessionId: string, localAIModel: string): void {
+  async enqueueSummary(sessionId: string, localAIModel: string): Promise<void> {
     this.summarySubjects.set(sessionId, new Subject<MessageEvent>());
+
+    await this.sessionCommandService.updateSummaryState(sessionId, SummaryState.PENDING);
     const job: QueueJob = {
       jobId: `${sessionId}-summary-${Date.now()}`,
       sessionId,
@@ -165,40 +167,55 @@ export class QueueService implements OnModuleDestroy {
 
     try {
       if (job.taskType === QueueJob.TaskType.DEEPRESEARCH) {
+
         await this.sessionCommandService.updateSessionState(job.sessionId, ResearchState.RUNNING);
         await this.sessionItemService.updateStatus(job.itemId, ResearchState.RUNNING);
+        
         const { result, sources } = await this.deepPipeline.run(job.itemPrompt, job.CloudAIModel);
+        
         await this.sessionCommandService.updateSession(job.sessionId, job.itemId, result, ResearchState.DONE);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result, sources });
+     
       } else if (job.taskType === QueueJob.TaskType.SUMMARY) {
+
+        await this.sessionCommandService.updateSummaryState(job.sessionId, SummaryState.RUNNING);
         const subject = this.summarySubjects.get(job.sessionId);
         const ctx = await this.sessionQueryService.buildSummaryContext(job.sessionId);
         if (!ctx) throw new Error('완료된 태스크가 없습니다.');
-        //const model = job.localAIModel || ctx.model;
-        const model = "phi4";
+        const model = job.localAIModel || ctx.model;
         let fullText = '';
 
         for await (const chunk of streamOllama(model, ctx.system, ctx.prompt)) {
           fullText += chunk;
           subject?.next({ data: { type: 'chunk', text: chunk } });
         }
+
         if (fullText) await this.sessionCommandService.saveSummary(job.sessionId, fullText);
         subject?.next({ data: { type: 'done' } });
         subject?.complete();
         this.summarySubjects.delete(job.sessionId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
+        await this.sessionCommandService.updateSummaryState(job.sessionId, SummaryState.DONE);
+      
       }
     } catch (e) {
       console.log(e);
       const msg = e instanceof Error ? e.message : '오류';
       this.updateJob(job.jobId, { status: QueueJobStatus.ERROR, phase: undefined, result: msg });
-      const subject = this.summarySubjects.get(job.sessionId);
-      if (subject) {
-        subject.next({ data: { type: 'error', message: msg } });
-        subject.complete();
+      if (job.taskType === QueueJob.TaskType.SUMMARY) {
+        
+        const subject = this.summarySubjects.get(job.sessionId);
+        subject?.next({ data: { type: 'error', message: msg } });
+        subject?.complete();
         this.summarySubjects.delete(job.sessionId);
-      } else {
+        this.sessionCommandService.updateSummaryState(job.sessionId, SummaryState.ERROR).catch(() => {});
+
+      } else if (job.taskType === QueueJob.TaskType.DEEPRESEARCH) {
+      
         this.sessionCommandService.updateSession(job.sessionId, job.itemId, msg, ResearchState.ERROR).catch(() => {});
+      
+      } else {
+        console.log("Unsupported taskType is called");
       }
     } finally {
       this.abortControllers.delete(job.jobId);

@@ -5,6 +5,7 @@ import { Task, Session } from '../../domain/session.model';
 import { SessionRepository } from '../../domain/repository/session.repository';
 import { SessionItemRepository } from '../../domain/repository/session-item.repository';
 import { ResearchState } from '../../domain/entity/session.entity';
+import { SummaryState } from '../../domain/entity/session.entity';
 import { SessionResponseDto } from '../../presentation/dto/response/session.response.dto';
 
 @Injectable()
@@ -28,6 +29,7 @@ export class SessionCommandService {
       researchCloudAIModel,
       researchLocalAIModel,
       researchWebModel,
+      summaryState: SummaryState.IDLE,
       createdAt: new Date().toISOString(),
     };
     await this.sessionRepository.save(session);
@@ -69,6 +71,10 @@ export class SessionCommandService {
 
   async updateSessionState(sessionId: string, state: ResearchState): Promise<void> {
     await this.sessionRepository.updateState(sessionId, state);
+  }
+
+  async updateSummaryState(sessionId: string, state: SummaryState): Promise<void> {
+    await this.sessionRepository.updateSummaryState(sessionId, state);
   }
 
   async removeItem(itemId: string): Promise<{ ok: boolean }> {

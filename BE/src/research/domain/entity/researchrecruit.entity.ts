@@ -14,11 +14,23 @@ export class ResearchRecruitEntity {
   @JoinColumn({ name: 'light_research_id' })
   lightResearch: LightResearchEntity;
 
-  @Column()
-  topic: string;
+  @Column({ type: 'text', nullable: true })
+  topic: string | null;
 
-  @Column()
-  detail: string;
+  @Column({ type: 'text', nullable: true })
+  detail: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  location: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  description: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  skills: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  url: string | null;
 
   @Column({ name: 'recruit_created_at' })
   recruitCreatedAt: string;

@@ -31,6 +31,7 @@ export class SessionResponseDto {
   researchLocalAIModel: string;
   researchWebModel: string;
   researchState?: string;
+  summaryState?: string | null;
   createdAt: string;
   summary?: string | null;
   items?: ItemResponseDto[];
@@ -44,6 +45,7 @@ export class SessionResponseDto {
     dto.researchLocalAIModel = session.researchLocalAIModel;
     dto.researchWebModel = session.researchWebModel;
     dto.researchState = session.researchState;
+    dto.summaryState = session.summaryState;
     dto.createdAt = session.createdAt;
     dto.summary = session.summary;
     dto.items = session.items?.map(ItemResponseDto.from);

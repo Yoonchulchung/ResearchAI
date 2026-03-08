@@ -19,6 +19,7 @@ export interface Session {
   researchLocalAIModel: string;
   researchWebModel: string;
   researchState?: string;
+  summaryState?: string | null;
   createdAt: string;
   summary?: string | null;
   items?: ItemWithResult[];

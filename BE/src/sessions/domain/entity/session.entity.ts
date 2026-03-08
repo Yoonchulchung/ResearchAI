@@ -11,6 +11,16 @@ export enum ResearchState {
   ABORTED = 'aborted',
 }
 
+export enum SummaryState {
+  IDLE = 'idle',
+  PENDING = 'pending',
+  RUNNING = 'running',
+  DONE = 'done',
+  ERROR = 'error',
+  STOPPED = 'stopped',
+  ABORTED = 'aborted',
+}
+
 @Entity('session')
 export class SessionEntity {
   @PrimaryColumn()
@@ -37,6 +47,9 @@ export class SessionEntity {
 
   @Column({ name: 'summary', nullable: true })
   summary: string;
+
+  @Column({ name: 'summary_state', default: SummaryState.IDLE })
+  summaryState: string;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

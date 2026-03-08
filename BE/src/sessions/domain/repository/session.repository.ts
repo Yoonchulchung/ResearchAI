@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Session, ItemWithResult } from '../session.model';
-import { ResearchState, SessionEntity } from '../entity/session.entity';
+import { ResearchState, SessionEntity, SummaryState } from '../entity/session.entity';
 
 @Injectable()
 export class SessionRepository {
@@ -41,6 +41,10 @@ export class SessionRepository {
     await this.repo.update(id, { summary });
   }
 
+  async updateSummaryState(id: string, state: SummaryState): Promise<void> {
+    await this.repo.update(id, { summaryState: state });
+  }
+
   async delete(id: string): Promise<void> {
     const exists = await this.repo.findOne({ where: { id } });
     if (!exists) throw new NotFoundException('Session not found');
@@ -72,6 +76,7 @@ export class SessionRepository {
       researchLocalAIModel: row.researchLocalAIModel,
       researchWebModel: row.researchWebModel,
       researchState: row.researchState,
+      summaryState: row.summaryState ?? null,
       createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
       summary: row.summary,
       items: withTasks ? items : undefined,
