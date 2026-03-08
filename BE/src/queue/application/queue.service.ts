@@ -14,6 +14,7 @@ import { EnqueueDeepResearchDto, DeepResearchAction } from '../presentation/dto/
 import { EnqueueLightResearchDto } from '../presentation/dto/request/enqueue-light-research.dto';
 import { LightResearchPipelineService, LightResearchEvent } from '../../research/application/pipeline/light-research-pipeline.service';
 import { SearchSource } from '../../research/application/search-planner.service';
+import { LightResearchRepository } from '../../research/domain/repository/light-research.repository';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -32,6 +33,7 @@ export class QueueService implements OnModuleDestroy {
   constructor(
     private readonly deepPipeline: DeepResearchPipelineService,
     private readonly lightPipeline: LightResearchPipelineService,
+    private readonly lightResearchRepository: LightResearchRepository,
     private readonly sessionQueryService: SessionQueryService,
     private readonly sessionCommandService: SessionCommandService,
     private readonly sessionItemService: SessionItemService,
@@ -120,6 +122,14 @@ export class QueueService implements OnModuleDestroy {
     requestBody: EnqueueLightResearchDto,
   ): Promise<{ searchId: string; status: string }> {
     const searchId = randomUUID();
+
+    await this.lightResearchRepository.save({
+      id: searchId,
+      requestQuestion: requestBody.topic,
+      researchCloudAiModel: requestBody.cloudAIModel,
+      researchLocalAIModel: requestBody.localAIModel,
+      researchWebModel: requestBody.webModel ?? '',
+    });
 
     this.lightResearchSubjects.set(searchId, new Subject<MessageEvent>());
     this.lightResearchAccumulated.set(searchId, []);

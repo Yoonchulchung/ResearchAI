@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { deepResearch, stopResearchItem } from "@/lib/api/research";
 import { deleteSessionItem } from "@/lib/api/sessions";
-import { Session, Task, TaskStatus, SearchSources } from "@/types";
+import { Session, Task, TaskStatus, WebModels } from "@/types";
 import { type Phase } from "@/sessions/components/TaskCard";
 
 
@@ -10,7 +10,8 @@ export function useTaskRunner(session: Session | null, id: string) {
     status: TaskStatus;
     phase?: Phase;
     aiResult?: string;
-    webResult?: SearchSources;
+    webResult?: string;
+    webModel?: WebModels;
   }>>({});
   const [isRunning, setIsRunning] = useState(false);
 
@@ -65,15 +66,26 @@ export function useTaskRunner(session: Session | null, id: string) {
     return base;
   }, [session, taskRunStates]);
 
-  const webResult = useMemo<Record<string, SearchSources>>(() => {
-    const base: Record<string, SearchSources> = {};
+  const webResult = useMemo<Record<string, string>>(() => {
+    const base: Record<string, string> = {};
     for (const task of session?.items ?? []) {
-      if (task.webResult && task.webModel) {
-        base[String(task.id)] = { [task.webModel]: task.webResult } as SearchSources;
-      }
+      if (task.webResult) base[String(task.id)] = task.webResult;
     }
     for (const [key, state] of Object.entries(taskRunStates)) {
       if (state.webResult) base[key] = state.webResult;
+    }
+    return base;
+  }, [session, taskRunStates]);
+
+  const webModel = useMemo<Record<string, WebModels>>(() => {
+    const base: Record<string, WebModels> = {};
+    for (const task of session?.items ?? []) {
+      if (task.webResult && task.webModel) {
+        base[String(task.id)] = { [task.webModel]: task.webResult } as WebModels;
+      }
+    }
+    for (const [key, state] of Object.entries(taskRunStates)) {
+      if (state.webModel) base[key] = state.webModel;
     }
     return base;
   }, [session, taskRunStates]);
@@ -157,5 +169,5 @@ export function useTaskRunner(session: Session | null, id: string) {
     onDeleted();
   }, [id]);
 
-  return { statuses, phases, aiResult, webResult, isRunning, handleRunTask, handleRunAll, handleCancelItem, handleDeleteItem };
+  return { statuses, phases, aiResult, webResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelItem, handleDeleteItem };
 }

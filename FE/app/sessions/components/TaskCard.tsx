@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Task, TaskStatus, SearchSources } from "@/types";
+import { Task, TaskStatus, WebModels } from "@/types";
 
 export type Phase = "searching" | "analyzing";
 
-export const SOURCE_LABELS: { key: keyof SearchSources; label: string }[] = [
+export type WebModelKey = keyof WebModels & string;
+
+export const SOURCE_LABELS: { key: WebModelKey; label: string }[] = [
   { key: "tavily", label: "Tavily" },
   { key: "serper", label: "Serper" },
   { key: "naver", label: "네이버" },
@@ -20,7 +22,7 @@ export function TaskCard({
   status,
   phase,
   aiResult,
-  webResult,
+  webModel,
   onRun,
   onCancel,
   onDelete,
@@ -29,13 +31,13 @@ export function TaskCard({
   status: TaskStatus;
   phase?: Phase;
   aiResult?: string;
-  webResult?: SearchSources;
+  webModel?: WebModels;
   onRun: () => void;
   onCancel: () => void;
   onDelete: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<"result" | "prompt" | keyof SearchSources>("result");
+  const [activeTab, setActiveTab] = useState<"result" | "prompt" | WebModelKey>("result");
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,7 +55,7 @@ export function TaskCard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  const availableSources = SOURCE_LABELS.filter((s) => webResult?.[s.key]);
+  const availableSources = SOURCE_LABELS.filter((s) => webModel?.[s.key]);
   const hasContent = !!aiResult || availableSources.length > 0;
 
   // 소스가 새로 생기면 자동 펼침 (검색/분석 단계 모두)
@@ -211,12 +213,12 @@ export function TaskCard({
             >
               🤖 AI 결과
             </button>
-            {availableSources.map(({ key, label }) => (
+            {availableSources.map(({ key: sourceKey, label }) => (
               <button
-                key={key}
-                onClick={() => setActiveTab(key)}
+                key={sourceKey}
+                onClick={() => setActiveTab(sourceKey)}
                 className={`text-xs font-semibold px-3 py-1.5 rounded-t-lg border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === key
+                  activeTab === sourceKey
                     ? "border-indigo-500 text-indigo-700 bg-white"
                     : "border-transparent text-slate-500 hover:text-slate-700"
                 }`}
@@ -287,7 +289,7 @@ export function TaskCard({
               [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
               [&_hr]:border-slate-200 [&_hr]:my-3">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {webResult?.[activeTab as keyof SearchSources] ?? ""}
+                {webModel?.[activeTab as WebModelKey] ?? ""}
               </ReactMarkdown>
             </div>
           )}

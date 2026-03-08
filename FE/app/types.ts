@@ -11,7 +11,7 @@ export interface Task {
   aiResult?: string | null;
 }
 
-export interface SearchSources {
+export interface WebModels {
   tavily?: string;
   serper?: string;
   naver?: string;
@@ -40,24 +40,6 @@ export interface ModelDefinition {
   outputPricePer1M: number;
   contextWindow: number;
   webSearch: boolean;
-}
-
-export type QueueJobStatus = "pending" | "running" | "done" | "error";
-export type QueueJobPhase = "searching" | "analyzing";
-
-export interface QueueJob {
-  jobId: string;
-  sessionId: string;
-  sessionTopic: string;
-  taskId: number;
-  taskTitle: string;
-  taskIcon: string;
-  taskPrompt: string;
-  model: string;
-  status: QueueJobStatus;
-  phase?: QueueJobPhase;
-  sources?: SearchSources;
-  result?: string;
 }
 
 export interface ChatMessage {

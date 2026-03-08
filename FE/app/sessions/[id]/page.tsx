@@ -63,7 +63,7 @@ export default function SessionPage() {
   const router = useRouter();
 
   const { session, loading, models } = useSessionData(id);
-  const { statuses, phases, aiResult, webResult, isRunning, handleRunTask, handleRunAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
+  const { statuses, phases, aiResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
 
   useEffect(() => { setDeletedItemIds(new Set()); }, [id]);
@@ -122,7 +122,7 @@ export default function SessionPage() {
               status={statuses[task.id] ?? "idle"}
               phase={phases[task.id]}
               aiResult={aiResult[task.id]}
-              webResult={webResult[task.id]}
+              webModel={webModel[task.id]}
               onRun={() => handleRunTask(task)}
               onCancel={() => handleCancelItem(task)}
               onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}
