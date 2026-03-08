@@ -5,6 +5,7 @@ export interface Task {
   icon: string;
   prompt: string;
   status?: string;
+  researchState?: string;
   result?: string | null;
 }
 
@@ -16,7 +17,15 @@ export interface SearchSources {
   ollama?: string;
 }
 
-export type TaskStatus = "idle" | "queued" | "loading" | "done" | "error";
+export enum TaskStatus {
+  IDLE = "idle",
+  PENDING = "pending",
+  RUNNING = "running",
+  DONE = "done",
+  ERROR = "error",
+  STOPPED = "stopped",
+  ABORTED = "aborted",
+}
 
 export type Provider = "anthropic" | "openai" | "google" | "ollama";
 

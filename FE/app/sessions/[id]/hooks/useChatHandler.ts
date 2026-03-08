@@ -45,7 +45,7 @@ export function useChatHandler(session: Session | null, id: string) {
     };
 
     try {
-      await chatStream(id, message, model || session.model, (chunk) => {
+      await chatStream(id, message, model || session.researchCloudAIModel, (chunk) => {
         accumulated += chunk;
         if (rafId === null) rafId = requestAnimationFrame(flush);
       });

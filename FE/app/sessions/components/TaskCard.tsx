@@ -56,7 +56,7 @@ export function TaskCard({
 
   // 소스가 새로 생기면 자동 펼침 (검색/분석 단계 모두)
   useEffect(() => {
-    if (availableSources.length > 0 && status === "loading") {
+    if (availableSources.length > 0 && status === TaskStatus.RUNNING) {
       setExpanded(true);
       if (activeTab === "result" && !result) {
         setActiveTab(availableSources[0].key);
@@ -67,40 +67,46 @@ export function TaskCard({
 
   // 분석 완료 시 AI 결과 탭으로 이동
   useEffect(() => {
-    if (status === "done" && result) {
+    if (status === TaskStatus.DONE && result) {
       setActiveTab("result");
     }
   }, [status, result]);
   
-  const badgeStyleMap: Record<string, string> = {
-    done: "bg-green-100 text-green-700",
-    loading: "bg-indigo-100 text-indigo-700",
-    queued: "bg-amber-100 text-amber-700",
-    error: "bg-red-100 text-red-700",
-    idle: "bg-slate-100 text-slate-500",
+  const badgeStyleMap: Record<TaskStatus, string> = {
+    [TaskStatus.DONE]: "bg-green-100 text-green-700",
+    [TaskStatus.RUNNING]: "bg-indigo-100 text-indigo-700",
+    [TaskStatus.PENDING]: "bg-amber-100 text-amber-700",
+    [TaskStatus.ERROR]: "bg-red-100 text-red-700",
+    [TaskStatus.STOPPED]: "bg-slate-100 text-slate-500",
+    [TaskStatus.ABORTED]: "bg-slate-100 text-slate-500",
+    [TaskStatus.IDLE]: "bg-slate-100 text-slate-500",
   };
   const badgeStyle = badgeStyleMap[status] ?? "bg-slate-100 text-slate-500";
 
-  const badgeLabelMap: Record<string, string> = {
-    done: "완료",
-    loading: phase === "searching" ? "검색 중" : "분석 중",
-    queued: "대기 중",
-    error: "오류",
-    idle: "대기",
+  const badgeLabelMap: Record<TaskStatus, string> = {
+    [TaskStatus.DONE]: "완료",
+    [TaskStatus.RUNNING]: phase === "searching" ? "검색 중" : "분석 중",
+    [TaskStatus.PENDING]: "대기 중",
+    [TaskStatus.ERROR]: "오류",
+    [TaskStatus.STOPPED]: "중단",
+    [TaskStatus.ABORTED]: "취소",
+    [TaskStatus.IDLE]: "대기",
   };
   const badgeLabel = badgeLabelMap[status] ?? "대기";
 
   const subText =
-    status === "idle"
+    status === TaskStatus.IDLE
       ? "클릭하여 분석 시작"
-      : status === "queued"
+      : status === TaskStatus.PENDING
       ? "큐 대기 중..."
-      : status === "loading" && phase === "searching"
+      : status === TaskStatus.RUNNING && phase === "searching"
       ? `웹 검색 중...${availableSources.length > 0 ? ` · ${availableSources.length}개 완료` : ""}`
-      : status === "loading" && phase === "analyzing"
+      : status === TaskStatus.RUNNING && phase === "analyzing"
       ? `AI 분석 중...${hasContent ? " · 클릭하여 검색 결과 보기" : ""}`
-      : status === "done"
+      : status === TaskStatus.DONE
       ? "클릭하여 결과 보기"
+      : status === TaskStatus.STOPPED || status === TaskStatus.ABORTED
+      ? "중단됨"
       : "...";
 
   const [animatedText, setAnimatedText] = useState(subText);
@@ -116,7 +122,7 @@ export function TaskCard({
   }, [subText]);
 
   const handleCardClick = () => {
-    if (status === "idle") onRun();
+    if (status === TaskStatus.IDLE) onRun();
     else if (hasContent) setExpanded((e) => !e);
   };
 
@@ -131,7 +137,7 @@ export function TaskCard({
       <div
         onClick={handleCardClick}
         style={{
-          background: status === "loading" ? "#f0f0ff" : "#fff",
+          background: status === "running" ? "#f0f0ff" : "#fff",
           cursor: status === "idle" || hasContent ? "pointer" : "default",
         }}
         className="flex items-center gap-3 px-5 py-4"
@@ -151,7 +157,7 @@ export function TaskCard({
           <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${badgeStyle}`}>
             {badgeLabel}
           </span>
-          {status === "loading" && (
+          {status === "running" && (
             <button
               onClick={(e) => { e.stopPropagation(); onCancel(); }}
               className="text-xs font-semibold text-slate-400 hover:text-red-500 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
@@ -160,7 +166,7 @@ export function TaskCard({
               ✕
             </button>
           )}
-          {status === "error" && (
+          {(status === "error" || status === TaskStatus.STOPPED || status === TaskStatus.ABORTED) && (
             <button
               onClick={(e) => { e.stopPropagation(); onRun(); }}
               className="text-xs font-semibold text-slate-400 hover:text-indigo-500 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"

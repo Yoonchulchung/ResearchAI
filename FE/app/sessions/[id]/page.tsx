@@ -63,7 +63,7 @@ export default function SessionPage() {
   const router = useRouter();
 
   const { session, loading, models } = useSessionData(id);
-  const { statuses, phases, results, sources, isRunning, handleRunTask, handleRunAll, handleCancel } = useTaskRunner(session, id);
+  const { statuses, phases, results, sources, isRunning, handleRunTask, handleRunAll, handleCancelItem } = useTaskRunner(session, id);
   const { chatMessages, chatLoading, chatBottomRef, handleChatSend, handleClearChat } = useChatHandler(session, id);
   const { compactionStatus } = useCompaction(session, statuses, isRunning, id);
 
@@ -103,7 +103,7 @@ export default function SessionPage() {
         isRunning={isRunning}
         allDone={allDone}
         onRunAll={handleRunAll}
-        onCancel={handleCancel}
+        onCancel={() => tasks.filter((t) => statuses[t.id] === "running" || statuses[t.id] === "pending").forEach((t) => handleCancelItem(t))}
         onExport={exportMarkdown}
         onViewDetail={() => router.push(`/sessions/${id}/detail`)}
       />
@@ -121,7 +121,7 @@ export default function SessionPage() {
               result={results[task.id]}
               sources={sources[task.id]}
               onRun={() => handleRunTask(task)}
-              onCancel={handleCancel}
+              onCancel={() => handleCancelItem(task)}
             />
           ))}
         </div>

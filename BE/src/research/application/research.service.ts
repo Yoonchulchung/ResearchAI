@@ -7,6 +7,7 @@ import { SessionsService } from '../../sessions/application/sessions.service';
 import { SessionItemService } from '../../sessions/application/session-item.service';
 import { ResearchState } from '../../sessions/domain/entity/session.entity';
 import { QueueService } from '../../queue/application/queue.service';
+import { DeepResearchAction } from '../presentation/dto/request/deep-research-stream.dto';
 
 @Injectable()
 export class ResearchService {
@@ -66,21 +67,40 @@ export class ResearchService {
     return this.searchJobService.replay(searchId, onEvent, onDone);
   }
 
+  async stopResearch(sessionId: string): Promise<{ status: string; sessionId: string }> {
+    await this.queueService.cancelBySession(sessionId);
+    await this.sessionItemService.stopActiveItemsBySession(sessionId);
+    return { status: 'stopped', sessionId };
+  }
+
+  async stopResearchItem(sessionId: string, itemId: string): Promise<{ status: string; sessionId: string; itemId: string }> {
+    await this.queueService.cancelByItem(sessionId, itemId);
+    return { status: 'stopped', sessionId, itemId };
+  }
+
   async deepResearch(
     sessionId: string,
-    tasks: { itemId: string; prompt: string }[],
+    items: { itemId: string; prompt: string }[],
     model: string,
+    status?: string,
   ): Promise<{ status: string; sessionId: string }> {
     const session = await this.sessionsService.findOne(sessionId).catch(() => null);
     if (!session) throw new NotFoundException(`세션을 찾을 수 없습니다: ${sessionId}`);
 
-    
-    for (const task of tasks) {
-      this.sessionItemService.updateStatus(task.itemId, ResearchState.PENDING).catch(() => {});
+    console.log("$$");
+    if (status === DeepResearchAction.STOP) {
+      return this.stopResearch(sessionId);
+    }
+    for (const item of items) {
+      const sessionItem = await this.sessionItemService.findById(item.itemId);
+      if (sessionItem.researchState === ResearchState.PENDING || sessionItem.researchState === ResearchState.RUNNING) {
+        continue;
+      }
+      await this.sessionItemService.updateStatus(item.itemId, ResearchState.PENDING);
       this.queueService.enqueueDeepResearch({
         sessionId,
-        itemId: task.itemId,
-        taskPrompt: task.prompt,
+        itemId: item.itemId,
+        itemPrompt: item.prompt,
         model,
       });
     }

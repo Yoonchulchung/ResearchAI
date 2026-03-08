@@ -4,8 +4,8 @@
   "settings": {
     "width": 2000,
     "height": 2000,
-    "scrollTop": -304.8766,
-    "scrollLeft": -166.0183,
+    "scrollTop": -353.3399,
+    "scrollLeft": -400.0183,
     "zoomLevel": 0.76,
     "show": 431,
     "database": 4,
@@ -59,6 +59,7 @@
           "gs6biDyEwHvMzjv6uSQoU",
           "sRdvyWFRdD8EEqdkBKnPF",
           "y_h-d1gXfXEZlfhYrUwF0",
+          "AfyQfqhUeL0hBWhklRHss",
           "mPQxhRiPh_BpvK0R105KU",
           "sTTVArXrQXc323R1cBAJI",
           "A9yUX04qaKXieZ-P13ZK9",
@@ -72,6 +73,7 @@
           "Cj3ReK5Ozy8evHXh-JP88",
           "y_h-d1gXfXEZlfhYrUwF0",
           "656-m9qnIzX2BPj01dimV",
+          "AfyQfqhUeL0hBWhklRHss",
           "mPQxhRiPh_BpvK0R105KU",
           "sTTVArXrQXc323R1cBAJI",
           "A9yUX04qaKXieZ-P13ZK9",
@@ -89,7 +91,7 @@
           "color": ""
         },
         "meta": {
-          "updateAt": 1772892982790,
+          "updateAt": 1772897057315,
           "createAt": 1772880489428
         }
       },
@@ -465,20 +467,20 @@
       "y_h-d1gXfXEZlfhYrUwF0": {
         "id": "y_h-d1gXfXEZlfhYrUwF0",
         "tableId": "VG3Cr4NdIZ8y3l2d4zCAr",
-        "name": "research_ai_model",
+        "name": "research_cloud_ai_model",
         "comment": "",
         "dataType": "VARCHAR",
         "default": "",
         "options": 8,
         "ui": {
           "keys": 0,
-          "widthName": 109,
+          "widthName": 147,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
         },
         "meta": {
-          "updateAt": 1772883077592,
+          "updateAt": 1772897025046,
           "createAt": 1772880538107
         }
       },
@@ -925,20 +927,20 @@
       "c_HbzX7PgRDt_U5EHvG7Z": {
         "id": "c_HbzX7PgRDt_U5EHvG7Z",
         "tableId": "jtGaG-Zs3g31ilzU-6cTR",
-        "name": "research_ai_model",
+        "name": "research_cloud_ai_model",
         "comment": "",
         "dataType": "VARCHAR",
         "default": "",
         "options": 8,
         "ui": {
           "keys": 0,
-          "widthName": 109,
+          "widthName": 147,
           "widthComment": 60,
           "widthDataType": 60,
           "widthDefault": 60
         },
         "meta": {
-          "updateAt": 1772895245553,
+          "updateAt": 1772897034212,
           "createAt": 1772895068617
         }
       },
@@ -1241,6 +1243,26 @@
           "updateAt": 1772895366437,
           "createAt": 1772895351204
         }
+      },
+      "AfyQfqhUeL0hBWhklRHss": {
+        "id": "AfyQfqhUeL0hBWhklRHss",
+        "tableId": "VG3Cr4NdIZ8y3l2d4zCAr",
+        "name": "resarch_local_ai_model",
+        "comment": "",
+        "dataType": "VARCHAR",
+        "default": "",
+        "options": 8,
+        "ui": {
+          "keys": 0,
+          "widthName": 136,
+          "widthComment": 60,
+          "widthDataType": 60,
+          "widthDefault": 60
+        },
+        "meta": {
+          "updateAt": 1772897063948,
+          "createAt": 1772897045381
+        }
       }
     },
     "relationshipEntities": {
@@ -1254,8 +1276,8 @@
           "columnIds": [
             "gs6biDyEwHvMzjv6uSQoU"
           ],
-          "x": 1445.2456,
-          "y": 516.1578999999999,
+          "x": 1470.2456,
+          "y": 528.1578999999999,
           "direction": 2
         },
         "end": {
@@ -1282,7 +1304,7 @@
           "columnIds": [
             "gs6biDyEwHvMzjv6uSQoU"
           ],
-          "x": 1208.2456,
+          "x": 1220.7456,
           "y": 404.1579,
           "direction": 4
         },
@@ -1310,7 +1332,7 @@
           "columnIds": [
             "KgExTWEbHtwaf2TfOudev"
           ],
-          "x": 848.2084,
+          "x": 850.2084,
           "y": 1031.6611,
           "direction": 4
         },
@@ -1338,7 +1360,7 @@
           "columnIds": [
             "KgExTWEbHtwaf2TfOudev"
           ],
-          "x": 1072.7084,
+          "x": 1076.7084,
           "y": 1131.6611,
           "direction": 2
         },
@@ -1366,7 +1388,7 @@
           "columnIds": [
             "KgExTWEbHtwaf2TfOudev"
           ],
-          "x": 848.2084,
+          "x": 850.2084,
           "y": 1231.6611,
           "direction": 8
         },

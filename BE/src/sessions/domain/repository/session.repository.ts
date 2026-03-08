@@ -61,6 +61,7 @@ export class SessionRepository {
       icon: item.taskIcon || '📄',
       prompt: item.webPrompt,
       status: item.researchState,
+      researchState: item.researchState,
       result: item.aiResult || null,
     }));
 

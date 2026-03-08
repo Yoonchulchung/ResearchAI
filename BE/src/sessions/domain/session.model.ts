@@ -8,6 +8,7 @@ export interface Task {
 export interface ItemWithResult extends Task {
   itemId: string;
   status: string;
+  researchState?: string;
   result: string | null;
 }
 

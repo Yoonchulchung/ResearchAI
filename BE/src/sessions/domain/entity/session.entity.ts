@@ -7,6 +7,8 @@ export enum ResearchState {
   RUNNING = 'running',
   DONE = 'done',
   ERROR = 'error',
+  STOPPED = 'stopped',
+  ABORTED = 'aborted',
 }
 
 @Entity('session')

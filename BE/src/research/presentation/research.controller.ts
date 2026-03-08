@@ -82,7 +82,20 @@ export class ResearchController {
 
   @Post('deep-search')
   deepResearch(@Body() body: DeepResearchStreamDto) {
-    return this.aiService.deepResearch(body.sessionId, body.tasks, body.model);
+    return this.aiService.deepResearch(body.sessionId, body.items, body.model, body.status);
+  }
+
+  @Post('sessions/:sessionId/stop')
+  stopResearch(@Param('sessionId') sessionId: string) {
+    return this.aiService.stopResearch(sessionId);
+  }
+
+  @Post('sessions/:sessionId/items/:itemId/stop')
+  stopResearchItem(
+    @Param('sessionId') sessionId: string,
+    @Param('itemId') itemId: string,
+  ) {
+    return this.aiService.stopResearchItem(sessionId, itemId);
   }
 
   // *************** //

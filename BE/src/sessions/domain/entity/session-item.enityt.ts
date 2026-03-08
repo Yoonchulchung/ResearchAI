@@ -3,9 +3,12 @@ import { SessionEntity } from './session.entity';
 
 export enum ResearchState {
   IDLE = 'idle',
+  PENDING = 'pending',
   RUNNING = 'running',
   DONE = 'done',
   ERROR = 'error',
+  STOPPED = 'stopped',
+  ABORTED = 'aborted',
 }
 
 @Entity('session_item')

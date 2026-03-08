@@ -7,6 +7,7 @@ export class ItemResponseDto {
   icon: string;
   prompt: string;
   status: string;
+  researchState?: string;
   result: string | null;
 
   static from(item: ItemWithResult): ItemResponseDto {
@@ -17,6 +18,7 @@ export class ItemResponseDto {
     dto.icon = item.icon;
     dto.prompt = item.prompt;
     dto.status = item.status;
+    dto.researchState = item.researchState;
     dto.result = item.result;
     return dto;
   }

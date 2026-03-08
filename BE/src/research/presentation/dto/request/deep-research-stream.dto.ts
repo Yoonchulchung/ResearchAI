@@ -1,3 +1,8 @@
+export enum DeepResearchAction {
+  START = 'start',
+  STOP = 'stop',
+}
+
 export class DeepResearchTaskDto {
   itemId: string;
   prompt: string;
@@ -5,6 +10,7 @@ export class DeepResearchTaskDto {
 
 export class DeepResearchStreamDto {
   sessionId: string;
-  tasks: DeepResearchTaskDto[];
+  items: DeepResearchTaskDto[];
   model: string;
+  status: DeepResearchAction;
 }

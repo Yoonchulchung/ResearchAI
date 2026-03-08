@@ -21,6 +21,9 @@ export class SessionsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.sessionsService.findOne(id);
+
+    // ToDo: 웹 검색 결과 반환이 안되는 문제가 있음.
+    // ToDo: 큐 로직에 얼마나 들어가져 있는지 확인이 어려운 문제가 있음. len(queue) 같은 것으로 큐에 있는 것들의 개수를 알 수 있는 방법이 필요함.
   }
 
   // ******* //

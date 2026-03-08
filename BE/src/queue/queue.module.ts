@@ -1,11 +1,12 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { QueueService } from './application/queue.service';
+import { QueueController } from './presentation/queue.controller';
 import { ResearchModule } from '../research/research.module';
 import { SessionsModule } from '../sessions/sessions.module';
 
 @Module({
   imports: [forwardRef(() => ResearchModule), SessionsModule],
-  //controllers: [QueueController],
+  controllers: [QueueController],
   providers: [QueueService],
   exports: [QueueService],
 })
