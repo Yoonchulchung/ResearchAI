@@ -1,12 +1,18 @@
 import Anthropic from '@anthropic-ai/sdk';
 
+export interface AiCallResult {
+  text: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export async function callAnthropic(
   client: Anthropic,
   model: string,
   system: string,
   prompt: string,
   useWebSearch: boolean,
-): Promise<string> {
+): Promise<AiCallResult> {
   if (useWebSearch) {
     try {
       const response = await client.messages.create(
@@ -19,10 +25,11 @@ export async function callAnthropic(
         } as any,
         { headers: { 'anthropic-beta': 'web-search-2025-03-05' } },
       );
-      return response.content
-        .filter((b) => b.type === 'text')
-        .map((b) => (b as any).text)
-        .join('');
+      return {
+        text: response.content.filter((b) => b.type === 'text').map((b) => (b as any).text).join(''),
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      };
     } catch {
       // 웹 검색 미지원 시 일반 API로 폴백
     }
@@ -34,8 +41,9 @@ export async function callAnthropic(
     system,
     messages: [{ role: 'user', content: prompt }],
   });
-  return response.content
-    .filter((b) => b.type === 'text')
-    .map((b) => (b as any).text)
-    .join('');
+  return {
+    text: response.content.filter((b) => b.type === 'text').map((b) => (b as any).text).join(''),
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+  };
 }

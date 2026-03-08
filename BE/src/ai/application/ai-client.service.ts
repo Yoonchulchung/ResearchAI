@@ -7,12 +7,16 @@ import { callOpenAI } from '../infrastructure/openai.ai';
 import { callGoogle } from '../infrastructure/google.ai';
 import { callOllama } from '../infrastructure/ollama.ai';
 import { MODELS } from '../domain/models';
+import { TokenHistoryRepository } from '../../overview/domain/repository/token-history.repository';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class AiClientService {
   readonly anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   readonly openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   readonly google = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
+
+  constructor(private readonly tokenHistoryRepository: TokenHistoryRepository) {}
 
   async call(
     model: string,
@@ -21,15 +25,42 @@ export class AiClientService {
     opts?: { useBuiltinSearch?: boolean },
   ): Promise<string> {
     const useSearch = opts?.useBuiltinSearch ?? false;
-    if (model.startsWith('claude')) {
-      return callAnthropic(this.anthropic, model, system, prompt, useSearch);
-    } else if (model.startsWith('gemini')) {
-      return callGoogle(this.google, model, system + '\n\n' + prompt, useSearch);
-    } else if (model.startsWith('ollama:')) {
+
+    if (model.startsWith('ollama:')) {
       return callOllama(model.slice('ollama:'.length), system, prompt);
-    } else {
-      return callOpenAI(this.openai, model, system, prompt);
     }
+
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let text = '';
+
+    if (model.startsWith('claude')) {
+      const result = await callAnthropic(this.anthropic, model, system, prompt, useSearch);
+      ({ text, inputTokens, outputTokens } = result);
+    } else if (model.startsWith('gemini')) {
+      const result = await callGoogle(this.google, model, system + '\n\n' + prompt, useSearch);
+      ({ text, inputTokens, outputTokens } = result);
+    } else {
+      const result = await callOpenAI(this.openai, model, system, prompt);
+      ({ text, inputTokens, outputTokens } = result);
+    }
+
+    const modelInfo = MODELS.find((m) => model.startsWith(m.id));
+    const estimatedFees = modelInfo
+      ? (inputTokens / 1_000_000) * modelInfo.inputPricePer1M +
+        (outputTokens / 1_000_000) * modelInfo.outputPricePer1M
+      : 0;
+
+    this.tokenHistoryRepository
+      .save({
+        id: randomUUID(),
+        aiModel: model,
+        usedTokens: `input:${inputTokens}/output:${outputTokens}`,
+        estimatedFees,
+      })
+      .catch(() => {});
+
+    return text;
   }
 
   /** 모델별 입력 토큰 단가 ($/1M tokens). null = 알 수 없음/로컬 */
