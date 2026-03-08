@@ -3,8 +3,10 @@ import { LightResearchPipelineService, LightResearchEvent } from './pipeline/lig
 import { SearchSource } from './search-planner.service';
 import { SearchJobService } from './search-job.service';
 import { LightResearchRepository } from '../domain/repository/light-research.repository';
-import { SessionsService } from '../../sessions/application/sessions.service';
-import { SessionItemService } from '../../sessions/application/session-item.service';
+import { SessionCommandService } from 'src/sessions/application/command/session-command.service';
+import { SessionQueryService } from 'src/sessions/application/query/session-query.service';
+import { SessionItemQueryService } from '../../sessions/application/query/session-item-query.service';
+import { SessionItemCommandService } from '../../sessions/application/command/session-item-command.service';
 import { ResearchState } from '../../sessions/domain/entity/session.entity';
 import { QueueService } from '../../queue/application/queue.service';
 import { DeepResearchAction } from '../presentation/dto/request/deep-research-stream.dto';
@@ -15,8 +17,10 @@ export class ResearchService {
     private readonly lightPipeline: LightResearchPipelineService,
     private readonly searchJobService: SearchJobService,
     private readonly lightResearchRepository: LightResearchRepository,
-    private readonly sessionsService: SessionsService,
-    private readonly sessionItemService: SessionItemService,
+    private readonly sessionQueryService: SessionQueryService,
+    private readonly sessionCommandService: SessionCommandService,
+    private readonly sessionItemQueryService: SessionItemQueryService,
+    private readonly sessionItemCommandService: SessionItemCommandService,
     @Inject(forwardRef(() => QueueService))
     private readonly queueService: QueueService,
   ) {}
@@ -69,7 +73,7 @@ export class ResearchService {
 
   async stopResearch(sessionId: string): Promise<{ status: string; sessionId: string }> {
     await this.queueService.cancelBySession(sessionId);
-    await this.sessionItemService.stopActiveItemsBySession(sessionId);
+    await this.sessionItemCommandService.stopActiveItemsBySession(sessionId);
     return { status: 'stopped', sessionId };
   }
 
@@ -81,31 +85,32 @@ export class ResearchService {
   async deepResearch(
     sessionId: string,
     items: { itemId: string; prompt: string }[],
-    model: string,
+    localAIModel: string,
+    cloudAIModel: string,
     status?: string,
   ): Promise<{ status: string; sessionId: string }> {
-    const session = await this.sessionsService.findOne(sessionId).catch(() => null);
+    const session = await this.sessionQueryService.findOne(sessionId).catch(() => null);
     if (!session) throw new NotFoundException(`세션을 찾을 수 없습니다: ${sessionId}`);
 
-    console.log("$$");
     if (status === DeepResearchAction.STOP) {
       return this.stopResearch(sessionId);
     }
     for (const item of items) {
-      const sessionItem = await this.sessionItemService.findById(item.itemId);
+      const sessionItem = await this.sessionItemQueryService.findById(item.itemId);
       if (sessionItem.researchState === ResearchState.PENDING || sessionItem.researchState === ResearchState.RUNNING) {
         continue;
       }
-      await this.sessionItemService.updateStatus(item.itemId, ResearchState.PENDING);
+      await this.sessionItemCommandService.updateStatus(item.itemId, ResearchState.PENDING);
       this.queueService.enqueueDeepResearch({
         sessionId,
         itemId: item.itemId,
         itemPrompt: item.prompt,
-        model,
+        localAIModel,
+        cloudAIModel,
       });
     }
 
-    await this.sessionsService.updateSessionState(sessionId, ResearchState.PENDING);
+    await this.sessionCommandService.updateSessionState(sessionId, ResearchState.PENDING);
 
     return { status: 'running', sessionId };
   }

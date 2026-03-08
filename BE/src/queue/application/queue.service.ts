@@ -1,7 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { QueueJob, QueueJobStatus, QueueJobPhase } from '../domain/queue-job.model';
 import { DeepResearchPipelineService } from '../../research/application/pipeline/deep-research-pipeline.service';
-import { SessionsService } from '../../sessions/application/sessions.service';
+import { SessionCommandService } from 'src/sessions/application/command/session-command.service';
 import { SessionItemService } from '../../sessions/application/session-item.service';
 import { ResearchState } from '../../sessions/domain/entity/session.entity';
 import { QueueStatusDto } from '../presentation/dto/response/queue-status.dto';
@@ -14,7 +14,7 @@ export class QueueService implements OnModuleDestroy {
 
   constructor(
     private readonly deepPipeline: DeepResearchPipelineService,
-    private readonly sessionsService: SessionsService,
+    private readonly sessionCommandService: SessionCommandService,
     private readonly sessionItemService: SessionItemService,
   ) {}
 
@@ -54,7 +54,8 @@ export class QueueService implements OnModuleDestroy {
     sessionId: string;
     itemId: string;
     itemPrompt: string;
-    model: string;
+    localAIModel: string;
+    cloudAIModel: string;
   }): void {
     const job: QueueJob = {
       jobId: `${params.sessionId}-${params.itemId}-${Date.now()}`,
@@ -62,7 +63,23 @@ export class QueueService implements OnModuleDestroy {
       itemId: params.itemId,
       itemPrompt: params.itemPrompt,
       taskType: QueueJob.TaskType.DEEPRESEARCH,
-      model: params.model,
+      localAIModel: params.localAIModel,
+      CloudAIModel: params.cloudAIModel,
+      status: QueueJobStatus.PENDING,
+    };
+    this.jobs.push(job);
+    this.runNext();
+  }
+
+  enqueueSummary(sessionId: string, localAIModel: string): void {
+    const job: QueueJob = {
+      jobId: `${sessionId}-summary-${Date.now()}`,
+      sessionId,
+      itemId: "",
+      itemPrompt: "",
+      taskType: QueueJob.TaskType.SUMMARY,
+      localAIModel,
+      CloudAIModel: "",
       status: QueueJobStatus.PENDING,
     };
     this.jobs.push(job);
@@ -131,16 +148,16 @@ export class QueueService implements OnModuleDestroy {
 
     try {
       if (job.taskType === QueueJob.TaskType.DEEPRESEARCH) {
-        await this.sessionsService.updateSessionState(job.sessionId, ResearchState.RUNNING);
+        await this.sessionCommandService.updateSessionState(job.sessionId, ResearchState.RUNNING);
         await this.sessionItemService.updateStatus(job.itemId, ResearchState.RUNNING);
-        const { result, sources } = await this.deepPipeline.run(job.itemPrompt, job.model);
-        await this.sessionsService.updateSession(job.sessionId, job.itemId, result, ResearchState.DONE);
+        const { result, sources } = await this.deepPipeline.run(job.itemPrompt, job.CloudAIModel);
+        await this.sessionCommandService.updateSession(job.sessionId, job.itemId, result, ResearchState.DONE);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result, sources });
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '오류';
       this.updateJob(job.jobId, { status: QueueJobStatus.ERROR, phase: undefined, result: msg });
-      this.sessionsService.updateSession(job.sessionId, job.itemId, msg, ResearchState.ERROR).catch(() => {});
+      this.sessionCommandService.updateSession(job.sessionId, job.itemId, msg, ResearchState.ERROR).catch(() => {});
     } finally {
       this.abortControllers.delete(job.jobId);
     }

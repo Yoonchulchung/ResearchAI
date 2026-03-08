@@ -82,7 +82,7 @@ export class ResearchController {
 
   @Post('deep-search')
   deepResearch(@Body() body: DeepResearchStreamDto) {
-    return this.aiService.deepResearch(body.sessionId, body.items, body.model, body.status);
+    return this.aiService.deepResearch(body.sessionId, body.items, body.localAIModel, body.cloudAIModel, body.status);
   }
 
   @Post('sessions/:sessionId/stop')

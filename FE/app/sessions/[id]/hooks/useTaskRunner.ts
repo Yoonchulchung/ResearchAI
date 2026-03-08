@@ -87,6 +87,7 @@ export function useTaskRunner(session: Session | null, id: string) {
       await deepResearch(
         id,
         tasks.map((t) => ({ itemId: t.itemId, prompt: t.prompt })),
+        session.researchLocalAIModel,
         session.researchCloudAIModel,
       );
     } catch (e: unknown) {

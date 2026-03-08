@@ -6,6 +6,7 @@ import { streamOllama } from '../../ai/infrastructure/ollama.ai';
 import { CreateSessionDto } from './dto/request/create-session.dto';
 import { UpdateTaskDto } from './dto/request/update-task.dto';
 import { StreamSummaryDto } from './dto/request/stream-summary.dto';
+import { SummaryRequestDto } from './dto/request/summary.request.dto';
 @Controller('sessions')
 export class SessionsController {
   constructor(private readonly sessionsService: SessionsService) {}
@@ -40,8 +41,8 @@ export class SessionsController {
   }
 
   @Delete(':id/items/:itemId')
-  removeItem(@Param('id') id: string, @Param('itemId') itemId: string) {
-    return this.sessionsService.removeItem(id, itemId);
+  removeItem(@Param('itemId') itemId: string) {
+    return this.sessionsService.removeItem(itemId);
   }
 
   @Put(':id/items/:itemId')
@@ -108,5 +109,16 @@ export class SessionsController {
     } finally {
       res.end();
     }
+  }
+
+  @Post(':id/summary')
+  async summary(
+    @Param('id') id: string,
+    @Body() body: SummaryRequestDto,
+  ) {
+    const existing = await this.sessionsService.getSummary(id);
+    if (existing.summary) return { summary: existing.summary };
+
+    this.sessionsService.createSummary(body.sessionId, body.localAIModel);
   }
 }

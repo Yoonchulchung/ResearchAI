@@ -16,6 +16,7 @@ export enum QueueJobPhase {
 export namespace QueueJob {
   export enum TaskType {
     DEEPRESEARCH = 'deepresearch',
+    SUMMARY = 'summary',
   }
 }
 
@@ -25,7 +26,8 @@ export interface QueueJob {
   itemId: string;
   itemPrompt: string;
   taskType: QueueJob.TaskType;
-  model: string;
+  localAIModel: string;
+  CloudAIModel: string;
   status: QueueJobStatus;
   phase?: QueueJobPhase;
   sources?: SearchSources;

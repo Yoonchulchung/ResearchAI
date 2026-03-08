@@ -11,6 +11,7 @@ export class DeepResearchTaskDto {
 export class DeepResearchStreamDto {
   sessionId: string;
   items: DeepResearchTaskDto[];
-  model: string;
+  localAIModel: string;
+  cloudAIModel: string;
   status: DeepResearchAction;
 }
