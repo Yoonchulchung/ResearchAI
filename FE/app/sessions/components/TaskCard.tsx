@@ -19,8 +19,8 @@ export function TaskCard({
   task,
   status,
   phase,
-  result,
-  sources,
+  aiResult,
+  webResult,
   onRun,
   onCancel,
   onDelete,
@@ -28,8 +28,8 @@ export function TaskCard({
   task: Task;
   status: TaskStatus;
   phase?: Phase;
-  result?: string;
-  sources?: SearchSources;
+  aiResult?: string;
+  webResult?: SearchSources;
   onRun: () => void;
   onCancel: () => void;
   onDelete: () => void;
@@ -53,14 +53,14 @@ export function TaskCard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  const availableSources = SOURCE_LABELS.filter((s) => sources?.[s.key]);
-  const hasContent = !!result || availableSources.length > 0;
+  const availableSources = SOURCE_LABELS.filter((s) => webResult?.[s.key]);
+  const hasContent = !!aiResult || availableSources.length > 0;
 
   // 소스가 새로 생기면 자동 펼침 (검색/분석 단계 모두)
   useEffect(() => {
     if (availableSources.length > 0 && status === TaskStatus.RUNNING) {
       setExpanded(true);
-      if (activeTab === "result" && !result) {
+      if (activeTab === "result" && !aiResult) {
         setActiveTab(availableSources[0].key);
       }
     }
@@ -69,10 +69,10 @@ export function TaskCard({
 
   // 분석 완료 시 AI 결과 탭으로 이동
   useEffect(() => {
-    if (status === TaskStatus.DONE && result) {
+    if (status === TaskStatus.DONE && aiResult) {
       setActiveTab("result");
     }
-  }, [status, result]);
+  }, [status, aiResult]);
   
   const badgeStyleMap: Record<TaskStatus, string> = {
     [TaskStatus.DONE]: "bg-green-100 text-green-700",
@@ -240,11 +240,11 @@ export function TaskCard({
           {activeTab === "prompt" ? (
             <div className="px-5 py-4 bg-slate-50 max-h-150 overflow-y-auto">
               <pre className="text-xs text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
-                {task.prompt || "(프롬프트 없음)"}
+                {task.webSearchPrompt || "(프롬프트 없음)"}
               </pre>
             </div>
           ) : activeTab === "result" ? (
-            result ? (
+            aiResult ? (
               <div className="px-5 py-4 bg-slate-50 max-h-150 overflow-y-auto prose prose-sm prose-slate max-w-none
                 [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
                 [&_th]:bg-slate-200 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
@@ -261,7 +261,7 @@ export function TaskCard({
                 [&_code]:bg-slate-200 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700
                 [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
                 [&_hr]:border-slate-200 [&_hr]:my-3">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiResult}</ReactMarkdown>
               </div>
             ) : (
               <div className="px-5 py-8 bg-slate-50 flex flex-col items-center gap-2 text-slate-400">
@@ -287,7 +287,7 @@ export function TaskCard({
               [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
               [&_hr]:border-slate-200 [&_hr]:my-3">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {sources?.[activeTab as keyof SearchSources] ?? ""}
+                {webResult?.[activeTab as keyof SearchSources] ?? ""}
               </ReactMarkdown>
             </div>
           )}

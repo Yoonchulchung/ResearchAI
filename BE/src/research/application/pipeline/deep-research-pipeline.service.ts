@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { searchTavily } from '../../infrastructure/search/tavily.search';
+import { searchSerper } from '../../infrastructure/search/serper.search';
+import { searchNaver } from '../../infrastructure/search/naver.search';
+import { searchBrave } from '../../infrastructure/search/brave.search';
 import { PROMPTS } from '../../domain/prompt/research.prompts';
 import { SearchSources } from '../../domain/model/search-sources.model';
 import { AiClientService } from '../../../ai/application/ai-client.service';
 
 export interface DeepResearchResult {
-  result: string;
-  sources: SearchSources;
+  aiResult: string;
+  webSources: SearchSources;
 }
 
 export type DeepResearchEvent =
@@ -32,37 +35,45 @@ export class DeepResearchPipelineService {
 
   async run(
     prompt: string,
-    model: string,
+    aiModel: string,
+    webModel: 'tavily' | 'serper' | 'naver' | 'brave' = 'tavily',
     /** QueueService에서 이미 검색 결과를 받아온 경우 직접 넘겨 Step 1을 건너뜀 */
     contextOverride?: string,
   ): Promise<DeepResearchResult> {
     let context = contextOverride ?? '';
-    let sources: SearchSources = {};
+    let webSources: SearchSources = {};
 
-    // Step 1: Tavily 검색 (contextOverride 없을 때만 실행)
+    // Step 1: 웹 검색 (contextOverride 없을 때만 실행)
     if (!contextOverride) {
-      if (process.env.TAVILY_API_KEY && !process.env.TAVILY_API_KEY.startsWith('your_')) {
-        try {
-          const tavilyResult = await searchTavily(prompt);
-          if (tavilyResult) {
-            context = tavilyResult;
-            sources = { tavily: tavilyResult };
-          }
-        } catch {
-          // 검색 실패 시 컨텍스트 없이 진행
+      try {
+        let searchResult: string | undefined;
+        if (webModel === 'tavily') {
+          searchResult = await searchTavily(prompt);
+        } else if (webModel === 'serper') {
+          searchResult = await searchSerper(prompt);
+        } else if (webModel === 'naver') {
+          searchResult = await searchNaver(prompt);
+        } else if (webModel === 'brave') {
+          searchResult = await searchBrave(prompt);
         }
+        if (searchResult) {
+          context = searchResult;
+          webSources = { [webModel]: searchResult };
+        }
+      } catch {
+        // 검색 실패 시 컨텍스트 없이 진행
       }
     }
 
     // Step 2: AI 심층 분석
-    const result = await this.deepAnalyze(model, prompt, context);
-    return { result, sources };
+    const aiResult = await this.deepAnalyze(aiModel, prompt, context);
+    return { aiResult, webSources };
   }
 
-  private deepAnalyze(model: string, prompt: string, context: string): Promise<string> {
+  private deepAnalyze(aiModel: string, prompt: string, context: string): Promise<string> {
     const fullPrompt = context ? PROMPTS.withSearchContext(context, prompt) : prompt;
     // 검색 컨텍스트가 없을 때만 내장 웹서치 사용
     const useBuiltinSearch = !context;
-    return this.aiClient.call(model, PROMPTS.system, fullPrompt, { useBuiltinSearch });
+    return this.aiClient.call(aiModel, PROMPTS.system, fullPrompt, { useBuiltinSearch });
   }
 }

@@ -63,7 +63,7 @@ export default function SessionPage() {
   const router = useRouter();
 
   const { session, loading, models } = useSessionData(id);
-  const { statuses, phases, results, sources, isRunning, handleRunTask, handleRunAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
+  const { statuses, phases, aiResult, webResult, isRunning, handleRunTask, handleRunAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
 
   useEffect(() => { setDeletedItemIds(new Set()); }, [id]);
@@ -86,7 +86,7 @@ export default function SessionPage() {
     ];
     for (const task of tasks) {
       lines.push(`## ${task.icon} ${task.title}`);
-      lines.push(results[task.id] ?? "*(미완료)*");
+      lines.push(aiResult[task.id] ?? "*(미완료)*");
       lines.push("");
     }
     const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
@@ -121,8 +121,8 @@ export default function SessionPage() {
               task={task}
               status={statuses[task.id] ?? "idle"}
               phase={phases[task.id]}
-              result={results[task.id]}
-              sources={sources[task.id]}
+              aiResult={aiResult[task.id]}
+              webResult={webResult[task.id]}
               onRun={() => handleRunTask(task)}
               onCancel={() => handleCancelItem(task)}
               onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}

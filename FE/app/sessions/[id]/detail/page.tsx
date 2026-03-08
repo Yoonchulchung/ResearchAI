@@ -30,7 +30,7 @@ export default function DetailPage() {
 
   if (!session) return null;
 
-  const doneTasks = (session.items ?? []).filter((t) => t.result);
+  const doneTasks = (session.items ?? []).filter((t) => t.aiResult);
 
   return (
     <div className="h-full flex flex-col">
@@ -82,7 +82,7 @@ export default function DetailPage() {
                   [&_code]:bg-slate-200 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700
                   [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
                   [&_hr]:border-slate-200 [&_hr]:my-3">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.result ?? ""}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.aiResult ?? ""}</ReactMarkdown>
                 </div>
                 <div className="mt-6 border-b border-slate-100" />
               </section>

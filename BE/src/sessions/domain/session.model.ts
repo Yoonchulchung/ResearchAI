@@ -2,13 +2,15 @@ export interface Task {
   id: number;
   title: string;
   icon: string;
-  prompt: string;
+  webSearchPrompt: string;
 }
 
 export interface ItemWithResult extends Task {
   itemId: string;
   status: string;
   researchState?: string;
+  webResult: string | null;
+  webModel: string;
   result: string | null;
 }
 

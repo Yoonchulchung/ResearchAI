@@ -31,9 +31,8 @@ export interface QueueJob {
   CloudAIModel: string;
   status: QueueJobStatus;
   phase?: QueueJobPhase;
-  sources?: SearchSources;
+  webSources?: SearchSources;
   result?: string;
-  // LightResearch 전용
   webModel?: string;
   searchMode?: string;
 }

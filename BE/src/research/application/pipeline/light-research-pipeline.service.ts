@@ -88,7 +88,12 @@ export class LightResearchPipelineService {
     const raw = await this.callAI(model, fullPrompt, opts?.customSystem);
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
-    const tasks = JSON.parse(jsonMatch[0]);
+    const rawTasks = JSON.parse(jsonMatch[0]);
+    const tasks = rawTasks.map((task: { prompt: string; [key: string]: any }) => ({
+      ...task,
+      webSearchPrompt: task.prompt,
+      prompt: undefined,
+    }));
 
     return { tasks, searchContext, fullPrompt, searchPlan };
   }
@@ -227,7 +232,13 @@ export class LightResearchPipelineService {
       ).catch(() => {});
     }
 
-    yield { type: 'done', tasks, searchPlan };
+    const mappedTasks = tasks.map((task: { title: string; prompt: string; [key: string]: any }) => ({
+      ...task,
+      webSearchPrompt: task.prompt,
+      prompt: undefined,
+    }));
+
+    yield { type: 'done', tasks: mappedTasks, searchPlan };
   }
 
   

@@ -308,7 +308,7 @@ export function PromptTestPanel({ models }: { models: ModelDefinition[] }) {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 leading-relaxed pl-7">
-                    {task.prompt}
+                    {task.webSearchPrompt}
                   </p>
                 </div>
               ))}

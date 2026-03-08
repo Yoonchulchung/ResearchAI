@@ -39,12 +39,13 @@ export class SessionsController {
   }
 
   @Put(':id/items/:itemId')
-  updateTask(
+  async updateTask(
     @Param('id') id: string,
     @Param('itemId') itemId: string,
     @Body() body: UpdateTaskDto,
   ) {
-    return this.sessionsService.updateSession(id, itemId, body.result, body.status as ResearchState);
+    await this.sessionsService.updateSessionItem(id, itemId, body.aiResult, body.webResult ?? '', body.status as ResearchState);
+    return this.sessionsService.updateSession(id, body.status as ResearchState);
   }
   
   // ************ //

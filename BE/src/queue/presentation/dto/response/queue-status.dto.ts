@@ -1,4 +1,5 @@
 import { QueueJobStatus, QueueJobPhase, QueueJob } from '../../../domain/queue-job.model';
+import { SearchSources } from '../../../../research/domain/model/search-sources.model';
 
 export class QueueJobSummaryDto {
   jobId: string;
@@ -7,6 +8,7 @@ export class QueueJobSummaryDto {
   taskType: QueueJob.TaskType;
   status: QueueJobStatus;
   phase?: QueueJobPhase;
+  webSources?: SearchSources;
 }
 
 export class QueueStatusDto {

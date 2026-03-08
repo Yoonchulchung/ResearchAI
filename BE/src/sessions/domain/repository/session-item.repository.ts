@@ -35,8 +35,8 @@ export class SessionItemRepository {
     return this.repo.save(item);
   }
 
-  async updateResult(id: string, aiResult: string, state?: ResearchState): Promise<void> {
-    await this.repo.update(id, { aiResult, ...(state && { researchState: state as any }) });
+  async updateResult(id: string, aiResult: string, webResult: string, state?: ResearchState): Promise<void> {
+    await this.repo.update(id, { aiResult, webResult, ...(state && { researchState: state as any }) });
   }
 
   async updateStatus(id: string, state: ResearchState): Promise<void> {

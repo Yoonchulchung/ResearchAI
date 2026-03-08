@@ -31,8 +31,11 @@ export class SessionsService {
   createSession(topic: string, researchCloudAIModel: string, researchLocalAIModel: string, researchWebModel: string, tasks: Task[]) {
     return this.command.createSession(topic, researchCloudAIModel, researchLocalAIModel, researchWebModel, tasks);
   }
-  updateSession(sessionId: string, itemId: string, result: string, status: ResearchState) {
-    return this.command.updateSession(sessionId, itemId, result, status);
+  updateSessionItem(sessionId: string, itemId: string, aiResult: string, webResult: string, status: ResearchState) {
+    return this.command.updateSessionItem(sessionId, itemId, aiResult, webResult, status);
+  }
+  updateSession(sessionId: string, status: ResearchState) {
+    return this.command.updateSession(sessionId, status);
   }
   updateSessionState(sessionId: string, state: ResearchState) { return this.command.updateSessionState(sessionId, state); }
   removeItem(itemId: string)                                  { return this.command.removeItem(itemId); }

@@ -24,7 +24,10 @@ export class QueueService implements OnModuleDestroy {
   private summaryAccumulated = new Map<string, string>();
   private lightResearchSubjects = new Map<string, Subject<MessageEvent>>();
   private lightResearchAccumulated = new Map<string, LightResearchEvent[]>();
+  private cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private running = false;
+
+  private static readonly DONE_JOB_TTL_MS = 5 * 60 * 1000; // 5분
 
   constructor(
     private readonly deepPipeline: DeepResearchPipelineService,
@@ -46,6 +49,9 @@ export class QueueService implements OnModuleDestroy {
     for (const subject of this.lightResearchSubjects.values()) {
       subject.complete();
     }
+    for (const timer of this.cleanupTimers.values()) {
+      clearTimeout(timer);
+    }
   }
 
   // ******** //
@@ -60,7 +66,7 @@ export class QueueService implements OnModuleDestroy {
       done: this.jobs.filter((j) => j.status === QueueJobStatus.DONE).length,
       error: this.jobs.filter((j) => j.status === QueueJobStatus.ERROR).length,
       stopped: this.jobs.filter((j) => j.status === QueueJobStatus.STOPPED).length,
-      jobs: this.jobs.map(({ jobId, sessionId, itemId, taskType, status, phase, result }) => ({
+      jobs: this.jobs.map(({ jobId, sessionId, itemId, taskType, status, phase, result, webSources }) => ({
         jobId,
         sessionId,
         itemId,
@@ -68,6 +74,7 @@ export class QueueService implements OnModuleDestroy {
         status,
         phase,
         result,
+        webSources,
       })),
     };
   }
@@ -180,6 +187,7 @@ export class QueueService implements OnModuleDestroy {
         taskType: QueueJob.TaskType.DEEPRESEARCH,
         localAIModel: requestBody.localAIModel,
         CloudAIModel: requestBody.cloudAIModel,
+        webModel: session.researchWebModel,
         status: QueueJobStatus.PENDING,
       };
       this.jobs.push(job);
@@ -306,6 +314,17 @@ export class QueueService implements OnModuleDestroy {
     const idx = this.jobs.findIndex((j) => j.jobId === jobId);
     if (idx !== -1) {
       this.jobs[idx] = { ...this.jobs[idx], ...updates };
+
+      const terminalStatuses = [QueueJobStatus.DONE, QueueJobStatus.ERROR, QueueJobStatus.STOPPED];
+      if (updates.status && terminalStatuses.includes(updates.status)) {
+        const existing = this.cleanupTimers.get(jobId);
+        if (existing) clearTimeout(existing);
+        const timer = setTimeout(() => {
+          this.jobs = this.jobs.filter((j) => j.jobId !== jobId);
+          this.cleanupTimers.delete(jobId);
+        }, QueueService.DONE_JOB_TTL_MS);
+        this.cleanupTimers.set(jobId, timer);
+      }
     }
   }
 
@@ -320,10 +339,16 @@ export class QueueService implements OnModuleDestroy {
         await this.sessionCommandService.updateSessionState(job.sessionId, ResearchState.RUNNING);
         await this.sessionItemService.updateStatus(job.itemId, ResearchState.RUNNING);
 
-        const { result, sources } = await this.deepPipeline.run(job.itemPrompt, job.CloudAIModel);
+        const { aiResult, webSources } = await this.deepPipeline.run(
+          job.itemPrompt,
+          job.CloudAIModel,
+          (job.webModel ?? 'tavily') as 'tavily' | 'serper' | 'naver' | 'brave',
+        );
 
-        await this.sessionCommandService.updateSession(job.sessionId, job.itemId, result, ResearchState.DONE);
-        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result, sources });
+        const webResult = webSources.tavily ?? webSources.serper ?? webSources.naver ?? webSources.brave ?? '';
+        await this.sessionCommandService.updateSessionItem(job.sessionId, job.itemId, aiResult, webResult, ResearchState.DONE);
+        await this.sessionCommandService.updateSession(job.sessionId, ResearchState.DONE);
+        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: aiResult, webSources });
       
       } else if (job.taskType === QueueJob.TaskType.LIGHTRESEARCH) {
 
@@ -395,7 +420,8 @@ export class QueueService implements OnModuleDestroy {
 
       } else if (job.taskType === QueueJob.TaskType.DEEPRESEARCH) {
 
-        this.sessionCommandService.updateSession(job.sessionId, job.itemId, msg, ResearchState.ERROR).catch(() => {});
+        this.sessionCommandService.updateSessionItem(job.sessionId, job.itemId, msg, '', ResearchState.ERROR).catch(() => {});
+        this.sessionCommandService.updateSession(job.sessionId, ResearchState.ERROR).catch(() => {});
 
       } else {
         console.log("Unsupported taskType is called");

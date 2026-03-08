@@ -3,10 +3,12 @@ export interface Task {
   itemId: string;
   title: string;
   icon: string;
-  prompt: string;
+  webSearchPrompt: string;
   status?: string;
   researchState?: string;
-  result?: string | null;
+  webResult?: string | null;
+  webModel?: string;
+  aiResult?: string | null;
 }
 
 export interface SearchSources {

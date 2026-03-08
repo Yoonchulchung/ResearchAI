@@ -4,6 +4,7 @@ import {
   enqueueLightResearch,
   subscribeLightResearch,
   cancelLightResearch,
+  getQueueStatus,
   createSession,
   JobItem,
   LightResearchEvent,
@@ -11,7 +12,6 @@ import {
 import { Task, ModelDefinition } from "@/types";
 
 const STORAGE_KEY = "new-session-draft";
-const SEARCH_JOB_KEY = "new-session-search-job";
 
 interface DraftState {
   topic: string;
@@ -67,16 +67,21 @@ export function useNewSession(models: ModelDefinition[]) {
       }
     } catch {}
 
-    const pendingSearchId = sessionStorage.getItem(SEARCH_JOB_KEY);
-    if (pendingSearchId) {
-      searchIdRef.current = pendingSearchId;
+    getQueueStatus().then((status) => {
+      const lightJob = status.jobs.find(
+        (j) => j.taskType === "lightresearch" && (j.status === "pending" || j.status === "running"),
+      );
+      if (!lightJob) return;
+
+      const searchId = lightJob.sessionId;
+      searchIdRef.current = searchId;
       setGenerating(true);
       setProgressStep("검색 재연결 중...");
       setTerminalLogs([]);
       const controller = new AbortController();
       abortControllerRef.current = controller;
       subscribeLightResearch(
-        pendingSearchId,
+        searchId,
         (event) => {
           if (event.type === "plan") {
             const label = event.source === "web" ? "웹" : event.source === "recruit" ? "채용 공고" : "웹 + 채용 공고";
@@ -89,7 +94,6 @@ export function useNewSession(models: ModelDefinition[]) {
           } else if (event.type === "jobs") {
             setJobPostings(event.jobs);
           } else if (event.type === "done") {
-            sessionStorage.removeItem(SEARCH_JOB_KEY);
             setTasks(event.tasks);
             setSearchSource(event.searchPlan.source);
             setProgressStep(null);
@@ -99,12 +103,11 @@ export function useNewSession(models: ModelDefinition[]) {
       )
         .catch(() => {})
         .finally(() => {
-          sessionStorage.removeItem(SEARCH_JOB_KEY);
           abortControllerRef.current = null;
           setGenerating(false);
           setProgressStep(null);
         });
-    }
+    }).catch(() => {});
 
     setInitialized(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -136,7 +139,6 @@ export function useNewSession(models: ModelDefinition[]) {
     } else if (event.type === "jobs") {
       setJobPostings(event.jobs);
     } else if (event.type === "done") {
-      sessionStorage.removeItem(SEARCH_JOB_KEY);
       setTasks(event.tasks);
       setSearchSource(event.searchPlan.source);
       setProgressStep(null);
@@ -165,11 +167,9 @@ export function useNewSession(models: ModelDefinition[]) {
         webModel: 'tavily',
       });
       searchIdRef.current = searchId;
-      sessionStorage.setItem(SEARCH_JOB_KEY, searchId);
       await subscribeLightResearch(searchId, handleSearchEvent, controller.signal);
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") {
-        sessionStorage.removeItem(SEARCH_JOB_KEY);
         setProgressStep(null);
         pushLog("검색이 중단되었습니다.");
       } else {
@@ -214,7 +214,7 @@ export function useNewSession(models: ModelDefinition[]) {
 
   const addTask = () => {
     const newId = tasks.length > 0 ? Math.max(...tasks.map((t) => t.id)) + 1 : 1;
-    setTasks((prev) => [...prev, { id: newId, title: "", icon: "📌", prompt: "" }]);
+    setTasks((prev) => [...prev, { id: newId, itemId: "", title: "", icon: "📌", webSearchPrompt: "" }]);
   };
 
   return {

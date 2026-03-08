@@ -5,10 +5,12 @@ export class ItemResponseDto {
   itemId: string;
   title: string;
   icon: string;
-  prompt: string;
+  webSearchPrompt: string;
   status: string;
   researchState?: string;
-  result: string | null;
+  webResult: string | null;
+  webModel: string;
+  aiResult: string | null;
 
   static from(item: ItemWithResult): ItemResponseDto {
     const dto = new ItemResponseDto();
@@ -16,10 +18,12 @@ export class ItemResponseDto {
     dto.itemId = item.itemId;
     dto.title = item.title;
     dto.icon = item.icon;
-    dto.prompt = item.prompt;
+    dto.webSearchPrompt = item.webSearchPrompt;
     dto.status = item.status;
     dto.researchState = item.researchState;
-    dto.result = item.result;
+    dto.webResult = item.webResult;
+    dto.webModel = item.webModel;
+    dto.aiResult = item.result;
     return dto;
   }
 }

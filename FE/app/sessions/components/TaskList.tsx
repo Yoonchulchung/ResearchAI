@@ -56,8 +56,8 @@ export function TaskList({
                 </button>
               </div>
               <textarea
-                value={task.prompt}
-                onChange={(e) => onUpdate(idx, "prompt", e.target.value)}
+                value={task.webSearchPrompt}
+                onChange={(e) => onUpdate(idx, "webSearchPrompt", e.target.value)}
                 placeholder="검색 프롬프트"
                 rows={4.5}
                 className="w-full text-xs text-slate-500 border border-slate-100 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200 resize-none leading-relaxed"

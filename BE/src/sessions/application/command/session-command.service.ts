@@ -41,7 +41,7 @@ export class SessionCommandService {
           sessionId: session.id,
           topic: task.title,
           taskIcon: task.icon,
-          webPrompt: task.prompt,
+          webPrompt: task.webSearchPrompt,
         }),
       ),
     );
@@ -49,15 +49,17 @@ export class SessionCommandService {
     return SessionResponseDto.from(session);
   }
 
-  async updateSession(sessionId: string, itemId: string, result: string, status: ResearchState): Promise<{ ok: boolean }> {
+  async updateSessionItem(sessionId: string, itemId: string, aiResult: string, webResult: string, status: ResearchState): Promise<void> {
+    await this.sessionItemRepository.updateResult(itemId, aiResult, webResult, status);
     if (status === ResearchState.DONE) {
       const item = await this.sessionItemRepository.findById(itemId);
-      await this.sessionItemRepository.updateResult(itemId, result, ResearchState.DONE);
       this.vectorService
-        .indexTaskResult(sessionId, itemId, item.topic, '📄', result)
+        .indexTaskResult(sessionId, itemId, item.topic, '📄', aiResult)
         .catch(() => {});
     }
+  }
 
+  async updateSession(sessionId: string, status: ResearchState): Promise<{ ok: boolean }> {
     const allItems = await this.sessionItemRepository.findBySessionId(sessionId);
     const allDone = allItems.every((i) => i.aiResult);
     if (allDone) {
@@ -65,7 +67,6 @@ export class SessionCommandService {
     } else if (status === ResearchState.ERROR) {
       await this.sessionRepository.updateState(sessionId, ResearchState.ERROR);
     }
-
     return { ok: true };
   }
 
@@ -94,7 +95,4 @@ export class SessionCommandService {
     await this.sessionRepository.updateSummary(id, summary);
   }
 
-  async updateItemResult(itemId: string, result: string, status: ResearchState): Promise<void> {
-    await this.sessionItemRepository.updateResult(itemId, result, status);
-  }
 }

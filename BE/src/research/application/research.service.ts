@@ -17,40 +17,6 @@ export class ResearchService {
     private readonly queueService: QueueService,
   ) {}
 
-  /**
-   * 파이프라인을 클라이언트 연결과 독립적으로 백그라운드에서 실행한다.
-   * 이벤트는 SearchJobService에 버퍼링되므로 클라이언트가 재접속해도 재생 가능하다.
-   */
-  startLightResearch(
-    searchId: string,
-    topic: string,
-    localAIModel: string,
-    cloudAIModel: string,
-    webModel: string,
-    searchMode: SearchSource | 'auto' = 'auto',
-  ): void {
-    this.searchJobService.create(searchId);
-
-    this.lightResearchRepository.save({
-      id: searchId,
-      requestQuestion: topic,
-      researchCloudAiModel: cloudAIModel,
-      researchLocalAIModel: localAIModel,
-      researchWebModel: webModel,
-    }).catch(() => {});
-
-    // fire-and-forget: 클라이언트 연결 상태와 무관하게 끝까지 실행
-    (async () => {
-      try {
-        for await (const event of this.lightPipeline.runStream(topic, localAIModel, cloudAIModel, webModel, searchMode, searchId)) {
-          this.searchJobService.push(searchId, event);
-        }
-      } finally {
-        this.searchJobService.complete(searchId);
-      }
-    })();
-  }
-
   getSearchJob(searchId: string) {
     return this.searchJobService.get(searchId);
   }

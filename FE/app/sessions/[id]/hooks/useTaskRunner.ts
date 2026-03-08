@@ -9,8 +9,8 @@ export function useTaskRunner(session: Session | null, id: string) {
   const [taskRunStates, setTaskRunStates] = useState<Record<string, {
     status: TaskStatus;
     phase?: Phase;
-    result?: string;
-    sources?: SearchSources;
+    aiResult?: string;
+    webResult?: SearchSources;
   }>>({});
   const [isRunning, setIsRunning] = useState(false);
 
@@ -24,7 +24,7 @@ export function useTaskRunner(session: Session | null, id: string) {
     const base: Record<string, TaskStatus> = {};
     for (const task of session?.items ?? []) {
       const rs = task.researchState;
-      if (task.result || rs === TaskStatus.DONE) {
+      if (task.aiResult || rs === TaskStatus.DONE) {
         base[String(task.id)] = TaskStatus.DONE;
       } else if (rs === TaskStatus.STOPPED) {
         base[String(task.id)] = TaskStatus.STOPPED;
@@ -54,24 +54,29 @@ export function useTaskRunner(session: Session | null, id: string) {
     return p;
   }, [taskRunStates]);
 
-  const results = useMemo<Record<string, string>>(() => {
+  const aiResult = useMemo<Record<string, string>>(() => {
     const base: Record<string, string> = {};
     for (const task of session?.items ?? []) {
-      if (task.result) base[String(task.id)] = task.result;
+      if (task.aiResult) base[String(task.id)] = task.aiResult;
     }
     for (const [key, state] of Object.entries(taskRunStates)) {
-      if (state.result) base[key] = state.result;
+      if (state.aiResult) base[key] = state.aiResult;
     }
     return base;
   }, [session, taskRunStates]);
 
-  const sources = useMemo<Record<string, SearchSources>>(() => {
+  const webResult = useMemo<Record<string, SearchSources>>(() => {
     const base: Record<string, SearchSources> = {};
+    for (const task of session?.items ?? []) {
+      if (task.webResult && task.webModel) {
+        base[String(task.id)] = { [task.webModel]: task.webResult } as SearchSources;
+      }
+    }
     for (const [key, state] of Object.entries(taskRunStates)) {
-      if (state.sources) base[key] = state.sources;
+      if (state.webResult) base[key] = state.webResult;
     }
     return base;
-  }, [taskRunStates]);
+  }, [session, taskRunStates]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -86,7 +91,7 @@ export function useTaskRunner(session: Session | null, id: string) {
     try {
       await deepResearch(
         id,
-        tasks.map((t) => ({ itemId: t.itemId, prompt: t.prompt })),
+        tasks.map((t) => ({ itemId: t.itemId, prompt: t.webSearchPrompt })),
         session.researchLocalAIModel,
         session.researchCloudAIModel,
       );
@@ -95,7 +100,7 @@ export function useTaskRunner(session: Session | null, id: string) {
       setTaskRunStates((prev) => {
         const next = { ...prev };
         for (const task of tasks) {
-          next[String(task.id)] = { status: TaskStatus.ERROR, result: msg };
+          next[String(task.id)] = { status: TaskStatus.ERROR, aiResult: msg };
         }
         return next;
       });
@@ -152,5 +157,5 @@ export function useTaskRunner(session: Session | null, id: string) {
     onDeleted();
   }, [id]);
 
-  return { statuses, phases, results, sources, isRunning, handleRunTask, handleRunAll, handleCancelItem, handleDeleteItem };
+  return { statuses, phases, aiResult, webResult, isRunning, handleRunTask, handleRunAll, handleCancelItem, handleDeleteItem };
 }

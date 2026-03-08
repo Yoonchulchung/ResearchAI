@@ -4,7 +4,11 @@ import { SearchSources } from '../../../../research/domain/model/search-sources.
 export class UpdateTaskDto {
   @IsString()
   @IsNotEmpty()
-  result: string;
+  aiResult: string;
+
+  @IsString()
+  @IsOptional()
+  webResult?: string;
 
   @IsString()
   @IsNotEmpty()

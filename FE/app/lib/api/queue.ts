@@ -2,7 +2,15 @@ import { apiFetch } from "./base";
 
 export type QueueJobStatus = "pending" | "running" | "done" | "error" | "stopped";
 export type QueueJobPhase = "searching" | "analyzing";
-export type QueueJobTaskType = "deepresearch";
+export type QueueJobTaskType = "lightresearch" | "deepresearch" | "summary";
+
+export interface WebSources {
+  tavily?: string;
+  serper?: string;
+  naver?: string;
+  brave?: string;
+  ollama?: string;
+}
 
 export interface QueueJobSummary {
   jobId: string;
@@ -11,6 +19,7 @@ export interface QueueJobSummary {
   taskType: QueueJobTaskType;
   status: QueueJobStatus;
   phase?: QueueJobPhase;
+  webSources?: WebSources;
 }
 
 export interface QueueStatus {
