@@ -28,7 +28,6 @@ export class QueueController {
     @Param('id') id: string,
     @Body() body: EnqueueSummaryDto,
   ) {
-    console.log("@@");
     const ctx = await this.sessionQueryService.buildSummaryContext(id);
     if (!ctx) throw new BadRequestException('완료된 태스크가 없습니다.');
 

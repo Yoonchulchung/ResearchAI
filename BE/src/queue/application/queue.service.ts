@@ -44,13 +44,14 @@ export class QueueService implements OnModuleDestroy {
       done: this.jobs.filter((j) => j.status === QueueJobStatus.DONE).length,
       error: this.jobs.filter((j) => j.status === QueueJobStatus.ERROR).length,
       stopped: this.jobs.filter((j) => j.status === QueueJobStatus.STOPPED).length,
-      jobs: this.jobs.map(({ jobId, sessionId, itemId, taskType, status, phase }) => ({
+      jobs: this.jobs.map(({ jobId, sessionId, itemId, taskType, status, phase, result }) => ({
         jobId,
         sessionId,
         itemId,
         taskType,
         status,
         phase,
+        result,
       })),
     };
   }
@@ -173,8 +174,10 @@ export class QueueService implements OnModuleDestroy {
         const subject = this.summarySubjects.get(job.sessionId);
         const ctx = await this.sessionQueryService.buildSummaryContext(job.sessionId);
         if (!ctx) throw new Error('완료된 태스크가 없습니다.');
-        const model = job.localAIModel || ctx.model;
+        //const model = job.localAIModel || ctx.model;
+        const model = "phi4";
         let fullText = '';
+
         for await (const chunk of streamOllama(model, ctx.system, ctx.prompt)) {
           fullText += chunk;
           subject?.next({ data: { type: 'chunk', text: chunk } });
@@ -186,6 +189,7 @@ export class QueueService implements OnModuleDestroy {
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
       }
     } catch (e) {
+      console.log(e);
       const msg = e instanceof Error ? e.message : '오류';
       this.updateJob(job.jobId, { status: QueueJobStatus.ERROR, phase: undefined, result: msg });
       const subject = this.summarySubjects.get(job.sessionId);

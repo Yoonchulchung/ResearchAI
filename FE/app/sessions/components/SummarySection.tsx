@@ -54,7 +54,11 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
     const flush = () => { setSummary(accumulated); rafId = null; };
 
     try {
-      await requestSessionSummary(sessionId, modelId);
+      const modelName = modelId.startsWith('ollama:') 
+        ? modelId.split(':').slice(1).join(':') 
+        : modelId;
+
+      await requestSessionSummary(sessionId, modelName);
       await streamSessionSummary(sessionId, (chunk) => {
         accumulated += chunk;
         if (rafId === null) rafId = requestAnimationFrame(flush);
