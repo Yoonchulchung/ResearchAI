@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { deepResearch, stopResearchItem } from "@/lib/api/research";
+import { deleteSessionItem } from "@/lib/api/sessions";
 import { Session, Task, TaskStatus, SearchSources } from "@/types";
 import { type Phase } from "@/sessions/components/TaskCard";
 
@@ -140,5 +141,15 @@ export function useTaskRunner(session: Session | null, id: string) {
     }
   }, [id]);
 
-  return { statuses, phases, results, sources, isRunning, handleRunTask, handleRunAll, handleCancelItem };
+  const handleDeleteItem = useCallback(async (task: Task, onDeleted: () => void) => {
+    await deleteSessionItem(id, task.itemId);
+    setTaskRunStates((prev) => {
+      const next = { ...prev };
+      delete next[String(task.id)];
+      return next;
+    });
+    onDeleted();
+  }, [id]);
+
+  return { statuses, phases, results, sources, isRunning, handleRunTask, handleRunAll, handleCancelItem, handleDeleteItem };
 }

@@ -39,6 +39,11 @@ export class SessionsController {
     return this.sessionsService.remove(id);
   }
 
+  @Delete(':id/items/:itemId')
+  removeItem(@Param('id') id: string, @Param('itemId') itemId: string) {
+    return this.sessionsService.removeItem(id, itemId);
+  }
+
   @Put(':id/items/:itemId')
   updateTask(
     @Param('id') id: string,

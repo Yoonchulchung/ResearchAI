@@ -63,14 +63,17 @@ export default function SessionPage() {
   const router = useRouter();
 
   const { session, loading, models } = useSessionData(id);
-  const { statuses, phases, results, sources, isRunning, handleRunTask, handleRunAll, handleCancelItem } = useTaskRunner(session, id);
+  const { statuses, phases, results, sources, isRunning, handleRunTask, handleRunAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
+  const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => { setDeletedItemIds(new Set()); }, [id]);
   const { chatMessages, chatLoading, chatBottomRef, handleChatSend, handleClearChat } = useChatHandler(session, id);
   const { compactionStatus } = useCompaction(session, statuses, isRunning, id);
 
   if (loading) return <SessionSkeleton />;
   if (!session) return null;
 
-  const tasks: Task[] = session.items ?? [];
+  const tasks: Task[] = (session.items ?? []).filter((t) => !deletedItemIds.has(t.itemId));
   const doneCount = Object.values(statuses).filter((s) => s === "done").length;
   const total = tasks.length;
   const allDone = doneCount === total && total > 0 && !isRunning;
@@ -122,6 +125,7 @@ export default function SessionPage() {
               sources={sources[task.id]}
               onRun={() => handleRunTask(task)}
               onCancel={() => handleCancelItem(task)}
+              onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}
             />
           ))}
         </div>

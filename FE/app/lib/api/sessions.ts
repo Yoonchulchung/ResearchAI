@@ -15,6 +15,9 @@ export const createSession = (topic: string, researchCloudAIModel: string, resea
 export const deleteSession = (id: string) =>
   apiFetch<{ ok: boolean }>(`/sessions/${id}`, { method: "DELETE" });
 
+export const deleteSessionItem = (sessionId: string, itemId: string) =>
+  apiFetch<{ ok: boolean }>(`/sessions/${sessionId}/items/${itemId}`, { method: "DELETE" });
+
 export const updateTask = (
   sessionId: string,
   itemId: string,

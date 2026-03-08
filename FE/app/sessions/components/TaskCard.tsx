@@ -23,6 +23,7 @@ export function TaskCard({
   sources,
   onRun,
   onCancel,
+  onDelete,
 }: {
   task: Task;
   status: TaskStatus;
@@ -31,6 +32,7 @@ export function TaskCard({
   sources?: SearchSources;
   onRun: () => void;
   onCancel: () => void;
+  onDelete: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"result" | "prompt" | keyof SearchSources>("result");
@@ -173,6 +175,15 @@ export function TaskCard({
               title="재시도"
             >
               ↺
+            </button>
+          )}
+          {status !== TaskStatus.RUNNING && status !== TaskStatus.PENDING && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="text-xs font-semibold text-slate-300 hover:text-red-400 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
+              title="삭제"
+            >
+              🗑
             </button>
           )}
         </div>

@@ -96,7 +96,14 @@ export class SessionsService {
     await this.sessionRepository.updateState(sessionId, state);
   }
 
+  async removeItem(_sessionId: string, itemId: string): Promise<{ ok: boolean }> {
+    await this.sessionItemRepository.delete(itemId);
+    return { ok: true };
+  }
+
   async remove(id: string): Promise<{ ok: boolean }> {
+    const items = await this.sessionItemRepository.findBySessionId(id);
+    await Promise.all(items.map((item) => this.sessionItemRepository.delete(item.id)));
     await this.sessionRepository.delete(id);
     this.vectorService.deleteSession(id).catch(() => {});
     return { ok: true };
