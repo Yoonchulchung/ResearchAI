@@ -93,6 +93,28 @@ export class LightResearchPipelineService {
     return { tasks, searchContext, fullPrompt, searchPlan };
   }
 
+  /**
+   * 큐에서 호출하는 awaitable 래퍼.
+   * onEvent 콜백으로 이벤트를 전달받아 Subject 등에 푸시할 수 있다.
+   */
+  async run(
+    topic: string,
+    localAIModel: string,
+    cloudAIModel: string,
+    webModel: string,
+    searchMode: SearchSource | 'auto' = 'auto',
+    searchId?: string,
+    onEvent?: (event: LightResearchEvent) => void,
+  ): Promise<{ tasks: any[]; searchPlan: SearchPlan }> {
+    for await (const event of this.runStream(topic, localAIModel, cloudAIModel, webModel, searchMode, searchId)) {
+      onEvent?.(event);
+      if (event.type === 'done') {
+        return { tasks: event.tasks, searchPlan: event.searchPlan };
+      }
+    }
+    throw new Error('LightResearch 결과를 받지 못했습니다.');
+  }
+
   // *********** //
   // 파이프라인 실행 //
   // *********** //
@@ -208,6 +230,7 @@ export class LightResearchPipelineService {
     yield { type: 'done', tasks, searchPlan };
   }
 
+  
   private *printFront(message: string): Generator<LightResearchEvent> {
     yield { type: 'log', message };
   }

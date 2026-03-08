@@ -32,6 +32,6 @@ import { QueueModule } from '../queue/queue.module';
     LightResearchRepository,
     SearchListRepository,
   ],
-  exports: [WebSearchService, ResearchService, DeepResearchPipelineService, ResearchRecruitRepository, LightResearchRepository, SearchListRepository],
+  exports: [WebSearchService, ResearchService, LightResearchPipelineService, DeepResearchPipelineService, ResearchRecruitRepository, LightResearchRepository, SearchListRepository],
 })
 export class ResearchModule {}

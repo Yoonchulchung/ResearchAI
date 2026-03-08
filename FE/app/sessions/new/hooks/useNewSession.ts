@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  lightResearchStream,
-  reconnectLightResearch,
+  enqueueLightResearch,
+  subscribeLightResearch,
+  cancelLightResearch,
   createSession,
   JobItem,
   LightResearchEvent,
@@ -74,7 +75,7 @@ export function useNewSession(models: ModelDefinition[]) {
       setTerminalLogs([]);
       const controller = new AbortController();
       abortControllerRef.current = controller;
-      reconnectLightResearch(
+      subscribeLightResearch(
         pendingSearchId,
         (event) => {
           if (event.type === "plan") {
@@ -147,9 +148,6 @@ export function useNewSession(models: ModelDefinition[]) {
 
   const handleGenerate = async () => {
     if (!topic.trim()) return;
-    const searchId = crypto.randomUUID();
-    searchIdRef.current = searchId;
-    sessionStorage.setItem(SEARCH_JOB_KEY, searchId);
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setGenerating(true);
@@ -160,11 +158,15 @@ export function useNewSession(models: ModelDefinition[]) {
     setJobPostings([]);
     setError("");
     try {
-      await lightResearchStream(
-        { topic: topic.trim(), searchId, cloudAIModel: selectedApiModel, localAIModel: selectedLocalModel, webModel: 'tavily' },
-        handleSearchEvent,
-        controller.signal,
-      );
+      const { searchId } = await enqueueLightResearch({
+        topic: topic.trim(),
+        cloudAIModel: selectedApiModel,
+        localAIModel: selectedLocalModel,
+        webModel: 'tavily',
+      });
+      searchIdRef.current = searchId;
+      sessionStorage.setItem(SEARCH_JOB_KEY, searchId);
+      await subscribeLightResearch(searchId, handleSearchEvent, controller.signal);
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") {
         sessionStorage.removeItem(SEARCH_JOB_KEY);
@@ -184,6 +186,9 @@ export function useNewSession(models: ModelDefinition[]) {
 
   const handleCancel = () => {
     abortControllerRef.current?.abort();
+    if (searchIdRef.current) {
+      cancelLightResearch(searchIdRef.current).catch(() => {});
+    }
   };
 
   const handleResearchStart = async () => {

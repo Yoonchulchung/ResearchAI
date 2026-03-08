@@ -3,6 +3,8 @@ import { Observable } from 'rxjs';
 import { QueueService } from '../application/queue.service';
 import { QueueStatusDto } from './dto/response/queue-status.dto';
 import { SessionQueryService } from '../../sessions/application/query/session-query.service';
+import { EnqueueDeepResearchDto } from './dto/request/enqueue-deep-research.dto';
+import { EnqueueLightResearchDto } from './dto/request/enqueue-light-research.dto';
 
 class EnqueueSummaryDto {
   localAIModel: string;
@@ -20,6 +22,56 @@ export class QueueController {
     return this.queueService.getStatus();
   }
 
+  // ************** //
+  // Light Research //
+  // ************** //
+  @Post('research/light')
+  async enqueueLightResearch(
+    @Body() body: EnqueueLightResearchDto,
+  ) {
+    return this.queueService.enqueueLightResearch(body);
+  }
+
+  @Delete('research/light/:searchId')
+  async cancelLightResearch(@Param('searchId') searchId: string) {
+    await this.queueService.cancelLightResearch(searchId);
+    return { ok: true };
+  }
+
+  @Sse('research/light/:searchId/stream')
+  getLightResearchStream(@Param('searchId') searchId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getLightResearchStream(searchId);
+    if (!obs) throw new BadRequestException('진행 중인 Light Research 작업이 없습니다.');
+    return obs;
+  }
+
+
+  // ************* //
+  // Deep Research //
+  // ************* //
+  @Post('research/:id/deep')
+  async enqueueDeepResearch(
+    @Param('id') id: string,
+    @Body() body: EnqueueDeepResearchDto,
+  ) {
+    return this.queueService.enqueueDeepResearch(id, body);
+  }
+
+  @Delete('research/:id/deep')
+  async cancelDeepResearch(@Param('id') id: string) {
+    await this.queueService.cancelBySession(id);
+    return { ok: true };
+  }
+
+  @Delete('research/:id/deep/items/:itemId')
+  async cancelDeepResearchItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ) {
+    await this.queueService.cancelByItem(id, itemId);
+    return { ok: true };
+  }
+
   // ************* //
   // 세션의 서머리 생성 //
   // ************* //
@@ -35,24 +87,16 @@ export class QueueController {
     return { ok: true };
   }
 
-  // ********* //
-  // 서머리 중단 //
-  // ********* //
   @Delete('sessions/:id/summary')
   async cancelSummary(@Param('id') id: string) {
     await this.queueService.cancelSummary(id);
     return { ok: true };
   }
 
-  // ***************** //
-  // 서머리 SSE 스트리밍   //
-  // ***************** //
   @Sse('sessions/:id/summary/stream')
   async streamSummary(@Param('id') id: string): Promise<Observable<MessageEvent>> {
     const obs = await this.queueService.getSummaryStream(id);
     if (!obs) throw new BadRequestException('진행 중인 서머리 작업이 없습니다.');
     return obs;
   }
-
-  // ToDo: DeepResarch 로직도 Queue Module에서 관리하도록 변경.
 }

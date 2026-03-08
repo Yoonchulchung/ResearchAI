@@ -24,24 +24,25 @@ export type LightResearchEvent =
   | { type: "generating"; model: string }
   | { type: "done"; tasks: Task[]; searchPlan: { source: "web" | "recruit" | "both"; reason: string } };
 
-export async function lightResearchStream(
-  params: {
-    topic: string;
-    searchId: string;
-    localAIModel: string;
-    cloudAIModel: string;
-    webModel: "tavily" | "serper" | "naver" | "brave";
-    searchMode?: "web" | "recruit" | "both" | "auto";
-  },
+export async function enqueueLightResearch(params: {
+  topic: string;
+  localAIModel: string;
+  cloudAIModel: string;
+  webModel: "tavily" | "serper" | "naver" | "brave";
+  searchMode?: "web" | "recruit" | "both" | "auto";
+}): Promise<{ searchId: string; status: string }> {
+  return apiFetch<{ searchId: string; status: string }>("/queue/research/light", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function subscribeLightResearch(
+  searchId: string,
   onEvent: (event: LightResearchEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/research/light-search/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-    signal,
-  });
+  const res = await fetch(`${API_BASE}/queue/research/light/${searchId}/stream`, { signal });
   if (!res.ok || !res.body) throw new Error("light-search stream 실패");
   await readSSE<LightResearchEvent>(res, (event) => {
     onEvent(event);
@@ -49,17 +50,8 @@ export async function lightResearchStream(
   });
 }
 
-export async function reconnectLightResearch(
-  searchId: string,
-  onEvent: (event: LightResearchEvent) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  const res = await fetch(`${API_BASE}/research/light-search/reconnect/${searchId}`, { signal });
-  if (!res.ok || !res.body) throw new Error("reconnect 실패");
-  await readSSE<LightResearchEvent>(res, (event) => {
-    onEvent(event);
-    if (event.type === "done") return true;
-  });
+export async function cancelLightResearch(searchId: string): Promise<void> {
+  await apiFetch(`/queue/research/light/${searchId}`, { method: "DELETE" });
 }
 
 // ── Deep Research ─────────────────────────────────────────────────────────────
@@ -70,15 +62,19 @@ export async function deepResearch(
   localAIModel: string,
   cloudAIModel: string,
 ): Promise<{ status: string; sessionId: string }> {
-  return apiFetch<{ status: string; sessionId: string }>("/research/deep-search", {
+  return apiFetch<{ status: string; sessionId: string }>(`/queue/research/${sessionId}/deep`, {
     method: "POST",
-    body: JSON.stringify({ sessionId, items, localAIModel, cloudAIModel }),
+    body: JSON.stringify({ items, localAIModel, cloudAIModel, status: "start" }),
   });
 }
 
-export async function stopResearchItem(sessionId: string, itemId: string): Promise<{ status: string; sessionId: string; itemId: string }> {
-  return apiFetch<{ status: string; sessionId: string; itemId: string }>(`/research/sessions/${sessionId}/items/${itemId}/stop`, {
-    method: "POST",
+export async function stopResearch(sessionId: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/queue/research/${sessionId}/deep`, { method: "DELETE" });
+}
+
+export async function stopResearchItem(sessionId: string, itemId: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/queue/research/${sessionId}/deep/items/${itemId}`, {
+    method: "DELETE",
   });
 }
 

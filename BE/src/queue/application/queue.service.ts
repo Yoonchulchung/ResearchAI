@@ -1,13 +1,20 @@
-import { Injectable, OnModuleDestroy, MessageEvent } from '@nestjs/common';
-import { Subject, Observable, of, concat } from 'rxjs';
+import { Injectable, OnModuleDestroy, MessageEvent, NotFoundException } from '@nestjs/common';
+import { Subject, Observable, of, concat, from } from 'rxjs';
 import { QueueJob, QueueJobStatus, QueueJobPhase } from '../domain/queue-job.model';
 import { DeepResearchPipelineService } from '../../research/application/pipeline/deep-research-pipeline.service';
 import { SessionQueryService } from '../../sessions/application/query/session-query.service';
 import { SessionCommandService } from '../../sessions/application/command/session-command.service';
 import { SessionItemService } from '../../sessions/application/session-item.service';
+import { SessionItemQueryService } from '../../sessions/application/query/session-item-query.service';
+import { SessionItemCommandService } from '../../sessions/application/command/session-item-command.service';
 import { ResearchState, SummaryState } from '../../sessions/domain/entity/session.entity';
 import { QueueStatusDto } from '../presentation/dto/response/queue-status.dto';
 import { streamOllama } from '../../ai/infrastructure/ollama.ai';
+import { EnqueueDeepResearchDto, DeepResearchAction } from '../presentation/dto/request/enqueue-deep-research.dto';
+import { EnqueueLightResearchDto } from '../presentation/dto/request/enqueue-light-research.dto';
+import { LightResearchPipelineService, LightResearchEvent } from '../../research/application/pipeline/light-research-pipeline.service';
+import { SearchSource } from '../../research/application/search-planner.service';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class QueueService implements OnModuleDestroy {
@@ -15,13 +22,18 @@ export class QueueService implements OnModuleDestroy {
   private abortControllers = new Map<string, AbortController>();
   private summarySubjects = new Map<string, Subject<MessageEvent>>();
   private summaryAccumulated = new Map<string, string>();
+  private lightResearchSubjects = new Map<string, Subject<MessageEvent>>();
+  private lightResearchAccumulated = new Map<string, LightResearchEvent[]>();
   private running = false;
 
   constructor(
     private readonly deepPipeline: DeepResearchPipelineService,
+    private readonly lightPipeline: LightResearchPipelineService,
     private readonly sessionQueryService: SessionQueryService,
     private readonly sessionCommandService: SessionCommandService,
     private readonly sessionItemService: SessionItemService,
+    private readonly sessionItemQueryService: SessionItemQueryService,
+    private readonly sessionItemCommandService: SessionItemCommandService,
   ) {}
 
   onModuleDestroy() {
@@ -29,6 +41,9 @@ export class QueueService implements OnModuleDestroy {
       ctrl.abort();
     }
     for (const subject of this.summarySubjects.values()) {
+      subject.complete();
+    }
+    for (const subject of this.lightResearchSubjects.values()) {
       subject.complete();
     }
   }
@@ -94,37 +109,99 @@ export class QueueService implements OnModuleDestroy {
   // *********** //
   // 큐 대기열 삽입 //
   // *********** //
-  enqueueDeepResearch(params: {
-    sessionId: string;
-    itemId: string;
-    itemPrompt: string;
-    localAIModel: string;
-    cloudAIModel: string;
-  }): void {
+  async enqueueLightResearch(
+    requestBody: EnqueueLightResearchDto,
+  ): Promise<{ searchId: string; status: string }> {
+    const searchId = randomUUID();
+
+    this.lightResearchSubjects.set(searchId, new Subject<MessageEvent>());
+    this.lightResearchAccumulated.set(searchId, []);
+
     const job: QueueJob = {
-      jobId: `${params.sessionId}-${params.itemId}-${Date.now()}`,
-      sessionId: params.sessionId,
-      itemId: params.itemId,
-      itemPrompt: params.itemPrompt,
-      taskType: QueueJob.TaskType.DEEPRESEARCH,
-      localAIModel: params.localAIModel,
-      CloudAIModel: params.cloudAIModel,
+      jobId: `light-${searchId}`,
+      sessionId: searchId,
+      itemId: '',
+      itemPrompt: requestBody.topic,
+      taskType: QueueJob.TaskType.LIGHTRESEARCH,
+      localAIModel: requestBody.localAIModel,
+      CloudAIModel: requestBody.cloudAIModel,
+      webModel: requestBody.webModel,
+      searchMode: requestBody.searchMode ?? 'auto',
       status: QueueJobStatus.PENDING,
     };
     this.jobs.push(job);
     this.runNext();
+    return { searchId, status: 'pending' };
+  }
+
+  getLightResearchStream(searchId: string): Observable<MessageEvent> | null {
+    const subject = this.lightResearchSubjects.get(searchId);
+    if (!subject) return null;
+
+    const accumulated = this.lightResearchAccumulated.get(searchId) ?? [];
+    if (accumulated.length > 0) {
+      return concat(
+        from(accumulated.map((event) => ({ data: event } as MessageEvent))),
+        subject.asObservable(),
+      );
+    }
+    return subject.asObservable();
+  }
+  
+  async enqueueDeepResearch(
+    sessionId: string,
+    requestBody: EnqueueDeepResearchDto,
+  ): Promise<{ status: string; sessionId: string }> {
+    const session = await this.sessionQueryService.findOne(sessionId).catch(() => null);
+    if (!session) throw new NotFoundException(`세션을 찾을 수 없습니다: ${sessionId}`);
+
+    if (requestBody.status === DeepResearchAction.STOP) {
+      return this.stopResearch(sessionId);
+    }
+
+    if (session.summaryState === SummaryState.DONE) {
+      await this.sessionCommandService.updateSummaryState(sessionId, SummaryState.CHANGED);
+    }
+
+    for (const item of requestBody.items) {
+      const sessionItem = await this.sessionItemQueryService.findById(item.itemId);
+      if (
+        sessionItem.researchState === ResearchState.PENDING ||
+        sessionItem.researchState === ResearchState.RUNNING
+      ) {
+        continue;
+      }
+      await this.sessionItemCommandService.updateStatus(item.itemId, ResearchState.PENDING);
+      const job: QueueJob = {
+        jobId: `${sessionId}-${item.itemId}-${Date.now()}`,
+        sessionId,
+        itemId: item.itemId,
+        itemPrompt: item.prompt,
+        taskType: QueueJob.TaskType.DEEPRESEARCH,
+        localAIModel: requestBody.localAIModel,
+        CloudAIModel: requestBody.cloudAIModel,
+        status: QueueJobStatus.PENDING,
+      };
+      this.jobs.push(job);
+      this.runNext();
+    }
+
+    await this.sessionCommandService.updateSessionState(sessionId, ResearchState.PENDING);
+
+    return { status: 'running', sessionId };
   }
 
   async enqueueSummary(sessionId: string, localAIModel: string): Promise<void> {
     this.summarySubjects.set(sessionId, new Subject<MessageEvent>());
     this.summaryAccumulated.set(sessionId, '');
 
+    // 서머리 초기화.
     const { summary } = await this.sessionQueryService.getSummary(sessionId);
 
     if (summary) {
       await this.sessionCommandService.saveSummary(sessionId, '');
     }
-    
+
     await this.sessionCommandService.updateSummaryState(sessionId, SummaryState.PENDING);
     const job: QueueJob = {
       jobId: `${sessionId}-summary-${Date.now()}`,
@@ -143,6 +220,27 @@ export class QueueService implements OnModuleDestroy {
   // ********* //
   // 큐 작업 중단 //
   // ********* //
+  async stopResearch(sessionId: string): Promise<{ status: string; sessionId: string }> {
+    await this.cancelBySession(sessionId);
+    return { status: 'stopped', sessionId };
+  }
+
+  async cancelLightResearch(searchId: string): Promise<void> {
+    const job = this.jobs.find(
+      (j) => j.sessionId === searchId && j.taskType === QueueJob.TaskType.LIGHTRESEARCH,
+    );
+    if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
+      this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
+      this.abortControllers.get(job.jobId)?.abort();
+    }
+
+    const subject = this.lightResearchSubjects.get(searchId);
+    subject?.next({ data: { type: 'error', message: 'Light Research가 중단되었습니다.' } });
+    subject?.complete();
+    this.lightResearchSubjects.delete(searchId);
+    this.lightResearchAccumulated.delete(searchId);
+  }
+
   async cancelSummary(sessionId: string): Promise<void> {
     const job = this.jobs.find(
       (j) => j.sessionId === sessionId && j.taskType === QueueJob.TaskType.SUMMARY,
@@ -221,12 +319,35 @@ export class QueueService implements OnModuleDestroy {
 
         await this.sessionCommandService.updateSessionState(job.sessionId, ResearchState.RUNNING);
         await this.sessionItemService.updateStatus(job.itemId, ResearchState.RUNNING);
-        
+
         const { result, sources } = await this.deepPipeline.run(job.itemPrompt, job.CloudAIModel);
-        
+
         await this.sessionCommandService.updateSession(job.sessionId, job.itemId, result, ResearchState.DONE);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result, sources });
-     
+      
+      } else if (job.taskType === QueueJob.TaskType.LIGHTRESEARCH) {
+
+        const subject = this.lightResearchSubjects.get(job.sessionId);
+        const { tasks } = await this.lightPipeline.run(
+          job.itemPrompt,
+          job.localAIModel,
+          job.CloudAIModel,
+          job.webModel ?? '',
+          (job.searchMode ?? 'auto') as SearchSource | 'auto',
+          job.sessionId,
+          (event) => {
+            const accumulated = this.lightResearchAccumulated.get(job.sessionId) ?? [];
+            accumulated.push(event);
+            this.lightResearchAccumulated.set(job.sessionId, accumulated);
+            subject?.next({ data: event });
+          },
+        );
+
+        subject?.complete();
+        this.lightResearchSubjects.delete(job.sessionId);
+        this.lightResearchAccumulated.delete(job.sessionId);
+        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: JSON.stringify(tasks) });
+
       } else if (job.taskType === QueueJob.TaskType.SUMMARY) {
 
         await this.sessionCommandService.updateSummaryState(job.sessionId, SummaryState.RUNNING);
@@ -249,14 +370,14 @@ export class QueueService implements OnModuleDestroy {
         this.summaryAccumulated.delete(job.sessionId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
         await this.sessionCommandService.updateSummaryState(job.sessionId, SummaryState.DONE);
-      
+
       }
     } catch (e) {
       console.log(e);
       const msg = e instanceof Error ? e.message : '오류';
       this.updateJob(job.jobId, { status: QueueJobStatus.ERROR, phase: undefined, result: msg });
       if (job.taskType === QueueJob.TaskType.SUMMARY) {
-        
+
         const subject = this.summarySubjects.get(job.sessionId);
         subject?.next({ data: { type: 'error', message: msg } });
         subject?.complete();
@@ -264,10 +385,18 @@ export class QueueService implements OnModuleDestroy {
         this.summaryAccumulated.delete(job.sessionId);
         this.sessionCommandService.updateSummaryState(job.sessionId, SummaryState.ERROR).catch(() => {});
 
+      } else if (job.taskType === QueueJob.TaskType.LIGHTRESEARCH) {
+
+        const subject = this.lightResearchSubjects.get(job.sessionId);
+        subject?.next({ data: { type: 'error', message: msg } });
+        subject?.complete();
+        this.lightResearchSubjects.delete(job.sessionId);
+        this.lightResearchAccumulated.delete(job.sessionId);
+
       } else if (job.taskType === QueueJob.TaskType.DEEPRESEARCH) {
-      
+
         this.sessionCommandService.updateSession(job.sessionId, job.itemId, msg, ResearchState.ERROR).catch(() => {});
-      
+
       } else {
         console.log("Unsupported taskType is called");
       }

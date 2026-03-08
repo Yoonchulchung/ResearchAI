@@ -1,7 +1,6 @@
-import { SearchSource } from '../../../application/search-planner.service';
+import { SearchSource } from '../../../../research/application/search-planner.service';
 
-export class LightResearchStreamDto {
-  searchId: string;
+export class EnqueueLightResearchDto {
   topic: string;
   localAIModel: string;
   cloudAIModel: string;

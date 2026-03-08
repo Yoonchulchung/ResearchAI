@@ -15,6 +15,7 @@ export enum QueueJobPhase {
 
 export namespace QueueJob {
   export enum TaskType {
+    LIGHTRESEARCH = 'lightresearch',
     DEEPRESEARCH = 'deepresearch',
     SUMMARY = 'summary',
   }
@@ -32,4 +33,7 @@ export interface QueueJob {
   phase?: QueueJobPhase;
   sources?: SearchSources;
   result?: string;
+  // LightResearch 전용
+  webModel?: string;
+  searchMode?: string;
 }

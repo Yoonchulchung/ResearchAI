@@ -3,14 +3,13 @@ export enum DeepResearchAction {
   STOP = 'stop',
 }
 
-export class DeepResearchTaskDto {
+export class EnqueueDeepResearchItemDto {
   itemId: string;
   prompt: string;
 }
 
-export class DeepResearchStreamDto {
-  sessionId: string;
-  items: DeepResearchTaskDto[];
+export class EnqueueDeepResearchDto {
+  items: EnqueueDeepResearchItemDto[];
   localAIModel: string;
   cloudAIModel: string;
   status: DeepResearchAction;
