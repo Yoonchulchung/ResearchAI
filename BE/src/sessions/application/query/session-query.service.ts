@@ -27,9 +27,9 @@ export class SessionQueryService {
       .map((item) => ({ topic: item.topic, aiResult: item.aiResult }));
   }
 
-  async getSummary(id: string): Promise<{ summary: string | null }> {
+  async getSummary(id: string): Promise<{ summaryStatus: string | null; summary: string | null }> {
     const session = await this.sessionRepository.findById(id);
-    return { summary: session.summary ?? null };
+    return { summaryStatus: session.summaryState ?? null, summary: session.summary ?? null };
   }
 
   async buildSummaryContext(id: string): Promise<{ model: string; system: string; prompt: string } | null> {

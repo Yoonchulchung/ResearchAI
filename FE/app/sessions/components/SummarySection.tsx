@@ -12,13 +12,14 @@ interface Props {
   topic: string;
   localModels: ModelDefinition[];
   allDone: boolean;
+  summaryState?: string | null;
 }
 
-type Status = "idle" | "loading" | "streaming" | "done" | "error" | "cancelled";
+type SummaryStatus = "idle" | "pending" | "running" | "done" | "error" | "stopped" | "changed";
 
-export function SummarySection({ sessionId, topic, localModels, allDone }: Props) {
+export function SummarySection({ sessionId, topic, localModels, allDone, summaryState }: Props) {
   const [summary, setSummary] = useState<string>("");
-  const [status, setStatus] = useState<Status>("idle");
+  const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [expanded, setExpanded] = useState(true);
   const [selectedModel, setSelectedModel] = useState(() => localModels[0]?.id ?? "");
@@ -31,12 +32,53 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
     }
   }, [localModels, selectedModel]);
 
-  // 마운트 시 기존 저장된 서머리 로드 (BE 호출 없이 표시)
+  // BE summaryState가 바뀔 때마다 서머리 텍스트 + 상태 동기화
   useEffect(() => {
+    if (summaryStatus === "running") return; // 스트리밍 중이면 덮어쓰지 않음
     getSessionSummary(sessionId).then(({ summary: saved }) => {
-      if (saved) { setSummary(saved); setStatus("done"); }
+      if (saved) setSummary(saved);
+      if (summaryState) setSummaryStatus(summaryState as SummaryStatus);
     }).catch(() => {});
-  }, [sessionId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, summaryState]);
+
+  // summaryState가 PENDING/RUNNING이면 마운트 시 자동으로 스트림 연결
+  useEffect(() => {
+    if (summaryState !== "pending" && summaryState !== "running") return;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setSummaryStatus("running");
+    setSummary("");
+
+    let accumulated = "";
+    let rafId: number | null = null;
+    const flush = () => { setSummary(accumulated); rafId = null; };
+
+    streamSessionSummary(sessionId, (chunk) => {
+      accumulated += chunk;
+      if (rafId === null) rafId = requestAnimationFrame(flush);
+    }, controller.signal)
+      .then(() => {
+        if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+        setSummary(accumulated);
+        setSummaryStatus("done");
+      })
+      .catch((e: unknown) => {
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        if (e instanceof Error && e.name === "AbortError") {
+          setSummaryStatus("stopped");
+          return;
+        }
+        setErrorMessage(e instanceof Error ? e.message : "");
+        setSummaryStatus("error");
+      })
+      .finally(() => { abortRef.current = null; });
+
+    return () => controller.abort();
+  // summaryState는 마운트 시 한 번만 평가
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { register, update, dismiss } = useSummaryProgress();
 
@@ -45,7 +87,7 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
     const controller = new AbortController();
     abortRef.current = controller;
 
-    setStatus("streaming");
+    setSummaryStatus("running");
     setSummary("");
     register(sessionId, topic);
 
@@ -65,17 +107,17 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
       }, controller.signal);
       if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
       setSummary(accumulated);
-      setStatus("done");
+      setSummaryStatus("done");
       update(sessionId, "done");
     } catch (e: unknown) {
       if (rafId !== null) cancelAnimationFrame(rafId);
       if (e instanceof Error && e.name === "AbortError") {
-        setStatus("cancelled");
+        setSummaryStatus("stopped");
         dismiss(sessionId);
         return;
       }
       setErrorMessage(e instanceof Error ? e.message : "");
-      setStatus("error");
+      setSummaryStatus("error");
       update(sessionId, "error");
     } finally {
       abortRef.current = null;
@@ -85,7 +127,7 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
   const handleCancel = () => abortRef.current?.abort();
 
   const handleGenerate = () => {
-    if (status === "done" || status === "streaming" || !selectedModel) return;
+    if (summaryStatus === "done" || summaryStatus === "running" || !selectedModel) return;
     startSummary(selectedModel);
   };
 
@@ -101,10 +143,10 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
           className="flex items-center gap-2 shrink-0 text-left"
         >
           <span className="text-sm font-semibold text-slate-700">AI 서머리</span>
-          {status === "streaming" && (
+          {summaryStatus === "running" && (
             <span className="text-[11px] text-indigo-500 font-medium animate-pulse">생성 중...</span>
           )}
-          {status === "loading" && (
+          {summaryStatus === "pending" && (
             <span className="text-[11px] text-slate-400 animate-pulse">불러오는 중...</span>
           )}
         </button>
@@ -115,7 +157,7 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              disabled={status === "streaming"}
+              disabled={summaryStatus === "running"}
               className="text-sm text-slate-500 bg-transparent focus:outline-none cursor-pointer max-w-36 truncate disabled:opacity-50 disabled:cursor-not-allowed mr-1"
             >
               {localModels.map((m) => (
@@ -123,7 +165,7 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
               ))}
             </select>
           )}
-          {status === "idle" && (
+          {(summaryStatus === "idle" || summaryStatus === "changed") && (
             <button
               onClick={handleGenerate}
               disabled={!selectedModel}
@@ -133,7 +175,7 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
               생성
             </button>
           )}
-          {status === "streaming" && (
+          {summaryStatus === "running" && (
             <button
               onClick={handleCancel}
               className="text-xs font-semibold text-slate-400 hover:text-red-500 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
@@ -142,7 +184,7 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
               ✕
             </button>
           )}
-          {(status === "error" || status === "cancelled") && (
+          {(summaryStatus === "error" || summaryStatus === "stopped") && (
             <button
               onClick={handleRetry}
               className="text-xs font-semibold text-slate-400 hover:text-indigo-500 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
@@ -162,27 +204,27 @@ export function SummarySection({ sessionId, topic, localModels, allDone }: Props
 
       {expanded && (
         <div className="px-5 pb-5 border-t border-slate-100">
-          {status === "error" ? (
+          {summaryStatus === "error" ? (
             <div className="flex flex-col gap-1 pt-4">
               <p className="text-sm text-red-500">서머리 생성 중 오류가 발생했습니다.</p>
               {errorMessage && <p className="text-xs text-red-400 font-mono">{errorMessage}</p>}
             </div>
-          ) : status === "cancelled" ? (
+          ) : summaryStatus === "stopped" ? (
             <div className="flex items-center gap-2 pt-4">
               <p className="text-sm text-slate-400">서머리 생성이 중단되었습니다.</p>
             </div>
-          ) : localModels.length === 0 ? (
-            <div className="pt-4">
-              <p className="text-sm text-slate-400">로컬 LLM 모델이 없어 서머리를 생성할 수 없습니다.</p>
-            </div>
-          ) : summary || status === "streaming" ? (
+          ) : summary || summaryStatus === "running" ? (
             <div className="prose prose-sm prose-slate max-w-none pt-4">
               {summary ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
               ) : null}
-              {status === "streaming" && (
+              {summaryStatus === "running" && (
                 <span className="inline-block w-0.5 h-4 bg-indigo-400 ml-0.5 align-middle animate-pulse" />
               )}
+            </div>
+          ) : localModels.length === 0 ? (
+            <div className="pt-4">
+              <p className="text-sm text-slate-400">로컬 LLM 모델이 없어 서머리를 생성할 수 없습니다.</p>
             </div>
           ) : (
             <div className="pt-4">

@@ -72,6 +72,7 @@ export interface Session {
   researchLocalAIModel: string;
   researchWebModel: string;
   researchState?: ResearchState;
+  summaryState?: string | null;
   createdAt: string;
   summary?: string | null;
   items?: Task[];

@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy, MessageEvent } from '@nestjs/common';
-import { Subject, Observable } from 'rxjs';
+import { Subject, Observable, of, concat } from 'rxjs';
 import { QueueJob, QueueJobStatus, QueueJobPhase } from '../domain/queue-job.model';
 import { DeepResearchPipelineService } from '../../research/application/pipeline/deep-research-pipeline.service';
 import { SessionQueryService } from '../../sessions/application/query/session-query.service';
@@ -14,6 +14,7 @@ export class QueueService implements OnModuleDestroy {
   private jobs: QueueJob[] = [];
   private abortControllers = new Map<string, AbortController>();
   private summarySubjects = new Map<string, Subject<MessageEvent>>();
+  private summaryAccumulated = new Map<string, string>();
   private running = false;
 
   constructor(
@@ -63,6 +64,33 @@ export class QueueService implements OnModuleDestroy {
     return this.summarySubjects.get(sessionId) ?? null;
   }
 
+  async getSummaryStream(sessionId: string): Promise<Observable<MessageEvent> | null> {
+    const { summaryStatus, summary } = await this.sessionQueryService.getSummary(sessionId);
+
+    if (summaryStatus === SummaryState.DONE && summary) {
+      return of(
+        { data: { type: 'chunk', text: summary } },
+        { data: { type: 'done' } },
+      );
+    }
+
+    if (summaryStatus === SummaryState.PENDING || summaryStatus === SummaryState.RUNNING) {
+      const subject = this.summarySubjects.get(sessionId);
+      if (!subject) return null;
+
+      const accumulated = this.summaryAccumulated.get(sessionId) ?? '';
+      if (accumulated) {
+        return concat(
+          of({ data: { type: 'chunk', text: accumulated } } as MessageEvent),
+          subject.asObservable(),
+        );
+      }
+      return subject.asObservable();
+    }
+
+    return null;
+  }
+
   // *********** //
   // 큐 대기열 삽입 //
   // *********** //
@@ -89,7 +117,14 @@ export class QueueService implements OnModuleDestroy {
 
   async enqueueSummary(sessionId: string, localAIModel: string): Promise<void> {
     this.summarySubjects.set(sessionId, new Subject<MessageEvent>());
+    this.summaryAccumulated.set(sessionId, '');
 
+    const { summary } = await this.sessionQueryService.getSummary(sessionId);
+
+    if (summary) {
+      await this.sessionCommandService.saveSummary(sessionId, '');
+    }
+    
     await this.sessionCommandService.updateSummaryState(sessionId, SummaryState.PENDING);
     const job: QueueJob = {
       jobId: `${sessionId}-summary-${Date.now()}`,
@@ -106,8 +141,27 @@ export class QueueService implements OnModuleDestroy {
   }
 
   // ********* //
-  // 아이템 중단 //
+  // 큐 작업 중단 //
   // ********* //
+  async cancelSummary(sessionId: string): Promise<void> {
+    const job = this.jobs.find(
+      (j) => j.sessionId === sessionId && j.taskType === QueueJob.TaskType.SUMMARY,
+    );
+    if (!job) return;
+
+    if (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING) {
+      this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
+      this.abortControllers.get(job.jobId)?.abort();
+    }
+
+    const subject = this.summarySubjects.get(sessionId);
+    subject?.next({ data: { type: 'error', message: '서머리가 중단되었습니다.' } });
+    subject?.complete();
+    this.summarySubjects.delete(sessionId);
+    this.summaryAccumulated.delete(sessionId);
+    await this.sessionCommandService.updateSummaryState(sessionId, SummaryState.STOPPED);
+  }
+
   async cancelByItem(sessionId: string, itemId: string): Promise<void> {
     const job = this.jobs.find((j) => j.sessionId === sessionId && j.itemId === itemId);
     if (!job) return;
@@ -120,9 +174,6 @@ export class QueueService implements OnModuleDestroy {
     await this.sessionItemService.updateStatus(itemId, ResearchState.STOPPED);
   }
 
-  // ******** //
-  // 세션 중단  //
-  // ******** //
   async cancelBySession(sessionId: string): Promise<void> {
     const sessionJobs = this.jobs.filter((j) => j.sessionId === sessionId);
 
@@ -187,6 +238,7 @@ export class QueueService implements OnModuleDestroy {
 
         for await (const chunk of streamOllama(model, ctx.system, ctx.prompt)) {
           fullText += chunk;
+          this.summaryAccumulated.set(job.sessionId, (this.summaryAccumulated.get(job.sessionId) ?? '') + chunk);
           subject?.next({ data: { type: 'chunk', text: chunk } });
         }
 
@@ -194,6 +246,7 @@ export class QueueService implements OnModuleDestroy {
         subject?.next({ data: { type: 'done' } });
         subject?.complete();
         this.summarySubjects.delete(job.sessionId);
+        this.summaryAccumulated.delete(job.sessionId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
         await this.sessionCommandService.updateSummaryState(job.sessionId, SummaryState.DONE);
       
@@ -208,6 +261,7 @@ export class QueueService implements OnModuleDestroy {
         subject?.next({ data: { type: 'error', message: msg } });
         subject?.complete();
         this.summarySubjects.delete(job.sessionId);
+        this.summaryAccumulated.delete(job.sessionId);
         this.sessionCommandService.updateSummaryState(job.sessionId, SummaryState.ERROR).catch(() => {});
 
       } else if (job.taskType === QueueJob.TaskType.DEEPRESEARCH) {

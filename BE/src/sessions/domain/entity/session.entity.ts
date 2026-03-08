@@ -19,6 +19,7 @@ export enum SummaryState {
   ERROR = 'error',
   STOPPED = 'stopped',
   ABORTED = 'aborted',
+  CHANGED = 'changed',
 }
 
 @Entity('session')

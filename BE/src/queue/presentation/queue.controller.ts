@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Sse, Param, Body, BadRequestException, MessageEvent } from '@nestjs/common';
-import { Observable, of } from 'rxjs';
+import { Controller, Get, Post, Delete, Sse, Param, Body, BadRequestException, MessageEvent } from '@nestjs/common';
+import { Observable } from 'rxjs';
 import { QueueService } from '../application/queue.service';
 import { QueueStatusDto } from './dto/response/queue-status.dto';
 import { SessionQueryService } from '../../sessions/application/query/session-query.service';
@@ -35,20 +35,21 @@ export class QueueController {
     return { ok: true };
   }
 
+  // ********* //
+  // 서머리 중단 //
+  // ********* //
+  @Delete('sessions/:id/summary')
+  async cancelSummary(@Param('id') id: string) {
+    await this.queueService.cancelSummary(id);
+    return { ok: true };
+  }
+
   // ***************** //
   // 서머리 SSE 스트리밍   //
   // ***************** //
   @Sse('sessions/:id/summary/stream')
   async streamSummary(@Param('id') id: string): Promise<Observable<MessageEvent>> {
-    const existing = await this.sessionQueryService.getSummary(id);
-    if (existing.summary) {
-      return of(
-        { data: { type: 'chunk', text: existing.summary } },
-        { data: { type: 'done' } },
-      );
-    }
-
-    const obs = this.queueService.getSummaryObservable(id);
+    const obs = await this.queueService.getSummaryStream(id);
     if (!obs) throw new BadRequestException('진행 중인 서머리 작업이 없습니다.');
     return obs;
   }

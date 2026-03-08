@@ -7,7 +7,7 @@ import { SessionCommandService } from 'src/sessions/application/command/session-
 import { SessionQueryService } from 'src/sessions/application/query/session-query.service';
 import { SessionItemQueryService } from '../../sessions/application/query/session-item-query.service';
 import { SessionItemCommandService } from '../../sessions/application/command/session-item-command.service';
-import { ResearchState } from '../../sessions/domain/entity/session.entity';
+import { ResearchState, SummaryState } from '../../sessions/domain/entity/session.entity';
 import { QueueService } from '../../queue/application/queue.service';
 import { DeepResearchAction } from '../presentation/dto/request/deep-research-stream.dto';
 
@@ -95,6 +95,11 @@ export class ResearchService {
     if (status === DeepResearchAction.STOP) {
       return this.stopResearch(sessionId);
     }
+
+    if (session.summaryState == SummaryState.DONE) {
+      await this.sessionCommandService.updateSummaryState(sessionId, SummaryState.CHANGED);
+    }
+    
     for (const item of items) {
       const sessionItem = await this.sessionItemQueryService.findById(item.itemId);
       if (sessionItem.researchState === ResearchState.PENDING || sessionItem.researchState === ResearchState.RUNNING) {

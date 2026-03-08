@@ -112,7 +112,7 @@ export default function SessionPage() {
       />
 
       <div className="bg-grey flex-1 overflow-y-auto px-8 py-6">
-        <SummarySection sessionId={id} topic={session.topic} localModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} />
+        <SummarySection sessionId={id} topic={session.topic} localModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} summaryState={session.summaryState ?? null} />
 
         <div className="space-y-3">
           {tasks.map((task) => (
