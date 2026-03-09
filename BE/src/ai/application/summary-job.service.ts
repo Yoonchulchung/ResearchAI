@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { SseEventType } from '../../queue/domain/queue-job.model';
 
 export type SummaryEvent =
-  | { type: 'log'; message: string }
-  | { type: 'chunk'; text: string }
-  | { type: 'done' }
-  | { type: 'error'; message: string };
+  | { type: SseEventType.LOG;   message: string }
+  | { type: SseEventType.CHUNK; text: string }
+  | { type: SseEventType.DONE }
+  | { type: SseEventType.ERROR; message: string };
 
 type EventCallback = (event: SummaryEvent) => void;
 type DoneCallback = () => void;

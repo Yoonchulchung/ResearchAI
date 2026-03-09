@@ -1,3 +1,28 @@
+export enum AIProvider {
+  ANTHROPIC = 'Anthropic',
+  GOOGLE = 'Google',
+  OPENAI = 'OpenAI',
+  OLLAMA = 'Ollama',
+}
+
+export const GEMINI_ROLE = {
+  USER:  'user',
+  MODEL: 'model',
+} as const;
+
+export const AI_MODEL_PREFIX = {
+  ANTHROPIC: 'claude',
+  GOOGLE: 'gemini',
+  OLLAMA: 'ollama:',
+} as const;
+
+export function getProvider(model: string): AIProvider {
+  if (model.startsWith(AI_MODEL_PREFIX.ANTHROPIC)) return AIProvider.ANTHROPIC;
+  if (model.startsWith(AI_MODEL_PREFIX.GOOGLE)) return AIProvider.GOOGLE;
+  if (model.startsWith(AI_MODEL_PREFIX.OLLAMA)) return AIProvider.OLLAMA;
+  return AIProvider.OPENAI;
+}
+
 export const MODELS = [
   {
     id: 'claude-opus-4-6',

@@ -1,4 +1,5 @@
 import { SearchSources } from '../../research/domain/model/search-sources.model';
+import { SearchEngine } from '../../research/application/search-planner.service';
 
 export enum QueueJobStatus {
   PENDING = 'pending',
@@ -11,6 +12,13 @@ export enum QueueJobStatus {
 export enum QueueJobPhase {
   SEARCHING = 'searching',
   ANALYZING = 'analyzing',
+}
+
+export enum SseEventType {
+  LOG   = 'log',
+  CHUNK = 'chunk',
+  DONE  = 'done',
+  ERROR = 'error',
 }
 
 export namespace QueueJob {
@@ -33,6 +41,6 @@ export interface QueueJob {
   phase?: QueueJobPhase;
   webSources?: SearchSources;
   result?: string;
-  webModel?: string;
+  webModel?: SearchEngine;
   searchMode?: string;
 }

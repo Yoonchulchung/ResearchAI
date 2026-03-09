@@ -1,10 +1,27 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { callOllama } from '../../ai/infrastructure/ollama.ai';
 
-export type SearchSource = 'web' | 'recruit' | 'both';
+export enum SearchMode {
+  WEB = 'web',
+  RECRUIT = 'recruit',
+  BOTH = 'both',
+}
+
+export enum PlannerMode {
+  AUTO = 'auto',
+}
+
+export enum SearchEngine {
+  TAVILY = 'tavily',
+  SERPER = 'serper',
+  NAVER  = 'naver',
+  BRAVE  = 'brave',
+}
+
+export type SearchModeInput = SearchMode | PlannerMode;
 
 export interface SearchPlan {
-  source: SearchSource;
+  searchMode: SearchMode;
   reason: string;
   keyword: string;
   companyTypes?: string[];
@@ -71,11 +88,11 @@ jobTypes 판단 기준 (해당하는 것 모두 배열에 포함, 없으면 빈 
       if (!jsonMatch) return this.fallback(ollamaModel, topic, 'JSON 파싱 실패');
 
       const parsed = JSON.parse(jsonMatch[0]) as { source?: string; reason?: string; keyword?: string; companyTypes?: unknown; jobTypes?: unknown };
-      if (!(['web', 'recruit', 'both'] as string[]).includes(parsed.source ?? '')) {
+      if (!(Object.values(SearchMode) as string[]).includes(parsed.source ?? '')) {
         return this.fallback(ollamaModel, topic, '유효하지 않은 source 값');
       }
 
-      const source = parsed.source as SearchSource;
+      const searchMode = parsed.source as SearchMode;
       const keyword = parsed.keyword?.trim() || topic;
       const companyTypes = Array.isArray(parsed.companyTypes) && parsed.companyTypes.length > 0
         ? (parsed.companyTypes as string[]).filter((v) => typeof v === 'string')
@@ -84,9 +101,9 @@ jobTypes 판단 기준 (해당하는 것 모두 배열에 포함, 없으면 빈 
         ? (parsed.jobTypes as string[]).filter((v) => typeof v === 'string')
         : undefined;
 
-      const plan: SearchPlan = { source, reason: parsed.reason ?? '', keyword, companyTypes, jobTypes, model: ollamaModel };
+      const plan: SearchPlan = { searchMode, reason: parsed.reason ?? '', keyword, companyTypes, jobTypes, model: ollamaModel };
       this.logger.log(
-        `[플래너] topic="${topic}" model=${ollamaModel} → ${plan.source} | keyword="${keyword}"` +
+        `[플래너] topic="${topic}" model=${ollamaModel} → ${plan.searchMode} | keyword="${keyword}"` +
         `${companyTypes ? ` | 기업유형: ${companyTypes.join(', ')}` : ''}` +
         `${jobTypes ? ` | 경력: ${jobTypes.join(', ')}` : ''}` +
         ` | ${plan.reason}`,
@@ -98,7 +115,7 @@ jobTypes 판단 기준 (해당하는 것 모두 배열에 포함, 없으면 빈 
   }
 
   private fallback(model: string, topic: string, reason: string): SearchPlan {
-    const plan: SearchPlan = { source: 'web', reason: `fallback — ${reason}`, keyword: topic, model };
+    const plan: SearchPlan = { searchMode: SearchMode.WEB, reason: `fallback — ${reason}`, keyword: topic, model };
     this.logger.warn(`[플래너] topic="${topic}" model=${model} → fallback:web (${reason})`);
     return plan;
   }

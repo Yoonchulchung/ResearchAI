@@ -6,6 +6,7 @@ import { searchBrave } from '../../infrastructure/search/brave.search';
 import { PROMPTS } from '../../domain/prompt/research.prompts';
 import { SearchSources } from '../../domain/model/search-sources.model';
 import { AiClientService } from '../../../ai/application/ai-client.service';
+import { SearchEngine } from '../search-planner.service';
 
 export interface DeepResearchResult {
   aiResult: string;
@@ -36,7 +37,7 @@ export class DeepResearchPipelineService {
   async run(
     prompt: string,
     aiModel: string,
-    webModel: 'tavily' | 'serper' | 'naver' | 'brave' = 'tavily',
+    webModel: SearchEngine = SearchEngine.TAVILY,
     /** QueueService에서 이미 검색 결과를 받아온 경우 직접 넘겨 Step 1을 건너뜀 */
     contextOverride?: string,
   ): Promise<DeepResearchResult> {
@@ -47,13 +48,13 @@ export class DeepResearchPipelineService {
     if (!contextOverride) {
       try {
         let searchResult: string | undefined;
-        if (webModel === 'tavily') {
+        if (webModel === SearchEngine.TAVILY) {
           searchResult = await searchTavily(prompt);
-        } else if (webModel === 'serper') {
+        } else if (webModel === SearchEngine.SERPER) {
           searchResult = await searchSerper(prompt);
-        } else if (webModel === 'naver') {
+        } else if (webModel === SearchEngine.NAVER) {
           searchResult = await searchNaver(prompt);
-        } else if (webModel === 'brave') {
+        } else if (webModel === SearchEngine.BRAVE) {
           searchResult = await searchBrave(prompt);
         }
         if (searchResult) {

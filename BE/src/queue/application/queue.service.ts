@@ -1,6 +1,6 @@
 import { Injectable, OnModuleDestroy, MessageEvent, NotFoundException } from '@nestjs/common';
 import { Subject, Observable, of, concat, from } from 'rxjs';
-import { QueueJob, QueueJobStatus, QueueJobPhase } from '../domain/queue-job.model';
+import { QueueJob, QueueJobStatus, QueueJobPhase, SseEventType } from '../domain/queue-job.model';
 import { DeepResearchPipelineService } from '../../research/application/pipeline/deep-research-pipeline.service';
 import { SessionQueryService } from '../../sessions/application/query/session-query.service';
 import { SessionCommandService } from '../../sessions/application/command/session-command.service';
@@ -13,7 +13,7 @@ import { streamOllama } from '../../ai/infrastructure/ollama.ai';
 import { EnqueueDeepResearchDto, DeepResearchAction } from '../presentation/dto/request/enqueue-deep-research.dto';
 import { EnqueueLightResearchDto } from '../presentation/dto/request/enqueue-light-research.dto';
 import { LightResearchPipelineService, LightResearchEvent } from '../../research/application/pipeline/light-research-pipeline.service';
-import { SearchSource } from '../../research/application/search-planner.service';
+import { PlannerMode, SearchModeInput, SearchEngine } from '../../research/application/search-planner.service';
 import { LightResearchRepository } from '../../research/domain/repository/light-research.repository';
 import { randomUUID } from 'crypto';
 
@@ -93,8 +93,8 @@ export class QueueService implements OnModuleDestroy {
 
     if (summaryStatus === SummaryState.DONE && summary) {
       return of(
-        { data: { type: 'chunk', text: summary } },
-        { data: { type: 'done' } },
+        { data: { type: SseEventType.CHUNK, text: summary } },
+        { data: { type: SseEventType.DONE } },
       );
     }
 
@@ -105,7 +105,7 @@ export class QueueService implements OnModuleDestroy {
       const accumulated = this.summaryAccumulated.get(sessionId) ?? '';
       if (accumulated) {
         return concat(
-          of({ data: { type: 'chunk', text: accumulated } } as MessageEvent),
+          of({ data: { type: SseEventType.CHUNK, text: accumulated } } as MessageEvent),
           subject.asObservable(),
         );
       }
@@ -143,7 +143,7 @@ export class QueueService implements OnModuleDestroy {
       localAIModel: requestBody.localAIModel,
       CloudAIModel: requestBody.cloudAIModel,
       webModel: requestBody.webModel,
-      searchMode: requestBody.searchMode ?? 'auto',
+      searchMode: requestBody.searchMode ?? PlannerMode.AUTO,
       status: QueueJobStatus.PENDING,
     };
     this.jobs.push(job);
@@ -197,7 +197,7 @@ export class QueueService implements OnModuleDestroy {
         taskType: QueueJob.TaskType.DEEPRESEARCH,
         localAIModel: requestBody.localAIModel,
         CloudAIModel: requestBody.cloudAIModel,
-        webModel: session.researchWebModel,
+        webModel: session.researchWebModel as SearchEngine,
         status: QueueJobStatus.PENDING,
       };
       this.jobs.push(job);
@@ -253,7 +253,7 @@ export class QueueService implements OnModuleDestroy {
     }
 
     const subject = this.lightResearchSubjects.get(searchId);
-    subject?.next({ data: { type: 'error', message: 'Light Research가 중단되었습니다.' } });
+    subject?.next({ data: { type: SseEventType.ERROR, message: 'Light Research가 중단되었습니다.' } });
     subject?.complete();
     this.lightResearchSubjects.delete(searchId);
     this.lightResearchAccumulated.delete(searchId);
@@ -271,7 +271,7 @@ export class QueueService implements OnModuleDestroy {
     }
 
     const subject = this.summarySubjects.get(sessionId);
-    subject?.next({ data: { type: 'error', message: '서머리가 중단되었습니다.' } });
+    subject?.next({ data: { type: SseEventType.ERROR, message: '서머리가 중단되었습니다.' } });
     subject?.complete();
     this.summarySubjects.delete(sessionId);
     this.summaryAccumulated.delete(sessionId);
@@ -352,7 +352,7 @@ export class QueueService implements OnModuleDestroy {
         const { aiResult, webSources } = await this.deepPipeline.run(
           job.itemPrompt,
           job.CloudAIModel,
-          (job.webModel ?? 'tavily') as 'tavily' | 'serper' | 'naver' | 'brave',
+          job.webModel ?? SearchEngine.TAVILY,
         );
 
         const webResult = webSources.tavily ?? webSources.serper ?? webSources.naver ?? webSources.brave ?? '';
@@ -367,8 +367,8 @@ export class QueueService implements OnModuleDestroy {
           job.itemPrompt,
           job.localAIModel,
           job.CloudAIModel,
-          job.webModel ?? '',
-          (job.searchMode ?? 'auto') as SearchSource | 'auto',
+          job.webModel ?? SearchEngine.TAVILY,
+          (job.searchMode ?? PlannerMode.AUTO) as SearchModeInput,
           job.sessionId,
           (event) => {
             const accumulated = this.lightResearchAccumulated.get(job.sessionId) ?? [];
@@ -395,11 +395,11 @@ export class QueueService implements OnModuleDestroy {
         for await (const chunk of streamOllama(model, ctx.system, ctx.prompt)) {
           fullText += chunk;
           this.summaryAccumulated.set(job.sessionId, (this.summaryAccumulated.get(job.sessionId) ?? '') + chunk);
-          subject?.next({ data: { type: 'chunk', text: chunk } });
+          subject?.next({ data: { type: SseEventType.CHUNK, text: chunk } });
         }
 
         if (fullText) await this.sessionCommandService.saveSummary(job.sessionId, fullText);
-        subject?.next({ data: { type: 'done' } });
+        subject?.next({ data: { type: SseEventType.DONE } });
         subject?.complete();
         this.summarySubjects.delete(job.sessionId);
         this.summaryAccumulated.delete(job.sessionId);
@@ -414,7 +414,7 @@ export class QueueService implements OnModuleDestroy {
       if (job.taskType === QueueJob.TaskType.SUMMARY) {
 
         const subject = this.summarySubjects.get(job.sessionId);
-        subject?.next({ data: { type: 'error', message: msg } });
+        subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
         subject?.complete();
         this.summarySubjects.delete(job.sessionId);
         this.summaryAccumulated.delete(job.sessionId);
@@ -423,7 +423,7 @@ export class QueueService implements OnModuleDestroy {
       } else if (job.taskType === QueueJob.TaskType.LIGHTRESEARCH) {
 
         const subject = this.lightResearchSubjects.get(job.sessionId);
-        subject?.next({ data: { type: 'error', message: msg } });
+        subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
         subject?.complete();
         this.lightResearchSubjects.delete(job.sessionId);
         this.lightResearchAccumulated.delete(job.sessionId);

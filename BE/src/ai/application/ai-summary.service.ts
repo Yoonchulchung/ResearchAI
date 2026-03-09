@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { SummaryJobService, SummaryEvent, SummaryJob } from './summary-job.service';
 import { SessionsService } from '../../sessions/application/sessions.service';
 import { streamOllama } from '../infrastructure/ollama.ai';
+import { SseEventType } from '../../queue/domain/queue-job.model';
 
 @Injectable()
 export class AiSummaryService {
@@ -18,22 +19,22 @@ export class AiSummaryService {
     this.summaryJobService.create(jobId);
 
     (async () => {
-      const log = (message: string) => this.summaryJobService.push(jobId, { type: 'log', message });
+      const log = (message: string) => this.summaryJobService.push(jobId, { type: SseEventType.LOG, message });
 
       try {
         // 이미 저장된 서머리가 있으면 그대로 전송
         const { summary: existing } = await this.sessionsService.getSummary(sessionId);
         if (existing) {
           log('저장된 서머리를 불러옵니다...');
-          this.summaryJobService.push(jobId, { type: 'chunk', text: existing });
-          this.summaryJobService.push(jobId, { type: 'done' });
+          this.summaryJobService.push(jobId, { type: SseEventType.CHUNK, text: existing });
+          this.summaryJobService.push(jobId, { type: SseEventType.DONE });
           return;
         }
 
         log('리서치 결과를 수집하는 중...');
         const ctx = await this.sessionsService.buildSummaryContext(sessionId);
         if (!ctx) {
-          this.summaryJobService.push(jobId, { type: 'error', message: '완료된 태스크가 없습니다.' });
+          this.summaryJobService.push(jobId, { type: SseEventType.ERROR, message: '완료된 태스크가 없습니다.' });
           return;
         }
 
@@ -48,13 +49,13 @@ export class AiSummaryService {
             isFirstChunk = false;
           }
           fullText += chunk;
-          this.summaryJobService.push(jobId, { type: 'chunk', text: chunk });
+          this.summaryJobService.push(jobId, { type: SseEventType.CHUNK, text: chunk });
         }
 
         if (fullText) this.sessionsService.saveSummary(sessionId, fullText);
-        this.summaryJobService.push(jobId, { type: 'done' });
+        this.summaryJobService.push(jobId, { type: SseEventType.DONE });
       } catch (e: any) {
-        this.summaryJobService.push(jobId, { type: 'error', message: e?.message ?? '서머리 생성 실패' });
+        this.summaryJobService.push(jobId, { type: SseEventType.ERROR, message: e?.message ?? '서머리 생성 실패' });
       } finally {
         this.summaryJobService.complete(jobId);
       }

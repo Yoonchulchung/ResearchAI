@@ -8,6 +8,7 @@ import { fetchTavilyUsage } from '../infrastructure/tavily.client';
 import { fetchAnthropicUsageReport } from '../infrastructure/anthropic.client';
 import { ApiKeyRepository } from '../domain/repository/api-key.repository';
 import { ApiKeyResponseDto } from '../presentation/dto/response/api-key.response.dto';
+import { isEnvKeySet } from '../../shared/env/env.utils';
 
 const ALLOWED_KEYS = [
   'ANTHROPIC_API_KEY',
@@ -42,7 +43,7 @@ export class OverviewService {
   constructor(private readonly apiKeyRepository: ApiKeyRepository) {}
 
   private maskKey(value: string | undefined): string | null {
-    if (!value || value.startsWith('your_')) return null;
+    if (!value || !isEnvKeySet(value)) return null;
     if (value.length <= 8) return value.slice(0, 2) + '****';
     return value.slice(0, 10) + '*'.repeat(Math.min(value.length - 10, 20)) + value.slice(-4);
   }
@@ -52,7 +53,7 @@ export class OverviewService {
       key,
       label: KEY_LABELS[key],
       masked: this.maskKey(process.env[key]),
-      configured: !!(process.env[key] && !process.env[key]!.startsWith('your_')),
+      configured: isEnvKeySet(process.env[key]),
     }));
   }
 
@@ -94,7 +95,7 @@ export class OverviewService {
   }
 
   getPipelineStatus() {
-    const isSet = (key: string | undefined) => !!(key && !key.startsWith('your_'));
+    const isSet = isEnvKeySet;
     return {
       tavily: isSet(process.env.TAVILY_API_KEY),
       serper: isSet(process.env.SERPER_API_KEY),
@@ -109,7 +110,7 @@ export class OverviewService {
     if (cached) return cached;
 
     const apiKey = process.env.TAVILY_API_KEY;
-    if (!apiKey || apiKey.startsWith('your_')) {
+    if (!isEnvKeySet(apiKey)) {
       return { configured: false, usage: null, apiKey: null };
     }
 

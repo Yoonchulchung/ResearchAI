@@ -6,7 +6,7 @@ import { callAnthropic } from '../infrastructure/anthropic.ai';
 import { callOpenAI } from '../infrastructure/openai.ai';
 import { callGoogle } from '../infrastructure/google.ai';
 import { callOllama } from '../infrastructure/ollama.ai';
-import { MODELS } from '../domain/models';
+import { MODELS, AI_MODEL_PREFIX, getProvider, AIProvider } from '../domain/models';
 import { TokenHistoryRepository } from '../../overview/domain/repository/token-history.repository';
 import { randomUUID } from 'crypto';
 
@@ -26,18 +26,19 @@ export class AiClientService {
   ): Promise<string> {
     const useSearch = opts?.useBuiltinSearch ?? false;
 
-    if (model.startsWith('ollama:')) {
-      return callOllama(model.slice('ollama:'.length), system, prompt);
+    if (model.startsWith(AI_MODEL_PREFIX.OLLAMA)) {
+      return callOllama(model.slice(AI_MODEL_PREFIX.OLLAMA.length), system, prompt);
     }
 
     let inputTokens = 0;
     let outputTokens = 0;
     let text = '';
 
-    if (model.startsWith('claude')) {
+    const provider = getProvider(model);
+    if (provider === AIProvider.ANTHROPIC) {
       const result = await callAnthropic(this.anthropic, model, system, prompt, useSearch);
       ({ text, inputTokens, outputTokens } = result);
-    } else if (model.startsWith('gemini')) {
+    } else if (provider === AIProvider.GOOGLE) {
       const result = await callGoogle(this.google, model, system + '\n\n' + prompt, useSearch);
       ({ text, inputTokens, outputTokens } = result);
     } else {
@@ -65,7 +66,7 @@ export class AiClientService {
 
   /** 모델별 입력 토큰 단가 ($/1M tokens). null = 알 수 없음/로컬 */
   getInputCostPer1M(model: string): number | null {
-    if (model.startsWith('ollama:')) return null;
+    if (model.startsWith(AI_MODEL_PREFIX.OLLAMA)) return null;
     const found = MODELS.find((m) => model.startsWith(m.id));
     return found?.inputPricePer1M ?? null;
   }

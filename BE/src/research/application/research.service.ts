@@ -1,6 +1,6 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { LightResearchPipelineService, LightResearchEvent } from './pipeline/light-research-pipeline.service';
-import { SearchSource } from './search-planner.service';
+import { SearchModeInput } from './search-planner.service';
 import { SearchJobService } from './search-job.service';
 import { LightResearchRepository } from '../domain/repository/light-research.repository';
 import { SessionItemCommandService } from '../../sessions/application/command/session-item-command.service';
@@ -43,7 +43,7 @@ export class ResearchService {
   async testGenerateTasks(
     topic: string,
     model: string,
-    opts?: { customPrompt?: string; customSystem?: string; searchMode?: SearchSource | 'auto' },
+    opts?: { customPrompt?: string; customSystem?: string; searchMode?: SearchModeInput },
   ) {
     return this.lightPipeline.testRun(topic, model, opts);
   }

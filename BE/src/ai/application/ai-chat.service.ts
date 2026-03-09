@@ -3,7 +3,8 @@ import { VectorService } from '../../vector/vector.service';
 import { SessionsService } from '../../sessions/application/sessions.service';
 import { AiClientService } from './ai-client.service';
 import { callOllama } from '../infrastructure/ollama.ai';
-import { ChatMessage } from '../../chat/domain/chat-message.model';
+import { ChatMessage, ChatRole, ChatRoleLabel } from '../../chat/domain/chat-message.model';
+import { GEMINI_ROLE, AI_MODEL_PREFIX, AIProvider, getProvider } from '../domain/models';
 
 @Injectable()
 export class AiChatService {
@@ -47,23 +48,25 @@ export class AiChatService {
 ## 리서치 결과
 ${ragContext}`;
 
-    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [...history];
+    const messages: ChatMessage[] = [...history];
 
-    if (model.startsWith('claude')) {
+    const provider = getProvider(model);
+
+    if (provider === AIProvider.ANTHROPIC) {
       const stream = await this.aiClient.anthropic.messages.stream({
         model,
         max_tokens: 4000,
         system: systemPrompt,
-        messages,
+        messages: messages as { role: Exclude<ChatRole, ChatRole.SYSTEM>; content: string }[],
       });
       for await (const chunk of stream) {
         if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
           yield chunk.delta.text;
         }
       }
-    } else if (model.startsWith('gemini')) {
+    } else if (provider === AIProvider.GOOGLE) {
       const contents = messages.map((m) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
+        role: m.role === ChatRole.ASSISTANT ? GEMINI_ROLE.MODEL : GEMINI_ROLE.USER,
         parts: [{ text: m.content }],
       }));
       const result = await this.aiClient.google.models.generateContent({
@@ -72,10 +75,10 @@ ${ragContext}`;
         contents,
       });
       yield result.text ?? '';
-    } else if (model.startsWith('ollama:')) {
-      const ollamaModel = model.slice('ollama:'.length);
+    } else if (provider === AIProvider.OLLAMA) {
+      const ollamaModel = model.slice(AI_MODEL_PREFIX.OLLAMA.length);
       const historyText = history
-        .map((m) => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`)
+        .map((m) => `${ChatRoleLabel[m.role]}: ${m.content}`)
         .join('\n');
       const prompt = historyText ? `${historyText}\n사용자: ${message}` : message;
       yield await callOllama(ollamaModel, systemPrompt, prompt);
@@ -83,7 +86,7 @@ ${ragContext}`;
       const completion = await this.aiClient.openai.chat.completions.create({
         model,
         max_tokens: 4000,
-        messages: [{ role: 'system', content: systemPrompt }, ...messages],
+        messages: [{ role: ChatRole.SYSTEM, content: systemPrompt }, ...messages],
         stream: true,
       });
       for await (const chunk of completion) {

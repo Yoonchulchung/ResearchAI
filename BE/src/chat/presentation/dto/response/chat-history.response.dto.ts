@@ -1,8 +1,10 @@
+import { ChatMessage, ChatRole } from '../../../domain/chat-message.model';
+
 export class ChatHistoryResponseDto {
-  role: 'user' | 'assistant';
+  role: ChatRole;
   content: string;
 
-  static from(message: { role: 'user' | 'assistant'; content: string }): ChatHistoryResponseDto {
+  static from(message: ChatMessage): ChatHistoryResponseDto {
     const dto = new ChatHistoryResponseDto();
     dto.role = message.role;
     dto.content = message.content;
