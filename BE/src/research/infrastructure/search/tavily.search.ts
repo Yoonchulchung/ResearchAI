@@ -1,4 +1,7 @@
 import { tavily } from '@tavily/core';
+import { getCircuitBreaker } from '../../../shared/resilience/circuit-breaker';
+
+const policy = getCircuitBreaker('tavily-search');
 
 /**
  * 채용공고 사이트(잡코리아, 사람인, 원티드 등) Tavily 크롤링 결과에서
@@ -48,22 +51,26 @@ export function cleanJobBoardContent(content: string): string {
 export async function searchTavily(query: string): Promise<string> {
   const depth = (process.env.TAVILY_SEARCH_DEPTH || 'basic') as 'basic' | 'advanced';
   const client = tavily({ apiKey: process.env.TAVILY_API_KEY! });
-  const response = await client.search(query, { searchDepth: depth, maxResults: 5 });
-  return (
-    response.results
-      .map((r) => `[${r.title}]\n${cleanJobBoardContent(r.content)}\n출처: ${r.url}`)
-      .join('\n\n') ?? ''
-  );
+  return await policy.execute(async () => {
+    const response = await client.search(query, { searchDepth: depth, maxResults: 5 });
+    return (
+      response.results
+        .map((r) => `[${r.title}]\n${cleanJobBoardContent(r.content)}\n출처: ${r.url}`)
+        .join('\n\n') ?? ''
+    );
+  });
 }
 
 /** light search 전용 — URL 제외, 노이즈 정리 */
 export async function searchTavilyLight(query: string): Promise<string> {
   const depth = (process.env.TAVILY_SEARCH_DEPTH || 'basic') as 'basic' | 'advanced';
   const client = tavily({ apiKey: process.env.TAVILY_API_KEY! });
-  const response = await client.search(query, { searchDepth: depth, maxResults: 5 });
-  return (
-    response.results
-      .map((r) => `[${r.title}]\n${cleanJobBoardContent(r.content)}`)
-      .join('\n\n') ?? ''
-  );
+  return await policy.execute(async () => {
+    const response = await client.search(query, { searchDepth: depth, maxResults: 5 });
+    return (
+      response.results
+        .map((r) => `[${r.title}]\n${cleanJobBoardContent(r.content)}`)
+        .join('\n\n') ?? ''
+    );
+  });
 }
