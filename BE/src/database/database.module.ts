@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SessionEntity } from '../sessions/domain/entity/session.entity';
-import { SessionItemEntity } from '../sessions/domain/entity/session-item.enityt';
+import { SessionItemEntity } from '../sessions/domain/entity/session-item.entity';
 import { ChatEntity } from '../chat/domain/entity/chat.entity';
 import { ResearchRecruitEntity } from '../research/domain/entity/researchrecruit.entity';
 import { LightResearchEntity } from '../research/domain/entity/lightsearch.entity';

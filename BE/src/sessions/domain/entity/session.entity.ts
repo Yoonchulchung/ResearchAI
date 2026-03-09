@@ -1,5 +1,5 @@
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryColumn } from 'typeorm';
-import { SessionItemEntity } from './session-item.enityt';
+import { SessionItemEntity } from './session-item.entity';
 
 export enum ResearchState {
   IDLE = 'idle',

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SessionItemRepository } from '../../domain/repository/session-item.repository';
-import { SessionItemEntity } from '../../domain/entity/session-item.enityt';
+import { SessionItemEntity } from '../../domain/entity/session-item.entity';
 
 @Injectable()
 export class SessionItemQueryService {

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SessionItemEntity } from '../domain/entity/session-item.enityt';
+import { SessionItemEntity } from '../domain/entity/session-item.entity';
 import { ResearchState } from '../domain/entity/session.entity';
 import { SessionItemQueryService } from './query/session-item-query.service';
 import { SessionItemCommandService } from './command/session-item-command.service';

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { SessionItemEntity } from '../entity/session-item.enityt';
+import { SessionItemEntity } from '../entity/session-item.entity';
 import { ResearchState } from '../entity/session.entity';
 
 @Injectable()

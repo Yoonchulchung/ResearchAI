@@ -8,7 +8,7 @@ import { SessionItemService } from './application/session-item.service';
 import { SessionItemQueryService } from './application/query/session-item-query.service';
 import { SessionItemCommandService } from './application/command/session-item-command.service';
 import { SessionEntity } from './domain/entity/session.entity';
-import { SessionItemEntity } from './domain/entity/session-item.enityt';
+import { SessionItemEntity } from './domain/entity/session-item.entity';
 import { SessionRepository } from './domain/repository/session.repository';
 import { SessionItemRepository } from './domain/repository/session-item.repository';
 import { VectorModule } from '../vector/vector.module';
