@@ -1,10 +1,13 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import { PROMPTS } from '../../research/domain/prompt/research.prompts';
 import { makeCache } from '../../research/infrastructure/cache/ttl-cache';
 import { fetchTavilyUsage } from '../infrastructure/tavily.client';
 import { fetchAnthropicUsageReport } from '../infrastructure/anthropic.client';
+import { ApiKeyRepository } from '../domain/repository/api-key.repository';
+import { ApiKeyResponseDto } from '../presentation/dto/response/api-key.response.dto';
 
 const ALLOWED_KEYS = [
   'ANTHROPIC_API_KEY',
@@ -35,6 +38,8 @@ export class OverviewService {
   private readonly envPath = path.resolve(process.cwd(), '.env');
   private tavilyCache = makeCache<Awaited<ReturnType<OverviewService['getTavilyOverview']>>>();
   private anthropicCache = makeCache<Awaited<ReturnType<OverviewService['getAnthropicUsage']>>>();
+
+  constructor(private readonly apiKeyRepository: ApiKeyRepository) {}
 
   private maskKey(value: string | undefined): string | null {
     if (!value || value.startsWith('your_')) return null;
@@ -165,5 +170,38 @@ export class OverviewService {
     } catch (e: any) {
       return { configured: true, data: null, error: e.message };
     }
+  }
+
+  // ******* //
+  // API Key //
+  // ******* //
+  async getStoredApiKeys(): Promise<ApiKeyResponseDto[]> {
+    const keys = await this.apiKeyRepository.findAll();
+    return keys.map(ApiKeyResponseDto.from);
+  }
+
+  async getStoredApiKey(id: string): Promise<ApiKeyResponseDto> {
+    const k = await this.apiKeyRepository.findById(id);
+    if (!k) throw new NotFoundException(`API 키를 찾을 수 없습니다: ${id}`);
+    return ApiKeyResponseDto.from(k);
+  }
+
+  async createStoredApiKey(apiName: string, key: string): Promise<ApiKeyResponseDto> {
+    const entity = await this.apiKeyRepository.save({ id: randomUUID(), apiName, key });
+    return ApiKeyResponseDto.from(entity);
+  }
+
+  async updateStoredApiKey(id: string, apiName?: string, key?: string): Promise<ApiKeyResponseDto> {
+    const existing = await this.apiKeyRepository.findById(id);
+    if (!existing) throw new NotFoundException(`API 키를 찾을 수 없습니다: ${id}`);
+    const updated = await this.apiKeyRepository.update(id, { ...(apiName && { apiName }), ...(key && { key }) });
+    return ApiKeyResponseDto.from(updated);
+  }
+
+  async deleteStoredApiKey(id: string) {
+    const existing = await this.apiKeyRepository.findById(id);
+    if (!existing) throw new NotFoundException(`API 키를 찾을 수 없습니다: ${id}`);
+    await this.apiKeyRepository.delete(id);
+    return { ok: true };
   }
 }
