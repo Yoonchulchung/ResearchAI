@@ -19,6 +19,7 @@ export interface SearchPlan {
   searchMode: SearchMode;
   reason: string;
   keyword: string;
+  keywordCandidates?: string[];
   companyTypes?: string[];
   jobTypes?: string[];
   model?: string;
