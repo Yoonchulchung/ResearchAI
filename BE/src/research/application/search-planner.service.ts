@@ -58,7 +58,7 @@ jobTypes 판단 기준 (해당하는 것 모두 배열에 포함, 없으면 빈 
 - 경력 구분 언급 없음 → []`;
 
     try {
-      const text = await callOllama(ollamaModel, SYSTEM, prompt, 60_000);
+      const text = await callOllama(ollamaModel, SYSTEM, prompt, undefined, 60_000);
 
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return this.fallback(ollamaModel, topic, 'JSON 파싱 실패');
