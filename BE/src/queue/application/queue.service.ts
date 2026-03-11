@@ -240,6 +240,7 @@ export class QueueService implements OnModuleDestroy {
   // ********* //
   async stopResearch(sessionId: string): Promise<{ status: string; sessionId: string }> {
     await this.cancelBySession(sessionId);
+    await this.sessionItemCommandService.stopActiveItemsBySession(sessionId);
     return { status: 'stopped', sessionId };
   }
 

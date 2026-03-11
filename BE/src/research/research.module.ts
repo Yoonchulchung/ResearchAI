@@ -6,7 +6,6 @@ import { ResearchService } from './application/research.service';
 import { SearchPlannerService } from './application/search-planner.service';
 import { LightResearchPipelineService } from './application/pipeline/light-research-pipeline.service';
 import { DeepResearchPipelineService } from './application/pipeline/deep-research-pipeline.service';
-import { SearchJobService } from './application/search-job.service';
 import { ResearchRecruitRepository } from './domain/repository/research-recruit.repository';
 import { LightResearchRepository } from './domain/repository/light-research.repository';
 import { SearchListRepository } from './domain/repository/search-list.repository';
@@ -26,7 +25,6 @@ import { QueueModule } from '../queue/queue.module';
     SearchPlannerService,
     LightResearchPipelineService,
     DeepResearchPipelineService,
-    SearchJobService,
     ResearchService,
     ResearchRecruitRepository,
     LightResearchRepository,
