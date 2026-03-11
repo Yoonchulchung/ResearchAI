@@ -1,4 +1,5 @@
-import { SearchModeInput, SearchEngine } from '../../../../research/application/search-planner.service';
+import { SearchModeInput } from '../../../../research/application/search-planner.service';
+import { SearchEngine } from 'src/research/domain/model/search-planner.model';
 
 export class EnqueueLightResearchDto {
   topic: string;

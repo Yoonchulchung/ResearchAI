@@ -5,33 +5,26 @@ import { searchTavilyLight } from '../../infrastructure/search/tavily.search';
 import { searchSerper } from '../../infrastructure/search/serper.search';
 import { searchNaver } from '../../infrastructure/search/naver.search';
 import { searchBrave } from '../../infrastructure/search/brave.search';
-import { SearchPlannerService, SearchPlan, SearchMode, PlannerMode, SearchModeInput, SearchEngine } from '../search-planner.service';
+import { SearchPlannerService, SearchModeInput } from '../search-planner.service';
+import { SearchPlan, SearchMode, PlannerMode, SearchEngine } from 'src/research/domain/model/search-planner.model';
 import { AIProvider, AI_MODEL_PREFIX, getProvider } from '../../../ai/domain/models';
 import { RecruitContextService } from '../../../recruit/application/recruit-context.service';
 import { AiClientService } from '../../../ai/application/ai-client.service';
 import { SearchListRepository } from '../../domain/repository/search-list.repository';
 import { ResearchRecruitRepository } from '../../domain/repository/research-recruit.repository';
+import { LightResearchEventType } from '../../domain/model/light-research.model';
 
 export type JobItem = { title: string; company: string; location?: string | null; description?: string | null; skills: string[]; url: string };
-
-export enum LightResearchEventType {
-  START = 'start',
-  PLAN = 'plan',
-  SEARCHING = 'searching',
-  LOG = 'log',
-  JOBS = 'jobs',
-  GENERATING = 'generating',
-  DONE = 'done',
-}
 
 export type LightResearchEvent =
   | { type: LightResearchEventType.START }
   | { type: LightResearchEventType.PLAN; searchMode: SearchMode; reason: string }
-  | { type: LightResearchEventType.SEARCHING; target: 'web' | 'recruit' }
   | { type: LightResearchEventType.LOG; message: string }
   | { type: LightResearchEventType.JOBS; jobs: JobItem[] }
   | { type: LightResearchEventType.GENERATING; model: string }
-  | { type: LightResearchEventType.DONE; tasks: any[]; searchPlan: SearchPlan };
+  | { type: LightResearchEventType.DONE; tasks: any[]; searchPlan: SearchPlan }
+  | { type: LightResearchEventType.SAVEDB; action: 'recruit'; searchId: string; jobs: JobItem[] }
+  | { type: LightResearchEventType.SAVEDB; action: 'searchList'; searchId: string; tasks: { title: string; prompt: string }[] };
 
 /**
  * LightResearch 파이프라인
@@ -123,6 +116,42 @@ export class LightResearchPipelineService {
     onEvent?: (event: LightResearchEvent) => void,
   ): Promise<{ tasks: any[]; searchPlan: SearchPlan }> {
     for await (const event of this.runStream(topic, localAIModel, cloudAIModel, webModel, searchMode, searchId)) {
+
+      if (event.type === LightResearchEventType.SAVEDB) {
+        if (event.action === 'recruit') {
+          
+          Promise.all(
+            event.jobs.map((job) =>
+              this.researchRecruitRepository.save({
+                id: randomUUID(),
+                lightResearchId: event.searchId,
+                topic: job.title ?? null,
+                detail: job.company ?? null,
+                location: job.location ?? null,
+                description: job.description ?? null,
+                skills: job.skills?.length ? job.skills.join(', ') : null,
+                url: job.url ?? null,
+                recruitCreatedAt: new Date().toISOString(),
+              }),
+            ),
+          ).catch(() => {});
+
+        } else if (event.action === 'searchList') {
+          
+          Promise.all(
+            event.tasks.map((task) =>
+              this.searchListRepository.save({
+                id: randomUUID(),
+                lightResearchId: event.searchId,
+                topic: task.title,
+                prompt: task.prompt,
+              }),
+            ),
+          ).catch(() => {});
+        }
+        
+        continue;
+      }
       onEvent?.(event);
       if (event.type === LightResearchEventType.DONE) {
         return { tasks: event.tasks, searchPlan: event.searchPlan };
@@ -155,10 +184,13 @@ export class LightResearchPipelineService {
       yield* this.printFront(`플랜 결과: ${searchPlan.searchMode}`);
       yield* this.printFront(`플랜 이유: ${searchPlan.reason}`);
       yield* this.printFront(`서칭 키워드: ${searchPlan.keyword}`);
+    } else {
+      this.logger.warn(`검색 계획 생성에 실패했습니다. searchPlan: ${JSON.stringify(searchPlan)}`);
     }
 
     const { keyword } = searchPlan;
-
+    
+    // step 1a. 웹 검색
     let webContext: string | undefined;
     if ((searchPlan.searchMode === SearchMode.WEB || searchPlan.searchMode === SearchMode.BOTH) && this.hasEngine(webModel)) {
       yield* this.printFront(`웹 검색을 시작하겠습니다. 잠시만 기다려주세요. (엔진: ${webModel || 'auto'})`);
@@ -167,11 +199,15 @@ export class LightResearchPipelineService {
         webContext = await this.searchWithEngine(webModel, keyword);
         const lines = webContext?.split('\n').length ?? 0;
         yield* this.printFront(`웹 검색 완료 — ${lines}줄 수집`);
-      } catch {
+      } catch (err) {
+        this.logger.warn(`웹 검색 실패 (무시됨): ${err}`);
         yield* this.printFront('웹 검색 실패 (무시됨)');
       }
+
+      // 결과: webContext
     }
 
+    // step 1b. 채용 공고 검색
     let recruitCtx: string | undefined;
     if (searchPlan.searchMode === SearchMode.RECRUIT || searchPlan.searchMode === SearchMode.BOTH) {
       yield* this.printFront(`채용 공고 검색을 시작하겠습니다. 잠시만 기다려주세요.`);
@@ -186,25 +222,12 @@ export class LightResearchPipelineService {
         else if (event.type === LightResearchEventType.JOBS) {
           yield { type: LightResearchEventType.JOBS, jobs: event.jobs };
           if (searchId) {
-            Promise.all(
-              event.jobs.map((job) =>
-                this.researchRecruitRepository.save({
-                  id: randomUUID(),
-                  lightResearchId: searchId,
-                  topic: job.title ?? null,
-                  detail: job.company ?? null,
-                  location: job.location ?? null,
-                  description: job.description ?? null,
-                  skills: job.skills?.length ? job.skills.join(', ') : null,
-                  url: job.url ?? null,
-                  recruitCreatedAt: new Date().toISOString(),
-                }),
-              ),
-            ).catch(() => {});
+            yield { type: LightResearchEventType.SAVEDB, action: 'recruit' as const, searchId, jobs: event.jobs };
           }
         }
         else if (event.type === 'result' && event.result) recruitCtx = event.result;
       }
+      // 결과: recruitCtx
     }
 
     // ── Step 2: AI 태스크 생성 ──
@@ -231,16 +254,7 @@ export class LightResearchPipelineService {
     yield* this.printFront(`AI 응답 — 태스크 ${tasks.length}개 파싱 완료`);
 
     if (searchId) {
-      Promise.all(
-        tasks.map((task: { title: string; prompt: string }) =>
-          this.searchListRepository.save({
-            id: randomUUID(),
-            lightResearchId: searchId,
-            topic: task.title,
-            prompt: task.prompt,
-          }),
-        ),
-      ).catch(() => {});
+      yield { type: LightResearchEventType.SAVEDB, action: 'searchList' as const, searchId, tasks };
     }
 
     const mappedTasks = tasks.map((task: { title: string; prompt: string; [key: string]: any }) => ({

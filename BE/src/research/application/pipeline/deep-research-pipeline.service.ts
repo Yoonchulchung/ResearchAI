@@ -6,7 +6,7 @@ import { searchBrave } from '../../infrastructure/search/brave.search';
 import { PROMPTS } from '../../domain/prompt/research.prompts';
 import { SearchSources } from '../../domain/model/search-sources.model';
 import { AiClientService } from '../../../ai/application/ai-client.service';
-import { SearchEngine } from '../search-planner.service';
+import { SearchEngine } from 'src/research/domain/model/search-planner.model';
 
 export interface DeepResearchResult {
   aiResult: string;

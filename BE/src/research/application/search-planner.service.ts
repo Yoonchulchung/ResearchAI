@@ -1,33 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { callOllama } from '../../ai/infrastructure/ollama.ai';
+import { SearchMode, PlannerMode, SearchPlan } from '../domain/model/search-planner.model';
 
-export enum SearchMode {
-  WEB = 'web',
-  RECRUIT = 'recruit',
-  BOTH = 'both',
-}
-
-export enum PlannerMode {
-  AUTO = 'auto',
-}
-
-export enum SearchEngine {
-  TAVILY = 'tavily',
-  SERPER = 'serper',
-  NAVER  = 'naver',
-  BRAVE  = 'brave',
-}
 
 export type SearchModeInput = SearchMode | PlannerMode;
-
-export interface SearchPlan {
-  searchMode: SearchMode;
-  reason: string;
-  keyword: string;
-  companyTypes?: string[];
-  jobTypes?: string[];
-  model?: string;
-}
 
 const SYSTEM = '당신은 리서치 쿼리를 분류하는 전문가입니다. JSON만 반환하고 다른 텍스트는 절대 포함하지 마세요.';
 

@@ -13,7 +13,8 @@ import { streamOllama } from '../../ai/infrastructure/ollama.ai';
 import { EnqueueDeepResearchDto, DeepResearchAction } from '../presentation/dto/request/enqueue-deep-research.dto';
 import { EnqueueLightResearchDto } from '../presentation/dto/request/enqueue-light-research.dto';
 import { LightResearchPipelineService, LightResearchEvent } from '../../research/application/pipeline/light-research-pipeline.service';
-import { PlannerMode, SearchModeInput, SearchEngine } from '../../research/application/search-planner.service';
+import { SearchModeInput } from '../../research/application/search-planner.service';
+import { PlannerMode, SearchEngine } from 'src/research/domain/model/search-planner.model';
 import { LightResearchRepository } from '../../research/domain/repository/light-research.repository';
 import { randomUUID } from 'crypto';
 

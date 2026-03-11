@@ -1,5 +1,5 @@
 import { SearchSources } from '../../research/domain/model/search-sources.model';
-import { SearchEngine } from '../../research/application/search-planner.service';
+import { SearchEngine } from 'src/research/domain/model/search-planner.model';
 
 export enum QueueJobStatus {
   PENDING = 'pending',

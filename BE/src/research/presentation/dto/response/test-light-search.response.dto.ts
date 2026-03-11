@@ -1,4 +1,4 @@
-import { SearchPlan } from '../../../application/search-planner.service';
+import { SearchPlan } from "src/research/domain/model/search-planner.model";
 
 export class TestLightSearchResponseDto {
   tasks: any[];
