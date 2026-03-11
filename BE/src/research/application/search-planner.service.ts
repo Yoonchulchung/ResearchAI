@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { callOllama } from '../../ai/infrastructure/ollama.ai';
 import { SearchMode, PlannerMode, SearchPlan } from '../domain/model/search-planner.model';
+import { AI_MODEL_PREFIX } from '../../ai/domain/models';
 
 
 export type SearchModeInput = SearchMode | PlannerMode;
@@ -11,11 +12,14 @@ const SYSTEM = '당신은 리서치 쿼리를 분류하는 전문가입니다. J
 export class SearchPlannerService {
   private readonly logger = new Logger(SearchPlannerService.name);
 
-  async plan(topic: string, model?: string): Promise<SearchPlan> {
-    const ollamaModel = model
+  async plan(topic: string, localAIModel?: string): Promise<SearchPlan> {
+    const rawModel = localAIModel
       ?? process.env.OLLAMA_PLANNER_MODEL
       ?? process.env.OLLAMA_MODEL
       ?? 'llama3.1';
+    const ollamaModel = rawModel.startsWith(AI_MODEL_PREFIX.OLLAMA)
+      ? rawModel.slice(AI_MODEL_PREFIX.OLLAMA.length)
+      : rawModel;
 
     const prompt = `다음 리서치 주제를 분석하여 가장 적합한 데이터 소스를 결정하세요.
 

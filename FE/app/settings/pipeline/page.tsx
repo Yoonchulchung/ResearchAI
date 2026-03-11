@@ -56,7 +56,7 @@ export default function PipelinePage() {
                 각 파이프라인 단계를 개별적으로 또는 순서대로 테스트합니다.
               </p>
             </div>
-            <PipelineDiagram apiModels={apiModels} />
+            <PipelineDiagram apiModels={apiModels} localModels={localModels} />
           </div>
         )}
 

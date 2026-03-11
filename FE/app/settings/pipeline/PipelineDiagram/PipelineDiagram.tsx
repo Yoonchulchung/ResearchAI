@@ -2,346 +2,355 @@
 
 import { useState, useEffect } from "react";
 import {
-  getPipelineStatus,
-  getPromptTemplates,
-  testSearchEngine,
-  testOllamaFilter,
-  testGenerateTasks,
+  testPipelineStep0,
+  testPipelineStep1a,
+  testPipelineStep1b,
+  testPipelineStep2,
+  SearchPlan,
+  JobItem,
 } from "@/lib/api";
 import { ModelDefinition } from "@/types";
-import { NodeState } from "../components/types";
 import { NodeCard } from "../components/NodeCard";
-import { PromptEditorModal } from "../components/PromptEditorModal";
+import { NodeState } from "../components/types";
 import { VConnector, FanOut, FanIn } from "../components/Connectors";
-import { PromptEditButton } from "../components/PromptEditButton";
 
-type SearchEngine = "tavily" | "serper" | "naver" | "brave";
-
-interface PipelineStatus {
-  tavily: boolean;
-  serper: boolean;
-  naver: boolean;
-  brave: boolean;
-  ollama: boolean;
+function initNode(): NodeState {
+  return { status: "idle", expanded: false };
 }
 
-const ENGINE_META: Record<SearchEngine, { label: string; icon: string; desc: string }> = {
-  tavily: { label: "Tavily", icon: "⚡", desc: "AI 최적화 검색" },
-  serper: { label: "Serper", icon: "🔍", desc: "Google 검색 API" },
-  naver: { label: "Naver", icon: "🟢", desc: "한국어 뉴스 검색" },
-  brave: { label: "Brave", icon: "🦁", desc: "독립 웹 검색" },
-};
-
-const SEARCH_ENGINES: SearchEngine[] = ["tavily", "serper", "naver", "brave"];
-
-function initNode(status: NodeState["status"] = "idle"): NodeState {
-  return { status, expanded: false };
+function logsToResult(logs: string[]): string {
+  return logs.join("\n");
 }
 
-export function PipelineDiagram({ apiModels }: { apiModels: ModelDefinition[] }) {
-  const [query, setQuery] = useState("");
-  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatus | null>(null);
-  const [selectedModel, setSelectedModel] = useState("");
-  const [runningAll, setRunningAll] = useState(false);
-
-  const [defaults, setDefaults] = useState({ generateTasks: "", system: "", ollamaFilter: "" });
-
-  const [showAiModal, setShowAiModal] = useState(false);
-  const [aiCustomPrompt, setAiCustomPrompt] = useState("");
-  const [aiCustomSystem, setAiCustomSystem] = useState("");
-
-  const [showOllamaModal, setShowOllamaModal] = useState(false);
-  const [ollamaCustomFilter, setOllamaCustomFilter] = useState("");
-
-  const [nodes, setNodes] = useState<Record<SearchEngine | "ollama" | "ai", NodeState>>({
-    tavily: initNode(),
-    serper: initNode(),
-    naver: initNode(),
-    brave: initNode(),
-    ollama: initNode(),
-    ai: initNode(),
-  });
+export function PipelineDiagram({
+  apiModels,
+  localModels,
+}: {
+  apiModels: ModelDefinition[];
+  localModels: ModelDefinition[];
+}) {
+  const [topic, setTopic] = useState("");
+  const [localModel, setLocalModel] = useState(localModels[0]?.id ?? "");
+  const [cloudModel, setCloudModel] = useState(apiModels[0]?.id ?? "");
 
   useEffect(() => {
-    getPipelineStatus().then(setPipelineStatus).catch(() => {});
-    getPromptTemplates()
-      .then((t) => {
-        setDefaults({ generateTasks: t.generateTasks, system: t.system, ollamaFilter: t.ollamaFilter });
-        setAiCustomPrompt(t.generateTasks);
-        setAiCustomSystem(t.system);
-        setOllamaCustomFilter(t.ollamaFilter);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (apiModels.length > 0 && !selectedModel) setSelectedModel(apiModels[0].id);
+    if (apiModels.length > 0 && !cloudModel) setCloudModel(apiModels[0].id);
   }, [apiModels]);
 
-  function setNode(id: string, patch: Partial<NodeState>) {
-    setNodes((prev) => ({ ...prev, [id]: { ...prev[id as keyof typeof prev], ...patch } }));
+  useEffect(() => {
+    if (localModels.length > 0 && !localModel) setLocalModel(localModels[0].id);
+  }, [localModels]);
+  const [runningAll, setRunningAll] = useState(false);
+
+  const [step0, setStep0] = useState<NodeState>(initNode());
+  const [step1a, setStep1a] = useState<NodeState>(initNode());
+  const [step1b, setStep1b] = useState<NodeState>(initNode());
+  const [step2, setStep2] = useState<NodeState>(initNode());
+
+  const [searchPlan, setSearchPlan] = useState<SearchPlan | null>(null);
+  const [webContext, setWebContext] = useState<string | undefined>();
+  const [recruitCtx, setRecruitCtx] = useState<string | undefined>();
+
+  const canRun1a = !!searchPlan && (searchPlan.searchMode === "web" || searchPlan.searchMode === "both");
+  const canRun1b = !!searchPlan && (searchPlan.searchMode === "recruit" || searchPlan.searchMode === "both");
+  const canRun2 = !!searchPlan;
+  const showBothRow = searchPlan?.searchMode === "both";
+  const showOnlyRecruit = searchPlan?.searchMode === "recruit";
+
+  function planSummary(plan: SearchPlan, logs: string[]) {
+    return [
+      `모드: ${plan.searchMode}`,
+      `키워드: ${plan.keyword}`,
+      `이유: ${plan.reason}`,
+      plan.companyTypes?.length ? `기업유형: ${plan.companyTypes.join(", ")}` : "",
+      plan.jobTypes?.length ? `경력: ${plan.jobTypes.join(", ")}` : "",
+      "",
+      ...logs,
+    ].filter(Boolean).join("\n");
   }
 
-  function toggleExpand(id: string) {
-    setNodes((prev) => ({
-      ...prev,
-      [id]: { ...prev[id as keyof typeof prev], expanded: !prev[id as keyof typeof prev].expanded },
-    }));
-  }
-
-  async function runSearch(engine: SearchEngine) {
-    if (!query.trim()) return;
+  async function runStep0() {
+    if (!topic.trim()) return;
     const t0 = Date.now();
-    setNode(engine, { status: "running", result: undefined, error: undefined });
+    setStep0({ status: "running", expanded: false });
+    setSearchPlan(null); setWebContext(undefined); setRecruitCtx(undefined);
+    setStep1a(initNode()); setStep1b(initNode()); setStep2(initNode());
     try {
-      const { result } = await testSearchEngine(engine, query.trim());
-      setNode(engine, { status: "ok", result, ms: Date.now() - t0, expanded: true });
+      const res = await testPipelineStep0(topic.trim(), localModel);
+      setSearchPlan(res.searchPlan);
+      setStep0({ status: "ok", result: planSummary(res.searchPlan, res.logs), ms: Date.now() - t0, expanded: true });
     } catch (e: unknown) {
-      setNode(engine, { status: "error", error: e instanceof Error ? e.message : "검색 실패", ms: Date.now() - t0 });
+      setStep0({ status: "error", error: e instanceof Error ? e.message : "플랜 실패", ms: Date.now() - t0, expanded: false });
     }
   }
 
-  async function runOllama() {
-    if (!query.trim()) return;
-    const combined = SEARCH_ENGINES.map((e) => nodes[e].result).filter(Boolean).join("\n\n---\n\n");
-    if (!combined) return;
+  async function runStep1a() {
+    if (!searchPlan) return;
     const t0 = Date.now();
-    setNode("ollama", { status: "running", result: undefined, error: undefined });
-    const isModified = ollamaCustomFilter !== defaults.ollamaFilter;
+    setStep1a({ status: "running", expanded: false });
+    setWebContext(undefined);
     try {
-      const { result } = await testOllamaFilter(
-        query.trim(),
-        combined,
-        isModified ? ollamaCustomFilter : undefined,
-      );
-      setNode("ollama", { status: "ok", result, ms: Date.now() - t0, expanded: true });
-    } catch (e: unknown) {
-      setNode("ollama", { status: "error", error: e instanceof Error ? e.message : "필터 실패", ms: Date.now() - t0 });
-    }
-  }
-
-  async function runAI() {
-    if (!query.trim() || !selectedModel) return;
-    const t0 = Date.now();
-    setNode("ai", { status: "running", result: undefined, error: undefined });
-    const isModified = aiCustomPrompt !== defaults.generateTasks || aiCustomSystem !== defaults.system;
-    try {
-      const { tasks } = await testGenerateTasks(
-        query.trim(),
-        selectedModel,
-        isModified ? { customPrompt: aiCustomPrompt, customSystem: aiCustomSystem } : undefined,
-      );
-      setNode("ai", {
+      const res = await testPipelineStep1a(searchPlan.keyword);
+      setWebContext(res.webContext);
+      setStep1a({
         status: "ok",
-        result: `[생성된 태스크 ${tasks.length}개]\n\n${tasks.map((t: { icon: string; title: string; prompt: string }) => `${t.icon} ${t.title}\n  ${t.prompt}`).join("\n\n")}`,
+        result: res.webContext
+          ? `[${res.webContext.length.toLocaleString()}자 수집]\n\n${logsToResult(res.logs)}`
+          : logsToResult(res.logs),
         ms: Date.now() - t0,
         expanded: true,
       });
     } catch (e: unknown) {
-      setNode("ai", { status: "error", error: e instanceof Error ? e.message : "AI 실패", ms: Date.now() - t0 });
+      setStep1a({ status: "error", error: e instanceof Error ? e.message : "웹 검색 실패", ms: Date.now() - t0, expanded: false });
+    }
+  }
+
+  async function runStep1b() {
+    if (!searchPlan) return;
+    const t0 = Date.now();
+    setStep1b({ status: "running", expanded: false });
+    setRecruitCtx(undefined);
+    try {
+      const res = await testPipelineStep1b(searchPlan.keyword, searchPlan.companyTypes, searchPlan.jobTypes);
+      setRecruitCtx(res.recruitCtx);
+      const summary = [
+        `채용 공고 ${res.jobs.length}개 수집`,
+        ...res.logs,
+        res.jobs.length > 0 ? "\n" + res.jobs.map((j: JobItem) => `• ${j.title} — ${j.company}`).join("\n") : "",
+      ].filter(Boolean).join("\n");
+      setStep1b({ status: "ok", result: summary, ms: Date.now() - t0, expanded: true });
+    } catch (e: unknown) {
+      setStep1b({ status: "error", error: e instanceof Error ? e.message : "채용 검색 실패", ms: Date.now() - t0, expanded: false });
+    }
+  }
+
+  async function runStep2() {
+    if (!searchPlan || !cloudModel) return;
+    const t0 = Date.now();
+    setStep2({ status: "running", expanded: false });
+    try {
+      const res = await testPipelineStep2(topic.trim(), cloudModel, searchPlan, webContext, recruitCtx);
+      const summary = [
+        `태스크 ${res.tasks.length}개 생성`,
+        ...res.logs,
+        "",
+        ...res.tasks.map((t: any) => `${t.icon ?? "•"} ${t.title}\n  ${t.webSearchPrompt ?? t.prompt ?? ""}`),
+      ].filter(Boolean).join("\n");
+      setStep2({ status: "ok", result: summary, ms: Date.now() - t0, expanded: true });
+    } catch (e: unknown) {
+      setStep2({ status: "error", error: e instanceof Error ? e.message : "AI 태스크 생성 실패", ms: Date.now() - t0, expanded: false });
     }
   }
 
   async function runAll() {
-    if (!query.trim()) return;
+    if (!topic.trim()) return;
     setRunningAll(true);
-    const enabledEngines = SEARCH_ENGINES.filter((e) => pipelineStatus?.[e] !== false);
-    await Promise.allSettled(enabledEngines.map(runSearch));
-    await runOllama();
-    await runAI();
-    setRunningAll(false);
+    try {
+      // Step 0
+      const t0 = Date.now();
+      setStep0({ status: "running", expanded: false });
+      setStep1a(initNode()); setStep1b(initNode()); setStep2(initNode());
+      let plan: SearchPlan;
+      try {
+        const res = await testPipelineStep0(topic.trim(), localModel);
+        plan = res.searchPlan;
+        setSearchPlan(plan);
+        setStep0({ status: "ok", result: planSummary(plan, res.logs), ms: Date.now() - t0, expanded: true });
+      } catch (e: unknown) {
+        setStep0({ status: "error", error: e instanceof Error ? e.message : "플랜 실패", ms: Date.now() - t0, expanded: false });
+        return;
+      }
+
+      // Step 1a / 1b 병렬
+      let wCtx: string | undefined;
+      let rCtx: string | undefined;
+      const parallel: Promise<void>[] = [];
+
+      if (plan.searchMode === "web" || plan.searchMode === "both") {
+        parallel.push((async () => {
+          const t = Date.now();
+          setStep1a({ status: "running", expanded: false });
+          try {
+            const res = await testPipelineStep1a(plan.keyword);
+            wCtx = res.webContext;
+            setWebContext(wCtx);
+            setStep1a({ status: "ok", result: res.webContext ? `[${res.webContext.length.toLocaleString()}자]\n\n${logsToResult(res.logs)}` : logsToResult(res.logs), ms: Date.now() - t, expanded: true });
+          } catch (e: unknown) {
+            setStep1a({ status: "error", error: e instanceof Error ? e.message : "웹 검색 실패", ms: Date.now() - t, expanded: false });
+          }
+        })());
+      }
+
+      if (plan.searchMode === "recruit" || plan.searchMode === "both") {
+        parallel.push((async () => {
+          const t = Date.now();
+          setStep1b({ status: "running", expanded: false });
+          try {
+            const res = await testPipelineStep1b(plan.keyword, plan.companyTypes, plan.jobTypes);
+            rCtx = res.recruitCtx;
+            setRecruitCtx(rCtx);
+            const summary = [`채용 공고 ${res.jobs.length}개`, ...res.logs, res.jobs.length > 0 ? "\n" + res.jobs.map((j: JobItem) => `• ${j.title} — ${j.company}`).join("\n") : ""].filter(Boolean).join("\n");
+            setStep1b({ status: "ok", result: summary, ms: Date.now() - t, expanded: true });
+          } catch (e: unknown) {
+            setStep1b({ status: "error", error: e instanceof Error ? e.message : "채용 검색 실패", ms: Date.now() - t, expanded: false });
+          }
+        })());
+      }
+
+      await Promise.allSettled(parallel);
+
+      // Step 2
+      const t2 = Date.now();
+      setStep2({ status: "running", expanded: false });
+      try {
+        const res = await testPipelineStep2(topic.trim(), cloudModel, plan, wCtx, rCtx);
+        const summary = [`태스크 ${res.tasks.length}개 생성`, ...res.logs, "", ...res.tasks.map((t: any) => `${t.icon ?? "•"} ${t.title}\n  ${t.webSearchPrompt ?? t.prompt ?? ""}`)].filter(Boolean).join("\n");
+        setStep2({ status: "ok", result: summary, ms: Date.now() - t2, expanded: true });
+      } catch (e: unknown) {
+        setStep2({ status: "error", error: e instanceof Error ? e.message : "AI 태스크 생성 실패", ms: Date.now() - t2, expanded: false });
+      }
+    } finally {
+      setRunningAll(false);
+    }
   }
 
-  const enabledEngines = SEARCH_ENGINES.filter((e) => pipelineStatus?.[e] !== false);
-  const hasSearchResults = SEARCH_ENGINES.some((e) => nodes[e].result);
+  function toggleExpand(setter: React.Dispatch<React.SetStateAction<NodeState>>) {
+    setter((prev) => ({ ...prev, expanded: !prev.expanded }));
+  }
 
   return (
-    <>
-      <div className="space-y-0">
-        {/* Query input */}
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">입력</span>
-          </div>
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") runAll(); }}
-              placeholder="테스트할 검색 쿼리 또는 주제를 입력하세요..."
-              className="flex-1 text-sm text-slate-800 placeholder:text-slate-300 bg-slate-50 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-            />
-            <button
-              onClick={runAll}
-              disabled={!query.trim() || runningAll}
-              className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shrink-0"
-            >
-              {runningAll ? <span className="animate-spin text-sm">◌</span> : <span>▶</span>}
-              전체 실행
-            </button>
-          </div>
-        </div>
-
-        <FanOut count={enabledEngines.length || 4} />
-
-        {/* Search engines */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">검색 파이프라인 (병렬)</span>
-            <div className="flex-1 h-px bg-slate-100" />
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {SEARCH_ENGINES.map((engine) => {
-              const meta = ENGINE_META[engine];
-              const isEnabled = pipelineStatus?.[engine] !== false;
-              const state = nodes[engine];
-              return (
-                <div key={engine}>
-                  <NodeCard
-                    icon={meta.icon}
-                    label={meta.label}
-                    desc={meta.desc}
-                    state={isEnabled ? state : { ...state, status: "disabled", expanded: false }}
-                    onRun={() => runSearch(engine)}
-                    disabled={!isEnabled || !query.trim()}
-                  />
-                  {state.result && (
-                    <button
-                      onClick={() => toggleExpand(engine)}
-                      className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1"
-                    >
-                      {state.expanded ? "▲ 접기" : `▼ 결과 보기 (${state.result.length.toLocaleString()}자)`}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <FanIn count={enabledEngines.length || 4} />
-
-        {/* Ollama filter */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">로컬 필터 (Ollama)</span>
-            <div className="flex-1 h-px bg-slate-100" />
-          </div>
-          <div className="max-w-sm mx-auto">
-            <NodeCard
-              icon="🦙"
-              label="Ollama Filter"
-              desc="검색 결과 압축 필터"
-              state={nodes.ollama}
-              onRun={runOllama}
-              disabled={!hasSearchResults || !query.trim()}
-              extraActions={
-                <PromptEditButton
-                  modified={ollamaCustomFilter !== defaults.ollamaFilter}
-                  active={showOllamaModal}
-                  onClick={() => setShowOllamaModal(true)}
-                />
-              }
-            />
-            {nodes.ollama.result && (
-              <button
-                onClick={() => toggleExpand("ollama")}
-                className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1"
-              >
-                {nodes.ollama.expanded ? "▲ 접기" : `▼ 결과 보기 (${nodes.ollama.result.length.toLocaleString()}자)`}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <VConnector />
-
-        {/* AI model */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">AI 태스크 생성</span>
-            <div className="flex-1 h-px bg-slate-100" />
-            {apiModels.length > 0 && (
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="text-xs text-slate-500 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none"
-              >
-                {apiModels.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
+    <div className="space-y-0">
+      {/* 입력 */}
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-sm">
+        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-3">입력</span>
+        <input
+          type="text"
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") runAll(); }}
+          placeholder="테스트할 주제 또는 쿼리를 입력하세요..."
+          className="w-full text-sm text-slate-800 placeholder:text-slate-300 bg-slate-50 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-200 mb-3"
+        />
+        <div className="flex gap-3 flex-wrap items-center">
+          {localModels.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 shrink-0">로컬 모델</span>
+              <select value={localModel} onChange={(e) => setLocalModel(e.target.value)} className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none">
+                {localModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
-            )}
-          </div>
-          <div className="max-w-sm mx-auto">
-            <NodeCard
-              icon="🤖"
-              label={apiModels.find((m) => m.id === selectedModel)?.name ?? "AI 모델"}
-              desc="검색 컨텍스트 기반 태스크 생성"
-              state={nodes.ai}
-              onRun={runAI}
-              disabled={!query.trim() || !selectedModel}
-              extraActions={
-                <PromptEditButton
-                  modified={aiCustomPrompt !== defaults.generateTasks || aiCustomSystem !== defaults.system}
-                  active={showAiModal}
-                  onClick={() => setShowAiModal(true)}
-                />
-              }
-            />
-            {nodes.ai.result && (
-              <button
-                onClick={() => toggleExpand("ai")}
-                className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1"
-              >
-                {nodes.ai.expanded ? "▲ 접기" : "▼ 결과 보기"}
-              </button>
-            )}
-          </div>
+            </div>
+          )}
+          {apiModels.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 shrink-0">API 모델</span>
+              <select value={cloudModel} onChange={(e) => setCloudModel(e.target.value)} className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none">
+                {apiModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </div>
+          )}
+          <button
+            onClick={runAll}
+            disabled={!topic.trim() || runningAll}
+            className="ml-auto px-5 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            {runningAll ? <span className="animate-spin">◌</span> : <span>▶</span>}
+            전체 실행
+          </button>
         </div>
       </div>
 
-      {showOllamaModal && (
-        <PromptEditorModal
-          title="Ollama 필터 프롬프트"
-          onClose={() => setShowOllamaModal(false)}
-          fields={[
-            {
-              label: "필터 프롬프트",
-              hint: "변수: {{query}} (검색 쿼리), {{context}} (원본 검색 결과)",
-              rows: 16,
-              value: ollamaCustomFilter,
-              defaultValue: defaults.ollamaFilter,
-              onChange: setOllamaCustomFilter,
-            },
-          ]}
-        />
-      )}
+      <VConnector />
 
-      {showAiModal && (
-        <PromptEditorModal
-          title="AI 태스크 생성 프롬프트"
-          onClose={() => setShowAiModal(false)}
-          fields={[
-            {
-              label: "시스템 프롬프트",
-              rows: 7,
-              value: aiCustomSystem,
-              defaultValue: defaults.system,
-              onChange: setAiCustomSystem,
-            },
-            {
-              label: "태스크 생성 프롬프트",
-              hint: "변수: {{topic}} (주제), {{searchContext}} (검색 결과 삽입 위치)",
-              rows: 14,
-              value: aiCustomPrompt,
-              defaultValue: defaults.generateTasks,
-              onChange: setAiCustomPrompt,
-            },
-          ]}
-        />
-      )}
-    </>
+      {/* Step 0 */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Step 0 — 검색 소스 결정</span>
+          <div className="flex-1 h-px bg-slate-100" />
+        </div>
+        <div className="max-w-sm mx-auto">
+          <NodeCard icon="🧭" label="Search Planner" desc="Ollama로 검색 소스·키워드 결정" state={step0} onRun={runStep0} disabled={!topic.trim()} />
+          {step0.result && (
+            <button onClick={() => toggleExpand(setStep0)} className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1">
+              {step0.expanded ? "▲ 접기" : "▼ 결과 보기"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {showBothRow ? <FanOut count={2} /> : <VConnector />}
+
+      {/* Step 1 */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Step 1 — 데이터 수집</span>
+          <div className="flex-1 h-px bg-slate-100" />
+        </div>
+
+        {!searchPlan && (
+          <div className="max-w-sm mx-auto">
+            <NodeCard icon="🔍" label="데이터 수집 (Step 1a / 1b)" desc="Step 0 실행 후 활성화됩니다" state={{ status: "disabled", expanded: false }} onRun={() => {}} disabled />
+          </div>
+        )}
+
+        {searchPlan && !showOnlyRecruit && (
+          <div className={showBothRow ? "grid grid-cols-2 gap-3" : "max-w-sm mx-auto"}>
+            <div>
+              <NodeCard icon="🌐" label="Web Search (Step 1a)" desc="웹 검색 엔진으로 컨텍스트 수집" state={canRun1a ? step1a : { ...step1a, status: "disabled", expanded: false }} onRun={runStep1a} disabled={!canRun1a} />
+              {step1a.result && (
+                <button onClick={() => toggleExpand(setStep1a)} className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1">
+                  {step1a.expanded ? "▲ 접기" : "▼ 결과 보기"}
+                </button>
+              )}
+            </div>
+            {showBothRow && (
+              <div>
+                <NodeCard icon="💼" label="Recruit Search (Step 1b)" desc="채용 공고 크롤링" state={canRun1b ? step1b : { ...step1b, status: "disabled", expanded: false }} onRun={runStep1b} disabled={!canRun1b} />
+                {step1b.result && (
+                  <button onClick={() => toggleExpand(setStep1b)} className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1">
+                    {step1b.expanded ? "▲ 접기" : "▼ 결과 보기"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {showOnlyRecruit && (
+          <div className="max-w-sm mx-auto">
+            <NodeCard icon="💼" label="Recruit Search (Step 1b)" desc="채용 공고 크롤링" state={canRun1b ? step1b : { ...step1b, status: "disabled", expanded: false }} onRun={runStep1b} disabled={!canRun1b} />
+            {step1b.result && (
+              <button onClick={() => toggleExpand(setStep1b)} className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1">
+                {step1b.expanded ? "▲ 접기" : "▼ 결과 보기"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {showBothRow ? <FanIn count={2} /> : <VConnector />}
+
+      {/* Step 2 */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Step 2 — AI 태스크 생성</span>
+          <div className="flex-1 h-px bg-slate-100" />
+        </div>
+        <div className="max-w-sm mx-auto">
+          <NodeCard
+            icon="🤖"
+            label={apiModels.find((m) => m.id === cloudModel)?.name ?? "AI 모델"}
+            desc="수집된 컨텍스트 기반 태스크 생성"
+            state={canRun2 ? step2 : { ...step2, status: "disabled", expanded: false }}
+            onRun={runStep2}
+            disabled={!canRun2 || !cloudModel}
+          />
+          {step2.result && (
+            <button onClick={() => toggleExpand(setStep2)} className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1">
+              {step2.expanded ? "▲ 접기" : "▼ 결과 보기"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

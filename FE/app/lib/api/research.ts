@@ -78,6 +78,41 @@ export async function stopResearchItem(sessionId: string, itemId: string): Promi
   });
 }
 
+// ── Test / Debug — Pipeline Steps ─────────────────────────────────────────────
+
+export interface SearchPlan {
+  searchMode: "web" | "recruit" | "both";
+  reason: string;
+  keyword: string;
+  companyTypes?: string[];
+  jobTypes?: string[];
+  model?: string;
+}
+
+export const testPipelineStep0 = (topic: string, localAIModel: string, searchMode?: string) =>
+  apiFetch<{ logs: string[]; searchPlan: SearchPlan }>("/research/test/pipeline/step0", {
+    method: "POST",
+    body: JSON.stringify({ topic, localAIModel, searchMode }),
+  });
+
+export const testPipelineStep1a = (keyword: string, webModel?: string) =>
+  apiFetch<{ logs: string[]; webContext: string | undefined }>("/research/test/pipeline/step1a", {
+    method: "POST",
+    body: JSON.stringify({ keyword, webModel }),
+  });
+
+export const testPipelineStep1b = (keyword: string, companyTypes?: string[], jobTypes?: string[]) =>
+  apiFetch<{ logs: string[]; jobs: JobItem[]; recruitCtx: string | undefined }>("/research/test/pipeline/step1b", {
+    method: "POST",
+    body: JSON.stringify({ keyword, companyTypes, jobTypes }),
+  });
+
+export const testPipelineStep2 = (topic: string, model: string, searchPlan: SearchPlan, webContext?: string, recruitCtx?: string) =>
+  apiFetch<{ logs: string[]; tasks: any[] }>("/research/test/pipeline/step2", {
+    method: "POST",
+    body: JSON.stringify({ topic, model, searchPlan, webContext, recruitCtx }),
+  });
+
 // ── Test / Debug ──────────────────────────────────────────────────────────────
 
 export const testGenerateTasks = (

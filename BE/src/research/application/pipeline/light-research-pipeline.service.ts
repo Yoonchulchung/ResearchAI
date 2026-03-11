@@ -149,7 +149,7 @@ export class LightResearchPipelineService {
             ),
           ).catch(() => {});
         }
-        
+
         continue;
       }
       onEvent?.(event);
@@ -172,11 +172,31 @@ export class LightResearchPipelineService {
     searchId?: string,
   ): AsyncGenerator<LightResearchEvent> {
     const model = cloudAIModel || localAIModel;
+    const searchPlan = yield* this.step0Plan(topic, localAIModel, searchMode);
 
+    let webContext: string | undefined;
+    if ((searchPlan.searchMode === SearchMode.WEB || searchPlan.searchMode === SearchMode.BOTH) && this.hasEngine(webModel)) {
+      webContext = yield* this.step1aWebSearch(searchPlan.keyword, webModel);
+    }
+
+    let recruitCtx: string | undefined;
+    if (searchPlan.searchMode === SearchMode.RECRUIT || searchPlan.searchMode === SearchMode.BOTH) {
+      recruitCtx = yield* this.step1bRecruitSearch(searchPlan.companyTypes, searchPlan.jobTypes, searchPlan.keyword, searchId);
+    }
+
+    yield* this.step2GenerateTasks(topic, model, searchPlan, webContext, recruitCtx, searchId);
+  }
+
+  // ── Step 0: 검색 소스 결정 ──
+  async *step0Plan(
+    topic: string,
+    localAIModel: string,
+    searchMode: SearchModeInput = PlannerMode.AUTO,
+  ): AsyncGenerator<LightResearchEvent, SearchPlan> {
     yield* this.printFront(`검색 소스 결정 중...`);
 
     const searchPlan: SearchPlan = searchMode === PlannerMode.AUTO
-      ? await this.planner.plan(topic)
+      ? await this.planner.plan(topic, localAIModel)
       : { searchMode, reason: '수동 지정', keyword: topic };
 
     if (searchPlan.model) {
@@ -188,49 +208,66 @@ export class LightResearchPipelineService {
       this.logger.warn(`검색 계획 생성에 실패했습니다. searchPlan: ${JSON.stringify(searchPlan)}`);
     }
 
-    const { keyword } = searchPlan;
+    return searchPlan;
+  }
+
+  // ── Step 1a: 웹 검색 ──
+  async *step1aWebSearch(
+    searchKeyword: string,
+    webModel: SearchEngine,
+  ): AsyncGenerator<LightResearchEvent, string | undefined> {
     
-    // step 1a. 웹 검색
-    let webContext: string | undefined;
-    if ((searchPlan.searchMode === SearchMode.WEB || searchPlan.searchMode === SearchMode.BOTH) && this.hasEngine(webModel)) {
-      yield* this.printFront(`웹 검색을 시작하겠습니다. 잠시만 기다려주세요. (엔진: ${webModel || 'auto'})`);
-
-      try {
-        webContext = await this.searchWithEngine(webModel, keyword);
-        const lines = webContext?.split('\n').length ?? 0;
-        yield* this.printFront(`웹 검색 완료 — ${lines}줄 수집`);
-      } catch (err) {
-        this.logger.warn(`웹 검색 실패 (무시됨): ${err}`);
-        yield* this.printFront('웹 검색 실패 (무시됨)');
-      }
-
-      // 결과: webContext
+    yield* this.printFront(`웹 검색을 시작하겠습니다. 잠시만 기다려주세요. (엔진: ${webModel || 'auto'})`);
+    try {
+      const webContext = await this.searchWithEngine(webModel, searchKeyword);
+      const lines = webContext?.split('\n').length ?? 0;
+      yield* this.printFront(`웹 검색 완료 — ${lines}줄 수집`);
+      return webContext;
+    } catch (err) {
+      this.logger.warn(`웹 검색 실패 (무시됨): ${err}`);
+      yield* this.printFront('웹 검색 실패 (무시됨)');
+      return undefined;
     }
+  }
 
-    // step 1b. 채용 공고 검색
+  // ── Step 1b: 채용 공고 검색 ──
+  async *step1bRecruitSearch(
+    searchCompanyTypes: string[] | undefined,
+    searchJobTypes: string[] | undefined,
+    keyword: string,
+    searchId?: string,
+  ): AsyncGenerator<LightResearchEvent, string | undefined> {
+    
+    yield* this.printFront(`채용 공고 검색을 시작하겠습니다. 잠시만 기다려주세요.`);
+    const filterDesc = [
+      searchCompanyTypes?.length ? `기업유형: ${searchCompanyTypes.join(', ')}` : '',
+      searchJobTypes?.length ? `경력: ${searchJobTypes.join(', ')}` : '',
+    ].filter(Boolean).join(' / ');
+    yield* this.printFront(`검색 키워드: ${keyword}${filterDesc ? ` / ${filterDesc}` : ''}`);
+
     let recruitCtx: string | undefined;
-    if (searchPlan.searchMode === SearchMode.RECRUIT || searchPlan.searchMode === SearchMode.BOTH) {
-      yield* this.printFront(`채용 공고 검색을 시작하겠습니다. 잠시만 기다려주세요.`);
-      const filterDesc = [
-        searchPlan.companyTypes?.length ? `기업유형: ${searchPlan.companyTypes.join(', ')}` : '',
-        searchPlan.jobTypes?.length ? `경력: ${searchPlan.jobTypes.join(', ')}` : '',
-      ].filter(Boolean).join(' / ');
-      yield* this.printFront(`검색 키워드: ${keyword}${filterDesc ? ` / ${filterDesc}` : ''}`);
-
-      for await (const event of this.recruitContext.liveSearch({ keyword, companyTypes: searchPlan.companyTypes, jobTypes: searchPlan.jobTypes })) {
-        if (event.type === LightResearchEventType.LOG) yield* this.printFront(event.message);
-        else if (event.type === LightResearchEventType.JOBS) {
-          yield { type: LightResearchEventType.JOBS, jobs: event.jobs };
-          if (searchId) {
-            yield { type: LightResearchEventType.SAVEDB, action: 'recruit' as const, searchId, jobs: event.jobs };
-          }
+    for await (const event of this.recruitContext.liveSearch({ keyword, companyTypes: searchCompanyTypes, jobTypes: searchJobTypes })) {
+      if (event.type === LightResearchEventType.LOG) yield* this.printFront(event.message);
+      else if (event.type === LightResearchEventType.JOBS) {
+        yield { type: LightResearchEventType.JOBS, jobs: event.jobs };
+        if (searchId) {
+          yield { type: LightResearchEventType.SAVEDB, action: 'recruit' as const, searchId, jobs: event.jobs };
         }
-        else if (event.type === 'result' && event.result) recruitCtx = event.result;
       }
-      // 결과: recruitCtx
+      else if (event.type === 'result' && event.result) recruitCtx = event.result;
     }
+    return recruitCtx;
+  }
 
-    // ── Step 2: AI 태스크 생성 ──
+  // ── Step 2: AI 태스크 생성 ──
+  async *step2GenerateTasks(
+    topic: string,
+    model: string,
+    searchPlan: SearchPlan,
+    webContext: string | undefined,
+    recruitCtx: string | undefined,
+    searchId?: string,
+  ): AsyncGenerator<LightResearchEvent> {
     yield* this.printFront(`AI 검색 실행을 시작하겠습니다. 잠시만 기다려주세요.`);
     yield* this.printFront(`사용된 모델: ${model}`);
 
@@ -246,6 +283,7 @@ export class LightResearchPipelineService {
       ? ` / 입력 비용 약 $${((approxTokens / 1_000_000) * inputCostPer1M).toFixed(5)}`
       : '';
     yield* this.printFront(`프롬프트 크기: ${promptChars.toLocaleString()}자 / 약 ${approxTokens.toLocaleString()} 토큰${estimatedCost}`);
+
     const raw = await this.callAI(model, fullPrompt);
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
