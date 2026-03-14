@@ -200,7 +200,6 @@ export class LightResearchPipelineService {
     if (searchPlan.model) {
       yield* this.printFront(`플래에 사용된 모델: ${searchPlan.model}`);
       yield* this.printFront(`플랜 결과: ${searchPlan.searchMode}`);
-      yield* this.printFront(`플랜 이유: ${searchPlan.reason}`);
       yield* this.printFront(`서칭 키워드: ${searchPlan.keyword}`);
     } else {
       this.logger.warn(`검색 계획 생성에 실패했습니다. searchPlan: ${JSON.stringify(searchPlan)}`);

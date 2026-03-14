@@ -6,6 +6,7 @@ import { TaskList } from "@/sessions/components/TaskList";
 import { PipelineTerminal } from "@/sessions/components/PipelineTerminal";
 import { useModels } from "./hooks/useModels";
 import { useNewSession } from "./hooks/useNewSession";
+import { JobPostingList } from "./components/JobPostingList";
 
 export default function NewSession() {
   const { apiModels, localModels, isLoading, models } = useModels();
@@ -16,7 +17,6 @@ export default function NewSession() {
     tasks,
     searchSource,
     jobPostings,
-    jobsExpanded, setJobsExpanded,
     generating,
     progressStep,
     terminalLogs,
@@ -79,54 +79,7 @@ export default function NewSession() {
           />
 
           {/* Job Postings */}
-          {jobPostings.length > 0 && (
-            <div className="space-y-2">
-              <button
-                onClick={() => setJobsExpanded((v) => !v)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider px-1 hover:text-slate-600 transition-colors"
-              >
-                <span className={`transition-transform duration-200 ${jobsExpanded ? "rotate-0" : "-rotate-90"}`}>▾</span>
-                채용 공고 {jobPostings.length}건
-              </button>
-              {jobsExpanded && <div className="grid gap-2">
-                {jobPostings.map((job, i) => (
-                  <a
-                    key={i}
-                    href={job.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block bg-white border border-slate-200 rounded-xl px-4 py-3 hover:border-indigo-300 hover:shadow-sm transition-all group"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-slate-800 truncate group-hover:text-indigo-600 transition-colors">
-                          {job.title}
-                        </div>
-                        <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-slate-600">{job.company}</span>
-                          {job.location && <span>· {job.location}</span>}
-                          {job.description && <span>· {job.description}</span>}
-                        </div>
-                        {job.skills.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {job.skills.slice(0, 5).map((s, j) => (
-                              <span key={j} className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md font-medium">
-                                {s}
-                              </span>
-                            ))}
-                            {job.skills.length > 5 && (
-                              <span className="text-[10px] text-slate-400">+{job.skills.length - 5}</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <span className="text-slate-300 group-hover:text-indigo-400 transition-colors shrink-0 text-sm mt-0.5">↗</span>
-                    </div>
-                  </a>
-                ))}
-              </div>}
-            </div>
-          )}
+          <JobPostingList jobPostings={jobPostings} />
 
           {/* Error */}
           {error && (
@@ -151,9 +104,9 @@ export default function NewSession() {
             <button
               onClick={handleResearchStart}
               disabled={creating || !topic.trim()}
-              className="w-full bg-linear-to-r from-indigo-600 to-indigo-500 text-white font-bold text-base py-4 rounded-2xl hover:from-indigo-700 hover:to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-200"
+              className="w-full bg-linear-to-r from-slate-400 to-slate-400 text-white font-bold text-base py-4 rounded-2xl hover:from-slate-500 hover:to-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-slate-200"
             >
-              {creating ? "⏳ 세션 생성 중..." : "리서치 세션 시작"}
+              {creating ? "세션 생성 중..." : "리서치 세션 시작"}
             </button>
           )}
         </div>

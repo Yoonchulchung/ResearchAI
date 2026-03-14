@@ -119,11 +119,13 @@ export default function SessionPage() {
 
       <div className="flex flex-1 min-h-0">
         {/* 왼쪽: 태스크 목록 + 채팅 */}
-        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative">
           <div className="flex-1 overflow-y-auto px-8 py-6">
-            <SummarySection sessionId={id} topic={session.topic} localModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} summaryState={session.summaryState ?? null} />
+            <div className="px-6">
+              <SummarySection sessionId={id} topic={session.topic} localModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} summaryState={session.summaryState ?? null} />
+            </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 px-6">
               {tasks.map((task) => (
                 <TaskCard
                   key={task.id}
@@ -147,7 +149,9 @@ export default function SessionPage() {
             />
           </div>
 
-          <div className="px-8 py-4 border-t border-slate-100 bg-white shrink-0">
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 bg-linear-to-t from-white/95 to-transparent backdrop-blur-[2px] mask-[linear-gradient(to_top,white_40%,transparent)]" />
+
+          <div className="px-8 relative z-10 pb-4">
             <ChatInputArea
               onSend={handleChatSend}
               generating={chatLoading}

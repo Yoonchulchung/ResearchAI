@@ -80,7 +80,7 @@ export function Sidebar() {
           {/* Logo icon */}
           <div
             onClick={() => router.push("/sessions/new")}
-            className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-bold cursor-pointer hover:bg-indigo-700 transition-colors"
+            className="w-8 h-8 bg-slate-400 rounded-lg flex items-center justify-center text-white text-sm font-bold cursor-pointer hover:bg-slate-400 transition-colors"
           >
             AI
           </div>
@@ -97,8 +97,8 @@ export function Sidebar() {
             onClick={() => router.push("/sessions/new")}
             className={`w-8 h-8 flex items-center justify-center rounded-lg text-base font-bold transition-colors ${
               pathname === "/sessions/new"
-                ? "bg-indigo-600 text-white"
-                : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                ? "bg-slate-400 text-white"
+                : "bg-slate-200 text-indigo-700 hover:bg-indigo-100"
             }`}
             title="새 리서치"
           >
@@ -138,7 +138,7 @@ export function Sidebar() {
           onClick={() => router.push("/sessions/new")}
           className="flex items-center gap-2.5 cursor-pointer group"
         >
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0">
+          <div className="w-8 h-8 bg-slate-400 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0">
             AI
           </div>
           <div>
@@ -164,8 +164,8 @@ export function Sidebar() {
           onClick={() => router.push("/sessions/new")}
           className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
             pathname === "/sessions/new"
-              ? "bg-indigo-600 text-white"
-              : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+              ? "bg-slate-400 text-white"
+              : "bg-slate-200 text-indigo-700 hover:bg-indigo-100"
           }`}
         >
           <span className="text-base leading-none">+</span>
@@ -176,13 +176,13 @@ export function Sidebar() {
       {/* Search */}
       <div className="px-3 pb-2">
         <div className="relative">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none">🔍</span>
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none"></span>
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="리서치 검색..."
-            className="w-full pl-7 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 placeholder-slate-300 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300"
+            className="w-full pl-3 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 placeholder-slate-300 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300"
           />
         </div>
       </div>

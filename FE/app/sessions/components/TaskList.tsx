@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Task } from "@/types";
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -21,6 +22,17 @@ export function TaskList({
   onAdd: () => void;
   searchSource?: "web" | "recruit" | "both" | null;
 }) {
+  const textareaRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+
+  useEffect(() => {
+    const els = textareaRefs.current.filter(Boolean) as HTMLTextAreaElement[];
+    if (els.length === 0) return;
+
+    els.forEach((el) => { el.style.height = "auto"; });
+    const avg = Math.round(els.reduce((sum, el) => sum + el.scrollHeight, 0) / els.length);
+    els.forEach((el) => { el.style.height = `${avg}px`; });
+  }, [tasks]);
+
   if (tasks.length === 0) return null;
 
   const label = searchSource ? SOURCE_LABEL[searchSource] : "조사 항목";
@@ -56,10 +68,10 @@ export function TaskList({
                 </button>
               </div>
               <textarea
+                ref={(el) => { textareaRefs.current[idx] = el; }}
                 value={task.webSearchPrompt}
                 onChange={(e) => onUpdate(idx, "webSearchPrompt", e.target.value)}
                 placeholder="검색 프롬프트"
-                rows={4.5}
                 className="w-full text-xs text-slate-500 border border-slate-100 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200 resize-none leading-relaxed"
               />
             </div>
