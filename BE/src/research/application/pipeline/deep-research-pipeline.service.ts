@@ -5,7 +5,7 @@ import { searchNaver } from '../../infrastructure/search/naver.search';
 import { searchBrave } from '../../infrastructure/search/brave.search';
 import { PROMPTS } from '../../domain/prompt/research.prompts';
 import { SearchSources } from '../../domain/model/search-sources.model';
-import { AiClientService } from '../../../ai/application/ai-client.service';
+import { AiProviderService } from '../../../ai/application/ai-provider.service';
 import { SearchEngine } from 'src/research/domain/model/search-planner.model';
 
 export interface DeepResearchResult {
@@ -32,7 +32,7 @@ export type DeepResearchEvent =
  */
 @Injectable()
 export class DeepResearchPipelineService {
-  constructor(private readonly aiClient: AiClientService) {}
+  constructor(private readonly aiProvider: AiProviderService) {}
 
   async run(
     prompt: string,
@@ -75,6 +75,6 @@ export class DeepResearchPipelineService {
     const fullPrompt = context ? PROMPTS.withSearchContext(context, prompt) : prompt;
     // 검색 컨텍스트가 없을 때만 내장 웹서치 사용
     const useBuiltinSearch = !context;
-    return this.aiClient.call(aiModel, PROMPTS.system, fullPrompt, { useBuiltinSearch });
+    return this.aiProvider.call(aiModel, PROMPTS.system, fullPrompt, { useBuiltinSearch });
   }
 }

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { callOllama } from '../../ai/infrastructure/ollama.ai';
+import { AiProviderService } from '../../ai/application/ai-provider.service';
 import { SearchMode, PlannerMode, SearchPlan } from '../domain/model/search-planner.model';
 import { AI_MODEL_PREFIX } from '../../ai/domain/models';
 
@@ -17,14 +17,16 @@ const WEB_TREND_TERMS = ['트렌드', '동향', '최신', '현황', 'trend', 'la
 export class SearchPlannerService {
   private readonly logger = new Logger(SearchPlannerService.name);
 
+  constructor(private readonly aiProvider: AiProviderService) {}
+
   async plan(topic: string, localAIModel?: string): Promise<SearchPlan> {
     const rawModel = localAIModel
       ?? process.env.OLLAMA_PLANNER_MODEL
       ?? process.env.OLLAMA_MODEL
       ?? 'llama3.1';
-    const ollamaModel = rawModel.startsWith(AI_MODEL_PREFIX.OLLAMA)
-      ? rawModel.slice(AI_MODEL_PREFIX.OLLAMA.length)
-      : rawModel;
+    const aiModel = rawModel.startsWith(AI_MODEL_PREFIX.OLLAMA)
+      ? rawModel
+      : `${AI_MODEL_PREFIX.OLLAMA}${rawModel}`;
 
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -75,10 +77,10 @@ jobTypes 판단 기준 (해당하는 것 모두 배열에 포함, 없으면 빈 
 - 경력 구분 언급 없음 → []`;
 
     try {
-      const text = await callOllama(ollamaModel, SYSTEM, prompt, undefined, 60_000);
+      const text = await this.aiProvider.call(aiModel, SYSTEM, prompt);
 
       const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return this.fallback(ollamaModel, topic, 'JSON 파싱 실패');
+      if (!jsonMatch) return this.fallback(rawModel, topic, 'JSON 파싱 실패');
 
       const parsed = JSON.parse(jsonMatch[0]) as {
         source?: string;
@@ -89,7 +91,7 @@ jobTypes 판단 기준 (해당하는 것 모두 배열에 포함, 없으면 빈 
         jobTypes?: unknown;
       };
       if (!(Object.values(SearchMode) as string[]).includes(parsed.source ?? '')) {
-        return this.fallback(ollamaModel, topic, '유효하지 않은 source 값');
+        return this.fallback(rawModel, topic, '유효하지 않은 source 값');
       }
 
       const searchMode = parsed.source as SearchMode;
@@ -111,9 +113,9 @@ jobTypes 판단 기준 (해당하는 것 모두 배열에 포함, 없으면 빈 
         ? (parsed.jobTypes as string[]).filter((v) => typeof v === 'string')
         : undefined;
 
-      const plan: SearchPlan = { searchMode, reason: parsed.reason ?? '', keyword, keywordCandidates, companyTypes, jobTypes, model: ollamaModel };
+      const plan: SearchPlan = { searchMode, reason: parsed.reason ?? '', keyword, keywordCandidates, companyTypes, jobTypes, model: rawModel };
       this.logger.log(
-        `[플래너] topic="${topic}" model=${ollamaModel} → ${plan.searchMode} | keyword="${keyword}"` +
+        `[플래너] topic="${topic}" model=${rawModel} → ${plan.searchMode} | keyword="${keyword}"` +
         ` | candidates=[${keywordCandidates.join(' / ')}]` +
         `${companyTypes ? ` | 기업유형: ${companyTypes.join(', ')}` : ''}` +
         `${jobTypes ? ` | 경력: ${jobTypes.join(', ')}` : ''}` +
@@ -121,7 +123,7 @@ jobTypes 판단 기준 (해당하는 것 모두 배열에 포함, 없으면 빈 
       );
       return plan;
     } catch {
-      return this.fallback(ollamaModel, topic, 'Ollama 호출 실패 (미설치 또는 타임아웃)');
+      return this.fallback(rawModel, topic, 'Ollama 호출 실패 (미설치 또는 타임아웃)');
     }
   }
 

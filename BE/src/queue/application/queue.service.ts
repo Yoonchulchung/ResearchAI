@@ -1,7 +1,6 @@
 import { Injectable, OnModuleDestroy, MessageEvent, NotFoundException } from '@nestjs/common';
 import { Subject, Observable, of, concat, from } from 'rxjs';
 import { QueueJob, QueueJobStatus, QueueJobPhase, SseEventType } from '../domain/queue-job.model';
-import { DeepResearchPipelineService } from '../../research/application/pipeline/deep-research-pipeline.service';
 import { SessionQueryService } from '../../sessions/application/query/session-query.service';
 import { SessionCommandService } from '../../sessions/application/command/session-command.service';
 import { SessionItemService } from '../../sessions/application/session-item.service';
@@ -9,13 +8,15 @@ import { SessionItemQueryService } from '../../sessions/application/query/sessio
 import { SessionItemCommandService } from '../../sessions/application/command/session-item-command.service';
 import { ResearchState, SummaryState } from '../../sessions/domain/entity/session.entity';
 import { QueueStatusDto } from '../presentation/dto/response/queue-status.dto';
-import { streamOllama } from '../../ai/infrastructure/ollama.ai';
 import { EnqueueDeepResearchDto, DeepResearchAction } from '../presentation/dto/request/enqueue-deep-research.dto';
 import { EnqueueLightResearchDto } from '../presentation/dto/request/enqueue-light-research.dto';
-import { LightResearchPipelineService, LightResearchEvent } from '../../research/application/pipeline/light-research-pipeline.service';
+import { LightResearchEvent } from '../../research/application/pipeline/light-research-pipeline.service';
 import { SearchModeInput } from '../../research/application/search-planner.service';
 import { PlannerMode, SearchEngine } from 'src/research/domain/model/search-planner.model';
 import { LightResearchRepository } from '../../research/domain/repository/light-research.repository';
+import { DeepResearchExecutorService } from './job/deep-research-executor.service';
+import { LightResearchExecutorService } from './job/light-research-executor.service';
+import { SummaryExecutorService } from './job/summary-executor.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -32,14 +33,15 @@ export class QueueService implements OnModuleDestroy {
   private static readonly DONE_JOB_TTL_MS = 5 * 60 * 1000; // 5분
 
   constructor(
-    private readonly deepPipeline: DeepResearchPipelineService,
-    private readonly lightPipeline: LightResearchPipelineService,
     private readonly lightResearchRepository: LightResearchRepository,
     private readonly sessionQueryService: SessionQueryService,
     private readonly sessionCommandService: SessionCommandService,
     private readonly sessionItemService: SessionItemService,
     private readonly sessionItemQueryService: SessionItemQueryService,
     private readonly sessionItemCommandService: SessionItemCommandService,
+    private readonly deepResearchExecutor: DeepResearchExecutorService,
+    private readonly lightResearchExecutor: LightResearchExecutorService,
+    private readonly summaryExecutor: SummaryExecutorService,
   ) {}
 
   onModuleDestroy() {
@@ -348,31 +350,26 @@ export class QueueService implements OnModuleDestroy {
     try {
       if (job.taskType === QueueJob.TaskType.DEEPRESEARCH) {
 
-        await this.sessionCommandService.updateSessionState(job.sessionId, ResearchState.RUNNING);
-        await this.sessionItemService.updateStatus(job.itemId, ResearchState.RUNNING);
-
-        const { aiResult, webSources } = await this.deepPipeline.run(
+        const { aiResult, webSources } = await this.deepResearchExecutor.execute(
+          job.sessionId,
+          job.itemId,
           job.itemPrompt,
           job.CloudAIModel,
           job.webModel ?? SearchEngine.TAVILY,
         );
-
-        const webResult = webSources.tavily ?? webSources.serper ?? webSources.naver ?? webSources.brave ?? '';
-        await this.sessionCommandService.updateSessionItem(job.sessionId, job.itemId, aiResult, webResult, ResearchState.DONE);
-        await this.sessionCommandService.updateSession(job.sessionId, ResearchState.DONE);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: aiResult, webSources });
-      
+
       } else if (job.taskType === QueueJob.TaskType.LIGHTRESEARCH) {
 
         const subject = this.lightResearchSubjects.get(job.sessionId);
-        const { tasks } = await this.lightPipeline.run(
+        const { tasks } = await this.lightResearchExecutor.execute(
+          job.sessionId,
           job.itemPrompt,
           job.localAIModel,
           job.CloudAIModel,
           job.webModel ?? SearchEngine.TAVILY,
           (job.searchMode ?? PlannerMode.AUTO) as SearchModeInput,
-          job.sessionId,
-          (event) => {
+          (event: LightResearchEvent) => {
             const accumulated = this.lightResearchAccumulated.get(job.sessionId) ?? [];
             accumulated.push(event);
             this.lightResearchAccumulated.set(job.sessionId, accumulated);
@@ -387,26 +384,21 @@ export class QueueService implements OnModuleDestroy {
 
       } else if (job.taskType === QueueJob.TaskType.SUMMARY) {
 
-        await this.sessionCommandService.updateSummaryState(job.sessionId, SummaryState.RUNNING);
         const subject = this.summarySubjects.get(job.sessionId);
-        const ctx = await this.sessionQueryService.buildSummaryContext(job.sessionId);
-        if (!ctx) throw new Error('완료된 태스크가 없습니다.');
-        const model = job.localAIModel || ctx.model;
-        let fullText = '';
+        const fullText = await this.summaryExecutor.execute(
+          job.sessionId,
+          job.localAIModel,
+          (chunk) => {
+            this.summaryAccumulated.set(job.sessionId, (this.summaryAccumulated.get(job.sessionId) ?? '') + chunk);
+            subject?.next({ data: { type: SseEventType.CHUNK, text: chunk } });
+          },
+        );
 
-        for await (const chunk of streamOllama(model, ctx.system, ctx.prompt)) {
-          fullText += chunk;
-          this.summaryAccumulated.set(job.sessionId, (this.summaryAccumulated.get(job.sessionId) ?? '') + chunk);
-          subject?.next({ data: { type: SseEventType.CHUNK, text: chunk } });
-        }
-
-        if (fullText) await this.sessionCommandService.saveSummary(job.sessionId, fullText);
         subject?.next({ data: { type: SseEventType.DONE } });
         subject?.complete();
         this.summarySubjects.delete(job.sessionId);
         this.summaryAccumulated.delete(job.sessionId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
-        await this.sessionCommandService.updateSummaryState(job.sessionId, SummaryState.DONE);
 
       }
     } catch (e) {

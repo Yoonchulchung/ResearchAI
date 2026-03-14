@@ -1,17 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { VectorService } from '../../vector/vector.service';
 import { SessionsService } from '../../sessions/application/sessions.service';
-import { AiClientService } from './ai-client.service';
-import { callOllama } from '../infrastructure/ollama.ai';
-import { ChatMessage, ChatRole, ChatRoleLabel } from '../../chat/domain/chat-message.model';
-import { GEMINI_ROLE, AI_MODEL_PREFIX, AIProvider, getProvider } from '../domain/models';
+import { AiProviderService } from './ai-provider.service';
+import { ChatMessage } from '../../chat/domain/chat-message.model';
 
 @Injectable()
 export class AiChatService {
   constructor(
     private readonly vectorService: VectorService,
     private readonly sessionsService: SessionsService,
-    private readonly aiClient: AiClientService,
+    private readonly aiProvider: AiProviderService,
   ) {}
 
   async *stream(
@@ -48,51 +46,8 @@ export class AiChatService {
 ## 리서치 결과
 ${ragContext}`;
 
-    const messages: ChatMessage[] = [...history];
+    const messages = history as { role: 'user' | 'assistant'; content: string }[];
 
-    const provider = getProvider(model);
-
-    if (provider === AIProvider.ANTHROPIC) {
-      const stream = await this.aiClient.anthropic.messages.stream({
-        model,
-        max_tokens: 4000,
-        system: systemPrompt,
-        messages: messages as { role: Exclude<ChatRole, ChatRole.SYSTEM>; content: string }[],
-      });
-      for await (const chunk of stream) {
-        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-          yield chunk.delta.text;
-        }
-      }
-    } else if (provider === AIProvider.GOOGLE) {
-      const contents = messages.map((m) => ({
-        role: m.role === ChatRole.ASSISTANT ? GEMINI_ROLE.MODEL : GEMINI_ROLE.USER,
-        parts: [{ text: m.content }],
-      }));
-      const result = await this.aiClient.google.models.generateContent({
-        model,
-        config: { systemInstruction: systemPrompt, maxOutputTokens: 4000 },
-        contents,
-      });
-      yield result.text ?? '';
-    } else if (provider === AIProvider.OLLAMA) {
-      const ollamaModel = model.slice(AI_MODEL_PREFIX.OLLAMA.length);
-      const historyText = history
-        .map((m) => `${ChatRoleLabel[m.role]}: ${m.content}`)
-        .join('\n');
-      const prompt = historyText ? `${historyText}\n사용자: ${message}` : message;
-      yield await callOllama(ollamaModel, systemPrompt, prompt);
-    } else {
-      const completion = await this.aiClient.openai.chat.completions.create({
-        model,
-        max_tokens: 4000,
-        messages: [{ role: ChatRole.SYSTEM, content: systemPrompt }, ...messages],
-        stream: true,
-      });
-      for await (const chunk of completion) {
-        const text = chunk.choices[0]?.delta?.content ?? '';
-        if (text) yield text;
-      }
-    }
+    yield* this.aiProvider.stream(model, systemPrompt, messages);
   }
 }

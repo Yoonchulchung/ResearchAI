@@ -9,7 +9,7 @@ import { SearchPlannerService, SearchModeInput } from '../search-planner.service
 import { SearchPlan, SearchMode, PlannerMode, SearchEngine } from 'src/research/domain/model/search-planner.model';
 import { AIProvider, AI_MODEL_PREFIX, getProvider } from '../../../ai/domain/models';
 import { RecruitContextService } from '../../../recruit/application/recruit-context.service';
-import { AiClientService } from '../../../ai/application/ai-client.service';
+import { AiProviderService } from '../../../ai/application/ai-provider.service';
 import { SearchListRepository } from '../../domain/repository/search-list.repository';
 import { ResearchRecruitRepository } from '../../domain/repository/research-recruit.repository';
 import { LightResearchEventType } from '../../domain/model/light-research.model';
@@ -48,7 +48,7 @@ export class LightResearchPipelineService {
   constructor(
     private readonly planner: SearchPlannerService,
     private readonly recruitContext: RecruitContextService,
-    private readonly aiClient: AiClientService,
+    private readonly aiProvier: AiProviderService,
     private readonly searchListRepository: SearchListRepository,
     private readonly researchRecruitRepository: ResearchRecruitRepository,
   ) {}
@@ -278,7 +278,7 @@ export class LightResearchPipelineService {
       : PROMPTS.generateTasks(topic, searchContext);
     const promptChars = fullPrompt.length;
     const approxTokens = Math.round(promptChars / 4);
-    const inputCostPer1M = this.aiClient.getInputCostPer1M(model);
+    const inputCostPer1M = this.aiProvier.getInputCostPer1M(model);
     const estimatedCost = inputCostPer1M != null
       ? ` / 입력 비용 약 $${((approxTokens / 1_000_000) * inputCostPer1M).toFixed(5)}`
       : '';
@@ -334,6 +334,6 @@ export class LightResearchPipelineService {
       ? `${AIProvider.OLLAMA} (${model.slice(AI_MODEL_PREFIX.OLLAMA.length)})`
       : providerType;
     this.logger.log(`[태스크 생성] ${provider} — model=${model}`);
-    return this.aiClient.call(model, system, prompt);
+    return this.aiProvier.call(model, system, prompt);
   }
 }

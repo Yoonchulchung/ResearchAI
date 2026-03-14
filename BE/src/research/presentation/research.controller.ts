@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
-import { ModelsService } from '../../ai/application/models.service';
+import { AiProviderService } from '../../ai/application/ai-provider.service';
 import { WebSearchService } from '../application/web-search.service';
 import { ResearchService } from '../application/research.service';
 import { TestLightSearchDto } from './dto/request/test-light-search.dto';
@@ -11,14 +11,14 @@ import { TestStep0PlanDto, TestStep1aWebSearchDto, TestStep1bRecruitSearchDto, T
 @Controller('research')
 export class ResearchController {
   constructor(
-    private readonly modelsService: ModelsService,
+    private readonly aiProvider: AiProviderService,
     private readonly searchService: WebSearchService,
     private readonly aiService: ResearchService,
   ) {}
 
   @Get('models')
   getModels() {
-    return this.modelsService.getModels();
+    return this.aiProvider.getModels();
   }
 
   // *************** //
