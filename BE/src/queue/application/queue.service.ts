@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy, MessageEvent, NotFoundException } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit, MessageEvent, NotFoundException } from '@nestjs/common';
 import { Subject, Observable, of, concat, from } from 'rxjs';
 import { QueueJob, QueueJobStatus, QueueJobPhase, SseEventType } from '../domain/queue-job.model';
 import { SessionQueryService } from '../../sessions/application/query/session-query.service';
@@ -20,7 +20,7 @@ import { SummaryExecutorService } from './job/summary-executor.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
-export class QueueService implements OnModuleDestroy {
+export class QueueService implements OnModuleInit, OnModuleDestroy {
   private jobs: QueueJob[] = [];
   private abortControllers = new Map<string, AbortController>();
   private summarySubjects = new Map<string, Subject<MessageEvent>>();
@@ -43,6 +43,24 @@ export class QueueService implements OnModuleDestroy {
     private readonly lightResearchExecutor: LightResearchExecutorService,
     private readonly summaryExecutor: SummaryExecutorService,
   ) {}
+
+  async onModuleInit() {
+    const sessions = await this.sessionQueryService.findAll();
+    const activeResearchStates = [ResearchState.RUNNING, ResearchState.PENDING];
+    const activeSummaryStates = [SummaryState.RUNNING, SummaryState.PENDING];
+
+    await Promise.all(
+      sessions.map(async (session) => {
+        if (activeResearchStates.includes(session.researchState as ResearchState)) {
+          await this.sessionItemCommandService.stopActiveItemsBySession(session.id);
+          await this.sessionCommandService.updateSessionState(session.id, ResearchState.ERROR);
+        }
+        if (session.summaryState && activeSummaryStates.includes(session.summaryState as SummaryState)) {
+          await this.sessionCommandService.updateSummaryState(session.id, SummaryState.ERROR);
+        }
+      }),
+    );
+  }
 
   onModuleDestroy() {
     for (const ctrl of this.abortControllers.values()) {

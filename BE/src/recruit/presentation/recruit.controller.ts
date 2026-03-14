@@ -2,6 +2,7 @@ import { Controller, Get, Post, Delete, Param, Body, Query, Req, Res } from '@ne
 import type { Request, Response } from 'express';
 import { CollectService } from '../application/collect.service';
 import { JobsService } from '../application/jobs.service';
+import { RecruitContextService } from '../application/recruit-context.service';
 import { SourceRegistry } from '../infrastructure/sources/source-registry';
 
 @Controller('recruit')
@@ -9,8 +10,30 @@ export class RecruitController {
   constructor(
     private readonly collectService: CollectService,
     private readonly jobsService: JobsService,
+    private readonly recruitContext: RecruitContextService,
     private readonly sourceRegistry: SourceRegistry,
   ) {}
+
+  // ── 테스트 ────────────────────────────────────────────────
+
+  @Post('test/live-search')
+  async testLiveSearch(@Body() body: { keyword: string; companyTypes?: string[]; jobTypes?: string[] }) {
+    const logs: string[] = [];
+    const jobs: any[] = [];
+    let result = '';
+
+    for await (const event of this.recruitContext.liveSearch({
+      keyword: body.keyword,
+      companyTypes: body.companyTypes,
+      jobTypes: body.jobTypes,
+    })) {
+      if (event.type === 'log') logs.push(event.message);
+      else if (event.type === 'jobs') jobs.push(...event.jobs);
+      else if (event.type === 'result') result = event.result;
+    }
+
+    return { logs, jobs, result };
+  }
 
   // ── 소스 ─────────────────────────────────────────────────
 

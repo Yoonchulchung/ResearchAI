@@ -5,8 +5,9 @@ import { getModels } from "@/lib/api";
 import { ModelDefinition } from "@/types";
 import { PromptTestPanel } from "@/settings/pipeline/PromptTestPanel/PromptTestPanel";
 import { PipelineDiagram } from "@/settings/pipeline/PipelineDiagram/PipelineDiagram";
+import { RecruitTestPanel } from "@/settings/pipeline/RecruitTestPanel/RecruitTestPanel";
 
-type Tab = "pipeline" | "api" | "local";
+type Tab = "pipeline" | "api" | "local" | "recruit";
 
 export default function PipelinePage() {
   const [models, setModels] = useState<ModelDefinition[]>([]);
@@ -21,6 +22,7 @@ export default function PipelinePage() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "pipeline", label: "파이프라인 테스트" },
+    { id: "recruit", label: "채용 공고" },
     { id: "api", label: "API 모델" },
     { id: "local", label: "로컬 모델 (Ollama)" },
   ];
@@ -57,6 +59,18 @@ export default function PipelinePage() {
               </p>
             </div>
             <PipelineDiagram apiModels={apiModels} localModels={localModels} />
+          </div>
+        )}
+
+        {activeTab === "recruit" && (
+          <div className="max-w-3xl">
+            <div className="mb-6">
+              <h1 className="text-xl font-bold text-slate-800">채용 공고 테스트</h1>
+              <p className="text-sm text-slate-500 mt-1">
+                liveSearch로 채용 공고를 실시간 수집하고 결과를 확인합니다.
+              </p>
+            </div>
+            <RecruitTestPanel />
           </div>
         )}
 

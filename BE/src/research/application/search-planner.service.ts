@@ -37,7 +37,7 @@ export class SearchPlannerService {
 데이터 소스:
 - "web"    : 기술 정보, 기업 정보, 지식, 트렌드
 - "recruit": 채용 공고, 직무 요건, 요구 스킬, 채용 기업, 취업 시장 동향
-- "both"   : web + recruit로 기술과 채용 시장 정보 모두 필요할 때
+- "both"   : 채용 공고와 기업 정보 모두 필요할 때
 
 판단 기준:
 1. recruit: 주제가 취업 공고 검색과 관련
@@ -48,11 +48,11 @@ export class SearchPlannerService {
 { "source": "web" | "recruit" | "both", "keywords": "검색 키워드", "companyTypes": ["대기업"], "jobTypes": ["신입"] }
 
 keywords 규칙:
-- 데이터 소스가 "recruit", 주제를 검색에 최적화된 키워드로 변환
+- 데이터 소스가 "recruit", 주제를 검색에 최적화된 키워드로 변환. 특정 기업이 언급되면 키워드에 기업 이름 추가.
 - 데이터 소스가 "web", 주제를 검색할 수 있는 검색 문장으로 반환
 - 데이터 소스가 "both", 직무명/기술명을 중심으로 채용 공고 검색에 최적화되어 반환
   (예: "최신 CI/CD 공고 찾아줘" → ["CI/CD DevOps 엔지니어" or "DevOps 개발자 채용" or "CI/CD 파이프라인 엔지니어"])
-- 각 후보는 2~20 단어 조합, 검색창에 바로 붙여넣을 수 있는 형태
+- 각 후보는 2~20 영어 단어 조합, 검색창에 바로 붙여넣을 수 있는 형태
 
 companyTypes 판단 기준.
 - 주제에서 기업 이름을 추출해 판단.
@@ -92,11 +92,6 @@ jobTypes 판단 기준.
         : undefined;
 
       const plan: SearchPlan = { searchMode, reason: '', keyword, companyTypes, jobTypes, model: rawModel };
-      this.logger.log(
-        `[플래너] topic="${topic}" model=${rawModel} → ${plan.searchMode} | keyword="${keyword}"` +
-        `${companyTypes ? ` | 기업유형: ${companyTypes.join(', ')}` : ''}` +
-        `${jobTypes ? ` | 경력: ${jobTypes.join(', ')}` : ''}`,
-      );
       return plan;
     } catch {
       return this.fallback(rawModel, topic, 'Ollama 호출 실패 (미설치 또는 타임아웃)');

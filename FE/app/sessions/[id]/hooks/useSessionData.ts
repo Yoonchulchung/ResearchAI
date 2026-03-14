@@ -24,16 +24,18 @@ export function useSessionData(id: string) {
       .finally(() => setLoading(false));
   }, [id, router]);
 
-  // 완료되지 않은 task가 있을 때만 폴링
-  const hasPendingTasks = session?.items?.some((t) => !t.aiResult) ?? false;
+  // RUNNING/PENDING 아이템이 있을 때만 폴링
+  const hasActiveResearch = session?.items?.some(
+    (t) => t.researchState === "running" || t.researchState === "pending"
+  ) ?? false;
 
   useEffect(() => {
-    if (!hasPendingTasks) return;
+    if (!hasActiveResearch) return;
     const timer = setInterval(() => {
       getSession(id).then(setSession).catch(() => {});
     }, POLL_INTERVAL);
     return () => clearInterval(timer);
-  }, [id, hasPendingTasks]);
+  }, [id, hasActiveResearch]);
 
   return { session, loading, models };
 }

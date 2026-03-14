@@ -5,10 +5,12 @@ interface Props {
   model: string;
   isRunning: boolean;
   allDone: boolean;
+  hasDoneTasks: boolean;
+  showDetail: boolean;
   onRunAll: () => void;
   onCancel: () => void;
   onExport: () => void;
-  onViewDetail: () => void;
+  onToggleDetail: () => void;
 }
 
 export function SessionHeader({
@@ -16,10 +18,12 @@ export function SessionHeader({
   model,
   isRunning,
   allDone,
+  hasDoneTasks,
+  showDetail,
   onRunAll,
   onCancel,
   onExport,
-  onViewDetail,
+  onToggleDetail,
 }: Props) {
   return (
     <div className="px-8 pt-4 py-2.5 border-b border-slate-200 bg-white sticky top-0 z-10">
@@ -46,20 +50,33 @@ export function SessionHeader({
             ⏹ 중단
           </button>
         )}
-        {allDone ? (
+        {hasDoneTasks && (
           <button
-            onClick={onViewDetail}
-            className="bg-indigo-600 text-white font-bold text-sm px-5 py-2 rounded-xl hover:bg-indigo-700 transition-colors shrink-0"
+            onClick={onToggleDetail}
+            className={`font-bold text-sm px-5 py-2 rounded-xl transition-colors shrink-0 ${
+              showDetail
+                ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                : "bg-indigo-600 text-white hover:bg-indigo-700"
+            }`}
           >
-            한 번에 보기
+            {showDetail ? "닫기" : "한 번에 보기"}
           </button>
-        ) : (
+        )}
+        {!hasDoneTasks && (
           <button
             onClick={onRunAll}
             disabled={isRunning}
             className="bg-indigo-600 text-white font-bold text-sm px-5 py-2 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
           >
             {isRunning ? "분석 중..." : "전체 실행"}
+          </button>
+        )}
+        {hasDoneTasks && !isRunning && !allDone && (
+          <button
+            onClick={onRunAll}
+            className="bg-indigo-600 text-white font-bold text-sm px-5 py-2 rounded-xl hover:bg-indigo-700 transition-colors shrink-0"
+          >
+            전체 실행
           </button>
         )}
       </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { deepResearch, stopResearchItem } from "@/lib/api/research";
+import { deepResearch, stopResearch, stopResearchItem } from "@/lib/api/research";
 import { deleteSessionItem } from "@/lib/api/sessions";
 import { Session, Task, TaskStatus, WebModels } from "@/types";
 import { type Phase } from "@/sessions/components/TaskCard";
@@ -13,7 +13,7 @@ export function useTaskRunner(session: Session | null, id: string) {
     webResult?: string;
     webModel?: WebModels;
   }>>({});
-  const [isRunning, setIsRunning] = useState(false);
+  const [localRunning, setLocalRunning] = useState(false);
 
   useEffect(() => {
     setTaskRunStates({});
@@ -41,11 +41,19 @@ export function useTaskRunner(session: Session | null, id: string) {
         base[String(task.id)] = TaskStatus.IDLE;
       }
     }
+    const terminalStates: TaskStatus[] = [TaskStatus.DONE, TaskStatus.ERROR, TaskStatus.STOPPED, TaskStatus.ABORTED];
     for (const [key, state] of Object.entries(taskRunStates)) {
+      // DB에 이미 terminal 상태가 있으면 로컬 상태로 덮어쓰지 않음
+      if (base[key] && terminalStates.includes(base[key])) continue;
       base[key] = state.status;
     }
     return base;
   }, [session, taskRunStates]);
+
+  // 로컬 전송 중이거나 DB에 실행 중인 태스크가 있으면 running
+  const isRunning = localRunning || Object.values(statuses).some(
+    (s) => s === TaskStatus.RUNNING || s === TaskStatus.PENDING
+  );
 
   const phases = useMemo<Record<string, Phase>>(() => {
     const p: Record<string, Phase> = {};
@@ -121,11 +129,11 @@ export function useTaskRunner(session: Session | null, id: string) {
 
   const handleRunTask = useCallback(async (task: Task) => {
     if (isRunning) return;
-    setIsRunning(true);
+    setLocalRunning(true);
     try {
       await runTasks([task]);
     } finally {
-      setIsRunning(false);
+      setLocalRunning(false);
     }
   }, [isRunning, runTasks]);
 
@@ -136,17 +144,34 @@ export function useTaskRunner(session: Session | null, id: string) {
       return !s || s === TaskStatus.IDLE || s === TaskStatus.ERROR || s === TaskStatus.STOPPED || s === TaskStatus.ABORTED;
     });
 
-    setIsRunning(true);
+    setLocalRunning(true);
     try {
       await runTasks(pendingTasks);
     } finally {
-      setIsRunning(false);
+      setLocalRunning(false);
     }
   }, [isRunning, session, statuses, runTasks]);
 
   // ******* //
   // 작업 취소 //
   // ******* //
+  const handleCancelAll = useCallback(async () => {
+    try {
+      await stopResearch(id);
+      setTaskRunStates((prev) => {
+        const next = { ...prev };
+        for (const key of Object.keys(next)) {
+          if (next[key].status === TaskStatus.RUNNING || next[key].status === TaskStatus.PENDING) {
+            next[key] = { ...next[key], status: TaskStatus.STOPPED };
+          }
+        }
+        return next;
+      });
+    } catch {
+      // 중단 실패 시 무시
+    }
+  }, [id]);
+
   const handleCancelItem = useCallback(async (task: Task) => {
     try {
       await stopResearchItem(id, task.itemId);
@@ -169,5 +194,5 @@ export function useTaskRunner(session: Session | null, id: string) {
     onDeleted();
   }, [id]);
 
-  return { statuses, phases, aiResult, webResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelItem, handleDeleteItem };
+  return { statuses, phases, aiResult, webResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelAll, handleCancelItem, handleDeleteItem };
 }

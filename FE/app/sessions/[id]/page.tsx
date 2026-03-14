@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useCallback, useEffect, memo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Task } from "@/types";
 import { TaskCard } from "@/sessions/components/TaskCard";
 import { SessionHeader } from "@/sessions/components/SessionHeader";
 import { SessionSkeleton } from "@/sessions/components/SessionSkeleton";
 import { ChatSection } from "@/sessions/components/ChatSection";
 import { SummarySection } from "@/sessions/components/SummarySection";
+import { DetailPanel } from "@/sessions/components/DetailPanel";
 import { TopicInput } from "@/components/TopicInput";
 import { ModelDefinition } from "@/types";
 import { useSessionData } from "./hooks/useSessionData";
@@ -60,13 +61,15 @@ const ChatInputArea = memo(function ChatInputArea({
 
 export default function SessionPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
 
   const { session, loading, models } = useSessionData(id);
-  const { statuses, phases, aiResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
+  const { statuses, phases, aiResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
+  const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => { setDeletedItemIds(new Set()); }, [id]);
+  useEffect(() => { setShowDetail(false); }, [id]);
+
   const { chatMessages, chatLoading, chatBottomRef, handleChatSend, handleClearChat } = useChatHandler(session, id);
   const { compactionStatus } = useCompaction(session, statuses, isRunning, id);
 
@@ -77,6 +80,7 @@ export default function SessionPage() {
   const doneCount = Object.values(statuses).filter((s) => s === "done").length;
   const total = tasks.length;
   const allDone = doneCount === total && total > 0 && !isRunning;
+  const hasDoneTasks = doneCount > 0;
 
   const exportMarkdown = () => {
     const lines = [
@@ -99,53 +103,68 @@ export default function SessionPage() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col overflow-hidden">
       <SessionHeader
         topic={session.topic}
         model={session.researchCloudAIModel}
         isRunning={isRunning}
         allDone={allDone}
+        hasDoneTasks={hasDoneTasks}
+        showDetail={showDetail}
         onRunAll={handleRunAll}
-        onCancel={() => tasks.filter((t) => statuses[t.id] === "running" || statuses[t.id] === "pending").forEach((t) => handleCancelItem(t))}
+        onCancel={handleCancelAll}
         onExport={exportMarkdown}
-        onViewDetail={() => router.push(`/sessions/${id}/detail`)}
+        onToggleDetail={() => setShowDetail((v) => !v)}
       />
 
-      <div className="bg-grey flex-1 overflow-y-auto px-8 py-6">
-        <SummarySection sessionId={id} topic={session.topic} localModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} summaryState={session.summaryState ?? null} />
+      <div className="flex flex-1 min-h-0">
+        {/* 왼쪽: 태스크 목록 + 채팅 */}
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-8 py-6">
+            <SummarySection sessionId={id} topic={session.topic} localModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} summaryState={session.summaryState ?? null} />
 
-        <div className="space-y-3">
-          {tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              status={statuses[task.id] ?? "idle"}
-              phase={phases[task.id]}
-              aiResult={aiResult[task.id]}
-              webModel={webModel[task.id]}
-              onRun={() => handleRunTask(task)}
-              onCancel={() => handleCancelItem(task)}
-              onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}
+            <div className="space-y-3">
+              {tasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  status={statuses[task.id] ?? "idle"}
+                  phase={phases[task.id]}
+                  aiResult={aiResult[task.id]}
+                  webModel={webModel[task.id]}
+                  onRun={() => handleRunTask(task)}
+                  onCancel={() => handleCancelItem(task)}
+                  onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}
+                />
+              ))}
+            </div>
+
+            <ChatSection
+              chatMessages={chatMessages}
+              chatBottomRef={chatBottomRef}
+              onClearChat={handleClearChat}
+              compactionStatus={compactionStatus}
             />
-          ))}
+          </div>
+
+          <div className="px-8 py-4 border-t border-slate-100 bg-white shrink-0">
+            <ChatInputArea
+              onSend={handleChatSend}
+              generating={chatLoading}
+              apiModels={models.filter((m) => m.provider !== "ollama")}
+              localModels={models.filter((m) => m.provider === "ollama")}
+              defaultModel={session.researchCloudAIModel}
+            />
+          </div>
         </div>
 
-        <ChatSection
-          chatMessages={chatMessages}
-          chatBottomRef={chatBottomRef}
-          onClearChat={handleClearChat}
-          compactionStatus={compactionStatus}
-        />
-      </div>
-
-      <div className="px-8 py-4 border-t border-slate-100 bg-white shrink-0">
-        <ChatInputArea
-          onSend={handleChatSend}
-          generating={chatLoading}
-          apiModels={models.filter((m) => m.provider !== "ollama")}
-          localModels={models.filter((m) => m.provider === "ollama")}
-          defaultModel={session.researchCloudAIModel}
-        />
+        {/* 오른쪽: 한 번에 보기 패널 */}
+        {showDetail && (
+          <DetailPanel
+            session={session}
+            onClose={() => setShowDetail(false)}
+          />
+        )}
       </div>
     </div>
   );

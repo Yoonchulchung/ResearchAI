@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { getSessions, deleteSession } from "@/lib/api";
 import { Session } from "@/types";
@@ -36,9 +36,24 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
+  const fetchSessions = useCallback(() => {
     getSessions().then(setSessions).catch(() => {});
-  }, [pathname]);
+  }, []);
+
+  useEffect(() => {
+    fetchSessions();
+  }, [pathname, fetchSessions]);
+
+  // 진행 중인 세션이 있을 때 폴링
+  const hasActiveSessions = sessions.some(
+    (s) => s.researchState === "running" || s.researchState === "pending"
+  );
+
+  useEffect(() => {
+    if (!hasActiveSessions) return;
+    const timer = setInterval(fetchSessions, 5000);
+    return () => clearInterval(timer);
+  }, [hasActiveSessions, fetchSessions]);
 
   const filteredSessions = searchQuery.trim()
     ? sessions.filter((s) => s.topic.toLowerCase().includes(searchQuery.toLowerCase()))

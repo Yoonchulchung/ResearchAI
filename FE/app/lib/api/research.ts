@@ -113,6 +113,12 @@ export const testPipelineStep2 = (topic: string, model: string, searchPlan: Sear
     body: JSON.stringify({ topic, model, searchPlan, webContext, recruitCtx }),
   });
 
+export const testLiveSearch = (keyword: string, companyTypes?: string[], jobTypes?: string[]) =>
+  apiFetch<{ logs: string[]; jobs: JobItem[]; result: string }>("/recruit/test/live-search", {
+    method: "POST",
+    body: JSON.stringify({ keyword, companyTypes, jobTypes }),
+  });
+
 // ── Test / Debug ──────────────────────────────────────────────────────────────
 
 export const testGenerateTasks = (
