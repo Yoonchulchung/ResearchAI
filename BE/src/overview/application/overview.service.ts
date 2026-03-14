@@ -88,7 +88,7 @@ export class OverviewService {
 
   getPromptTemplates() {
     return {
-      generateTasks: PROMPTS.generateTasks('{{topic}}', '{{searchContext}}'),
+      lightResearchCloud: PROMPTS.lightResearchCloud('{{topic}}', '{{searchContext}}'),
       system: PROMPTS.system,
       ollamaFilter: PROMPTS.ollamaFilter('{{query}}', '{{context}}'),
     };

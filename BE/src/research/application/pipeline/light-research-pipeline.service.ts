@@ -85,9 +85,7 @@ export class LightResearchPipelineService {
       ? opts.customPrompt
           .replaceAll('{{topic}}', topic)
           .replaceAll('{{searchContext}}', searchContext ?? '')
-      : searchPlan.searchMode === SearchMode.RECRUIT && recruitCtx
-        ? PROMPTS.generateTasksForRecruit(topic, recruitCtx)
-        : PROMPTS.generateTasks(topic, searchContext);
+      : PROMPTS.lightResearchCloud(topic, searchContext);
 
     const raw = await this.callAI(model, fullPrompt, opts?.customSystem);
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
@@ -273,10 +271,10 @@ export class LightResearchPipelineService {
 
     const parts = [webContext, recruitCtx].filter(Boolean) as string[];
     const searchContext = parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
-    const fullPrompt = searchPlan.searchMode === SearchMode.RECRUIT && recruitCtx
-      ? PROMPTS.generateTasksForRecruit(topic, recruitCtx)
-      : PROMPTS.generateTasks(topic, searchContext);
-    const promptChars = fullPrompt.length;
+
+    const fullPrompt = PROMPTS.lightResearchCloud(topic, searchContext);
+    
+      const promptChars = fullPrompt.length;
     const approxTokens = Math.round(promptChars / 4);
     const inputCostPer1M = this.aiProvier.getInputCostPer1M(model);
     const estimatedCost = inputCostPer1M != null

@@ -26,6 +26,8 @@ export class AiProviderService {
   ): Promise<string> {
     const useSearch = opts?.useBuiltinSearch ?? false;
 
+    console.log(prompt);
+    
     if (aiModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) {
       return callOllama(aiModel.slice(AI_MODEL_PREFIX.OLLAMA.length), system, prompt);
     }
