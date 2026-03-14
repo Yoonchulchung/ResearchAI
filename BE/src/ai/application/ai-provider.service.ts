@@ -143,6 +143,25 @@ export class AiProviderService {
     return models;
   }
 
+  async getRunningOllamaModels(): Promise<{ name: string; size_vram: number }[]> {
+    const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    const res = await fetch(`${ollamaUrl}/api/ps`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
+    const data = (await res.json()) as { models: { name: string; size_vram: number }[] };
+    return data.models ?? [];
+  }
+
+  async unloadOllamaModel(model: string): Promise<void> {
+    const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    const res = await fetch(`${ollamaUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, keep_alive: 0 }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
+  }
+
   /** 모델별 입력 토큰 단가 ($/1M tokens). null = 알 수 없음/로컬 */
   getInputCostPer1M(model: string): number | null {
     if (model.startsWith(AI_MODEL_PREFIX.OLLAMA)) return null;

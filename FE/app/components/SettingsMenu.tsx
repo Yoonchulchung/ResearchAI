@@ -38,7 +38,6 @@ export function SettingsMenu() {
               className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
             >
               <div className="flex items-center gap-2.5">
-                <span className="text-slate-400">⚙️</span>
                 Overview
               </div>
               <span className="text-xs text-slate-300">⌘,</span>
@@ -49,15 +48,17 @@ export function SettingsMenu() {
               className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
             >
               <div className="flex items-center gap-2.5">
-                <span className="text-slate-400"></span>
                 파이프라인 테스트
               </div>
               <span className="text-xs text-slate-300">›</span>
             </button>
 
-            <button className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-              <span className="text-slate-400">❓</span>
-              도움 받기
+            <button
+              onClick={() => { setShowMenu(false); router.push("/settings/system"); }}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">시스템</div>
+              <span className="text-xs text-slate-300">›</span>
             </button>
           </div>
 

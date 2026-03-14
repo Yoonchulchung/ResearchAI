@@ -1,4 +1,17 @@
-import { API_BASE, readSSE } from "./base";
+import { API_BASE, apiFetch, readSSE } from "./base";
+
+export interface OllamaRunningModel {
+  name: string;
+  size_vram: number;
+}
+
+export async function getRunningOllamaModels(): Promise<OllamaRunningModel[]> {
+  return apiFetch<OllamaRunningModel[]>("/ai/ollama/running");
+}
+
+export async function unloadOllamaModel(model: string): Promise<void> {
+  await apiFetch<void>(`/ai/ollama/unload/${encodeURIComponent(model)}`, { method: "POST" });
+}
 
 export type SummaryEvent =
   | { type: "log"; message: string }
