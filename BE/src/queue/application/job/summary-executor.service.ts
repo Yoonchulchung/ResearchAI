@@ -14,7 +14,7 @@ export class SummaryExecutorService {
 
   async execute(
     sessionId: string,
-    model: string,
+    model: string, 
     onChunk: (chunk: string) => void,
   ): Promise<string> {
     await this.sessionCommandService.updateSummaryState(sessionId, SummaryState.RUNNING);

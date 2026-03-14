@@ -17,6 +17,8 @@ import { LightResearchRepository } from '../../research/domain/repository/light-
 import { DeepResearchExecutorService } from './job/deep-research-executor.service';
 import { LightResearchExecutorService } from './job/light-research-executor.service';
 import { SummaryExecutorService } from './job/summary-executor.service';
+import { QueueJobRepository } from '../domain/repository/queue-job.repository';
+import { QueueJobDbStatus } from '../domain/entity/queue-job.entity';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -42,24 +44,49 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     private readonly deepResearchExecutor: DeepResearchExecutorService,
     private readonly lightResearchExecutor: LightResearchExecutorService,
     private readonly summaryExecutor: SummaryExecutorService,
+    private readonly queueJobRepository: QueueJobRepository,
   ) {}
 
+  // ************* //
+  // 서버 재시작 복구 //
+  // ************* //
   async onModuleInit() {
-    const sessions = await this.sessionQueryService.findAll();
-    const activeResearchStates = [ResearchState.RUNNING, ResearchState.PENDING];
-    const activeSummaryStates = [SummaryState.RUNNING, SummaryState.PENDING];
+    const activeJobs = await this.queueJobRepository.findByStatuses([
+      QueueJobDbStatus.INIT,
+      QueueJobDbStatus.RUNNING,
+    ]);
 
-    await Promise.all(
-      sessions.map(async (session) => {
-        if (activeResearchStates.includes(session.researchState as ResearchState)) {
-          await this.sessionItemCommandService.stopActiveItemsBySession(session.id);
-          await this.sessionCommandService.updateSessionState(session.id, ResearchState.ERROR);
+    for (const entity of activeJobs) {
+      if (entity.taskType === QueueJob.TaskType.DEEPRESEARCH) {
+        // DB 상태를 INIT으로 되돌리고 메모리 큐에 재등록
+        await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.INIT);
+        if (entity.itemId) {
+          await this.sessionItemCommandService.updateStatus(entity.itemId, ResearchState.PENDING);
         }
-        if (session.summaryState && activeSummaryStates.includes(session.summaryState as SummaryState)) {
-          await this.sessionCommandService.updateSummaryState(session.id, SummaryState.ERROR);
-        }
-      }),
-    );
+        this.jobs.push({
+          jobId: entity.jobId,
+          sessionId: entity.sessionId,
+          itemId: entity.itemId ?? '',
+          itemPrompt: entity.itemPrompt ?? '',
+          taskType: QueueJob.TaskType.DEEPRESEARCH,
+          localAIModel: entity.localAIModel ?? '',
+          CloudAIModel: entity.cloudAIModel ?? '',
+          webModel: (entity.webModel ?? SearchEngine.TAVILY) as SearchEngine,
+          status: QueueJobStatus.PENDING,
+        });
+      } else if (entity.taskType === QueueJob.TaskType.SUMMARY) {
+        // Summary는 SSE가 끊겼으므로 Error 처리
+        await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.ERROR);
+        await this.sessionCommandService.updateSummaryState(entity.sessionId, SummaryState.ERROR).catch(() => {});
+      } else if (entity.taskType === QueueJob.TaskType.LIGHTRESEARCH) {
+        // LightResearch는 SSE가 끊겼으므로 Stopped 처리
+        await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.STOPPED);
+      }
+    }
+
+    if (this.jobs.length > 0) {
+      this.runNext();
+    }
   }
 
   onModuleDestroy() {
@@ -155,7 +182,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     this.lightResearchSubjects.set(searchId, new Subject<MessageEvent>());
     this.lightResearchAccumulated.set(searchId, []);
 
-    const job: QueueJob = {
+    await this.pushJob({
       jobId: `light-${searchId}`,
       sessionId: searchId,
       itemId: '',
@@ -166,10 +193,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       webModel: requestBody.webModel,
       searchMode: requestBody.searchMode ?? PlannerMode.AUTO,
       status: QueueJobStatus.PENDING,
-    };
-    this.jobs.push(job);
-    this.runNext();
-    return { searchId, status: 'pending' };
+    });
+    return { searchId, status: QueueJobStatus.PENDING };
   }
 
   getLightResearchStream(searchId: string): Observable<MessageEvent> | null {
@@ -185,7 +210,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     }
     return subject.asObservable();
   }
-  
+
   async enqueueDeepResearch(
     sessionId: string,
     requestBody: EnqueueDeepResearchDto,
@@ -210,7 +235,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         continue;
       }
       await this.sessionItemCommandService.updateStatus(item.itemId, ResearchState.PENDING);
-      const job: QueueJob = {
+      await this.pushJob({
         jobId: `${sessionId}-${item.itemId}-${Date.now()}`,
         sessionId,
         itemId: item.itemId,
@@ -220,14 +245,12 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         CloudAIModel: requestBody.cloudAIModel,
         webModel: session.researchWebModel as SearchEngine,
         status: QueueJobStatus.PENDING,
-      };
-      this.jobs.push(job);
-      this.runNext();
+      });
     }
 
     await this.sessionCommandService.updateSessionState(sessionId, ResearchState.PENDING);
 
-    return { status: 'running', sessionId };
+    return { status: QueueJobStatus.RUNNING, sessionId };
   }
 
   async enqueueSummary(sessionId: string, localAIModel: string): Promise<void> {
@@ -242,7 +265,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     }
 
     await this.sessionCommandService.updateSummaryState(sessionId, SummaryState.PENDING);
-    const job: QueueJob = {
+    await this.pushJob({
       jobId: `${sessionId}-summary-${Date.now()}`,
       sessionId,
       itemId: '',
@@ -251,9 +274,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       localAIModel,
       CloudAIModel: '',
       status: QueueJobStatus.PENDING,
-    };
-    this.jobs.push(job);
-    this.runNext();
+    });
   }
 
   // ********* //
@@ -262,7 +283,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   async stopResearch(sessionId: string): Promise<{ status: string; sessionId: string }> {
     await this.cancelBySession(sessionId);
     await this.sessionItemCommandService.stopActiveItemsBySession(sessionId);
-    return { status: 'stopped', sessionId };
+    return { status: QueueJobStatus.STOPPED, sessionId };
   }
 
   async cancelLightResearch(searchId: string): Promise<void> {
@@ -331,6 +352,23 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   // ***** //
   // 큐 처리 //
   // ***** //
+  private async pushJob(job: QueueJob) {
+    await this.queueJobRepository.save({
+      jobId: job.jobId,
+      sessionId: job.sessionId,
+      itemId: job.itemId,
+      itemPrompt: job.itemPrompt,
+      taskType: job.taskType,
+      localAIModel: job.localAIModel,
+      cloudAIModel: job.CloudAIModel,
+      webModel: job.webModel,
+      searchMode: job.searchMode,
+      jobStatus: QueueJobDbStatus.INIT,
+    });
+    this.jobs.push(job);
+    this.runNext();
+  }
+
   private runNext() {
     if (this.running) return;
     const next = this.jobs.find((j) => j.status === QueueJobStatus.PENDING);
@@ -347,6 +385,11 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     if (idx !== -1) {
       this.jobs[idx] = { ...this.jobs[idx], ...updates };
 
+      if (updates.status) {
+        const dbStatus = this.toDbStatus(updates.status);
+        this.queueJobRepository.updateStatus(jobId, dbStatus).catch(() => {});
+      }
+
       const terminalStatuses = [QueueJobStatus.DONE, QueueJobStatus.ERROR, QueueJobStatus.STOPPED];
       if (updates.status && terminalStatuses.includes(updates.status)) {
         const existing = this.cleanupTimers.get(jobId);
@@ -357,6 +400,16 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         }, QueueService.DONE_JOB_TTL_MS);
         this.cleanupTimers.set(jobId, timer);
       }
+    }
+  }
+
+  private toDbStatus(status: QueueJobStatus): QueueJobDbStatus {
+    switch (status) {
+      case QueueJobStatus.RUNNING: return QueueJobDbStatus.RUNNING;
+      case QueueJobStatus.DONE:    return QueueJobDbStatus.DONE;
+      case QueueJobStatus.ERROR:   return QueueJobDbStatus.ERROR;
+      case QueueJobStatus.STOPPED: return QueueJobDbStatus.STOPPED;
+      default:                     return QueueJobDbStatus.INIT;
     }
   }
 
