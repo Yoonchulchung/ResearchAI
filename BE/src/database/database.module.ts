@@ -8,6 +8,7 @@ import { LightResearchEntity } from '../research/domain/entity/lightsearch.entit
 import { SearchListEntity } from '../research/domain/entity/searchlist.entity';
 import { TokenHistoryEntity } from 'src/overview/domain/entity/token-history.entity';
 import { QueueJobEntity } from '../queue/domain/entity/queue-job.entity';
+import { NewsBriefingEntity } from '../news/domain/entity/news-briefing.entity';
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { QueueJobEntity } from '../queue/domain/entity/queue-job.entity';
       entities: [SessionEntity, SessionItemEntity,
                  ChatEntity, ResearchRecruitEntity,
                  LightResearchEntity, SearchListEntity,
-                 TokenHistoryEntity, QueueJobEntity],
+                 TokenHistoryEntity, QueueJobEntity,
+                 NewsBriefingEntity],
       synchronize: true,
     }),
   ],
