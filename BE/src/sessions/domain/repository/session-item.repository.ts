@@ -54,6 +54,10 @@ export class SessionItemRepository {
     await this.repo.update(id, { researchState: state as any });
   }
 
+  async updateConfidence(id: string, score: number, reason: string): Promise<void> {
+    await this.repo.update(id, { confidenceScore: score, confidenceReason: reason });
+  }
+
   async delete(id: string): Promise<void> {
     const exists = await this.repo.findOne({ where: { id } });
     if (!exists) throw new NotFoundException('SessionItem not found');

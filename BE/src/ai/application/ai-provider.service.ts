@@ -274,6 +274,54 @@ export class AiProviderService {
   }
 
   /**
+   * AI 답변과 검색 컨텍스트를 기반으로 신뢰도를 평가한다.
+   * 파싱 실패 시 오류 이유를 포함한 기본값을 반환한다.
+   */
+  async evaluateConfidence(
+    answer: string,
+    context: string,
+    model: string,
+  ): Promise<{ score: number; reason: string }> {
+    const evalPrompt = `## 역할
+당신은 AI 리서치 답변의 신뢰도를 평가하는 전문가입니다.
+
+## 평가 대상
+### 웹 검색 소스
+${context}
+
+### AI 생성 답변
+${answer}
+
+## 평가 기준
+1. 출처 수와 다양성 (출처가 많고 다양할수록 높음)
+2. 교차 검증 일치도 (여러 소스가 같은 내용을 지지할수록 높음)
+3. 답변 내 불확실 표현 비율 (낮을수록 높음)
+4. 검색 결과와 답변의 직접적 연관성
+
+## 출력 형식
+반드시 아래 JSON만 반환하세요 (마크다운 코드블록 없이 순수 JSON):
+{"score": 0~100 사이 정수, "reason": "점수 근거를 1~2문장으로 한국어 설명"}`;
+
+    let raw = '';
+    try {
+      raw = await this.call(model, '', evalPrompt, { useBuiltinSearch: false });
+      const cleaned = raw
+        .replace(/^```json\s*/m, '')
+        .replace(/^```\s*/m, '')
+        .replace(/```\s*$/m, '')
+        .trim();
+      return JSON.parse(cleaned) as { score: number; reason: string };
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error('[confidence] 파싱 실패:', errMsg, '\nraw:', raw);
+      return {
+        score: 50,
+        reason: `신뢰도 평가 중 오류가 발생했습니다. (${errMsg})${raw ? ` / 원본 응답: ${raw.slice(0, 200)}` : ''}`,
+      };
+    }
+  }
+
+  /**
    * 조사 항목(제목 + 검색 프롬프트)을 AI로 개선한다.
    * JSON 파싱 실패 시 원본 값을 그대로 반환한다.
    */

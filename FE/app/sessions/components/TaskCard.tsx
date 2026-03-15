@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Task, TaskStatus, WebModels } from "@/types";
+import { Task, TaskStatus, WebModels, ModelDefinition } from "@/types";
+import { reEvaluateConfidence } from "@/lib/api/ai";
 
 export type Phase = "searching" | "analyzing";
 
@@ -23,21 +24,48 @@ export function TaskCard({
   phase,
   aiResult,
   webModel,
+  aiModel,
+  models,
   onRun,
   onCancel,
   onDelete,
+  onConfidenceUpdate,
 }: {
   task: Task;
   status: TaskStatus;
   phase?: Phase;
   aiResult?: string;
   webModel?: WebModels;
+  aiModel?: string;
+  models?: ModelDefinition[];
   onRun: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  onConfidenceUpdate?: (confidence: { score: number; reason: string }) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<"result" | "prompt" | WebModelKey>("result");
+  const [activeTab, setActiveTab] = useState<"result" | "prompt" | "detail" | WebModelKey>("result");
+  const [reEvalModel, setReEvalModel] = useState(aiModel ?? "claude-haiku-4-5-20251001");
+  const [reEvalLoading, setReEvalLoading] = useState(false);
+  const [reEvalError, setReEvalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (aiModel) setReEvalModel(aiModel);
+  }, [aiModel]);
+
+  const handleReEvaluate = async () => {
+    if (!task.itemId || reEvalLoading) return;
+    setReEvalLoading(true);
+    setReEvalError(null);
+    try {
+      const confidence = await reEvaluateConfidence(task.itemId, reEvalModel);
+      onConfidenceUpdate?.(confidence);
+    } catch (e) {
+      setReEvalError(e instanceof Error ? e.message : "재평가 실패");
+    } finally {
+      setReEvalLoading(false);
+    }
+  };
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -250,10 +278,148 @@ export function TaskCard({
             >
               프롬프트
             </button>
+            <button
+              onClick={() => setActiveTab("detail")}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-t-lg border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === "detail"
+                  ? "border-indigo-500 text-indigo-700 bg-white"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              📊 상세
+            </button>
           </div>
 
           {/* 탭 콘텐츠 */}
-          {activeTab === "prompt" ? (
+          {activeTab === "detail" ? (
+            <div className="px-5 py-4 bg-slate-50 max-h-[65vh] overflow-y-auto space-y-5">
+              {/* 신뢰도 */}
+              {task.confidence != null ? (() => {
+                const isError = task.confidence.reason.startsWith("신뢰도 평가 중 오류");
+                return (
+                  <section>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">신뢰도 평가</p>
+                    {isError ? (
+                      <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 space-y-1">
+                        <p className="text-xs font-semibold text-red-600">평가 실패</p>
+                        <p className="text-xs text-red-500 leading-relaxed break-all">{task.confidence.reason}</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                task.confidence.score >= 71 ? "bg-green-400"
+                                : task.confidence.score >= 41 ? "bg-amber-400"
+                                : "bg-red-400"
+                              }`}
+                              style={{ width: `${task.confidence.score}%` }}
+                            />
+                          </div>
+                          <span className={`text-sm font-bold tabular-nums ${
+                            task.confidence.score >= 71 ? "text-green-600"
+                            : task.confidence.score >= 41 ? "text-amber-600"
+                            : "text-red-600"
+                          }`}>
+                            {task.confidence.score}%
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed bg-white rounded-lg border border-slate-100 px-3 py-2">
+                          {task.confidence.reason}
+                        </p>
+                      </>
+                    )}
+                  </section>
+                );
+              })() : (
+                <section>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">신뢰도 평가</p>
+                  <p className="text-xs text-slate-400">신뢰도 데이터가 없습니다.</p>
+                </section>
+              )}
+
+              {/* 신뢰도 재평가 */}
+              {task.itemId && status === TaskStatus.DONE && (
+                <section>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">신뢰도 재평가</p>
+                  <div className="flex gap-2 items-center">
+                    {models && models.length > 0 ? (
+                      <select
+                        value={reEvalModel}
+                        onChange={(e) => setReEvalModel(e.target.value)}
+                        className="flex-1 min-w-0 text-xs text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                      >
+                        {models.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name} ({m.provider})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={reEvalModel}
+                        onChange={(e) => setReEvalModel(e.target.value)}
+                        placeholder="모델 ID (예: claude-haiku-4-5-20251001)"
+                        className="flex-1 min-w-0 text-xs text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+                      />
+                    )}
+                    <button
+                      onClick={handleReEvaluate}
+                      disabled={reEvalLoading || !reEvalModel.trim()}
+                      className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {reEvalLoading ? (
+                        <span className="inline-block w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      ) : "재평가"}
+                    </button>
+                  </div>
+                  {reEvalError && (
+                    <p className="mt-1.5 text-xs text-red-500">{reEvalError}</p>
+                  )}
+                </section>
+              )}
+
+              {/* 검색 정보 */}
+              <section>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">검색 정보</p>
+                <div className="bg-white rounded-lg border border-slate-100 divide-y divide-slate-100 text-xs">
+                  <div className="flex items-center px-3 py-2 gap-2">
+                    <span className="text-slate-400 w-20 shrink-0">검색 엔진</span>
+                    <span className="text-slate-700 font-medium">{task.webModel ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center px-3 py-2 gap-2">
+                    <span className="text-slate-400 w-20 shrink-0">연구 상태</span>
+                    <span className="text-slate-700 font-medium">{task.researchState ?? task.status ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center px-3 py-2 gap-2">
+                    <span className="text-slate-400 w-20 shrink-0">항목 ID</span>
+                    <span className="text-slate-500 font-mono">{task.itemId || "—"}</span>
+                  </div>
+                </div>
+              </section>
+
+              {/* 검색 프롬프트 */}
+              <section>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">검색 프롬프트</p>
+                <pre className="text-xs text-slate-600 whitespace-pre-wrap font-mono leading-relaxed bg-white rounded-lg border border-slate-100 px-3 py-2">
+                  {task.webSearchPrompt || "(없음)"}
+                </pre>
+              </section>
+
+              {/* 원본 웹 검색 결과 요약 */}
+              {task.webResult && (
+                <section>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                    웹 검색 원본 <span className="normal-case font-normal text-slate-400">({task.webResult.length.toLocaleString()} chars)</span>
+                  </p>
+                  <pre className="text-xs text-slate-500 whitespace-pre-wrap font-mono leading-relaxed bg-white rounded-lg border border-slate-100 px-3 py-2 max-h-48 overflow-y-auto">
+                    {task.webResult}
+                  </pre>
+                </section>
+              )}
+            </div>
+          ) : activeTab === "prompt" ? (
             <div className="px-5 py-4 bg-slate-50 max-h-[65vh] overflow-y-auto">
               <pre className="text-xs text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
                 {task.webSearchPrompt || "(프롬프트 없음)"}

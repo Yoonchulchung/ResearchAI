@@ -147,17 +147,6 @@ export class DeepResearchPipelineService {
 
   private async evaluateConfidence(answer: string, context: string): Promise<ConfidenceScore> {
     const compressed = this.compressContext(context);
-    const evalPrompt = PROMPTS.confidenceEval(answer, compressed);
-    try {
-      const raw = await this.aiProvider.call(
-        DeepResearchPipelineService.CONFIDENCE_MODEL,
-        '',
-        evalPrompt,
-        { useBuiltinSearch: false },
-      );
-      return JSON.parse(raw) as ConfidenceScore;
-    } catch {
-      return { score: 50, reason: '신뢰도 평가 중 오류가 발생했습니다.' };
-    }
+    return this.aiProvider.evaluateConfidence(answer, compressed, DeepResearchPipelineService.CONFIDENCE_MODEL);
   }
 }

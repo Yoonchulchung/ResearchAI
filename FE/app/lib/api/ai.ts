@@ -38,6 +38,16 @@ export async function chatTasks(
   });
 }
 
+export async function reEvaluateConfidence(
+  itemId: string,
+  model: string,
+): Promise<{ score: number; reason: string }> {
+  return apiFetch("/ai/re-evaluate-confidence", {
+    method: "POST",
+    body: JSON.stringify({ itemId, model }),
+  });
+}
+
 export type SummaryEvent =
   | { type: "log"; message: string }
   | { type: "chunk"; text: string }

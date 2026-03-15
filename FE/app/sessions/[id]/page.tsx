@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { Task } from "@/types";
 import { TaskCard } from "@/sessions/components/TaskCard";
 import { SessionHeader } from "@/sessions/components/SessionHeader";
+import { reEvaluateConfidence } from "@/lib/api/ai";
 import { SessionSkeleton } from "@/sessions/components/SessionSkeleton";
 import { ChatSection } from "@/sessions/components/ChatSection";
 import { SummarySection } from "@/sessions/components/SummarySection";
@@ -66,6 +67,29 @@ export default function SessionPage() {
   const { statuses, phases, aiResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const [showDetail, setShowDetail] = useState(false);
+  const [confidenceOverrides, setConfidenceOverrides] = useState<Record<string, { score: number; reason: string }>>({});
+  const [reEvalProgress, setReEvalProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const handleConfidenceUpdate = useCallback((itemId: string, confidence: { score: number; reason: string }) => {
+    setConfidenceOverrides((prev) => ({ ...prev, [itemId]: confidence }));
+  }, []);
+
+  const handleReEvaluateAll = useCallback(async (model: string) => {
+    if (!session) return;
+    const doneTasks = (session.items ?? []).filter(
+      (t) => !deletedItemIds.has(t.itemId) && (statuses[t.id] ?? t.status) === "done" && t.itemId,
+    );
+    if (doneTasks.length === 0) return;
+    setReEvalProgress({ done: 0, total: doneTasks.length });
+    for (const task of doneTasks) {
+      try {
+        const confidence = await reEvaluateConfidence(task.itemId, model);
+        setConfidenceOverrides((prev) => ({ ...prev, [task.itemId]: confidence }));
+      } catch { /* 개별 실패 무시 */ }
+      setReEvalProgress((prev) => prev ? { ...prev, done: prev.done + 1 } : null);
+    }
+    setReEvalProgress(null);
+  }, [session, statuses, deletedItemIds]);
 
   useEffect(() => { setDeletedItemIds(new Set()); }, [id]);
   useEffect(() => { setShowDetail(false); }, [id]);
@@ -81,6 +105,13 @@ export default function SessionPage() {
   const total = tasks.length;
   const allDone = doneCount === total && total > 0 && !isRunning;
   const hasDoneTasks = doneCount > 0;
+
+  const avgConfidence = (() => {
+    const scores = tasks
+      .map((t) => (confidenceOverrides[t.itemId] ?? t.confidence)?.score)
+      .filter((s): s is number => s !== undefined && s !== null);
+    return scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+  })();
 
   const exportMarkdown = () => {
     const lines = [
@@ -111,10 +142,14 @@ export default function SessionPage() {
         allDone={allDone}
         hasDoneTasks={hasDoneTasks}
         showDetail={showDetail}
+        models={models}
+        reEvalProgress={reEvalProgress}
+        avgConfidence={avgConfidence}
         onRunAll={handleRunAll}
         onCancel={handleCancelAll}
         onExport={exportMarkdown}
         onToggleDetail={() => setShowDetail((v) => !v)}
+        onReEvaluateAll={handleReEvaluateAll}
       />
 
       <div className="flex flex-1 min-h-0">
@@ -126,19 +161,27 @@ export default function SessionPage() {
             </div>
 
             <div className="space-y-3 px-6">
-              {tasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  status={statuses[task.id] ?? "idle"}
-                  phase={phases[task.id]}
-                  aiResult={aiResult[task.id]}
-                  webModel={webModel[task.id]}
-                  onRun={() => handleRunTask(task)}
-                  onCancel={() => handleCancelItem(task)}
-                  onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}
-                />
-              ))}
+              {tasks.map((task) => {
+                const mergedTask = confidenceOverrides[task.itemId]
+                  ? { ...task, confidence: confidenceOverrides[task.itemId] }
+                  : task;
+                return (
+                  <TaskCard
+                    key={task.id}
+                    task={mergedTask}
+                    status={statuses[task.id] ?? "idle"}
+                    phase={phases[task.id]}
+                    aiResult={aiResult[task.id]}
+                    webModel={webModel[task.id]}
+                    aiModel={session.researchCloudAIModel}
+                    models={models}
+                    onRun={() => handleRunTask(task)}
+                    onCancel={() => handleCancelItem(task)}
+                    onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}
+                    onConfidenceUpdate={(c) => handleConfidenceUpdate(task.itemId, c)}
+                  />
+                );
+              })}
             </div>
 
             <ChatSection

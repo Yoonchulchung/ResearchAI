@@ -10,6 +10,10 @@ export class SessionItemCommandService {
     await this.sessionItemRepository.updateStatus(itemId, state);
   }
 
+  async updateConfidence(itemId: string, confidence: { score: number; reason: string }): Promise<void> {
+    await this.sessionItemRepository.updateConfidence(itemId, confidence.score, confidence.reason);
+  }
+
   async stopActiveItemsBySession(sessionId: string): Promise<void> {
     const items = await this.sessionItemRepository.findBySessionId(sessionId);
     const active = items.filter(
