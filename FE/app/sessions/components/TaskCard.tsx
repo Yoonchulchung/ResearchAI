@@ -144,10 +144,10 @@ export function TaskCard({
           background: status === "running" ? "#f0f0ff" : "#fff",
           cursor: status === "idle" || hasContent ? "pointer" : "default",
         }}
-        className="flex items-center gap-3 px-5 py-4"
+        className="flex items-center gap-3 px-5 py-2.5"
       >
         <div className="flex-1 min-w-0">
-          <div className="font-bold text-slate-800 text-sm">
+          <div className="font-medium text-slate-800 text-xs">
             {task.title}
           </div>
           <div className="text-xs text-slate-400 mt-0.5">{animatedText}</div>
@@ -240,14 +240,14 @@ export function TaskCard({
 
           {/* 탭 콘텐츠 */}
           {activeTab === "prompt" ? (
-            <div className="px-5 py-4 bg-slate-50 max-h-150 overflow-y-auto">
+            <div className="px-5 py-4 bg-slate-50 max-h-[65vh] overflow-y-auto">
               <pre className="text-xs text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
                 {task.webSearchPrompt || "(프롬프트 없음)"}
               </pre>
             </div>
           ) : activeTab === "result" ? (
             aiResult ? (
-              <div className="px-5 py-4 bg-slate-50 max-h-150 overflow-y-auto prose prose-sm prose-slate max-w-none
+              <div className="px-5 py-4 bg-slate-50 max-h-[65vh] overflow-y-auto prose prose-sm prose-slate max-w-none
                 [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
                 [&_th]:bg-slate-200 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
                 [&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:border-slate-200
@@ -272,7 +272,7 @@ export function TaskCard({
               </div>
             )
           ) : (
-            <div className="px-5 py-4 bg-slate-50 max-h-150 overflow-y-auto prose prose-sm prose-slate max-w-none
+            <div className="px-5 py-4 bg-slate-50 max-h-[65vh] overflow-y-auto prose prose-sm prose-slate max-w-none
               [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
               [&_th]:bg-slate-200 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
               [&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:border-slate-200
