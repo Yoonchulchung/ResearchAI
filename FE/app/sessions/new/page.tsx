@@ -7,6 +7,7 @@ import { PipelineTerminal } from "@/sessions/components/PipelineTerminal";
 import { useModels } from "./hooks/useModels";
 import { useNewSession } from "./hooks/useNewSession";
 import { JobPostingList } from "./components/JobPostingList";
+import { TaskChatBar } from "./components/TaskChatBar";
 
 export default function NewSession() {
   const { apiModels, localModels, isLoading, models } = useModels();
@@ -29,6 +30,7 @@ export default function NewSession() {
     updateTask,
     removeTask,
     addTask,
+    replaceTasks,
   } = useNewSession(models);
 
   return (
@@ -92,6 +94,8 @@ export default function NewSession() {
           <div ref={taskListRef}>
             <TaskList
               tasks={tasks}
+              topic={topic}
+              model={selectedApiModel}
               onUpdate={updateTask}
               onRemove={removeTask}
               onAdd={addTask}
@@ -111,6 +115,14 @@ export default function NewSession() {
           )}
         </div>
       </div>
+
+      {/* Chat bar — fixed at bottom of main area */}
+      <TaskChatBar
+        topic={topic}
+        model={selectedApiModel}
+        tasks={tasks}
+        onTasksReplace={replaceTasks}
+      />
     </div>
   );
 }

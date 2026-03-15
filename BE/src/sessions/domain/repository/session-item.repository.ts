@@ -35,8 +35,19 @@ export class SessionItemRepository {
     return this.repo.save(item);
   }
 
-  async updateResult(id: string, aiResult: string, webResult: string, state?: ResearchState): Promise<void> {
-    await this.repo.update(id, { aiResult, webResult, ...(state && { researchState: state as any }) });
+  async updateResult(
+    id: string,
+    aiResult: string,
+    webResult: string,
+    state?: ResearchState,
+    confidence?: { score: number; reason: string },
+  ): Promise<void> {
+    await this.repo.update(id, {
+      aiResult,
+      webResult,
+      ...(state && { researchState: state as any }),
+      ...(confidence && { confidenceScore: confidence.score, confidenceReason: confidence.reason }),
+    });
   }
 
   async updateStatus(id: string, state: ResearchState): Promise<void> {

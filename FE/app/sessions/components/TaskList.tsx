@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Task } from "@/types";
+import { improveTask } from "@/lib/api/ai";
 
 const SOURCE_LABEL: Record<string, string> = {
   web: "웹 조사 항목",
@@ -11,18 +12,23 @@ const SOURCE_LABEL: Record<string, string> = {
 
 export function TaskList({
   tasks,
+  topic,
+  model,
   onUpdate,
   onRemove,
   onAdd,
   searchSource,
 }: {
   tasks: Task[];
+  topic?: string;
+  model?: string;
   onUpdate: (idx: number, field: keyof Task, value: string) => void;
   onRemove: (idx: number) => void;
   onAdd: () => void;
   searchSource?: "web" | "recruit" | "both" | null;
 }) {
   const textareaRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+  const [improving, setImproving] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     const els = textareaRefs.current.filter(Boolean) as HTMLTextAreaElement[];
@@ -33,9 +39,24 @@ export function TaskList({
     els.forEach((el) => { el.style.height = `${avg}px`; });
   }, [tasks]);
 
+  const handleImprove = async (idx: number, task: Task) => {
+    if (!topic || !model) return;
+    setImproving((prev) => ({ ...prev, [idx]: true }));
+    try {
+      const result = await improveTask(topic, task.title, task.webSearchPrompt, model);
+      onUpdate(idx, "title", result.title);
+      onUpdate(idx, "webSearchPrompt", result.prompt);
+    } catch {
+      // 실패 시 무시
+    } finally {
+      setImproving((prev) => ({ ...prev, [idx]: false }));
+    }
+  };
+
   if (tasks.length === 0) return null;
 
   const label = searchSource ? SOURCE_LABEL[searchSource] : "조사 항목";
+  const canImprove = !!topic && !!model;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
@@ -60,12 +81,28 @@ export function TaskList({
                   placeholder="항목 제목"
                   className="flex-1 min-w-0 font-semibold text-sm text-slate-800 border-0 focus:outline-none bg-transparent"
                 />
-                <button
-                  onClick={() => onRemove(idx)}
-                  className="text-slate-200 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  {canImprove && (
+                    <button
+                      onClick={() => handleImprove(idx, task)}
+                      disabled={improving[idx]}
+                      title="AI로 항목 개선"
+                      className="text-slate-300 hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-100 disabled:cursor-not-allowed"
+                    >
+                      {improving[idx] ? (
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-indigo-300 border-t-indigo-500 rounded-full animate-spin" />
+                      ) : (
+                        <span className="text-sm">✨</span>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onRemove(idx)}
+                    className="text-slate-200 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               <textarea
                 ref={(el) => { textareaRefs.current[idx] = el; }}

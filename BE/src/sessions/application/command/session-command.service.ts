@@ -49,8 +49,15 @@ export class SessionCommandService {
     return SessionResponseDto.from(session);
   }
 
-  async updateSessionItem(sessionId: string, itemId: string, aiResult: string, webResult: string, status: ResearchState): Promise<void> {
-    await this.sessionItemRepository.updateResult(itemId, aiResult, webResult, status);
+  async updateSessionItem(
+    sessionId: string,
+    itemId: string,
+    aiResult: string,
+    webResult: string,
+    status: ResearchState,
+    confidence?: { score: number; reason: string },
+  ): Promise<void> {
+    await this.sessionItemRepository.updateResult(itemId, aiResult, webResult, status, confidence);
     if (status === ResearchState.DONE) {
       const item = await this.sessionItemRepository.findById(itemId);
       this.vectorService

@@ -13,6 +13,31 @@ export async function unloadOllamaModel(model: string): Promise<void> {
   await apiFetch<void>(`/ai/ollama/unload/${encodeURIComponent(model)}`, { method: "POST" });
 }
 
+export async function improveTask(
+  topic: string,
+  title: string,
+  prompt: string,
+  model: string,
+): Promise<{ title: string; prompt: string }> {
+  return apiFetch<{ title: string; prompt: string }>("/ai/improve-task", {
+    method: "POST",
+    body: JSON.stringify({ topic, title, prompt, model }),
+  });
+}
+
+export async function chatTasks(
+  topic: string,
+  tasks: Array<{ id: number; title: string; icon: string; webSearchPrompt: string }>,
+  message: string,
+  model: string,
+  history: Array<{ role: string; content: string }>,
+): Promise<{ tasks: typeof tasks; reply: string }> {
+  return apiFetch("/ai/chat-tasks", {
+    method: "POST",
+    body: JSON.stringify({ topic, tasks, message, model, history }),
+  });
+}
+
 export type SummaryEvent =
   | { type: "log"; message: string }
   | { type: "chunk"; text: string }

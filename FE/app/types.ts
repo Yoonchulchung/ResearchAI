@@ -9,6 +9,7 @@ export interface Task {
   webResult?: string | null;
   webModel?: string;
   aiResult?: string | null;
+  confidence?: { score: number; reason: string } | null;
 }
 
 export interface WebModels {

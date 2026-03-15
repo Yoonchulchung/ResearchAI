@@ -12,6 +12,8 @@ export interface ItemWithResult extends Task {
   webResult: string | null;
   webModel: string;
   result: string | null;
+  confidenceScore: number | null;
+  confidenceReason: string | null;
 }
 
 export interface Session {

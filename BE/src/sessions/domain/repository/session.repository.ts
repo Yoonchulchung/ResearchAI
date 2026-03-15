@@ -69,6 +69,8 @@ export class SessionRepository {
       webResult: item.webResult || null,
       webModel: row.researchWebModel,
       result: item.aiResult || null,
+      confidenceScore: item.confidenceScore ?? null,
+      confidenceReason: item.confidenceReason ?? null,
     }));
 
     return {

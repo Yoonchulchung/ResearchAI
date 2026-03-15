@@ -162,6 +162,184 @@ export class AiProviderService {
     if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
   }
 
+  /**
+   * AI 에이전트 루프: web_search 도구를 제공하여 AI가 필요 시 검색을 결정하게 함.
+   * - Claude (Anthropic): tool_use API
+   * - OpenAI: function calling API
+   * - Gemini / Ollama: 미지원 (호출 금지)
+   */
+  async runAgenticLoop(
+    aiModel: string,
+    system: string,
+    prompt: string,
+    searchFn: (query: string) => Promise<string>,
+    maxIterations = 5,
+  ): Promise<{ result: string; searchLog: Array<{ query: string; result: string }> }> {
+    const searchLog: Array<{ query: string; result: string }> = [];
+    const provider = getProvider(aiModel);
+
+    if (provider === AIProvider.ANTHROPIC) {
+      const tool: Anthropic.Tool = {
+        name: 'web_search',
+        description: '웹에서 최신 정보를 검색합니다. 학습 데이터에 없는 최신 정보나 특정 사실 확인이 필요한 경우에만 호출하세요.',
+        input_schema: {
+          type: 'object',
+          properties: { query: { type: 'string', description: '검색할 쿼리 (영어 권장)' } },
+          required: ['query'],
+        },
+      };
+      const messages: Anthropic.MessageParam[] = [{ role: 'user', content: prompt }];
+
+      for (let i = 0; i < maxIterations; i++) {
+        const response = await this.anthropic.messages.create({
+          model: aiModel,
+          max_tokens: 8000,
+          system,
+          messages,
+          tools: [tool],
+        });
+
+        if (response.stop_reason === 'end_turn') {
+          const text = response.content.find((c) => c.type === 'text')?.text ?? '';
+          return { result: text, searchLog };
+        }
+
+        const toolUseBlocks = response.content.filter((c): c is Anthropic.ToolUseBlock => c.type === 'tool_use');
+        messages.push({ role: 'assistant', content: response.content });
+
+        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+        for (const toolUse of toolUseBlocks) {
+          const query = (toolUse.input as { query: string }).query;
+          const searchResult = await searchFn(query);
+          searchLog.push({ query, result: searchResult });
+          toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: searchResult });
+        }
+        messages.push({ role: 'user', content: toolResults });
+      }
+
+      // maxIterations 초과 시 마지막 텍스트 반환
+      const lastText =
+        (messages
+          .filter((m) => m.role === 'assistant')
+          .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+          .filter((c): c is Anthropic.TextBlock => typeof c === 'object' && 'type' in c && c.type === 'text')
+          .at(-1)?.text) ?? '';
+      return { result: lastText, searchLog };
+    }
+
+    // OpenAI (function calling)
+    const tool: OpenAI.ChatCompletionTool = {
+      type: 'function',
+      function: {
+        name: 'web_search',
+        description: '웹에서 최신 정보를 검색합니다. 학습 데이터에 없는 최신 정보나 특정 사실 확인이 필요한 경우에만 호출하세요.',
+        parameters: {
+          type: 'object',
+          properties: { query: { type: 'string', description: '검색할 쿼리 (영어 권장)' } },
+          required: ['query'],
+        },
+      },
+    };
+    const messages: OpenAI.ChatCompletionMessageParam[] = [
+      { role: 'system', content: system },
+      { role: 'user', content: prompt },
+    ];
+
+    for (let i = 0; i < maxIterations; i++) {
+      const response = await this.openai.chat.completions.create({
+        model: aiModel,
+        max_tokens: 8000,
+        messages,
+        tools: [tool],
+      });
+
+      const choice = response.choices[0];
+      if (choice.finish_reason !== 'tool_calls') {
+        return { result: choice.message.content ?? '', searchLog };
+      }
+
+      messages.push(choice.message);
+      for (const call of choice.message.tool_calls ?? []) {
+        if (call.type !== 'function') continue;
+        const query = (JSON.parse(call.function.arguments) as { query: string }).query;
+        const searchResult = await searchFn(query);
+        searchLog.push({ query, result: searchResult });
+        messages.push({ role: 'tool', tool_call_id: call.id, content: searchResult });
+      }
+    }
+
+    // maxIterations 초과 시 마지막 assistant 메시지 반환
+    const lastAssistant = messages.filter((m) => m.role === 'assistant').at(-1);
+    return { result: typeof lastAssistant?.content === 'string' ? lastAssistant.content : '', searchLog };
+  }
+
+  /**
+   * 조사 항목(제목 + 검색 프롬프트)을 AI로 개선한다.
+   * JSON 파싱 실패 시 원본 값을 그대로 반환한다.
+   */
+  async improveTask(
+    topic: string,
+    title: string,
+    prompt: string,
+    model: string,
+  ): Promise<{ title: string; prompt: string }> {
+    const evalPrompt = `주제: "${topic}"
+
+현재 조사 항목:
+- 제목: "${title}"
+- 검색 프롬프트: "${prompt}"
+
+위 조사 항목을 더 구체적이고 효과적인 검색을 위해 개선해주세요.
+반드시 아래 JSON 형식으로만 반환하세요 (마크다운 코드블록 없이 순수 JSON):
+{
+  "title": "개선된 제목 (10자 이내, 한국어)",
+  "prompt": "개선된 검색 프롬프트 (영어로, 검색 엔진에 입력할 형태로)"
+}`;
+
+    try {
+      const raw = await this.call(model, '', evalPrompt);
+      return JSON.parse(raw) as { title: string; prompt: string };
+    } catch {
+      return { title, prompt };
+    }
+  }
+
+  /**
+   * 채팅을 통해 조사 항목을 수정한다.
+   * 사용자의 자연어 요청을 파악해 항목 추가/수정/삭제를 수행하고 결과를 반환한다.
+   */
+  async chatTasks(
+    topic: string,
+    tasks: Array<{ id: number; title: string; icon: string; webSearchPrompt: string }>,
+    message: string,
+    model: string,
+    history: Array<{ role: string; content: string }>,
+  ): Promise<{ tasks: typeof tasks; reply: string }> {
+    const historyText = history.length
+      ? history.map((m) => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`).join('\n') + '\n\n'
+      : '';
+
+    const evalPrompt = `리서치 주제: "${topic}"
+
+현재 조사 항목 (JSON):
+${JSON.stringify(tasks.map((t) => ({ id: t.id, title: t.title, icon: t.icon, webSearchPrompt: t.webSearchPrompt })), null, 2)}
+
+${historyText}사용자 요청: ${message}
+
+사용자 요청에 따라 조사 항목을 수정하세요. 항목 추가/수정/삭제 가능합니다.
+새 항목의 id는 기존 최대 id 값보다 큰 정수를 사용하세요.
+반드시 순수 JSON만 반환하세요 (마크다운 코드블록 없이):
+{"tasks": [{"id": <정수>, "title": "제목 (10자 이내)", "icon": "이모지", "webSearchPrompt": "검색 프롬프트 (영어 권장)"}], "reply": "수행한 작업을 한국어로 간결하게"}`;
+
+    try {
+      const raw = await this.call(model, '', evalPrompt, { useBuiltinSearch: false });
+      const cleaned = raw.replace(/^```json\s*/m, '').replace(/^```\s*/m, '').replace(/```\s*$/m, '').trim();
+      return JSON.parse(cleaned) as { tasks: typeof tasks; reply: string };
+    } catch {
+      return { tasks, reply: '처리 중 오류가 발생했습니다.' };
+    }
+  }
+
   /** 모델별 입력 토큰 단가 ($/1M tokens). null = 알 수 없음/로컬 */
   getInputCostPer1M(model: string): number | null {
     if (model.startsWith(AI_MODEL_PREFIX.OLLAMA)) return null;

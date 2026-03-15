@@ -217,6 +217,10 @@ export function useNewSession(models: ModelDefinition[]) {
     setTasks((prev) => [...prev, { id: newId, itemId: "", title: "", icon: "📌", webSearchPrompt: "" }]);
   };
 
+  const replaceTasks = (newTasks: Task[]) => {
+    setTasks(newTasks.map((t) => ({ ...t, itemId: t.itemId ?? "" })));
+  };
+
   return {
     topic, setTopic,
     selectedApiModel, setSelectedApiModel,
@@ -237,5 +241,6 @@ export function useNewSession(models: ModelDefinition[]) {
     updateTask,
     removeTask,
     addTask,
+    replaceTasks,
   };
 }

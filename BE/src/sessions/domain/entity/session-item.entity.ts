@@ -42,6 +42,12 @@ export class SessionItemEntity {
   @Column({ name: 'ai_result', nullable: true })
   aiResult: string;
 
+  @Column({ name: 'confidence_score', type: 'int', nullable: true })
+  confidenceScore: number | null;
+
+  @Column({ name: 'confidence_reason', type: 'text', nullable: true })
+  confidenceReason: string | null;
+
   @Column({ name: 'research_state', type: 'simple-enum', enum: ResearchState, default: ResearchState.IDLE })
   researchState: ResearchState;
 

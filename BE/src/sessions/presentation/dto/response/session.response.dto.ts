@@ -11,6 +11,7 @@ export class ItemResponseDto {
   webResult: string | null;
   webModel: string;
   aiResult: string | null;
+  confidence: { score: number; reason: string } | null;
 
   static from(item: ItemWithResult): ItemResponseDto {
     const dto = new ItemResponseDto();
@@ -24,6 +25,10 @@ export class ItemResponseDto {
     dto.webResult = item.webResult;
     dto.webModel = item.webModel;
     dto.aiResult = item.result;
+    dto.confidence =
+      item.confidenceScore != null
+        ? { score: item.confidenceScore, reason: item.confidenceReason ?? '' }
+        : null;
     return dto;
   }
 }
