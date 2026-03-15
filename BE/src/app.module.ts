@@ -8,6 +8,7 @@ import { OverviewModule } from './overview/overview.module';
 import { QueueModule } from './queue/queue.module';
 import { ChatModule } from './chat/chat.module';
 import { RecruitModule } from './recruit/recruit.module';
+import { NewsModule } from './news/news.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { RecruitModule } from './recruit/recruit.module';
     QueueModule,
     ChatModule,
     RecruitModule,
+    NewsModule,
   ],
 })
 export class AppModule {}

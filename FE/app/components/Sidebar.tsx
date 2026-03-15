@@ -79,7 +79,7 @@ export function Sidebar() {
         <div className="flex flex-col items-center gap-3 py-4">
           {/* Logo icon */}
           <div
-            onClick={() => router.push("/sessions/new")}
+            onClick={() => router.push("/")}
             className="w-8 h-8 bg-slate-400 rounded-lg flex items-center justify-center text-white text-sm font-bold cursor-pointer hover:bg-slate-400 transition-colors"
           >
             AI
@@ -135,7 +135,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-4 py-5 flex items-center justify-between">
         <div
-          onClick={() => router.push("/sessions/new")}
+          onClick={() => router.push("/")}
           className="flex items-center gap-2.5 cursor-pointer group"
         >
           <div className="w-8 h-8 bg-slate-400 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0">
