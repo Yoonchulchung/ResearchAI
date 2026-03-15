@@ -1,4 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import Anthropic from '@anthropic-ai/sdk';
+import { PuppeteerService } from './puppeteer.service';
 
 export interface CountryNewsItem {
   title: string;
@@ -180,6 +182,9 @@ function extractKeywords(texts: string[], limit: number): KeywordItem[] {
 
 @Controller('news')
 export class NewsController {
+  private readonly anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+  constructor(private readonly puppeteer: PuppeteerService) {}
   @Get('google')
   async getGoogleNews(
     @Query('category') category = 'it',
@@ -205,6 +210,45 @@ export class NewsController {
     }
 
     return extractKeywords(allTitles, limit);
+  }
+
+  @Get('summary')
+  async getNewsSummary(): Promise<{ summary: string; generatedAt: string }> {
+    const queries = ['IT AI 기술', '경제 금융 증시', '사회 정치', '국제 세계', '과학 환경'];
+    const results = await Promise.allSettled(queries.map(fetchNewsForQuery));
+
+    const allTitles: string[] = [];
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        allTitles.push(...r.value.map((item) => item.title));
+      }
+    }
+
+    const titleSample = allTitles.slice(0, 30).join('\n');
+
+    const message = await this.anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 800,
+      messages: [
+        {
+          role: 'user',
+          content: `다음은 오늘의 실시간 뉴스 헤드라인 목록이야.
+
+[헤드라인]
+${titleSample}
+
+위 헤드라인을 분석해서 오늘의 주요 뉴스 5개를 뽑아줘.
+각 항목은 아래 형식으로 작성해:
+
+• [구체적 사실]: 실제 기사에 등장한 기업명·인물명·수치·지명 등을 반드시 포함해서 한 문장으로 설명해줘. 검색하면 바로 찾을 수 있을 만큼 구체적으로 써줘.
+
+추상적인 표현("기술 발전", "경제 위기" 등) 없이, 헤드라인에 있는 고유명사와 구체적 내용만 사용해.`,
+        },
+      ],
+    });
+
+    const summary = message.content.find((c): c is Anthropic.TextBlock => c.type === 'text')?.text ?? '';
+    return { summary, generatedAt: new Date().toISOString() };
   }
 
   @Get('conflict-zones')
@@ -240,5 +284,17 @@ export class NewsController {
     return items.slice(0, limit).map(({ title, link, source, pubDate }) => ({
       title, link, source, pubDate,
     }));
+  }
+
+  @Get('article')
+  async getArticleContent(
+    @Query('url') url = '',
+  ): Promise<{ title: string; content: string; image?: string; finalUrl?: string }> {
+    if (!url.trim()) return { title: '', content: '' };
+    try {
+      return await this.puppeteer.fetchArticle(url);
+    } catch {
+      return { title: '', content: '', finalUrl: url };
+    }
   }
 }

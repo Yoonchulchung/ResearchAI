@@ -87,12 +87,123 @@ function Skeleton() {
   );
 }
 
+// ── News Modal ────────────────────────────────────────────────
+function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => void }) {
+  const [content, setContent] = useState("");
+  const [image, setImage] = useState("");
+  const [articleUrl, setArticleUrl] = useState(item.link);
+  const [fetchLoading, setFetchLoading] = useState(true);
+  const [fetchFailed, setFetchFailed] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  useEffect(() => {
+    setFetchLoading(true);
+    setFetchFailed(false);
+    fetch(`http://localhost:3001/api/news/article?url=${encodeURIComponent(item.link)}`)
+      .then((r) => r.json())
+      .then((data: { title: string; content: string; image?: string; finalUrl?: string }) => {
+        setContent(data.content || item.description || "");
+        setImage(data.image || "");
+        setArticleUrl(data.finalUrl || item.link);
+      })
+      .catch(() => {
+        setContent(item.description || "");
+        setFetchFailed(true);
+      })
+      .finally(() => setFetchLoading(false));
+  }, [item]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl flex flex-col max-h-[95vh]">
+        {/* Modal header */}
+        <div className="flex items-start justify-between gap-3 p-5 border-b border-slate-100">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-blue-600 mb-1">{item.source}</p>
+            <h3 className="text-sm font-bold text-slate-800 leading-snug">{item.title}</h3>
+            {item.pubDate && (
+              <p className="text-[10px] text-slate-400 mt-1">
+                {new Date(item.pubDate).toLocaleDateString("ko-KR", {
+                  year: "numeric", month: "long", day: "numeric",
+                  hour: "2-digit", minute: "2-digit",
+                })}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 transition-colors shrink-0 text-lg leading-none"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Modal body */}
+        <div className="p-5 overflow-y-auto flex-1">
+          {fetchLoading ? (
+            <div className="space-y-2.5">
+              {[...Array(7)].map((_, i) => (
+                <div key={i} className={`h-3 bg-slate-100 rounded animate-pulse ${i % 4 === 3 ? "w-2/3" : "w-full"}`} />
+              ))}
+            </div>
+          ) : (
+            <>
+              {image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={image} alt="" className="w-full rounded-xl object-cover max-h-52 mb-4" />
+              )}
+              {fetchFailed && (
+                <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-1.5 mb-3">
+                  이 사이트는 외부 접근을 차단합니다. RSS 요약을 표시합니다.
+                </p>
+              )}
+              {content ? (
+                <div className="space-y-3">
+                  {content.split("\n\n").map((para, i) => (
+                    <p key={i} className="text-sm text-slate-600 leading-relaxed">{para}</p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400 text-center py-8">
+                  본문을 가져올 수 없습니다.<br />
+                  <span className="text-[11px]">원문 보기에서 직접 확인해주세요.</span>
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Modal footer */}
+        <div className="p-4 border-t border-slate-100 flex justify-end">
+          <a
+            href={articleUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-semibold text-white bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded-lg transition-colors"
+          >
+            원문 보기 →
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Google News panel ─────────────────────────────────────────
 function GoogleNewsPanel() {
   const [items, setItems] = useState<GoogleNewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [category, setCategory] = useState<GoogleNewsCategory>("it");
+  const [modalItem, setModalItem] = useState<GoogleNewsItem | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -109,6 +220,8 @@ function GoogleNewsPanel() {
 
   return (
     <>
+      {modalItem && <NewsModal item={modalItem} onClose={() => setModalItem(null)} />}
+
       <div className="flex gap-1 mb-3 flex-wrap">
         {GOOGLE_NEWS_CATEGORIES.map((c) => (
           <button
@@ -133,11 +246,10 @@ function GoogleNewsPanel() {
       ) : (
         <div className="space-y-0.5 overflow-y-auto flex-1">
           {items.map((item, i) => (
-            <a
+            <button
               key={item.link + i}
-              href={item.link}
-              target="_blank" rel="noopener noreferrer"
-              className="group flex gap-2.5 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+              onClick={() => setModalItem(item)}
+              className="group flex gap-2.5 p-2 rounded-lg hover:bg-blue-50 transition-colors w-full text-left"
             >
               <span className="text-[10px] text-slate-300 font-bold w-4 shrink-0 pt-0.5 text-right">{i + 1}</span>
               <div className="flex-1 min-w-0">
@@ -156,7 +268,7 @@ function GoogleNewsPanel() {
                   )}
                 </div>
               </div>
-            </a>
+            </button>
           ))}
         </div>
       )}
