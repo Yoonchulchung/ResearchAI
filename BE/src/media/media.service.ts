@@ -1,10 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+export enum MediaType {
+  IMAGE = 'image',
+  PDF = 'pdf',
+  DOCX = 'docx',
+}
+
+export enum MimeType {
+  JPEG = 'image/jpeg',
+  JPG = 'image/jpg',
+  PNG = 'image/png',
+  PDF = 'application/pdf',
+  DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  DOC = 'application/msword',
+}
+
 export interface ParsedMedia {
   filename: string;
   mimetype: string;
   size: number;
-  type: 'image' | 'pdf' | 'docx';
+  type: MediaType;
   /** 이미지: base64 dataUrl, PDF/DOCX: undefined */
   dataUrl?: string;
   /** PDF/DOCX: 추출된 텍스트 */
@@ -25,13 +40,10 @@ export class MediaService {
     if (mimetype.startsWith('image/')) {
       return this.parseImage(originalname, mimetype, size, buffer);
     }
-    if (mimetype === 'application/pdf') {
+    if (mimetype === MimeType.PDF) {
       return this.parsePdf(originalname, mimetype, size, buffer);
     }
-    if (
-      mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      mimetype === 'application/msword'
-    ) {
+    if (mimetype === MimeType.DOCX || mimetype === MimeType.DOC) {
       return this.parseDocx(originalname, mimetype, size, buffer);
     }
 
@@ -46,7 +58,7 @@ export class MediaService {
   ): ParsedMedia {
     const base64 = buffer.toString('base64');
     const dataUrl = `data:${mimetype};base64,${base64}`;
-    return { filename, mimetype, size, type: 'image', dataUrl };
+    return { filename, mimetype, size, type: MediaType.IMAGE, dataUrl };
   }
 
   private async parsePdf(
@@ -62,7 +74,7 @@ export class MediaService {
       filename,
       mimetype,
       size,
-      type: 'pdf',
+      type: MediaType.PDF,
       text: result.text ?? '',
       pageCount: result.numpages ?? 0,
     };
@@ -81,7 +93,7 @@ export class MediaService {
       filename,
       mimetype,
       size,
-      type: 'docx',
+      type: MediaType.DOCX,
       text: result.value ?? '',
     };
   }

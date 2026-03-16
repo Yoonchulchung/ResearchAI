@@ -1,22 +1,13 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import { ModelDefinition } from "@/types";
+import { MediaType, MimeType, ModelDefinition } from "@/types";
 
 // ─── 허용 파일 타입 ────────────────────────────────────────────────────────────
-const ACCEPT_IMAGE = ["image/jpeg", "image/jpg", "image/png"];
-const ACCEPT_DOC = [
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/msword",
-];
+const ACCEPT_IMAGE = [MimeType.JPEG, MimeType.JPG, MimeType.PNG];
+const ACCEPT_DOC = [MimeType.PDF, MimeType.DOCX, MimeType.DOC];
 const ACCEPT_ALL = [...ACCEPT_IMAGE, ...ACCEPT_DOC];
 
-function getFileIcon(mimetype: string) {
-  if (mimetype.startsWith("image/")) return "🖼️";
-  if (mimetype === "application/pdf") return "📄";
-  return "📝";
-}
 
 // ─── 업로드된 파일 타입 ────────────────────────────────────────────────────────
 export interface AttachedFile {
@@ -24,7 +15,7 @@ export interface AttachedFile {
   file: File;
   mimetype: string;
   parsed?: {
-    type: "image" | "pdf" | "docx";
+    type: MediaType;
     text?: string;
     pageCount?: number;
     dataUrl?: string;
@@ -32,6 +23,85 @@ export interface AttachedFile {
   };
   uploading: boolean;
   error?: string;
+}
+
+// ─── 이미지 미리보기 칩 ────────────────────────────────────────────────────────
+function ImageChip({ af, onRemove }: { af: AttachedFile; onRemove: () => void }) {
+  const [src, setSrc] = useState<string>("");
+
+  useEffect(() => {
+    const url = URL.createObjectURL(af.file);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [af.file]);
+
+  return (
+    <div className="relative group w-16 h-16 shrink-0 rounded-xl overflow-hidden border border-slate-200">
+      {src && <img src={src} alt={af.file.name} className="w-full h-full object-cover" />}
+      {af.uploading && (
+        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+          <span className="animate-spin text-white text-sm">◌</span>
+        </div>
+      )}
+      {af.error && (
+        <div className="absolute inset-0 bg-red-500/40 flex items-center justify-center">
+          <span className="text-white text-xs">⚠</span>
+        </div>
+      )}
+      <button
+        onClick={onRemove}
+        className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/50 hover:bg-black/70 text-white rounded-full text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+// ─── PDF / DOCX 칩 ────────────────────────────────────────────────────────────
+function DocChip({ af, onRemove }: { af: AttachedFile; onRemove: () => void }) {
+  const isPdf = (af.parsed?.type ?? (af.mimetype === "application/pdf" ? MediaType.PDF : MediaType.DOCX)) === MediaType.PDF;
+  const nameWithoutExt = af.file.name.replace(/\.[^.]+$/, "");
+
+  return (
+    <div
+      className={`flex items-center gap-2 pl-2 pr-2.5 py-2 rounded-xl border max-w-48 ${
+        af.error
+          ? "bg-red-50 border-red-200"
+          : "bg-slate-50 border-slate-200"
+      }`}
+    >
+      {/* 아이콘 */}
+      <div
+        className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-[10px] font-bold text-white ${
+          isPdf ? "bg-red-500" : "bg-blue-500"
+        }`}
+      >
+        {isPdf ? "PDF" : "DOC"}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium text-slate-700 truncate leading-tight">{nameWithoutExt}</p>
+        <p className="text-[10px] text-slate-400 leading-tight">{isPdf ? "PDF" : "Word"}</p>
+      </div>
+
+      <div className="flex flex-col items-end gap-0.5 shrink-0">
+        {af.uploading ? (
+          <span className="animate-spin text-slate-400 text-xs">◌</span>
+        ) : af.error ? (
+          <span className="text-red-400 text-xs">⚠</span>
+        ) : (
+          <span className="text-green-500 text-xs">✓</span>
+        )}
+        <button
+          onClick={onRemove}
+          className="text-slate-300 hover:text-slate-500 text-[10px] leading-none"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ─── + 버튼 드롭다운 ───────────────────────────────────────────────────────────
@@ -67,7 +137,7 @@ function UploadDropdown({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []).filter((f) =>
-      ACCEPT_ALL.includes(f.type)
+      ACCEPT_ALL.includes(f.type as MimeType)
     );
     if (files.length > 0) {
       onFilesSelected(files);
@@ -244,34 +314,13 @@ export function TopicInput({
       {/* 첨부 파일 칩 목록 */}
       {attachedFiles && attachedFiles.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">
-          {attachedFiles.map((af) => (
-            <div
-              key={af.id}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border ${
-                af.error
-                  ? "bg-red-50 border-red-200 text-red-600"
-                  : "bg-slate-50 border-slate-200 text-slate-600"
-              }`}
-            >
-              <span>{getFileIcon(af.mimetype)}</span>
-              <span className="max-w-28 truncate">{af.file.name}</span>
-              <span>
-                {af.uploading ? (
-                  <span className="animate-spin inline-block text-xs text-slate-400">◌</span>
-                ) : af.error ? (
-                  <span className="text-red-400">⚠</span>
-                ) : (
-                  <span className="text-green-500">✓</span>
-                )}
-              </span>
-              <button
-                onClick={() => removeFile(af.id)}
-                className="text-slate-300 hover:text-slate-500 ml-0.5"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+          {attachedFiles.map((af) =>
+            af.mimetype.startsWith("image/") ? (
+              <ImageChip key={af.id} af={af} onRemove={() => removeFile(af.id)} />
+            ) : (
+              <DocChip key={af.id} af={af} onRemove={() => removeFile(af.id)} />
+            )
+          )}
         </div>
       )}
 

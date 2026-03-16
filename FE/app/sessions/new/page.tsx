@@ -1,15 +1,17 @@
 "use client";
 
-import { TopicInput } from "@/components/TopicInput";
+import { TopicInput, AttachedFile } from "@/components/TopicInput";
 import { ModelSelector } from "@/components/ModelSelector";
 import { TaskList } from "@/sessions/components/TaskList";
 import { PipelineTerminal } from "@/sessions/components/PipelineTerminal";
+import { useState } from "react";
 import { useModels } from "./hooks/useModels";
 import { useNewSession } from "./hooks/useNewSession";
 import { JobPostingList } from "./components/JobPostingList";
 import { TaskChatBar } from "./components/TaskChatBar";
 
 export default function NewSession() {
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const { apiModels, localModels, isLoading, models } = useModels();
   const {
     topic, setTopic,
@@ -72,6 +74,8 @@ export default function NewSession() {
             onApiModelChange={setSelectedApiModel}
             onLocalModelChange={setSelectedLocalModel}
             dropdownDirection="down"
+            attachedFiles={attachedFiles}
+            onAttachedFilesChange={setAttachedFiles}
           />
 
           {/* Terminal log */}

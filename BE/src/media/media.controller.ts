@@ -7,15 +7,15 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { MediaService, ParsedMedia } from './media.service';
+import { MediaService, MimeType, ParsedMedia } from './media.service';
 
-const ALLOWED_MIMETYPES = [
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'application/pdf',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/msword',
+const ALLOWED_MIMETYPES: MimeType[] = [
+  MimeType.JPEG,
+  MimeType.JPG,
+  MimeType.PNG,
+  MimeType.PDF,
+  MimeType.DOCX,
+  MimeType.DOC,
 ];
 
 const MAX_SIZE_MB = 20;

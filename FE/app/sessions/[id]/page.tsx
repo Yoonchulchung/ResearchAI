@@ -10,7 +10,7 @@ import { SessionSkeleton } from "@/sessions/components/SessionSkeleton";
 import { ChatSection } from "@/sessions/components/ChatSection";
 import { SummarySection } from "@/sessions/components/SummarySection";
 import { DetailPanel } from "@/sessions/components/DetailPanel";
-import { TopicInput } from "@/components/TopicInput";
+import { TopicInput, AttachedFile } from "@/components/TopicInput";
 import { ModelDefinition } from "@/types";
 import { useSessionData } from "./hooks/useSessionData";
 import { useTaskRunner } from "./hooks/useTaskRunner";
@@ -32,6 +32,7 @@ const ChatInputArea = memo(function ChatInputArea({
 }) {
   const [value, setValue] = useState("");
   const [selectedModel, setSelectedModel] = useState(defaultModel);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
 
   useEffect(() => { setSelectedModel(defaultModel); }, [defaultModel]);
 
@@ -57,6 +58,8 @@ const ChatInputArea = memo(function ChatInputArea({
       onApiModelChange={setSelectedModel}
       onLocalModelChange={setSelectedModel}
       dropdownDirection="up"
+      attachedFiles={attachedFiles}
+      onAttachedFilesChange={setAttachedFiles}
     />
   );
 });

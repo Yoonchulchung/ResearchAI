@@ -20,6 +20,21 @@ export interface WebModels {
   ollama?: string;
 }
 
+export enum MediaType {
+  IMAGE = "image",
+  PDF = "pdf",
+  DOCX = "docx",
+}
+
+export enum MimeType {
+  JPEG = "image/jpeg",
+  JPG = "image/jpg",
+  PNG = "image/png",
+  PDF = "application/pdf",
+  DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  DOC = "application/msword",
+}
+
 export enum TaskStatus {
   IDLE = "idle",
   PENDING = "pending",
