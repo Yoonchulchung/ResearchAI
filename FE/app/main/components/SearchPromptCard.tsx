@@ -7,8 +7,12 @@ export function SearchPromptCard() {
   const router = useRouter();
   const [topic, setTopic] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSearch = () => {
+    if (!topic.trim()) return;
+    router.push(`/main/search?q=${encodeURIComponent(topic.trim())}`);
+  };
+
+  const handleStart = () => {
     if (!topic.trim()) return;
     sessionStorage.setItem("dashboard-topic", topic.trim());
     router.push("/sessions/new");
@@ -17,7 +21,7 @@ export function SearchPromptCard() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e as unknown as React.FormEvent);
+      handleSearch();
     }
   };
 
@@ -30,7 +34,7 @@ export function SearchPromptCard() {
       <p className="text-indigo-200 text-xs mb-4">
         조사할 주제를 입력하면 AI가 항목을 자동 생성합니다
       </p>
-      <form onSubmit={handleSubmit} className="flex gap-2">
+      <div className="flex gap-2">
         <input
           type="text"
           value={topic}
@@ -40,13 +44,20 @@ export function SearchPromptCard() {
           className="flex-1 px-4 py-2.5 text-sm rounded-xl bg-white/10 border border-white/20 placeholder-indigo-300 text-white focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-white/40 backdrop-blur-sm"
         />
         <button
-          type="submit"
+          onClick={handleSearch}
           disabled={!topic.trim()}
-          className="bg-white text-indigo-700 font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+          className="bg-white/20 border border-white/30 text-white font-semibold px-4 py-2.5 rounded-xl text-sm hover:bg-white/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+        >
+          검색
+        </button>
+        <button
+          onClick={handleStart}
+          disabled={!topic.trim()}
+          className="bg-white text-indigo-700 font-semibold px-4 py-2.5 rounded-xl text-sm hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
         >
           시작하기
         </button>
-      </form>
+      </div>
     </div>
   );
 }

@@ -132,4 +132,57 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
       await page.close();
     }
   }
+
+  async searchGoogle(query: string, limit = 8): Promise<{ title: string; url: string; snippet: string }[]> {
+    if (!this.browser) throw new Error('Browser not initialized');
+
+    const page: Page = await this.browser.newPage();
+    try {
+      await page.setUserAgent(
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      );
+      await page.setExtraHTTPHeaders({ 'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8' });
+
+      // DuckDuckGo HTML 버전 사용 (bot 차단 없음)
+      const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=kr-kr`;
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+      await page.waitForSelector('.result', { timeout: 8000 }).catch(() => {});
+
+      const results = await page.evaluate((maxItems: number) => {
+        const items: { title: string; url: string; snippet: string }[] = [];
+
+        const blocks = Array.from(document.querySelectorAll('.result'));
+        for (const block of blocks) {
+          if (items.length >= maxItems) break;
+
+          const anchor = block.querySelector('.result__a') as HTMLAnchorElement | null;
+          const snippetEl = block.querySelector('.result__snippet');
+
+          const title = anchor?.textContent?.trim() ?? '';
+          // DuckDuckGo는 href가 /l/?uddg=... 형태 → data-href 혹은 실제 href 추출
+          const rawHref = anchor?.getAttribute('href') ?? '';
+          let rawUrl = '';
+          if (rawHref.startsWith('http')) {
+            rawUrl = rawHref;
+          } else {
+            // /l/?uddg=<encoded-url> 에서 실제 URL 추출
+            const match = rawHref.match(/uddg=([^&]+)/);
+            rawUrl = match ? decodeURIComponent(match[1]) : '';
+          }
+
+          const snippet = snippetEl?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+
+          if (!title || !rawUrl || rawUrl.includes('duckduckgo.com')) continue;
+
+          items.push({ title, url: rawUrl, snippet });
+        }
+        return items;
+      }, limit);
+
+      this.logger.log(`searchGoogle(DDG): query="${query}" results=${results.length}`);
+      return results;
+    } finally {
+      await page.close();
+    }
+  }
 }

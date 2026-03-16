@@ -104,6 +104,18 @@ export function Sidebar() {
           >
             +
           </button>
+          {/* Doc parse icon */}
+          <button
+            onClick={() => router.push("/doc-parse")}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors ${
+              pathname === "/doc-parse"
+                ? "bg-indigo-600 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+            title="문서 파싱"
+          >
+            📄
+          </button>
         </div>
         {/* Session dots */}
         <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1.5 py-2 min-h-0">
@@ -159,7 +171,7 @@ export function Sidebar() {
       </div>
 
       {/* New session button */}
-      <div className="px-3 py-3">
+      <div className="px-3 pt-3 pb-1.5">
         <button
           onClick={() => router.push("/sessions/new")}
           className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
@@ -170,6 +182,21 @@ export function Sidebar() {
         >
           <span className="text-base leading-none">+</span>
           새 리서치
+        </button>
+      </div>
+
+      {/* Doc parse button */}
+      <div className="px-3 pb-3">
+        <button
+          onClick={() => router.push("/doc-parse")}
+          className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+            pathname === "/doc-parse"
+              ? "bg-indigo-600 text-white"
+              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          }`}
+        >
+          <span className="text-base leading-none">📄</span>
+          문서 파싱
         </button>
       </div>
 

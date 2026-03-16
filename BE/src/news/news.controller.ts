@@ -1,9 +1,15 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { NewsService, NewsItem, CountryNewsItem, KeywordItem, ConflictZone } from './application/service/news.service';
+import { MarketService, MarketItem, ChartPoint } from './application/service/market.service';
+import { PuppeteerService } from './puppeteer.service';
 
 @Controller('news')
 export class NewsController {
-  constructor(private readonly newsService: NewsService) {}
+  constructor(
+    private readonly newsService: NewsService,
+    private readonly marketService: MarketService,
+    private readonly puppeteerService: PuppeteerService,
+  ) {}
 
   @Get('google')
   async getGoogleNews(@Query('category') category = 'it'): Promise<NewsItem[]> {
@@ -35,6 +41,19 @@ export class NewsController {
     return this.newsService.getHfSummary(category);
   }
 
+  @Get('market')
+  async getMarketData(): Promise<MarketItem[]> {
+    return this.marketService.getMarketData();
+  }
+
+  @Get('market-chart')
+  async getMarketChart(
+    @Query('symbol') symbol = '^KS11',
+    @Query('range') range = '1mo',
+  ): Promise<ChartPoint[]> {
+    return this.marketService.getMarketChart(symbol, range);
+  }
+
   @Get('conflict-zones')
   async getConflictZones(): Promise<ConflictZone[]> {
     return this.newsService.getConflictZones();
@@ -54,5 +73,15 @@ export class NewsController {
     @Query('url') url = '',
   ): Promise<{ title: string; content: string; image?: string; finalUrl?: string }> {
     return this.newsService.getArticleContent(url);
+  }
+
+  @Get('search')
+  async search(
+    @Query('q') q = '',
+    @Query('limit') limitStr = '8',
+  ): Promise<{ title: string; url: string; snippet: string }[]> {
+    if (!q.trim()) return [];
+    const limit = Math.min(parseInt(limitStr, 10) || 8, 20);
+    return this.puppeteerService.searchGoogle(q, limit);
   }
 }

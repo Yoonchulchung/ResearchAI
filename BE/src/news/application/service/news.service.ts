@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { createHash } from 'crypto';
 import { AiProviderService } from '../../../ai/application/ai-provider.service';
 import { PuppeteerService } from '../../puppeteer.service';
 import { NewsBriefingEntity } from '../../domain/entity/news-briefing.entity';
@@ -175,6 +174,8 @@ function detectConflictCountries(titles: string[]): ConflictZone[] {
     .sort((a, b) => b.score - a.score);
 }
 
+export type { MarketItem, ChartPoint } from './market.service';
+
 interface GHRepo {
   full_name: string;
   description: string | null;
@@ -208,16 +209,15 @@ export class NewsService {
 
   private async getCachedOrGenerate(
     cacheKey: string,
-    hashSource: string,
+    _hashSource: string,
     prompt: string,
   ): Promise<{ summary: string; generatedAt: string; cached: boolean }> {
-    const hash = createHash('sha256').update(hashSource).digest('hex').slice(0, 16);
     const cached = await this.briefingRepo.findOneBy({ date: cacheKey });
-    if (cached && cached.titlesHash === hash) {
+    if (cached) {
       return { summary: cached.summary, generatedAt: cached.updatedAt.toISOString(), cached: true };
     }
     const summary = await this.aiProvider.call('claude-haiku-4-5-20251001', '', prompt);
-    await this.briefingRepo.save({ date: cacheKey, titlesHash: hash, summary });
+    await this.briefingRepo.save({ date: cacheKey, titlesHash: '', summary });
     return { summary, generatedAt: new Date().toISOString(), cached: false };
   }
 
