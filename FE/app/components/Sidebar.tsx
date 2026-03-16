@@ -28,6 +28,8 @@ function StatusDot({ status }: { status: "idle" | "partial" | "done" }) {
 }
 
 
+const COLLAPSE_BREAKPOINT = 1024; // px — 이 너비 이하에서 자동 축소
+
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -35,6 +37,16 @@ export function Sidebar() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // 반응형: 창 너비에 따라 자동 축소/확장
+  useEffect(() => {
+    const handleResize = () => {
+      setCollapsed(window.innerWidth < COLLAPSE_BREAKPOINT);
+    };
+    handleResize(); // 초기 실행
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const fetchSessions = useCallback(() => {
     getSessions().then(setSessions).catch(() => {});
@@ -157,7 +169,7 @@ export function Sidebar() {
             <div className="text-sm font-bold text-slate-800 leading-tight">
               AI 리서치
             </div>
-            <div className="text-[10px] text-slate-400">Research System</div>
+            <div className="text-2xs text-slate-400">Research System</div>
           </div>
         </div>
         {/* Collapse button */}
@@ -176,11 +188,10 @@ export function Sidebar() {
           onClick={() => router.push("/sessions/new")}
           className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
             pathname === "/sessions/new"
-              ? "bg-slate-400 text-white"
-              : "bg-slate-200 text-indigo-700 hover:bg-indigo-100"
+              ? "bg-indigo-600 text-white"
+              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
           }`}
         >
-          <span className="text-base leading-none">+</span>
           새 리서치
         </button>
       </div>
@@ -195,7 +206,6 @@ export function Sidebar() {
               : "bg-slate-100 text-slate-600 hover:bg-slate-200"
           }`}
         >
-          <span className="text-base leading-none">📄</span>
           문서 파싱
         </button>
       </div>
@@ -226,7 +236,7 @@ export function Sidebar() {
           </div>
         ) : (
           <div className="space-y-0.5 px-2">
-            <div className="px-2 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="px-2 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">
               리서치 목록 ({filteredSessions.length}{searchQuery ? `/${sessions.length}` : ""})
             </div>
             <QueueWidget />
@@ -255,7 +265,7 @@ export function Sidebar() {
                     >
                       {s.topic}
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">
+                    <div className="text-xs text-slate-400 mt-0.5">
                       {formatDate(s.createdAt)}
                       {done > 0 && ` · ${done}완료`}
                     </div>

@@ -79,6 +79,23 @@ const COUNTRY_INFO: Record<string, { name: string; query: string; warNote?: stri
   "368": { name: "이라크", query: "Iraq news 2025" },
 };
 
+// ─── 폰트 크기 개별 조정 ─────────────────────────────────────────────────────
+const FONT = {
+  cardTitle:       'text-base',   // "글로벌 뉴스 지도"
+  conflictBadge:   'text-sm',    // "N개 분쟁 지역 감지"
+  legend:          'text-xs',    // 범례 레이블
+  tooltip:         'text-xs',    // 툴팁 국가명
+  tooltipNote:     'text-2xs',   // 툴팁 분쟁 설명
+  tooltipHeadline: 'text-micro', // 툴팁 헤드라인
+  sectionTitle:    'text-sm',    // 선택 국가 뉴스 제목
+  warNote:         'text-sm',    // 분쟁 설명
+  researchBtn:     'text-xs2',   // "+ 리서치 시작" 버튼
+  newsTitle:       'text-xs2',   // 뉴스 카드 제목
+  newsMeta:        'text-xs',    // 뉴스 출처·날짜
+  emptyState:      'text-xs',    // "뉴스를 불러올 수 없습니다"
+} as const;
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface CountryNewsItem {
   title: string;
   link: string;
@@ -188,25 +205,25 @@ export function WorldMapCard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-bold text-slate-700">글로벌 뉴스 지도</h2>
+          <h2 className={`${FONT.cardTitle} font-bold text-slate-700`}>글로벌 뉴스 지도</h2>
           {conflictLoading && (
-            <span className="text-[10px] text-slate-400 animate-pulse">분쟁 분석 중...</span>
+            <span className="text-2xs text-slate-400 animate-pulse">분쟁 분석 중...</span>
           )}
           {!conflictLoading && conflictMap.size > 0 && (
-            <span className="text-[10px] text-red-500 font-semibold">{conflictMap.size}개 분쟁 지역 감지</span>
+            <span className={`${FONT.conflictBadge} text-red-500 font-semibold`}>{conflictMap.size}개 분쟁 지역 감지</span>
           )}
         </div>
-        <div className="flex items-center gap-3 text-[10px] text-slate-500">
-          <span className="flex items-center gap-1">
+        <div className="flex items-center gap-3 text-slate-500">
+          <span className={`flex items-center gap-1 ${FONT.legend}`}>
             <span className="w-3 h-3 rounded-sm bg-red-300 inline-block" /> 전쟁·분쟁 지역
           </span>
-          <span className="flex items-center gap-1">
+          <span className={`flex items-center gap-1 ${FONT.legend}`}>
             <span className="w-3 h-3 rounded-sm bg-indigo-200 inline-block" /> 클릭 가능
           </span>
           {selected && (
             <button
               onClick={() => { setSelected(null); setNews([]); }}
-              className="text-slate-400 hover:text-slate-600 transition-colors"
+              className="font-xs2 text-slate-400 hover:text-slate-600 transition-colors"
             >
               ✕ 닫기
             </button>
@@ -256,15 +273,15 @@ export function WorldMapCard() {
         {/* Tooltip */}
         {tooltip && (
           <div
-            className="pointer-events-none absolute z-20 bg-slate-800 text-white text-xs px-2.5 py-1.5 rounded-lg shadow-lg max-w-56"
+            className={`pointer-events-none absolute z-20 bg-slate-800 text-white ${FONT.tooltip} px-2.5 py-1.5 rounded-lg shadow-lg max-w-56`}
             style={{ left: tooltip.x + 12, top: tooltip.y - 40 }}
           >
             <p className="font-semibold">{tooltip.name}</p>
             {tooltip.warNote && (
-              <p className="text-red-300 text-[10px] mt-0.5">⚔️ {tooltip.warNote}</p>
+              <p className={`text-red-300 ${FONT.tooltipNote} mt-0.5`}>⚔️ {tooltip.warNote}</p>
             )}
             {tooltip.headlines && tooltip.headlines.length > 0 && (
-              <p className="text-slate-300 text-[9px] mt-1 line-clamp-2 leading-snug">{tooltip.headlines[0]}</p>
+              <p className={`text-slate-300 ${FONT.tooltipHeadline} mt-1 line-clamp-2 leading-snug`}>{tooltip.headlines[0]}</p>
             )}
           </div>
         )}
@@ -275,12 +292,11 @@ export function WorldMapCard() {
         <div className="mt-4 border-t border-slate-100 pt-4">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                {selected.warNote && <span className="text-red-500">⚔️</span>}
+              <h3 className={`${FONT.sectionTitle} font-bold text-slate-700 flex items-center gap-2`}>
                 {selected.name} 주요 뉴스
               </h3>
               {selected.warNote && (
-                <p className="text-[10px] text-red-500 mt-0.5">{selected.warNote}</p>
+                <p className={`${FONT.warNote} text-red-500 mt-0.5`}>{selected.warNote}</p>
               )}
             </div>
             <button
@@ -288,7 +304,7 @@ export function WorldMapCard() {
                 sessionStorage.setItem("dashboard-topic", selected.name + " 최신 뉴스");
                 router.push("/sessions/new");
               }}
-              className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-700 px-2.5 py-1 rounded-lg border border-indigo-200 hover:bg-indigo-50 transition-colors shrink-0"
+              className={`${FONT.researchBtn} font-semibold text-indigo-600 hover:text-indigo-700 px-2.5 py-1 rounded-lg border border-indigo-200 hover:bg-indigo-50 transition-colors shrink-0`}
             >
               + 리서치 시작
             </button>
@@ -301,7 +317,7 @@ export function WorldMapCard() {
               ))}
             </div>
           ) : news.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-4">뉴스를 불러올 수 없습니다</p>
+            <p className={`${FONT.emptyState} text-slate-400 text-center py-4`}>뉴스를 불러올 수 없습니다</p>
           ) : (
             <div className="grid grid-cols-2 gap-2">
               {news.map((item, i) => (
@@ -312,15 +328,15 @@ export function WorldMapCard() {
                   rel="noopener noreferrer"
                   className="group flex flex-col gap-1 p-2.5 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/40 transition-all"
                 >
-                  <p className="text-xs font-medium text-slate-700 group-hover:text-indigo-700 leading-snug line-clamp-2 transition-colors">
+                  <p className={`${FONT.newsTitle} font-medium text-slate-700 group-hover:text-indigo-700 leading-snug line-clamp-2 transition-colors`}>
                     {item.title}
                   </p>
                   <div className="flex items-center gap-1.5 mt-auto">
-                    <span className="text-[10px] text-slate-400 truncate">{item.source}</span>
+                    <span className={`${FONT.newsMeta} text-slate-400 truncate`}>{item.source}</span>
                     {item.pubDate && (
                       <>
-                        <span className="text-[10px] text-slate-300">·</span>
-                        <span className="text-[10px] text-slate-400 shrink-0">
+                        <span className={`${FONT.newsMeta} text-slate-300`}>·</span>
+                        <span className={`${FONT.newsMeta} text-slate-400 shrink-0`}>
                           {new Date(item.pubDate).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
                         </span>
                       </>

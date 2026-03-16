@@ -70,8 +70,8 @@ export function PortfolioList() {
                   </p>
                 </div>
                 <div className="flex items-center justify-between pl-4">
-                  <span className={`text-[10px] font-medium ${color}`}>{label}</span>
-                  <span className="text-[10px] text-slate-400">{formatDate(s.createdAt)}</span>
+                  <span className={`text-2xs font-medium ${color}`}>{label}</span>
+                  <span className="text-2xs text-slate-400">{formatDate(s.createdAt)}</span>
                 </div>
               </div>
             );

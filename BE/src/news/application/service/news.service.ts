@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { AiProviderService } from '../../../ai/application/ai-provider.service';
 import { PuppeteerService } from '../../puppeteer.service';
 import { NewsBriefingEntity } from '../../domain/entity/news-briefing.entity';
+import { NewsProviderService } from './news-provider.service';
+import { AppConfigService, CONFIG_KEYS } from '../../../config/application/app-config.service';
 
 export interface CountryNewsItem {
   title: string;
@@ -95,34 +97,7 @@ const COUNTRY_NAME_MAP: Array<{ names: string[]; code: string }> = [
   { names: ['모잠비크', 'mozambique'], code: '508' },
 ];
 
-function extractTag(xml: string, tag: string): string {
-  const m = xml.match(new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>|<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`));
-  return (m?.[1] ?? m?.[2] ?? '').trim();
-}
 
-function parseGoogleNewsRSS(xml: string): NewsItem[] {
-  const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)];
-  return items.map((m) => {
-    const block = m[1];
-    const rawTitle = extractTag(block, 'title');
-    const dashIdx = rawTitle.lastIndexOf(' - ');
-    const title  = dashIdx > 0 ? rawTitle.slice(0, dashIdx).trim() : rawTitle;
-    const source = dashIdx > 0 ? rawTitle.slice(dashIdx + 3).trim() : '';
-    const link = extractTag(block, 'link');
-    const pubDate = extractTag(block, 'pubDate');
-    const rawDesc = extractTag(block, 'description').replace(/<[^>]+>/g, '').trim();
-    return { title, link, source, pubDate, description: rawDesc };
-  });
-}
-
-async function fetchNewsForQuery(query: string): Promise<NewsItem[]> {
-  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
-  const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ResearchBot/1.0)' },
-  });
-  const xml = await res.text();
-  return parseGoogleNewsRSS(xml).slice(0, 15);
-}
 
 function extractKeywords(texts: string[], limit: number): KeywordItem[] {
   const freq = new Map<string, number>();
@@ -176,21 +151,6 @@ function detectConflictCountries(titles: string[]): ConflictZone[] {
 
 export type { MarketItem, ChartPoint } from './market.service';
 
-interface GHRepo {
-  full_name: string;
-  description: string | null;
-  stargazers_count: number;
-  language: string | null;
-  forks_count: number;
-}
-
-interface HFItem {
-  id: string;
-  likes: number;
-  downloads?: number;
-  trendingScore?: number;
-  pipeline_tag?: string;
-}
 
 @Injectable()
 export class NewsService {
@@ -199,6 +159,8 @@ export class NewsService {
     private readonly aiProvider: AiProviderService,
     @InjectRepository(NewsBriefingEntity)
     private readonly briefingRepo: Repository<NewsBriefingEntity>,
+    private readonly newsProvider: NewsProviderService,
+    private readonly appConfig: AppConfigService,
   ) {}
 
   private getTodayKey(): string {
@@ -207,101 +169,67 @@ export class NewsService {
     }).replace(/\. /g, '-').replace('.', '');
   }
 
-  private async getCachedOrGenerate(
-    cacheKey: string,
-    _hashSource: string,
-    prompt: string,
-  ): Promise<{ summary: string; generatedAt: string; cached: boolean }> {
+  // ─── Raw data cache helpers ────────────────────────────────────────────────
+
+  private async getRawCache<T>(cacheKey: string): Promise<T | null> {
     const cached = await this.briefingRepo.findOneBy({ date: cacheKey });
-    if (cached) {
-      return { summary: cached.summary, generatedAt: cached.updatedAt.toISOString(), cached: true };
+    if (cached?.rawData) {
+      return JSON.parse(cached.rawData) as T;
     }
-    const summary = await this.aiProvider.call('claude-haiku-4-5-20251001', '', prompt);
-    await this.briefingRepo.save({ date: cacheKey, titlesHash: '', summary });
-    return { summary, generatedAt: new Date().toISOString(), cached: false };
+    return null;
   }
 
+  private async setRawCache(cacheKey: string, data: unknown): Promise<void> {
+    const existing = await this.briefingRepo.findOneBy({ date: cacheKey });
+    if (existing) {
+      await this.briefingRepo.update({ date: cacheKey }, { rawData: JSON.stringify(data) });
+    } else {
+      await this.briefingRepo.save({
+        date: cacheKey,
+        titlesHash: '',
+        summary: '',
+        rawData: JSON.stringify(data),
+      });
+    }
+  }
+
+  // ─── Public methods ────────────────────────────────────────────────────────
+
   async getGoogleNews(category: string): Promise<NewsItem[]> {
+    const cacheKey = `raw-google-${category}-${this.getTodayKey()}`;
+    const cached = await this.getRawCache<NewsItem[]>(cacheKey);
+    if (cached) return cached;
+
     const query = CATEGORY_QUERIES[category] ?? CATEGORY_QUERIES.it;
-    return fetchNewsForQuery(query);
+    const items = await this.newsProvider.fetchNewsByQuery(query);
+    await this.setRawCache(cacheKey, items);
+    return items;
   }
 
   async getKeywords(limit: number): Promise<KeywordItem[]> {
-    const queries = ['IT AI 기술', '경제 금융 증시', '사회 정치', '국제 세계', '과학 환경'];
-    const results = await Promise.allSettled(queries.map(fetchNewsForQuery));
+    const rawCacheKey = `raw-kw-titles-${this.getTodayKey()}`;
+    let allTitles = await this.getRawCache<string[]>(rawCacheKey);
 
-    const allTitles: string[] = [];
-    for (const r of results) {
-      if (r.status === 'fulfilled') {
-        allTitles.push(...r.value.map((item) => item.title));
+    if (!allTitles) {
+      const queries = ['IT AI 기술', '경제 금융 증시', '사회 정치', '국제 세계', '과학 환경'];
+      const results = await Promise.allSettled(queries.map((q) => this.newsProvider.fetchNewsByQuery(q)));
+      allTitles = [];
+      for (const r of results) {
+        if (r.status === 'fulfilled') {
+          allTitles.push(...r.value.map((item) => item.title));
+        }
       }
+      await this.setRawCache(rawCacheKey, allTitles);
     }
 
     return extractKeywords(allTitles, limit);
   }
 
-  async getNewsSummary(): Promise<{ summary: string; generatedAt: string; cached: boolean }> {
-    const queries = ['IT AI 기술', '경제 금융 증시', '사회 정치', '국제 세계', '과학 환경'];
-    const results = await Promise.allSettled(queries.map(fetchNewsForQuery));
-    const allTitles: string[] = [];
-    for (const r of results) {
-      if (r.status === 'fulfilled') {
-        allTitles.push(...r.value.map((item) => item.title));
-      }
-    }
-    const titleSample = allTitles.slice(0, 30);
-    return this.getCachedOrGenerate(
-      `news-${this.getTodayKey()}`,
-      titleSample.sort().join('|'),
-      `다음은 오늘의 실시간 뉴스 헤드라인 목록이야.\n\n[헤드라인]\n${titleSample.join('\n')}\n\n위 헤드라인을 분석해서 오늘의 주요 뉴스 5개를 뽑아줘.\n각 항목은 아래 형식으로 작성해:\n\n• [구체적 사실]: 실제 기사에 등장한 기업명·인물명·수치·지명 등을 반드시 포함해서 한 문장으로 설명해줘. 검색하면 바로 찾을 수 있을 만큼 구체적으로 써줘.\n\n추상적인 표현("기술 발전", "경제 위기" 등) 없이, 헤드라인에 있는 고유명사와 구체적 내용만 사용해.`,
-    );
-  }
-
-  async getGithubSummary(since: string): Promise<{ summary: string; generatedAt: string; cached: boolean }> {
-    const validSince = ['daily', 'weekly', 'monthly'].includes(since) ? since : 'daily';
-    const days = validSince === 'monthly' ? 30 : validSince === 'weekly' ? 7 : 1;
-    const from = new Date(Date.now() - days * 86400_000).toISOString().split('T')[0];
-
-    const res = await fetch(
-      `https://api.github.com/search/repositories?q=pushed:>${from}&sort=stars&order=desc&per_page=10`,
-      { headers: { Accept: 'application/vnd.github+json' } },
-    );
-    const data = await res.json() as { items?: GHRepo[] };
-    const repos = data.items ?? [];
-
-    const periodLabel = validSince === 'daily' ? '오늘' : validSince === 'weekly' ? '이번 주' : '이번 달';
-    const repoList = repos.map((r, i) =>
-      `${i + 1}. ${r.full_name} (⭐${r.stargazers_count}${r.language ? ', ' + r.language : ''})${r.description ? ': ' + r.description : ''}`,
-    ).join('\n');
-
-    return this.getCachedOrGenerate(
-      `github-${validSince}-${this.getTodayKey()}`,
-      repos.map((r) => r.full_name).join('|'),
-      `다음은 GitHub에서 ${periodLabel} 가장 핫한 저장소 목록이야.\n\n${repoList}\n\n위 저장소들을 분석해서 현재 개발자 커뮤니티에서 주목받는 트렌드 3~5개를 뽑아줘.\n각 항목은 아래 형식으로 작성해:\n\n• [트렌드]: 실제 저장소명과 스타 수·언어 등 수치를 포함해 한 문장으로 설명해줘.\n\n추상적인 표현 없이 구체적인 저장소명과 기술 스택을 반드시 언급해.`,
-    );
-  }
-
-  async getHfSummary(category: string): Promise<{ summary: string; generatedAt: string; cached: boolean }> {
-    const validCategory = ['models', 'datasets', 'spaces'].includes(category) ? category : 'models';
-
-    const res = await fetch(
-      `https://huggingface.co/api/${validCategory}?sort=trendingScore&direction=-1&limit=10`,
-    );
-    const items = await res.json() as HFItem[];
-
-    const categoryLabel = validCategory === 'models' ? '모델' : validCategory === 'datasets' ? '데이터셋' : '스페이스';
-    const itemList = items.slice(0, 10).map((item, i) =>
-      `${i + 1}. ${item.id}${item.pipeline_tag ? ` (${item.pipeline_tag})` : ''}${item.trendingScore != null ? ` - 트렌딩 ${item.trendingScore.toFixed(1)}` : ''}${item.likes ? ` ❤️${item.likes}` : ''}`,
-    ).join('\n');
-
-    return this.getCachedOrGenerate(
-      `hf-${validCategory}-${this.getTodayKey()}`,
-      items.map((i) => i.id).join('|'),
-      `다음은 Hugging Face에서 현재 가장 트렌딩인 ${categoryLabel} 목록이야.\n\n${itemList}\n\n위 항목들을 분석해서 현재 AI/ML 커뮤니티에서 주목받는 트렌드 3~5개를 뽑아줘.\n각 항목은 아래 형식으로 작성해:\n\n• [트렌드]: 실제 ${categoryLabel}명과 수치를 포함해 한 문장으로 설명해줘.\n\n추상적인 표현 없이 구체적인 이름과 기술을 반드시 언급해.`,
-    );
-  }
-
   async getConflictZones(): Promise<ConflictZone[]> {
+    const cacheKey = `raw-conflicts-${this.getTodayKey()}`;
+    const cached = await this.getRawCache<ConflictZone[]>(cacheKey);
+    if (cached) return cached;
+
     const queries = [
       '전쟁 교전 공격 폭격',
       'war conflict attack military',
@@ -309,7 +237,7 @@ export class NewsService {
       'ceasefire invasion troops casualties',
       '이스라엘 가자 우크라이나 러시아 이란',
     ];
-    const results = await Promise.allSettled(queries.map(fetchNewsForQuery));
+    const results = await Promise.allSettled(queries.map((q) => this.newsProvider.fetchNewsByQuery(q)));
 
     const allTitles: string[] = [];
     for (const r of results) {
@@ -318,12 +246,14 @@ export class NewsService {
       }
     }
 
-    return detectConflictCountries(allTitles);
+    const zones = detectConflictCountries(allTitles);
+    await this.setRawCache(cacheKey, zones);
+    return zones;
   }
 
   async getCountryNews(name: string, limit: number): Promise<CountryNewsItem[]> {
     if (!name.trim()) return [];
-    const items = await fetchNewsForQuery(name);
+    const items = await this.newsProvider.fetchNewsByQuery(name);
     return items.slice(0, limit).map(({ title, link, source, pubDate }) => ({
       title, link, source, pubDate,
     }));
@@ -336,5 +266,15 @@ export class NewsService {
     } catch {
       return { title: '', content: '', finalUrl: url };
     }
+  }
+
+  /** 오늘 날짜의 모든 캐시(원시 데이터 + AI 요약)를 삭제하여 다음 요청 시 재조회하도록 함 */
+  async refreshTodayCache(): Promise<void> {
+    const today = this.getTodayKey();
+    await this.briefingRepo
+      .createQueryBuilder()
+      .delete()
+      .where('date LIKE :pattern', { pattern: `%-${today}` })
+      .execute();
   }
 }

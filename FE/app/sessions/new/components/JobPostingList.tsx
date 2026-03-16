@@ -27,12 +27,12 @@ function JobCard({ job }: { job: JobItem }) {
           {job.skills.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
               {job.skills.slice(0, 5).map((s, j) => (
-                <span key={j} className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md font-medium">
+                <span key={j} className="text-2xs bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md font-medium">
                   {s}
                 </span>
               ))}
               {job.skills.length > 5 && (
-                <span className="text-[10px] text-slate-400">+{job.skills.length - 5}</span>
+                <span className="text-2xs text-slate-400">+{job.skills.length - 5}</span>
               )}
             </div>
           )}

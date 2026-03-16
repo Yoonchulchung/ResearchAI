@@ -111,7 +111,7 @@ export function CalendarSection() {
     <div ref={cardRef} className="bg-white rounded-2xl border border-slate-200 p-5 relative">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-bold text-slate-700">캘린더</h2>
+        <h2 className="text-m font-bold text-slate-700">캘린더</h2>
         <div className="flex items-center gap-1">
           <button
             onClick={prevMonth}
@@ -119,7 +119,7 @@ export function CalendarSection() {
           >
             ◀
           </button>
-          <span className="text-xs font-semibold text-slate-600 w-16 text-center">
+          <span className="text-sm font-semibold text-slate-600 w-16 text-center">
             {year}.{String(month + 1).padStart(2, "0")}
           </span>
           <button
@@ -136,7 +136,7 @@ export function CalendarSection() {
         {DAYS.map((d, i) => (
           <div
             key={d}
-            className={`text-center text-[10px] font-semibold py-1 ${
+            className={`text-center text-2xs font-semibold py-1 ${
               i === 0 ? "text-red-400" : i === 6 ? "text-blue-400" : "text-slate-400"
             }`}
           >
@@ -161,7 +161,7 @@ export function CalendarSection() {
                   data-calendar-day
                   onClick={(e) => handleDayClick(day, sessions, e)}
                   disabled={!hasSessions}
-                  className={`relative aspect-square flex flex-col items-center justify-center rounded-lg text-[11px] font-medium transition-colors ${
+                  className={`relative aspect-square flex flex-col items-center justify-center rounded-lg text-xs font-medium transition-colors ${
                     today_
                       ? "bg-indigo-600 text-white"
                       : isOpen
@@ -176,7 +176,7 @@ export function CalendarSection() {
                     <span className={`w-1 h-1 rounded-full mt-0.5 ${today_ ? "bg-indigo-200" : "bg-indigo-400"}`} />
                   )}
                   {sessions.length > 1 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-indigo-500 text-white text-[8px] rounded-full flex items-center justify-center font-bold">
+                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-indigo-500 text-white text-micro rounded-full flex items-center justify-center font-bold">
                       {sessions.length}
                     </span>
                   )}
@@ -194,7 +194,7 @@ export function CalendarSection() {
           className="absolute z-30 bg-white border border-slate-200 rounded-xl shadow-lg py-2 w-56"
           style={popupStyle}
         >
-          <p className="text-[10px] font-semibold text-slate-400 px-3 pb-1.5 border-b border-slate-100">
+          <p className="text-xs2 font-semibold text-slate-400 px-3 pb-1.5 border-b border-slate-100">
             {month + 1}월 {popup.day}일 검색 기록
           </p>
           <ul className="mt-1 max-h-48 overflow-y-auto">
@@ -204,10 +204,10 @@ export function CalendarSection() {
                   onClick={() => { setPopup(null); router.push(`/sessions/${s.id}`); }}
                   className="w-full text-left px-3 py-1.5 hover:bg-indigo-50 transition-colors group"
                 >
-                  <p className="text-xs text-slate-700 group-hover:text-indigo-700 leading-snug line-clamp-2">
+                  <p className="text-xs font-medium text-slate-700 group-hover:text-indigo-700 leading-relaxed line-clamp-2">
                     {s.topic ?? "제목 없음"}
                   </p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
+                  <p className="text-2xs text-slate-400 mt-0.5">
                     {new Date(s.createdAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </button>

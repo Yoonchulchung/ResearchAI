@@ -50,7 +50,7 @@ function ImageChip({ af, onRemove }: { af: AttachedFile; onRemove: () => void })
       )}
       <button
         onClick={onRemove}
-        className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/50 hover:bg-black/70 text-white rounded-full text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/50 hover:bg-black/70 text-white rounded-full text-micro flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
       >
         ✕
       </button>
@@ -73,7 +73,7 @@ function DocChip({ af, onRemove }: { af: AttachedFile; onRemove: () => void }) {
     >
       {/* 아이콘 */}
       <div
-        className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-[10px] font-bold text-white ${
+        className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-2xs font-bold text-white ${
           isPdf ? "bg-red-500" : "bg-blue-500"
         }`}
       >
@@ -82,7 +82,7 @@ function DocChip({ af, onRemove }: { af: AttachedFile; onRemove: () => void }) {
 
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium text-slate-700 truncate leading-tight">{nameWithoutExt}</p>
-        <p className="text-[10px] text-slate-400 leading-tight">{isPdf ? "PDF" : "Word"}</p>
+        <p className="text-2xs text-slate-400 leading-tight">{isPdf ? "PDF" : "Word"}</p>
       </div>
 
       <div className="flex flex-col items-end gap-0.5 shrink-0">
@@ -95,7 +95,7 @@ function DocChip({ af, onRemove }: { af: AttachedFile; onRemove: () => void }) {
         )}
         <button
           onClick={onRemove}
-          className="text-slate-300 hover:text-slate-500 text-[10px] leading-none"
+          className="text-slate-300 hover:text-slate-500 text-2xs leading-none"
         >
           ✕
         </button>

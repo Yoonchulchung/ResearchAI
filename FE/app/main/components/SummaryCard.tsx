@@ -4,10 +4,10 @@ import { useEffect, useState, useCallback } from "react";
 
 type Tab = "news" | "github" | "hf";
 
-const TABS: { value: Tab; label: string; icon: string }[] = [
-  { value: "news", label: "뉴스", icon: "📰" },
-  { value: "github", label: "GitHub", icon: "🐙" },
-  { value: "hf", label: "HuggingFace", icon: "🤗" },
+const TABS: { value: Tab; label: string }[] = [
+  { value: "news", label: "뉴스" },
+  { value: "github", label: "GitHub" },
+  { value: "hf", label: "HuggingFace" },
 ];
 
 const GITHUB_SINCE = [
@@ -54,7 +54,7 @@ function SummaryList({ summary }: { summary: string }) {
         return (
           <li key={i} className="flex gap-2.5 items-start">
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
-            <span className="text-sm text-slate-700 leading-snug">
+            <span className="text-sm text-slate-700 leading-relaxed">
               {label && <span className="font-semibold text-indigo-700">[{label}]</span>}
               {label ? " " : ""}{body}
             </span>
@@ -96,7 +96,7 @@ function useSummary(url: string) {
   return { summary, loading, lastUpdated, attempted, refresh: fetch_ };
 }
 
-export function KeywordsCard() {
+export function SummaryCard() {
   const [tab, setTab] = useState<Tab>("news");
   const [githubSince, setGithubSince] = useState<GithubSince>("daily");
   const [hfCategory, setHfCategory] = useState<HFCategory>("models");
@@ -132,18 +132,18 @@ export function KeywordsCard() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-bold text-slate-700">AI 트렌드 브리핑</h2>
-          <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-semibold">AI</span>
+          <span className="text-2xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-semibold">AI</span>
         </div>
         <div className="flex items-center gap-2">
           {active.lastUpdated && (
-            <span className="text-[10px] text-slate-400">
+            <span className="text-xs font-medium text-slate-400">
               {active.lastUpdated.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 기준
             </span>
           )}
           <button
             onClick={active.refresh}
             disabled={active.loading}
-            className="text-[10px] text-slate-400 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-40"
+            className="text-xs2 font-medium text-slate-400 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-40"
           >
             {active.loading ? "⟳ 갱신 중..." : "⟳ 새로고침"}
           </button>
@@ -151,18 +151,18 @@ export function KeywordsCard() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-3">
+      <div className="flex gap-1 mb-4">
         {TABS.map((t) => (
           <button
             key={t.value}
             onClick={() => setTab(t.value)}
-            className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+            className={`text-xs2 font-semibold px-2.5 py-1 rounded-lg transition-colors ${
               tab === t.value
                 ? "bg-indigo-600 text-white"
                 : "bg-slate-100 text-slate-500 hover:bg-slate-200"
             }`}
           >
-            {t.icon} {t.label}
+            {t.label}
           </button>
         ))}
       </div>
@@ -174,7 +174,7 @@ export function KeywordsCard() {
             <button
               key={o.value}
               onClick={() => setGithubSince(o.value)}
-              className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+              className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors ${
                 githubSince === o.value
                   ? "bg-slate-800 text-white"
                   : "bg-slate-100 text-slate-500 hover:bg-slate-200"
@@ -191,7 +191,7 @@ export function KeywordsCard() {
             <button
               key={c.value}
               onClick={() => setHfCategory(c.value)}
-              className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+              className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
                 hfCategory === c.value
                   ? "bg-orange-500 text-white"
                   : "bg-slate-100 text-slate-500 hover:bg-slate-200"
@@ -210,7 +210,6 @@ export function KeywordsCard() {
         <SummaryList summary={active.summary} />
       ) : (
         <div className="flex flex-col items-center justify-center py-6 gap-2 text-slate-400">
-          <span className="text-2xl">📡</span>
           <p className="text-xs">브리핑을 불러올 수 없습니다</p>
           <button onClick={active.refresh} className="text-xs text-indigo-600 hover:underline mt-1">
             다시 시도

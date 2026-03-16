@@ -144,10 +144,10 @@ export function SummarySection({ sessionId, topic, localModels, allDone, summary
         >
           <span className="text-sm font-semibold text-slate-700">AI 서머리</span>
           {summaryStatus === "running" && (
-            <span className="text-[11px] text-indigo-500 font-medium animate-pulse">생성 중...</span>
+            <span className="text-xs text-indigo-500 font-medium animate-pulse">생성 중...</span>
           )}
           {summaryStatus === "pending" && (
-            <span className="text-[11px] text-slate-400 animate-pulse">불러오는 중...</span>
+            <span className="text-xs text-slate-400 animate-pulse">불러오는 중...</span>
           )}
         </button>
 

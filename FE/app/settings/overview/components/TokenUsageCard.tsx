@@ -26,7 +26,7 @@ export function TokenUsageCard({
           { label: "사용 모델 수 (30일)", value: loading || !analytics ? null : String(analytics.models.length) },
         ].map((item) => (
           <div key={item.label} className="bg-white/50 rounded-xl px-4 py-3">
-            <p className="text-[11px] text-slate-500 font-medium mb-1">{item.label}</p>
+            <p className="text-xs text-slate-500 font-medium mb-1">{item.label}</p>
             {item.value === null ? (
               <span className="inline-block w-16 h-5 bg-white/60 rounded animate-pulse" />
             ) : (

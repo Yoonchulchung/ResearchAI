@@ -1,6 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { NewsService, NewsItem, CountryNewsItem, KeywordItem, ConflictZone } from './application/service/news.service';
 import { MarketService, MarketItem, ChartPoint } from './application/service/market.service';
+import { NewsSummaryService } from './application/service/news-summary.service';
 import { PuppeteerService } from './puppeteer.service';
 
 @Controller('news')
@@ -8,6 +9,7 @@ export class NewsController {
   constructor(
     private readonly newsService: NewsService,
     private readonly marketService: MarketService,
+    private readonly newsSummaryService: NewsSummaryService,
     private readonly puppeteerService: PuppeteerService,
   ) {}
 
@@ -24,21 +26,21 @@ export class NewsController {
 
   @Get('summary')
   async getNewsSummary(): Promise<{ summary: string; generatedAt: string; cached: boolean }> {
-    return this.newsService.getNewsSummary();
+    return this.newsSummaryService.getNewsSummary();
   }
 
   @Get('github-summary')
   async getGithubSummary(
     @Query('since') since = 'daily',
   ): Promise<{ summary: string; generatedAt: string; cached: boolean }> {
-    return this.newsService.getGithubSummary(since);
+    return this.newsSummaryService.getGithubSummary(since);
   }
 
   @Get('hf-summary')
   async getHfSummary(
     @Query('category') category = 'models',
   ): Promise<{ summary: string; generatedAt: string; cached: boolean }> {
-    return this.newsService.getHfSummary(category);
+    return this.newsSummaryService.getHfSummary(category);
   }
 
   @Get('market')
@@ -83,5 +85,11 @@ export class NewsController {
     if (!q.trim()) return [];
     const limit = Math.min(parseInt(limitStr, 10) || 8, 20);
     return this.puppeteerService.searchGoogle(q, limit);
+  }
+
+  @Get('refresh')
+  async refreshCache(): Promise<{ message: string }> {
+    await this.newsService.refreshTodayCache();
+    return { message: '오늘 캐시가 초기화되었습니다. 다음 요청 시 새로 조회합니다.' };
   }
 }

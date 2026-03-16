@@ -85,29 +85,29 @@ function ModelCard({
 
       <div className="grid grid-cols-3 gap-2 text-center">
         <div className="bg-slate-50 rounded-xl py-2 px-1">
-          <div className="text-[10px] text-slate-400 mb-0.5">입력 토큰</div>
+          <div className="text-2xs text-slate-400 mb-0.5">입력 토큰</div>
           <div className="font-bold text-sm text-slate-700">
             {model.inputPricePer1M === 0 ? "무료" : `$${model.inputPricePer1M}`}
           </div>
           {model.inputPricePer1M > 0 && (
-            <div className="text-[10px] text-slate-400">/ 1M</div>
+            <div className="text-2xs text-slate-400">/ 1M</div>
           )}
         </div>
         <div className="bg-slate-50 rounded-xl py-2 px-1">
-          <div className="text-[10px] text-slate-400 mb-0.5">출력 토큰</div>
+          <div className="text-2xs text-slate-400 mb-0.5">출력 토큰</div>
           <div className="font-bold text-sm text-slate-700">
             {model.outputPricePer1M === 0 ? "무료" : `$${model.outputPricePer1M}`}
           </div>
           {model.outputPricePer1M > 0 && (
-            <div className="text-[10px] text-slate-400">/ 1M</div>
+            <div className="text-2xs text-slate-400">/ 1M</div>
           )}
         </div>
         <div className="bg-slate-50 rounded-xl py-2 px-1">
-          <div className="text-[10px] text-slate-400 mb-0.5">컨텍스트</div>
+          <div className="text-2xs text-slate-400 mb-0.5">컨텍스트</div>
           <div className="font-bold text-sm text-slate-700">
             {formatContext(model.contextWindow)}
           </div>
-          <div className="text-[10px] text-slate-400">토큰</div>
+          <div className="text-2xs text-slate-400">토큰</div>
         </div>
       </div>
     </button>

@@ -84,7 +84,7 @@ export function QueueWidget() {
       <div className="flex items-center justify-between mb-1.5">
         <button
           onClick={() => setCollapsed((v) => !v)}
-          className="flex items-center gap-1 text-[10px] font-bold text-indigo-500 uppercase tracking-wider hover:text-indigo-700 transition-colors"
+          className="flex items-center gap-1 text-2xs font-bold text-indigo-500 uppercase tracking-wider hover:text-indigo-700 transition-colors"
         >
           <span
             className="inline-block transition-transform duration-200"
@@ -101,16 +101,16 @@ export function QueueWidget() {
             <div key={item.sessionId} className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
                 {item.status === "streaming" ? (
-                  <span className="text-indigo-400 animate-pulse text-[10px]">●</span>
+                  <span className="text-indigo-400 animate-pulse text-2xs">●</span>
                 ) : item.status === "done" ? (
-                  <span className="text-green-500 text-[10px]">✓</span>
+                  <span className="text-green-500 text-2xs">✓</span>
                 ) : (
-                  <span className="text-red-400 text-[10px]">✕</span>
+                  <span className="text-red-400 text-2xs">✕</span>
                 )}
-                <span className="text-[11px] text-slate-600 truncate">{item.topic} 서머리</span>
+                <span className="text-xs text-slate-600 truncate">{item.topic} 서머리</span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <span className={`text-[10px] font-medium ${
+                <span className={`text-2xs font-medium ${
                   item.status === "streaming" ? "text-indigo-500" :
                   item.status === "done" ? "text-green-600" : "text-red-500"
                 }`}>
@@ -119,7 +119,7 @@ export function QueueWidget() {
                 {(item.status === "done" || item.status === "error") && (
                   <button
                     onClick={() => dismissSummary(item.sessionId)}
-                    className="text-[10px] text-slate-400 hover:text-slate-600 px-1"
+                    className="text-2xs text-slate-400 hover:text-slate-600 px-1"
                   >
                     ✕
                   </button>
@@ -135,18 +135,18 @@ export function QueueWidget() {
             <div key={job.jobId} className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
                 {job.status === "running" ? (
-                  <span className="text-indigo-400 animate-pulse text-[10px]">●</span>
+                  <span className="text-indigo-400 animate-pulse text-2xs">●</span>
                 ) : (
-                  <span className="text-yellow-400 text-[10px]">○</span>
+                  <span className="text-yellow-400 text-2xs">○</span>
                 )}
-                <span className="text-[11px] text-slate-500 truncate font-mono">{job.itemId.slice(0, 8)}…</span>
+                <span className="text-xs text-slate-500 truncate font-mono">{job.itemId.slice(0, 8)}…</span>
               </div>
-              <span className={`text-[10px] font-medium shrink-0 ${STATUS_COLOR[job.status]}`}>
+              <span className={`text-2xs font-medium shrink-0 ${STATUS_COLOR[job.status]}`}>
                 {job.phase ? `${STATUS_LABEL[job.status]} · ${job.phase}` : STATUS_LABEL[job.status]}
               </span>
             </div>
           ))}
-          <div className="text-[10px] text-slate-400 text-right">
+          <div className="text-2xs text-slate-400 text-right">
             대기 {queueStatus?.pending ?? 0} · 처리 중 {queueStatus?.running_jobs ?? 0}
           </div>
         </div>

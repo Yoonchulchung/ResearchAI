@@ -184,7 +184,7 @@ function ChartModal({ item, onClose }: { item: MarketItem; onClose: () => void }
                     border: "1px solid #e2e8f0",
                     boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
                   }}
-                  formatter={(val: number) => [formatYTick(val), "종가"]}
+                  formatter={(val) => [formatYTick(Number(val)), "종가"]}
                   labelFormatter={(label) => label}
                 />
                 <Area
@@ -241,14 +241,14 @@ export function MarketCard() {
           <h2 className="text-sm font-bold text-slate-700">주요 지표</h2>
           <div className="flex items-center gap-2">
             {lastUpdated && (
-              <span className="text-[10px] text-slate-400">
+              <span className="text-xs font-medium text-slate-400">
                 {lastUpdated.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 기준
               </span>
             )}
             <button
               onClick={fetchData}
               disabled={loading}
-              className="text-[10px] text-slate-400 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-40"
+              className="text-xs2 font-medium text-slate-400 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-40"
             >
               {loading ? "⟳" : "⟳ 새로고침"}
             </button>
@@ -284,13 +284,13 @@ export function MarketCard() {
                   className="p-3 rounded-xl bg-slate-50 hover:bg-indigo-50 hover:border-indigo-100 border border-transparent transition-colors text-left cursor-pointer"
                 >
                   <div className="flex items-center gap-1 mb-1">
-                    <span className="text-[11px]">{SYMBOL_ICON[item.symbol] ?? "📈"}</span>
-                    <span className="text-[11px] font-semibold text-slate-500">{item.name}</span>
+                    <span className="text-xs">{SYMBOL_ICON[item.symbol] ?? "📈"}</span>
+                    <span className="text-xs font-semibold text-slate-500">{item.name}</span>
                   </div>
                   <p className="text-base font-bold text-slate-800 leading-tight">
                     {formatPrice(item.price, item.symbol)}
                   </p>
-                  <p className={`text-[11px] font-medium mt-0.5 ${up ? "text-red-500" : "text-blue-500"}`}>
+                  <p className={`text-xs font-medium mt-0.5 ${up ? "text-red-500" : "text-blue-500"}`}>
                     {formatChange(item.change, item.changePercent)}
                   </p>
                 </button>

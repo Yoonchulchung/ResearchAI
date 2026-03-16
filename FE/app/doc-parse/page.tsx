@@ -230,7 +230,7 @@ export default function DocParsePage() {
         <div className="px-4 py-3 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-slate-700">AI 문서 분석</span>
-            <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-semibold">AI</span>
+            <span className="text-2xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-semibold">AI</span>
           </div>
           {!isReady && (
             <p className="text-xs text-slate-400 mt-1">문서를 먼저 업로드하세요</p>
@@ -240,7 +240,7 @@ export default function DocParsePage() {
         {/* Quick Actions */}
         {isReady && (
           <div className="px-3 py-2.5 border-b border-slate-100 shrink-0">
-            <p className="text-[10px] text-slate-400 font-semibold mb-1.5 uppercase tracking-wider">빠른 실행</p>
+            <p className="text-2xs text-slate-400 font-semibold mb-1.5 uppercase tracking-wider">빠른 실행</p>
             <div className="grid grid-cols-4 gap-1.5">
               {QUICK_ACTIONS.map((a) => (
                 <button
@@ -250,7 +250,7 @@ export default function DocParsePage() {
                   className="flex flex-col items-center gap-1 py-2 px-1 rounded-xl bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 transition-colors disabled:opacity-40"
                 >
                   <span className="text-lg">{a.icon}</span>
-                  <span className="text-[10px] font-semibold">{a.label}</span>
+                  <span className="text-2xs font-semibold">{a.label}</span>
                 </button>
               ))}
             </div>
@@ -320,7 +320,7 @@ export default function DocParsePage() {
               ↑
             </button>
           </div>
-          <p className="text-[10px] text-slate-300 mt-1.5 text-center">Enter로 전송, Shift+Enter로 줄바꿈</p>
+          <p className="text-2xs text-slate-300 mt-1.5 text-center">Enter로 전송, Shift+Enter로 줄바꿈</p>
         </div>
       </div>
     </div>

@@ -45,10 +45,10 @@ interface HFItem {
 }
 
 type HFCategory = "models" | "datasets" | "spaces";
-const HF_CATEGORIES: { label: string; value: HFCategory; icon: string }[] = [
-  { label: "Models", value: "models", icon: "🤖" },
-  { label: "Datasets", value: "datasets", icon: "📦" },
-  { label: "Spaces", value: "spaces", icon: "🚀" },
+const HF_CATEGORIES: { label: string; value: HFCategory }[] = [
+  { label: "Models", value: "models" },
+  { label: "Datasets", value: "datasets" },
+  { label: "Spaces", value: "spaces" },
 ];
 
 type Tab = "naver" | "github" | "hf";
@@ -130,7 +130,7 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
             <p className="text-xs font-semibold text-blue-600 mb-1">{item.source}</p>
             <h3 className="text-sm font-bold text-slate-800 leading-snug">{item.title}</h3>
             {item.pubDate && (
-              <p className="text-[10px] text-slate-400 mt-1">
+              <p className="text-2xs text-slate-400 mt-1">
                 {new Date(item.pubDate).toLocaleDateString("ko-KR", {
                   year: "numeric", month: "long", day: "numeric",
                   hour: "2-digit", minute: "2-digit",
@@ -161,7 +161,7 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
                 <img src={image} alt="" className="w-full rounded-xl object-cover max-h-52 mb-4" />
               )}
               {fetchFailed && (
-                <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-1.5 mb-3">
+                <p className="text-2xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-1.5 mb-3">
                   이 사이트는 외부 접근을 차단합니다. RSS 요약을 표시합니다.
                 </p>
               )}
@@ -174,7 +174,7 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
               ) : (
                 <p className="text-sm text-slate-400 text-center py-8">
                   본문을 가져올 수 없습니다.<br />
-                  <span className="text-[11px]">원문 보기에서 직접 확인해주세요.</span>
+                  <span className="text-xs">원문 보기에서 직접 확인해주세요.</span>
                 </p>
               )}
             </>
@@ -227,7 +227,7 @@ function GoogleNewsPanel() {
           <button
             key={c.value}
             onClick={() => setCategory(c.value)}
-            className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+            className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
               category === c.value
                 ? "bg-blue-500 text-white"
                 : "bg-slate-100 text-slate-500 hover:bg-slate-200"
@@ -251,17 +251,17 @@ function GoogleNewsPanel() {
               onClick={() => setModalItem(item)}
               className="group flex gap-2.5 p-2 rounded-lg hover:bg-blue-50 transition-colors w-full text-left"
             >
-              <span className="text-[10px] text-slate-300 font-bold w-4 shrink-0 pt-0.5 text-right">{i + 1}</span>
+              <span className="text-xs text-slate-300 font-bold w-4 shrink-0 pt-0.5 text-right">{i + 1}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-slate-700 group-hover:text-blue-700 leading-snug line-clamp-2 transition-colors">
+                <p className="text-xs2 font-medium text-slate-700 group-hover:text-blue-700 leading-snug line-clamp-2 transition-colors">
                   {item.title}
                 </p>
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  {item.source && <span className="text-[10px] text-slate-400">{item.source}</span>}
+                  {item.source && <span className="text-xs text-slate-400">{item.source}</span>}
                   {item.pubDate && (
                     <>
-                      <span className="text-[10px] text-slate-300">·</span>
-                      <span className="text-[10px] text-slate-400">
+                      <span className="text-xs text-slate-300">·</span>
+                      <span className="text-xs text-slate-400">
                         {new Date(item.pubDate).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </span>
                     </>
@@ -311,7 +311,7 @@ function GithubPanel() {
           <button
             key={o.value}
             onClick={() => setSince(o.value)}
-            className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+            className={`text-xs2 font-semibold px-2.5 py-1 rounded-lg transition-colors ${
               since === o.value
                 ? "bg-slate-800 text-white"
                 : "bg-slate-100 text-slate-500 hover:bg-slate-200"
@@ -336,25 +336,25 @@ function GithubPanel() {
               target="_blank" rel="noopener noreferrer"
               className="group flex gap-2.5 p-2 rounded-lg hover:bg-slate-50 transition-colors"
             >
-              <span className="text-[10px] text-slate-300 font-bold w-4 shrink-0 pt-0.5 text-right">{i + 1}</span>
+              <span className="text-2xs text-slate-300 font-bold w-4 shrink-0 pt-0.5 text-right">{i + 1}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-slate-700 group-hover:text-indigo-600 leading-snug truncate transition-colors">
+                <p className="text-xs2 font-semibold text-slate-700 group-hover:text-indigo-600 leading-snug truncate transition-colors">
                   {repo.full_name}
                 </p>
                 {repo.description && (
-                  <p className="text-[10px] text-slate-500 leading-snug line-clamp-1 mt-0.5">
+                  <p className="text-xs text-slate-500 leading-snug line-clamp-1 mt-0.5">
                     {repo.description}
                   </p>
                 )}
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   {repo.language && (
-                    <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                    <span className="flex items-center gap-1 text-xs text-slate-400">
                       <span className={`w-2 h-2 rounded-full ${langColor(repo.language)}`} />
                       {repo.language}
                     </span>
                   )}
-                  <span className="text-[10px] text-slate-400">⭐ {formatStars(repo.stargazers_count)}</span>
-                  <span className="text-[10px] text-slate-400">🍴 {formatStars(repo.forks_count)}</span>
+                  <span className="text-xs text-slate-400">⭐ {formatStars(repo.stargazers_count)}</span>
+                  <span className="text-xs text-slate-400">🍴 {formatStars(repo.forks_count)}</span>
                 </div>
               </div>
             </a>
@@ -401,13 +401,13 @@ function HuggingFacePanel() {
           <button
             key={c.value}
             onClick={() => setCategory(c.value)}
-            className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+            className={`flex items-center gap-1 text-xs2 font-semibold px-2.5 py-1 rounded-lg transition-colors ${
               category === c.value
                 ? "bg-yellow-400 text-yellow-900"
                 : "bg-slate-100 text-slate-500 hover:bg-slate-200"
             }`}
           >
-            <span>{c.icon}</span> {c.label}
+            {c.label}
           </button>
         ))}
       </div>
@@ -428,20 +428,20 @@ function HuggingFacePanel() {
                 target="_blank" rel="noopener noreferrer"
                 className="group flex gap-2.5 p-2 rounded-lg hover:bg-yellow-50 transition-colors"
               >
-                <span className="text-[10px] text-slate-300 font-bold w-4 shrink-0 pt-0.5 text-right">{i + 1}</span>
+                <span className="text-2xs text-slate-300 font-bold w-4 shrink-0 pt-0.5 text-right">{i + 1}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-slate-700 group-hover:text-yellow-700 leading-snug truncate transition-colors">
                     {name}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     {item.pipeline_tag && (
-                      <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                      <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
                         {item.pipeline_tag}
                       </span>
                     )}
-                    <span className="text-[10px] text-slate-400">❤️ {formatStars(item.likes)}</span>
+                    <span className="text-2xs text-slate-400">❤️ {formatStars(item.likes)}</span>
                     {item.downloads != null && (
-                      <span className="text-[10px] text-slate-400">⬇️ {formatStars(item.downloads)}</span>
+                      <span className="text-2xs text-slate-400">⬇️ {formatStars(item.downloads)}</span>
                     )}
                   </div>
                 </div>
@@ -468,7 +468,7 @@ export function NewsSection() {
             tab === "naver" ? "bg-blue-500 text-white" : "text-slate-400 hover:bg-slate-100"
           }`}
         >
-          <span>📰</span> 구글 뉴스
+          구글 뉴스
         </button>
         <button
           onClick={() => setTab("github")}
@@ -476,7 +476,7 @@ export function NewsSection() {
             tab === "github" ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-100"
           }`}
         >
-          <span>🐙</span> GitHub
+          GitHub
         </button>
         <button
           onClick={() => setTab("hf")}
@@ -484,7 +484,7 @@ export function NewsSection() {
             tab === "hf" ? "bg-yellow-400 text-yellow-900" : "text-slate-400 hover:bg-slate-100"
           }`}
         >
-          <span>🤗</span> Hugging Face
+          Hugging Face
         </button>
       </div>
 

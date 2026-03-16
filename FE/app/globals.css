@@ -6,11 +6,41 @@
   --foreground: #171717;
 }
 
+/* ─── Font size scale ───────────────────────────────────────────────────────
+   이 블록에서 폰트 크기를 수정하면 전체 앱에 반영됩니다.
+   Tailwind 클래스 → 변수 매핑:
+     text-micro  → --text-micro   (9px  영역 — 달력 등 극소 레이블)
+     text-2xs    → --text-2xs     (10px 영역 — 카드 수치, 배지)
+     text-xs     → --text-xs      (12px 영역 — 태그, 보조 설명)
+     text-xs2    → --text-xs2     (13px 영역 — xs/sm 중간)
+     text-sm     → --text-sm      (14px 영역 — 일반 본문)
+     text-base   → --text-base    (16px 영역 — 기준 본문)
+     text-lg     → --text-lg      (18px 영역 — 소제목)
+     text-xl     → --text-xl      (20px 영역 — 섹션 제목)
+     text-2xl    → --text-2xl     (24px 영역 — 페이지 제목)
+     text-3xl    → --text-3xl     (30px 영역 — 대형 수치)
+   ───────────────────────────────────────────────────────────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* 커스텀 사이즈 (기존 text-[Npx] 대체) */
+  --text-micro: 0.5625rem; /* 9px  */
+  --text-2xs:   0.625rem;  /* 10px */
+
+  /* Tailwind 기본 사이즈 오버라이드 */
+  --text-xs:   0.75rem;    /* 12px */
+  --text-xs2:  0.8125rem; /* 13px — text-xs2 */
+  --text-sm:   0.875rem;  /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg:   1.125rem;  /* 18px */
+  --text-xl:   1.25rem;   /* 20px */
+  --text-2xl:  1.5rem;    /* 24px */
+  --text-3xl:  1.875rem;  /* 30px */
+  --text-4xl:  2.25rem;   /* 36px */
+  --text-5xl:  3rem;      /* 48px */
 }
 
 @media (prefers-color-scheme: dark) {

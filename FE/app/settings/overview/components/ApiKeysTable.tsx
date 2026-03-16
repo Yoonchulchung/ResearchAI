@@ -74,13 +74,13 @@ function KeyRow({
             </span>
             <button
               onClick={() => setEditing(true)}
-              className="text-[11px] text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
+              className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
             >
               수정
             </button>
           </div>
         )}
-        {error && <p className="mt-1 text-red-500 text-[11px]">{error}</p>}
+        {error && <p className="mt-1 text-red-500 text-xs">{error}</p>}
       </td>
       <td className="px-4 py-4">
         <StatusBadge active={entry.configured} />
@@ -109,7 +109,7 @@ export function ApiKeysTable({
             {["Service", "Key", "Status"].map((h) => (
               <th
                 key={h}
-                className="text-left px-6 py-3 text-[11px] font-semibold tracking-widest text-slate-400 uppercase first:px-6 [&:not(:first-child)]:px-4"
+                className="text-left px-6 py-3 text-xs font-semibold tracking-widest text-slate-400 uppercase first:px-6 [&:not(:first-child)]:px-4"
               >
                 {h}
               </th>

@@ -106,7 +106,7 @@ function WeatherModal({ weather, onClose }: { weather: WeatherData; onClose: () 
 
         {/* 7-day forecast */}
         <div className="px-4 py-4">
-          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">7일 예보</div>
+          <div className="text-2xs font-semibold text-slate-400 uppercase tracking-wider mb-3">7일 예보</div>
           <div className="space-y-2">
             {weather.forecast.map((day, i) => {
               const { icon: dIcon } = getWeatherInfo(day.weatherCode);
@@ -125,7 +125,7 @@ function WeatherModal({ weather, onClose }: { weather: WeatherData; onClose: () 
                   {/* Icon */}
                   <span className="text-base w-6 text-center shrink-0">{dIcon}</span>
                   {/* Precip */}
-                  <span className={`text-[10px] w-8 text-right shrink-0 ${day.precipProb >= 40 ? "text-sky-500 font-semibold" : "text-slate-300"}`}>
+                  <span className={`text-2xs w-8 text-right shrink-0 ${day.precipProb >= 40 ? "text-sky-500 font-semibold" : "text-slate-300"}`}>
                     {day.precipProb > 0 ? `${day.precipProb}%` : ""}
                   </span>
                   {/* Temp range bar */}
@@ -251,7 +251,7 @@ export function WeatherCard() {
             <div className="text-xs text-slate-400 mt-0.5">
               최고 {weather.tempMax}° / 최저 {weather.tempMin}°
             </div>
-            <div className="text-[10px] text-slate-300 mt-1">클릭하여 주간 예보 보기</div>
+            <div className="text-2xs text-slate-300 mt-1">클릭하여 주간 예보 보기</div>
           </div>
         </div>
       </button>
