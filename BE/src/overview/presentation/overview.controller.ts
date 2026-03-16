@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query } from '@nestjs/common';
 import { OverviewService } from '../application/overview.service';
 import { CreateApiKeyDto } from './dto/request/create-api-key.dto';
 import { UpdateApiKeyDto } from './dto/request/update-api-key.dto';
@@ -25,6 +25,22 @@ export class OverviewController {
   @Get('anthropic/usage')
   getAnthropicUsage() {
     return this.overviewService.getAnthropicUsage();
+  }
+
+  @Get('analytics')
+  getAnalytics(@Query('range') range = '30d') {
+    return this.overviewService.getAnalytics(range);
+  }
+
+  @Get('logs')
+  getLogs(
+    @Query('page') page = '1',
+    @Query('limit') limit = '10',
+  ) {
+    return this.overviewService.getLogs(
+      Math.max(1, parseInt(page, 10) || 1),
+      Math.min(100, Math.max(1, parseInt(limit, 10) || 10)),
+    );
   }
 
   // ******************************** //

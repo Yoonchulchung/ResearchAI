@@ -44,6 +44,16 @@ export function SettingsMenu() {
             </button>
 
             <button
+              onClick={() => { setShowMenu(false); router.push("/settings/analytics"); }}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                Analytics
+              </div>
+              <span className="text-xs text-slate-300">›</span>
+            </button>
+
+            <button
               onClick={() => { setShowMenu(false); router.push("/settings/pipeline"); }}
               className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
             >

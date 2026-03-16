@@ -14,6 +14,15 @@ export class TokenHistoryRepository {
     return this.repo.find({ order: { createdAt: 'DESC' } });
   }
 
+  async findPaginated(page: number, limit: number): Promise<{ data: TokenHistoryEntity[]; total: number }> {
+    const [data, total] = await this.repo.findAndCount({
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { data, total };
+  }
+
   async findById(id: string): Promise<TokenHistoryEntity | null> {
     return this.repo.findOne({ where: { id } });
   }

@@ -7,8 +7,10 @@ import { makeCache } from '../../research/infrastructure/cache/ttl-cache';
 import { fetchTavilyUsage } from '../infrastructure/tavily.client';
 import { fetchAnthropicUsageReport } from '../infrastructure/anthropic.client';
 import { ApiKeyRepository } from '../domain/repository/api-key.repository';
+import { TokenHistoryRepository } from '../domain/repository/token-history.repository';
 import { ApiKeyResponseDto } from '../presentation/dto/response/api-key.response.dto';
 import { isEnvKeySet } from '../../shared/env/env.utils';
+import { MODELS } from '../../ai/domain/models';
 
 const ALLOWED_KEYS = [
   'ANTHROPIC_API_KEY',
@@ -40,7 +42,10 @@ export class OverviewService {
   private tavilyCache = makeCache<Awaited<ReturnType<OverviewService['getTavilyOverview']>>>();
   private anthropicCache = makeCache<Awaited<ReturnType<OverviewService['getAnthropicUsage']>>>();
 
-  constructor(private readonly apiKeyRepository: ApiKeyRepository) {}
+  constructor(
+    private readonly apiKeyRepository: ApiKeyRepository,
+    private readonly tokenHistoryRepository: TokenHistoryRepository,
+  ) {}
 
   private maskKey(value: string | undefined): string | null {
     if (!value || !isEnvKeySet(value)) return null;
@@ -204,5 +209,95 @@ export class OverviewService {
     if (!existing) throw new NotFoundException(`API 키를 찾을 수 없습니다: ${id}`);
     await this.apiKeyRepository.delete(id);
     return { ok: true };
+  }
+
+  // ******** //
+  // Logs     //
+  // ******** //
+  async getLogs(page: number, limit: number) {
+    const { data, total } = await this.tokenHistoryRepository.findPaginated(page, limit);
+    const modelNameMap = new Map<string, string>(MODELS.map((m) => [m.id, m.name]));
+
+    const logs = data.map((entry) => {
+      const tokens = entry.usedTokens ?? '';
+      const inputMatch = tokens.match(/input:(\d+)/);
+      const outputMatch = tokens.match(/output:(\d+)/);
+      return {
+        id: entry.id,
+        createdAt: entry.createdAt,
+        model: modelNameMap.get(entry.aiModel) ?? entry.aiModel,
+        modelId: entry.aiModel,
+        inputTokens: inputMatch ? parseInt(inputMatch[1], 10) : 0,
+        outputTokens: outputMatch ? parseInt(outputMatch[1], 10) : 0,
+        estimatedFees: entry.estimatedFees,
+      };
+    });
+
+    return { data: logs, total, page, limit };
+  }
+
+  // *********** //
+  // Analytics   //
+  // *********** //
+  async getAnalytics(range: string) {
+    const all = await this.tokenHistoryRepository.findAll();
+
+    const now = new Date();
+    let cutoff: Date | null = null;
+    if (range === '7d') {
+      cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else if (range === '30d') {
+      cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    } else if (range === '90d') {
+      cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    }
+
+    const filtered = cutoff ? all.filter((e) => new Date(e.createdAt) >= cutoff!) : all;
+
+    // model id → display name
+    const modelNameMap = new Map<string, string>(MODELS.map((m) => [m.id, m.name]));
+
+    // Group by date + model
+    const byDateModel = new Map<string, Map<string, number>>();
+    const modelSet = new Set<string>();
+    let totalCost = 0;
+
+    for (const entry of filtered) {
+      const date = new Date(entry.createdAt).toISOString().slice(0, 10);
+      const modelName = modelNameMap.get(entry.aiModel) ?? entry.aiModel;
+      modelSet.add(modelName);
+      totalCost += entry.estimatedFees ?? 0;
+
+      if (!byDateModel.has(date)) byDateModel.set(date, new Map());
+      const dateMap = byDateModel.get(date)!;
+      dateMap.set(modelName, (dateMap.get(modelName) ?? 0) + (entry.estimatedFees ?? 0));
+    }
+
+    // Build sorted chart data
+    const sortedDates = Array.from(byDateModel.keys()).sort();
+    const chartData = sortedDates.map((date) => {
+      const row: Record<string, string | number> = { date };
+      for (const [model, cost] of byDateModel.get(date)!) {
+        row[model] = Math.round(cost * 1_000_000) / 1_000_000;
+      }
+      return row;
+    });
+
+    // byModel summary
+    const byModel: Record<string, { cost: number; calls: number }> = {};
+    for (const entry of filtered) {
+      const modelName = modelNameMap.get(entry.aiModel) ?? entry.aiModel;
+      if (!byModel[modelName]) byModel[modelName] = { cost: 0, calls: 0 };
+      byModel[modelName].cost += entry.estimatedFees ?? 0;
+      byModel[modelName].calls += 1;
+    }
+
+    return {
+      totalCost: Math.round(totalCost * 1_000_000) / 1_000_000,
+      totalCalls: filtered.length,
+      chartData,
+      models: Array.from(modelSet),
+      byModel,
+    };
   }
 }
