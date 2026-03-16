@@ -44,7 +44,7 @@ export function TaskCard({
   onConfidenceUpdate?: (confidence: { score: number; reason: string }) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<"result" | "prompt" | "detail" | WebModelKey>("result");
+  const [activeTab, setActiveTab] = useState<"result" | "detail" | WebModelKey>("result");
   const [reEvalModel, setReEvalModel] = useState(aiModel ?? "claude-haiku-4-5-20251001");
   const [reEvalLoading, setReEvalLoading] = useState(false);
   const [reEvalError, setReEvalError] = useState<string | null>(null);
@@ -268,16 +268,6 @@ export function TaskCard({
                 🔍 {label}
               </button>
             ))}
-          <button
-              onClick={() => setActiveTab("prompt")}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-t-lg border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === "prompt"
-                  ? "border-indigo-500 text-indigo-700 bg-white"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              프롬프트
-            </button>
             <button
               onClick={() => setActiveTab("detail")}
               className={`text-xs font-semibold px-3 py-1.5 rounded-t-lg border-b-2 transition-colors whitespace-nowrap ${
@@ -380,6 +370,29 @@ export function TaskCard({
                 </section>
               )}
 
+              {/* 토큰 사용량 */}
+              {(task.inputTokens != null || task.outputTokens != null) && (
+                <section>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">토큰 사용량</p>
+                  <div className="bg-white rounded-lg border border-slate-100 divide-y divide-slate-100 text-xs">
+                    <div className="flex items-center px-3 py-2 gap-2">
+                      <span className="text-slate-400 w-24 shrink-0">입력 토큰</span>
+                      <span className="text-slate-700 font-medium tabular-nums">{task.inputTokens?.toLocaleString() ?? "—"}</span>
+                    </div>
+                    <div className="flex items-center px-3 py-2 gap-2">
+                      <span className="text-slate-400 w-24 shrink-0">출력 토큰</span>
+                      <span className="text-slate-700 font-medium tabular-nums">{task.outputTokens?.toLocaleString() ?? "—"}</span>
+                    </div>
+                    <div className="flex items-center px-3 py-2 gap-2">
+                      <span className="text-slate-400 w-24 shrink-0">예상 비용</span>
+                      <span className="text-slate-700 font-medium tabular-nums">
+                        {task.estimatedFees != null ? `$${task.estimatedFees.toFixed(6)}` : "—"}
+                      </span>
+                    </div>
+                  </div>
+                </section>
+              )}
+
               {/* 검색 정보 */}
               <section>
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">검색 정보</p>
@@ -418,12 +431,6 @@ export function TaskCard({
                   </pre>
                 </section>
               )}
-            </div>
-          ) : activeTab === "prompt" ? (
-            <div className="px-5 py-4 bg-slate-50 max-h-[65vh] overflow-y-auto">
-              <pre className="text-xs text-slate-600 whitespace-pre-wrap font-mono leading-relaxed">
-                {task.webSearchPrompt || "(프롬프트 없음)"}
-              </pre>
             </div>
           ) : activeTab === "result" ? (
             aiResult ? (

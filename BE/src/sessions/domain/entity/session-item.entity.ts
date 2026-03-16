@@ -48,6 +48,15 @@ export class SessionItemEntity {
   @Column({ name: 'confidence_reason', type: 'text', nullable: true })
   confidenceReason: string | null;
 
+  @Column({ name: 'input_tokens', type: 'int', nullable: true })
+  inputTokens: number | null;
+
+  @Column({ name: 'output_tokens', type: 'int', nullable: true })
+  outputTokens: number | null;
+
+  @Column({ name: 'estimated_fees', type: 'float', nullable: true })
+  estimatedFees: number | null;
+
   @Column({ name: 'research_state', type: 'simple-enum', enum: ResearchState, default: ResearchState.IDLE })
   researchState: ResearchState;
 

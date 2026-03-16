@@ -41,12 +41,14 @@ export class SessionItemRepository {
     webResult: string,
     state?: ResearchState,
     confidence?: { score: number; reason: string },
+    tokenUsage?: { inputTokens: number; outputTokens: number; estimatedFees: number },
   ): Promise<void> {
     await this.repo.update(id, {
       aiResult,
       webResult,
       ...(state && { researchState: state as any }),
       ...(confidence && { confidenceScore: confidence.score, confidenceReason: confidence.reason }),
+      ...(tokenUsage && { inputTokens: tokenUsage.inputTokens, outputTokens: tokenUsage.outputTokens, estimatedFees: tokenUsage.estimatedFees }),
     });
   }
 

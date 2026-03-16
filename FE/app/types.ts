@@ -10,6 +10,9 @@ export interface Task {
   webModel?: string;
   aiResult?: string | null;
   confidence?: { score: number; reason: string } | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  estimatedFees?: number | null;
 }
 
 export interface WebModels {

@@ -18,6 +18,46 @@ export class AiProviderService {
 
   constructor(private readonly tokenHistoryRepository: TokenHistoryRepository) {}
 
+  async callWithUsage(
+    aiModel: string,
+    system: string,
+    prompt: string,
+    opts?: { useBuiltinSearch?: boolean },
+  ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number }> {
+    if (aiModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) {
+      const text = await callOllama(aiModel.slice(AI_MODEL_PREFIX.OLLAMA.length), system, prompt);
+      return { text, inputTokens: 0, outputTokens: 0, estimatedFees: 0 };
+    }
+
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let text = '';
+
+    const provider = getProvider(aiModel);
+    if (provider === AIProvider.ANTHROPIC) {
+      const result = await callAnthropic(this.anthropic, aiModel, system, prompt, opts?.useBuiltinSearch ?? false);
+      ({ text, inputTokens, outputTokens } = result);
+    } else if (provider === AIProvider.GOOGLE) {
+      const result = await callGoogle(this.google, aiModel, system + '\n\n' + prompt, opts?.useBuiltinSearch ?? false);
+      ({ text, inputTokens, outputTokens } = result);
+    } else {
+      const result = await callOpenAI(this.openai, aiModel, system, prompt);
+      ({ text, inputTokens, outputTokens } = result);
+    }
+
+    const modelInfo = MODELS.find((m) => aiModel.startsWith(m.id));
+    const estimatedFees = modelInfo
+      ? (inputTokens / 1_000_000) * modelInfo.inputPricePer1M +
+        (outputTokens / 1_000_000) * modelInfo.outputPricePer1M
+      : 0;
+
+    this.tokenHistoryRepository
+      .save({ id: randomUUID(), aiModel, usedTokens: `input:${inputTokens}/output:${outputTokens}`, estimatedFees })
+      .catch(() => {});
+
+    return { text, inputTokens, outputTokens, estimatedFees };
+  }
+
   async call(
     aiModel: string,
     system: string,

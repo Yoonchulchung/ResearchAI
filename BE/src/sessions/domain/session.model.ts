@@ -14,6 +14,9 @@ export interface ItemWithResult extends Task {
   result: string | null;
   confidenceScore: number | null;
   confidenceReason: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  estimatedFees: number | null;
 }
 
 export interface Session {

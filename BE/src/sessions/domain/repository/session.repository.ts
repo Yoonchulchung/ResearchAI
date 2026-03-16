@@ -71,6 +71,9 @@ export class SessionRepository {
       result: item.aiResult || null,
       confidenceScore: item.confidenceScore ?? null,
       confidenceReason: item.confidenceReason ?? null,
+      inputTokens: item.inputTokens ?? null,
+      outputTokens: item.outputTokens ?? null,
+      estimatedFees: item.estimatedFees ?? null,
     }));
 
     return {

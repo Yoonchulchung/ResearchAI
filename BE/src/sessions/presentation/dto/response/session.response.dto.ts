@@ -12,6 +12,9 @@ export class ItemResponseDto {
   webModel: string;
   aiResult: string | null;
   confidence: { score: number; reason: string } | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  estimatedFees: number | null;
 
   static from(item: ItemWithResult): ItemResponseDto {
     const dto = new ItemResponseDto();
@@ -29,6 +32,9 @@ export class ItemResponseDto {
       item.confidenceScore != null
         ? { score: item.confidenceScore, reason: item.confidenceReason ?? '' }
         : null;
+    dto.inputTokens = item.inputTokens;
+    dto.outputTokens = item.outputTokens;
+    dto.estimatedFees = item.estimatedFees;
     return dto;
   }
 }

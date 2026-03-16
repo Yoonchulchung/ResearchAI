@@ -56,8 +56,9 @@ export class SessionCommandService {
     webResult: string,
     status: ResearchState,
     confidence?: { score: number; reason: string },
+    tokenUsage?: { inputTokens: number; outputTokens: number; estimatedFees: number },
   ): Promise<void> {
-    await this.sessionItemRepository.updateResult(itemId, aiResult, webResult, status, confidence);
+    await this.sessionItemRepository.updateResult(itemId, aiResult, webResult, status, confidence, tokenUsage);
     if (status === ResearchState.DONE) {
       const item = await this.sessionItemRepository.findById(itemId);
       this.vectorService

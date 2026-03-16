@@ -13,6 +13,9 @@ export interface DeepResearchResult {
   aiResult: string;
   webSources: SearchSources;
   confidence: ConfidenceScore;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedFees: number;
 }
 
 export type DeepResearchEvent =
@@ -52,10 +55,17 @@ export class DeepResearchPipelineService {
   ): Promise<DeepResearchResult> {
     let aiResult = '';
     let webSources: SearchSources = {};
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let estimatedFees = 0;
 
     if (contextOverride) {
       // 미리 가져온 컨텍스트: 기존 방식으로 분석
-      aiResult = await this.deepAnalyze(aiModel, prompt, contextOverride);
+      const usage = await this.deepAnalyze(aiModel, prompt, contextOverride);
+      aiResult = usage.text;
+      inputTokens = usage.inputTokens;
+      outputTokens = usage.outputTokens;
+      estimatedFees = usage.estimatedFees;
       webSources = { [webModel]: contextOverride };
     } else if (this.supportsAgentLoop(aiModel)) {
       // Claude / OpenAI: AI 에이전트 루프
@@ -82,7 +92,11 @@ export class DeepResearchPipelineService {
       } catch {
         // 검색 실패 시 컨텍스트 없이 진행
       }
-      aiResult = await this.deepAnalyze(aiModel, prompt, context);
+      const usage = await this.deepAnalyze(aiModel, prompt, context);
+      aiResult = usage.text;
+      inputTokens = usage.inputTokens;
+      outputTokens = usage.outputTokens;
+      estimatedFees = usage.estimatedFees;
     }
 
     // Step 3: 신뢰도 평가 (Haiku 고정, 압축된 컨텍스트 사용)
@@ -91,7 +105,7 @@ export class DeepResearchPipelineService {
       ? await this.evaluateConfidence(aiResult, context)
       : { score: 50, reason: '검색 결과 없이 AI 자체 지식으로 답변하여 신뢰도를 측정할 수 없습니다.' };
 
-    return { aiResult, webSources, confidence };
+    return { aiResult, webSources, confidence, inputTokens, outputTokens, estimatedFees };
   }
 
   /** Claude / OpenAI는 tool use API 지원 → 에이전트 루프 사용 */
@@ -115,10 +129,10 @@ export class DeepResearchPipelineService {
     return searchTavily(query);
   }
 
-  private deepAnalyze(aiModel: string, prompt: string, context: string): Promise<string> {
+  private deepAnalyze(aiModel: string, prompt: string, context: string) {
     const fullPrompt = context ? PROMPTS.withSearchContext(context, prompt) : prompt;
     const useBuiltinSearch = !context;
-    return this.aiProvider.call(aiModel, PROMPTS.system, fullPrompt, { useBuiltinSearch });
+    return this.aiProvider.callWithUsage(aiModel, PROMPTS.system, fullPrompt, { useBuiltinSearch });
   }
 
   /**
