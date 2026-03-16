@@ -2,6 +2,6 @@ export { PageHeader } from "./PageHeader";
 export { GradientCard } from "./GradientCard";
 export { StatusBadge } from "./StatusBadge";
 export { TavilyCard } from "./TavilyCard";
-export { AnthropicCard } from "./AnthropicCard";
+export { TokenUsageCard } from "./TokenUsageCard";
 export { ApiKeysTable } from "./ApiKeysTable";
-export type { TavilyOverview, AnthropicUsage } from "./types";
+export type { TavilyOverview } from "./types";

@@ -10,9 +10,10 @@ import { SessionsModule } from '../sessions/sessions.module';
 import { AiModule } from '../ai/ai.module';
 import { QueueJobEntity } from './domain/entity/queue-job.entity';
 import { QueueJobRepository } from './domain/repository/queue-job.repository';
+import { AppConfigModule } from '../config/config.module';
 
 @Module({
-  imports: [forwardRef(() => ResearchModule), SessionsModule, AiModule, TypeOrmModule.forFeature([QueueJobEntity])],
+  imports: [forwardRef(() => ResearchModule), SessionsModule, AiModule, TypeOrmModule.forFeature([QueueJobEntity]), AppConfigModule],
   controllers: [QueueController],
   providers: [QueueService, DeepResearchExecutorService, LightResearchExecutorService, SummaryExecutorService, QueueJobRepository],
   exports: [QueueService],

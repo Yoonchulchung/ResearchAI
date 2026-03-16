@@ -12,10 +12,15 @@ export type TavilyOverview = {
   configured: boolean;
   usage: {
     key: TavilyUsageBreakdown;
-    account: TavilyUsageBreakdown & {
+    account: {
       current_plan: string;
       plan_usage: number;
       plan_limit: number | null;
+      search_usage: number;
+      crawl_usage: number;
+      extract_usage: number;
+      map_usage: number;
+      research_usage: number;
       paygo_usage: number;
       paygo_limit: number | null;
     };

@@ -11,6 +11,7 @@ import { RecruitModule } from './recruit/recruit.module';
 import { NewsModule } from './news/news.module';
 import { DocParseModule } from './doc-parse/doc-parse.module';
 import { MediaModule } from './media/media.module';
+import { AppConfigModule } from './config/config.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { MediaModule } from './media/media.module';
     NewsModule,
     DocParseModule,
     MediaModule,
+    AppConfigModule,
   ],
 })
 export class AppModule {}

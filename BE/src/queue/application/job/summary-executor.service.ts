@@ -3,6 +3,7 @@ import { AiProviderService } from '../../../ai/application/ai-provider.service';
 import { SessionQueryService } from '../../../sessions/application/query/session-query.service';
 import { SessionCommandService } from '../../../sessions/application/command/session-command.service';
 import { SummaryState } from '../../../sessions/domain/entity/session.entity';
+import { AppConfigService, CONFIG_KEYS } from '../../../config/application/app-config.service';
 
 @Injectable()
 export class SummaryExecutorService {
@@ -10,11 +11,12 @@ export class SummaryExecutorService {
     private readonly aiProvider: AiProviderService,
     private readonly sessionQueryService: SessionQueryService,
     private readonly sessionCommandService: SessionCommandService,
+    private readonly appConfigService: AppConfigService,
   ) {}
 
   async execute(
     sessionId: string,
-    model: string, 
+    model: string,
     onChunk: (chunk: string) => void,
   ): Promise<string> {
     await this.sessionCommandService.updateSummaryState(sessionId, SummaryState.RUNNING);
@@ -22,7 +24,8 @@ export class SummaryExecutorService {
     const ctx = await this.sessionQueryService.buildSummaryContext(sessionId);
     if (!ctx) throw new Error('완료된 태스크가 없습니다.');
 
-    const targetModel = model || ctx.model;
+    const defaultLocalModel = await this.appConfigService.get(CONFIG_KEYS.DEFAULT_LOCAL_MODEL);
+    const targetModel = model || defaultLocalModel || ctx.model;
     let fullText = '';
 
     for await (const chunk of this.aiProvider.stream(targetModel, ctx.system, [{ role: 'user', content: ctx.prompt }])) {

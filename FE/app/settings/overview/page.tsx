@@ -1,35 +1,192 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getTavilyOverview, getAnthropicUsage, getApiKeys, type ApiKeyEntry } from "@/lib/api";
+import { getTavilyOverview, getApiKeys, type ApiKeyEntry } from "@/lib/api";
+import { getModels } from "@/lib/api/research";
+import { ModelDefinition } from "@/types";
 import {
   type TavilyOverview,
-  type AnthropicUsage,
   PageHeader,
   TavilyCard,
-  AnthropicCard,
+  TokenUsageCard,
   ApiKeysTable,
 } from "./components";
 
+interface AnalyticsSummary {
+  totalCost: number;
+  totalCalls: number;
+  models: string[];
+}
+
+function CloudModelConfigCard({
+  cloudModels,
+  currentModel,
+  onSave,
+}: {
+  cloudModels: ModelDefinition[];
+  currentModel: string;
+  onSave: (model: string) => Promise<void>;
+}) {
+  const [selected, setSelected] = useState(currentModel);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => { setSelected(currentModel); }, [currentModel]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(selected);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-5">
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
+        클라우드 AI 모델 기본값
+      </p>
+      <div className="flex items-center gap-3">
+        <select
+          value={selected}
+          onChange={(e) => setSelected(e.target.value)}
+          className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300"
+        >
+          {cloudModels.length === 0 ? (
+            <option value="">클라우드 모델 없음</option>
+          ) : (
+            cloudModels.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))
+          )}
+        </select>
+        <button
+          onClick={handleSave}
+          disabled={saving || cloudModels.length === 0}
+          className="px-5 py-2.5 bg-slate-800 text-white text-sm font-medium rounded-xl hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {saving ? "저장 중..." : saved ? "저장됨 ✓" : "저장"}
+        </button>
+      </div>
+      <p className="text-xs text-slate-400 mt-2">
+        딥리서치 등 클라우드 AI를 사용하는 기능의 기본 모델입니다.
+      </p>
+    </div>
+  );
+}
+
+function LocalModelConfigCard({
+  ollamaModels,
+  currentModel,
+  onSave,
+}: {
+  ollamaModels: ModelDefinition[];
+  currentModel: string;
+  onSave: (model: string) => Promise<void>;
+}) {
+  const [selected, setSelected] = useState(currentModel);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => { setSelected(currentModel); }, [currentModel]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(selected);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-5">
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
+        로컬 모델 기본값
+      </p>
+      <div className="flex items-center gap-3">
+        <select
+          value={selected}
+          onChange={(e) => setSelected(e.target.value)}
+          className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300"
+        >
+          {ollamaModels.length === 0 ? (
+            <option value="">Ollama 모델 없음</option>
+          ) : (
+            ollamaModels.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))
+          )}
+        </select>
+        <button
+          onClick={handleSave}
+          disabled={saving || ollamaModels.length === 0}
+          className="px-5 py-2.5 bg-slate-800 text-white text-sm font-medium rounded-xl hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {saving ? "저장 중..." : saved ? "저장됨 ✓" : "저장"}
+        </button>
+      </div>
+      <p className="text-xs text-slate-400 mt-2">
+        AI 서머리 등 로컬 LLM을 사용하는 기능의 기본 모델입니다.
+      </p>
+    </div>
+  );
+}
+
 export default function OverviewPage() {
   const [tavily, setTavily] = useState<TavilyOverview | null>(null);
-  const [anthropic, setAnthropic] = useState<AnthropicUsage | null>(null);
   const [apiKeys, setApiKeys] = useState<ApiKeyEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
+  const [ollamaModels, setOllamaModels] = useState<ModelDefinition[]>([]);
+  const [cloudModels, setCloudModels] = useState<ModelDefinition[]>([]);
+  const [defaultLocalModel, setDefaultLocalModel] = useState("");
+  const [defaultCloudModel, setDefaultCloudModel] = useState("");
 
   const fetchAll = useCallback(() => {
     setLoading(true);
-    Promise.allSettled([getTavilyOverview(), getAnthropicUsage(), getApiKeys()]).then(
-      ([tavilyRes, anthropicRes, apiKeysRes]) => {
-        if (tavilyRes.status === "fulfilled") setTavily(tavilyRes.value);
-        if (anthropicRes.status === "fulfilled") setAnthropic(anthropicRes.value);
-        if (apiKeysRes.status === "fulfilled") setApiKeys(apiKeysRes.value);
-        setLoading(false);
+    Promise.allSettled([
+      getTavilyOverview(),
+      getApiKeys(),
+      fetch("http://localhost:3001/api/overview/analytics?range=30d").then((r) => r.json()),
+      getModels(),
+      fetch("http://localhost:3001/api/config").then((r) => r.json()),
+    ]).then(([tavilyRes, apiKeysRes, analyticsRes, modelsRes, configRes]) => {
+      if (tavilyRes.status === "fulfilled") setTavily(tavilyRes.value);
+      if (apiKeysRes.status === "fulfilled") setApiKeys(apiKeysRes.value);
+      if (analyticsRes.status === "fulfilled") setAnalytics(analyticsRes.value);
+      if (modelsRes.status === "fulfilled") {
+        const all = modelsRes.value as ModelDefinition[];
+        setOllamaModels(all.filter((m) => m.provider === "ollama"));
+        setCloudModels(all.filter((m) => m.provider !== "ollama"));
       }
-    );
+      if (configRes.status === "fulfilled") {
+        const cfg = configRes.value as Record<string, string>;
+        setDefaultLocalModel(cfg.default_local_model ?? "");
+        setDefaultCloudModel(cfg.default_cloud_model ?? "");
+      }
+      setLoading(false);
+    });
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleSaveLocalModel = async (model: string) => {
+    await fetch("http://localhost:3001/api/config/default_local_model", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: model }),
+    });
+    setDefaultLocalModel(model);
+  };
+
+  const handleSaveCloudModel = async (model: string) => {
+    await fetch("http://localhost:3001/api/config/default_cloud_model", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: model }),
+    });
+    setDefaultCloudModel(model);
+  };
 
   return (
     <div className="min-h-full bg-slate-50">
@@ -37,7 +194,17 @@ export default function OverviewPage() {
 
       <div className="px-8 py-8 space-y-6 max-w-4xl mx-auto">
         <TavilyCard loading={loading} tavily={tavily} />
-        <AnthropicCard loading={loading} anthropic={anthropic} />
+        <TokenUsageCard loading={loading} analytics={analytics} />
+        <CloudModelConfigCard
+          cloudModels={cloudModels}
+          currentModel={defaultCloudModel}
+          onSave={handleSaveCloudModel}
+        />
+        <LocalModelConfigCard
+          ollamaModels={ollamaModels}
+          currentModel={defaultLocalModel}
+          onSave={handleSaveLocalModel}
+        />
         <ApiKeysTable loading={loading} apiKeys={apiKeys} onRefresh={fetchAll} />
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-5 flex items-center justify-between">

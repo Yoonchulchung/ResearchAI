@@ -9,6 +9,7 @@ import { SearchListEntity } from '../research/domain/entity/searchlist.entity';
 import { TokenHistoryEntity } from 'src/overview/domain/entity/token-history.entity';
 import { QueueJobEntity } from '../queue/domain/entity/queue-job.entity';
 import { NewsBriefingEntity } from '../news/domain/entity/news-briefing.entity';
+import { AppConfigEntity } from '../config/domain/entity/app-config.entity';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { NewsBriefingEntity } from '../news/domain/entity/news-briefing.entity';
                  ChatEntity, ResearchRecruitEntity,
                  LightResearchEntity, SearchListEntity,
                  TokenHistoryEntity, QueueJobEntity,
-                 NewsBriefingEntity],
+                 NewsBriefingEntity, AppConfigEntity],
       synchronize: true,
     }),
   ],

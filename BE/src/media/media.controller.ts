@@ -30,7 +30,7 @@ export class MediaController {
       storage: memoryStorage(),
       limits: { fileSize: MAX_SIZE_MB * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
-        if (ALLOWED_MIMETYPES.includes(file.mimetype)) {
+        if (ALLOWED_MIMETYPES.includes(file.mimetype as MimeType)) {
           cb(null, true);
         } else {
           cb(new BadRequestException(`지원하지 않는 파일 형식입니다: ${file.mimetype}`), false);
