@@ -10,6 +10,7 @@ import { ChatModule } from './chat/chat.module';
 import { RecruitModule } from './recruit/recruit.module';
 import { NewsModule } from './news/news.module';
 import { DocParseModule } from './doc-parse/doc-parse.module';
+import { MediaModule } from './media/media.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { DocParseModule } from './doc-parse/doc-parse.module';
     RecruitModule,
     NewsModule,
     DocParseModule,
+    MediaModule,
   ],
 })
 export class AppModule {}

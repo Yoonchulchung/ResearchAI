@@ -44,6 +44,7 @@ export async function requestSessionSummary(
     body: JSON.stringify({ localAIModel }),
   });
   if (!res.ok) throw new Error("Summary 요청 실패");
+  window.dispatchEvent(new CustomEvent("queue:enqueue"));
 }
 
 export async function streamSessionSummary(

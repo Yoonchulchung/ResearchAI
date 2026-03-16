@@ -31,10 +31,12 @@ export async function enqueueLightResearch(params: {
   webModel: "tavily" | "serper" | "naver" | "brave";
   searchMode?: "web" | "recruit" | "both" | "auto";
 }): Promise<{ searchId: string; status: string }> {
-  return apiFetch<{ searchId: string; status: string }>("/queue/research/light", {
+  const result = await apiFetch<{ searchId: string; status: string }>("/queue/research/light", {
     method: "POST",
     body: JSON.stringify(params),
   });
+  window.dispatchEvent(new CustomEvent("queue:enqueue"));
+  return result;
 }
 
 export async function subscribeLightResearch(
@@ -62,10 +64,12 @@ export async function deepResearch(
   localAIModel: string,
   cloudAIModel: string,
 ): Promise<{ status: string; sessionId: string }> {
-  return apiFetch<{ status: string; sessionId: string }>(`/queue/research/${sessionId}/deep`, {
+  const result = await apiFetch<{ status: string; sessionId: string }>(`/queue/research/${sessionId}/deep`, {
     method: "POST",
     body: JSON.stringify({ items, localAIModel, cloudAIModel, status: "start" }),
   });
+  window.dispatchEvent(new CustomEvent("queue:enqueue"));
+  return result;
 }
 
 export async function stopResearch(sessionId: string): Promise<{ ok: boolean }> {

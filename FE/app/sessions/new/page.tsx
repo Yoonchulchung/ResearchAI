@@ -71,6 +71,7 @@ export default function NewSession() {
             selectedLocalModel={selectedLocalModel}
             onApiModelChange={setSelectedApiModel}
             onLocalModelChange={setSelectedLocalModel}
+            dropdownDirection="down"
           />
 
           {/* Terminal log */}

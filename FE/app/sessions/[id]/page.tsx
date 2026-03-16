@@ -56,6 +56,7 @@ const ChatInputArea = memo(function ChatInputArea({
       selectedLocalModel={selectedModel}
       onApiModelChange={setSelectedModel}
       onLocalModelChange={setSelectedModel}
+      dropdownDirection="up"
     />
   );
 });

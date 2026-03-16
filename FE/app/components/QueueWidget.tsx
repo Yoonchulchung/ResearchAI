@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import { useSummaryProgress } from "@/contexts/SummaryProgressContext";
 import { getQueueStatus, QueueStatus } from "@/lib/api/queue";
 
-const POLL_INTERVAL = 3000;
+const MIN_INTERVAL = 3_000;
+const MAX_INTERVAL = 60_000;
+const BACKOFF_FACTOR = 2;
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "대기",
@@ -29,17 +31,47 @@ export function QueueWidget() {
 
   useEffect(() => {
     let cancelled = false;
+    let currentInterval = MIN_INTERVAL;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
     const poll = async () => {
       try {
         const status = await getQueueStatus();
-        if (!cancelled) setQueueStatus(status);
+        if (cancelled) return;
+        setQueueStatus(status);
+
+        const active = status.jobs.filter(
+          (j) => j.status === "pending" || j.status === "running",
+        ).length;
+
+        if (active > 0) {
+          // 진행 중인 작업 있으면 최소 간격 유지
+          currentInterval = MIN_INTERVAL;
+        } else {
+          // 없으면 간격을 2배씩 늘림 (최대 60s)
+          currentInterval = Math.min(currentInterval * BACKOFF_FACTOR, MAX_INTERVAL);
+        }
       } catch {
-        // 조회 실패 시 무시
+        // 조회 실패 시 간격 유지
       }
+
+      if (!cancelled) timeoutId = setTimeout(poll, currentInterval);
     };
+
+    // queue 요청 발생 시 간격 초기화 후 즉시 재폴링
+    const handleEnqueue = () => {
+      currentInterval = MIN_INTERVAL;
+      clearTimeout(timeoutId);
+      poll();
+    };
+    window.addEventListener("queue:enqueue", handleEnqueue);
+
     poll();
-    const id = setInterval(poll, POLL_INTERVAL);
-    return () => { cancelled = true; clearInterval(id); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+      window.removeEventListener("queue:enqueue", handleEnqueue);
+    };
   }, []);
 
   const activeJobs = queueStatus?.jobs.filter((j) => j.status === "pending" || j.status === "running") ?? [];
