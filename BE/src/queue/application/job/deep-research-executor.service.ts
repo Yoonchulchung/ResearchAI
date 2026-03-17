@@ -20,12 +20,17 @@ export class DeepResearchExecutorService {
     itemPrompt: string,
     cloudAIModel: string,
     webModel: SearchEngine,
+    localAIModel?: string,
+    signal?: AbortSignal,
   ): Promise<{ aiResult: string; webSources: SearchSources }> {
     await this.sessionCommandService.updateSessionState(sessionId, ResearchState.RUNNING);
     await this.sessionItemCommandService.updateStatus(itemId, ResearchState.RUNNING);
 
+    // 로컬 모델이 명시적으로 지정된 경우 우선 사용
+    const aiModel = localAIModel || cloudAIModel;
+
     const { aiResult, webSources, confidence, inputTokens, outputTokens, estimatedFees, searchLog, usedWebModel } =
-      await this.researchService.research({ type: 'deep', itemPrompt, cloudAIModel, webModel });
+      await this.researchService.research({ type: 'deep', itemPrompt, cloudAIModel: aiModel, webModel, signal });
 
     const webResult = webSources.tavily ?? webSources.serper ?? webSources.naver ?? webSources.brave ?? webSources.duckduckgo ?? '';
     await this.sessionCommandService.updateSessionItem(

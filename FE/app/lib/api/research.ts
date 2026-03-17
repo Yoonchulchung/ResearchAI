@@ -70,13 +70,12 @@ export async function cancelLightResearch(searchId: string): Promise<void> {
 export async function deepResearch(
   sessionId: string,
   items: { itemId: string; prompt: string }[],
-  localAIModel: string,
-  cloudAIModel: string,
+  aiModel?: string,
   webModel?: string,
 ): Promise<{ status: string; sessionId: string }> {
   const result = await apiFetch<{ status: string; sessionId: string }>(`/queue/research/${sessionId}/deep`, {
     method: "POST",
-    body: JSON.stringify({ items, localAIModel, cloudAIModel, webModel, status: "start" }),
+    body: JSON.stringify({ items, aiModel, webModel, status: "start" }),
   });
   window.dispatchEvent(new CustomEvent("queue:enqueue"));
   return result;

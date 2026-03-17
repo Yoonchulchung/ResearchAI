@@ -213,8 +213,8 @@ export function useNewSession(models: ModelDefinition[]) {
     }
   };
 
-  const updateTask = (idx: number, field: keyof Task, value: string) => {
-    setTasks((prev) => prev.map((t, i) => (i === idx ? { ...t, [field]: value } : t)));
+  const updateTask = (taskId: number, field: keyof Task, value: string) => {
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, [field]: value } : t)));
   };
 
   const removeTask = (idx: number) => {

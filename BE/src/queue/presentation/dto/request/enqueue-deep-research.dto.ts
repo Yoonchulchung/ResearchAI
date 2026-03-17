@@ -10,8 +10,7 @@ export class EnqueueDeepResearchItemDto {
 
 export class EnqueueDeepResearchDto {
   items: EnqueueDeepResearchItemDto[];
-  localAIModel: string;
-  cloudAIModel: string;
+  aiModel?: string;
   webModel?: string;
   status: DeepResearchAction;
 }

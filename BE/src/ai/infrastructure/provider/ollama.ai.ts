@@ -94,8 +94,8 @@ export async function* streamOllama(
 const CALL_MAX_RETRIES = 3;
 const CALL_RETRY_DELAY_MS = 5000;
 
-export async function callOllama(model: string, system: string, prompt: string, options?: OllamaOptions, timeoutMs?: number, tools?: undefined, format?: 'json'): Promise<string>;
-export async function callOllama(model: string, system: string, prompt: string | any[], options: OllamaOptions | undefined, timeoutMs: number | undefined, tools: OllamaTool[], format?: 'json'): Promise<OllamaCallResult>;
+export async function callOllama(model: string, system: string, prompt: string, options?: OllamaOptions, timeoutMs?: number, tools?: undefined, format?: 'json', signal?: AbortSignal): Promise<string>;
+export async function callOllama(model: string, system: string, prompt: string | any[], options: OllamaOptions | undefined, timeoutMs: number | undefined, tools: OllamaTool[], format?: 'json', signal?: AbortSignal): Promise<OllamaCallResult>;
 export async function callOllama(
   model: string,
   system: string,
@@ -104,6 +104,7 @@ export async function callOllama(
   timeoutMs?: number,
   tools?: OllamaTool[],
   format?: 'json',
+  signal?: AbortSignal,
 ): Promise<string | OllamaCallResult> {
   const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
   const msgList = typeof prompt === 'string'
@@ -127,7 +128,11 @@ export async function callOllama(
             options,
             ...(tools ? { tools } : {}),
           }),
-          signal: timeoutMs != null ? AbortSignal.timeout(timeoutMs) : undefined,
+          signal: timeoutMs != null && signal
+            ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+            : timeoutMs != null
+            ? AbortSignal.timeout(timeoutMs)
+            : signal,
         });
       } catch (error: any) {
         if (error.name === 'AbortError' || error.name === 'TimeoutError') {

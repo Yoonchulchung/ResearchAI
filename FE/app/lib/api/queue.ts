@@ -34,3 +34,6 @@ export interface QueueStatus {
 }
 
 export const getQueueStatus = () => apiFetch<QueueStatus>("/queue/status");
+
+export const cancelSummary = (sessionId: string) =>
+  apiFetch(`/queue/sessions/${sessionId}/summary`, { method: "DELETE" });

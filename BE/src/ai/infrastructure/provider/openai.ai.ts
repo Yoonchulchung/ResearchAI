@@ -7,13 +7,14 @@ export async function callOpenAI(
   system: string,
   messages: OpenAI.ChatCompletionMessageParam[],
   tools?: OpenAI.ChatCompletionTool[],
+  signal?: AbortSignal,
 ): Promise<AiCallResult> {
   const response = await client.chat.completions.create({
     model,
     max_tokens: 4000,
     messages: [{ role: 'system', content: system }, ...messages],
     ...(tools ? { tools } : {}),
-  });
+  }, { signal });
 
   const choice = response.choices[0];
   const toolCalls = choice.message.tool_calls

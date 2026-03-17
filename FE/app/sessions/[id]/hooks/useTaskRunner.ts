@@ -100,7 +100,7 @@ export function useTaskRunner(session: Session | null, id: string) {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const runTasks = useCallback(async (tasks: Task[], cloudAiModel?: string, webModel?: string) => {
+  const runTasks = useCallback(async (tasks: Task[], aiModel?: string, webModel?: string) => {
     if (!session || tasks.length === 0) return;
     const updates: Record<string, { status: TaskStatus; phase: Phase }> = {};
     for (const task of tasks) {
@@ -112,8 +112,7 @@ export function useTaskRunner(session: Session | null, id: string) {
       await deepResearch(
         id,
         tasks.map((t) => ({ itemId: t.itemId, prompt: t.webSearchPrompt })),
-        session.researchLocalAIModel,
-        cloudAiModel ?? session.researchCloudAIModel,
+        aiModel,
         webModel,
       );
     } catch (e: unknown) {
@@ -128,11 +127,11 @@ export function useTaskRunner(session: Session | null, id: string) {
     }
   }, [session, id]);
 
-  const handleRunTask = useCallback(async (task: Task, cloudAiModel?: string, webModel?: string) => {
+  const handleRunTask = useCallback(async (task: Task, aiModel?: string, webModel?: string) => {
     if (isRunning) return;
     setLocalRunning(true);
     try {
-      await runTasks([task], cloudAiModel, webModel);
+      await runTasks([task], aiModel, webModel);
     } finally {
       setLocalRunning(false);
     }

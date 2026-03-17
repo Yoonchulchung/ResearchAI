@@ -23,6 +23,7 @@ export async function callAnthropic(
   messages: Anthropic.MessageParam[],
   useWebSearch: boolean,
   tools?: Anthropic.Tool[],
+  signal?: AbortSignal,
 ): Promise<AiCallResult> {
   if (useWebSearch && !tools) {
     try {
@@ -34,7 +35,7 @@ export async function callAnthropic(
           messages,
           tools: [{ type: 'web_search_20250305' as any, name: 'web_search' }],
         } as any,
-        { headers: { 'anthropic-beta': 'web-search-2025-03-05' } },
+        { headers: { 'anthropic-beta': 'web-search-2025-03-05' }, signal },
       );
 
       // 검색 쿼리와 결과를 searchLog로 추출
@@ -73,7 +74,7 @@ export async function callAnthropic(
     system,
     messages,
     ...(tools ? { tools } : {}),
-  });
+  }, { signal });
 
   const toolCalls = response.content
     .filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')

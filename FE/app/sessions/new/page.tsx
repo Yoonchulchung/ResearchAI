@@ -16,7 +16,7 @@ export default function NewSession() {
   const {
     topic, setTopic,
     selectedCloudAiModel, setSelectedCloudAiModel,
-    selectedLocalAiModel, setSelectedLocalModel,
+    selectedLocalAiModel, setSelectedLocalAiModel,
     selectedWebModel, setSelectedWebModel,
     webEngines,
     tasks,
@@ -57,7 +57,7 @@ export default function NewSession() {
             title="로컬 모델 (Ollama)"
             models={localAiModels}
             selectedModel={selectedLocalAiModel}
-            onSelect={setSelectedLocalModel}
+            onSelect={setSelectedLocalAiModel}
             loading={isLoading}
             emptyMessage="Ollama가 실행 중이지 않거나 설치된 모델이 없습니다."
             defaultOpen={false}
@@ -76,7 +76,7 @@ export default function NewSession() {
             selectedLocalAiModel={selectedLocalAiModel}
             selectedWebModel={selectedWebModel}
             onCloudAiModelChange={setSelectedCloudAiModel}
-            onLocalAiModelChange={setSelectedLocalModel}
+            onLocalAiModelChange={setSelectedLocalAiModel}
             onWebModelChange={setSelectedWebModel}
             dropdownDirection="down"
             attachedFiles={attachedFiles}

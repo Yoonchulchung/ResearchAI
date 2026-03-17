@@ -57,6 +57,7 @@ export class DeepResearchPipelineService {
     webModel: SearchEngine = SearchEngine.TAVILY,
     /** QueueService에서 이미 검색 결과를 받아온 경우 직접 넘겨 에이전트 루프를 건너뜀 */
     contextOverride?: string,
+    signal?: AbortSignal,
   ): Promise<DeepResearchResult> {
     let aiResult = '';
     let webSources: SearchSources = {};
@@ -67,7 +68,7 @@ export class DeepResearchPipelineService {
 
     if (contextOverride) {
       // 미리 가져온 컨텍스트: 기존 방식으로 분석
-      const usage = await this.deepAnalyze(aiModel, prompt, contextOverride);
+      const usage = await this.deepAnalyze(aiModel, prompt, contextOverride, signal);
       aiResult = usage.text;
       inputTokens = usage.inputTokens;
       outputTokens = usage.outputTokens;
@@ -76,12 +77,15 @@ export class DeepResearchPipelineService {
 
     } else if (isBuiltinSearchEngine(webModel)) {
       // AI 벤더 내장 검색: useBuiltinSearch=true 로 AI 단독 처리
-      const usage = await this.deepAnalyze(aiModel, prompt, '');
+      const usage = await this.deepAnalyze(aiModel, prompt, '', signal);
       aiResult = usage.text;
       inputTokens = usage.inputTokens;
       outputTokens = usage.outputTokens;
       estimatedFees = usage.estimatedFees;
-      if (usage.searchLog?.length) searchLog = usage.searchLog;
+      if (usage.searchLog?.length) {
+        searchLog = usage.searchLog;
+        webSources = { [webModel]: usage.searchLog.map((s) => `Q: ${s.query}\n${s.result}`).join('\n\n') };
+      }
 
     } else if (this.supportsAgentLoop(aiModel)) {
       // Claude / OpenAI: AI 에이전트 루프
@@ -91,6 +95,8 @@ export class DeepResearchPipelineService {
         PROMPTS.system,
         prompt,
         searchFn,
+        5,
+        signal,
       );
       aiResult = agentResult.result;
       if (agentResult.searchLog.length > 0) {
@@ -110,7 +116,7 @@ export class DeepResearchPipelineService {
       } catch {
         // 검색 실패 시 컨텍스트 없이 진행
       }
-      const usage = await this.deepAnalyze(aiModel, prompt, context);
+      const usage = await this.deepAnalyze(aiModel, prompt, context, signal);
       aiResult = usage.text;
       inputTokens = usage.inputTokens;
       outputTokens = usage.outputTokens;
@@ -139,10 +145,10 @@ export class DeepResearchPipelineService {
     return this.webSearch.searchByEngine(webModel, query);
   }
 
-  private deepAnalyze(aiModel: string, prompt: string, context: string) {
+  private deepAnalyze(aiModel: string, prompt: string, context: string, signal?: AbortSignal) {
     const fullPrompt = context ? PROMPTS.withSearchContext(context, prompt) : prompt;
     const useBuiltinSearch = !context;
-    return this.aiProvider.call(aiModel, PROMPTS.system, fullPrompt, { useBuiltinSearch });
+    return this.aiProvider.call(aiModel, PROMPTS.system, fullPrompt, { useBuiltinSearch, signal });
   }
 
   /**

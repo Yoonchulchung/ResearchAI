@@ -56,6 +56,7 @@ export class WebSearchService {
 
   async searchByEngine(engine: SearchEngine, query: string): Promise<string> {
     if (isBuiltinSearchEngine(engine)) return '';
+    console.log(engine);
     const raw = await this.webSearchProvider.searchSingle(engine, query);
     if (!raw) return raw;
     try {

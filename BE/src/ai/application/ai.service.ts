@@ -31,6 +31,7 @@ export class AiService {
     prompt: string,
     searchFn: (query: string) => Promise<string>,
     maxIterations = 5,
+    signal?: AbortSignal,
   ): Promise<{ result: string; searchLog: Array<{ query: string; result: string }> }> {
     const searchLog: Array<{ query: string; result: string }> = [];
     const provider = getProvider(aiModel);
@@ -60,7 +61,7 @@ export class AiService {
     const messages: any[] = [{ role: 'user', content: prompt }];
 
     for (let i = 0; i < maxIterations; i++) {
-      const result = await this.aiProvider.call(aiModel, system, messages, { tools });
+      const result = await this.aiProvider.call(aiModel, system, messages, { tools, signal });
       if (!result.toolCalls?.length || result.stopReason === 'end_turn') {
         return { result: result.text, searchLog };
       }

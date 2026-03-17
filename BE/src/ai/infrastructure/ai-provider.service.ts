@@ -26,7 +26,7 @@ export class AiProviderService {
     aiModel: string,
     system: string,
     prompt: string | any[],
-    opts?: { useBuiltinSearch?: boolean; tools?: any[] },
+    opts?: { useBuiltinSearch?: boolean; tools?: any[]; signal?: AbortSignal },
   ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number; toolCalls?: ToolCallResult[]; stopReason?: string; searchLog?: { query: string; result: string }[] }> {
     const promptPreview = typeof prompt === 'string'
       ? prompt.slice(0, 100).replace(/\n/g, ' ')
@@ -39,10 +39,12 @@ export class AiProviderService {
       : prompt.map((m: any) => (typeof m.content === 'string' ? m.content : '')).filter(Boolean).join('\n');
     const messages = typeof prompt === 'string' ? [{ role: 'user' as const, content: prompt }] : prompt;
 
+    const signal = opts?.signal;
+
     if (aiModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) {
       const ollamaModel = aiModel.slice(AI_MODEL_PREFIX.OLLAMA.length);
       if (opts?.tools?.length) {
-        const result = await callOllama(ollamaModel, system, messages, undefined, undefined, opts.tools as OllamaTool[]);
+        const result = await callOllama(ollamaModel, system, messages, undefined, undefined, opts.tools as OllamaTool[], undefined, signal);
         const toolCalls = result.toolCalls.map((tc) => ({
           id: randomUUID(),
           name: tc.function.name,
@@ -55,7 +57,7 @@ export class AiProviderService {
           stopReason: toolCalls.length ? 'tool_use' : 'end_turn',
         };
       }
-      const text = await callOllama(ollamaModel, system, promptText);
+      const text = await callOllama(ollamaModel, system, promptText, undefined, undefined, undefined, undefined, signal);
       return { text, inputTokens: 0, outputTokens: 0, estimatedFees: 0 };
     }
 
@@ -68,13 +70,13 @@ export class AiProviderService {
 
     const provider = getProvider(aiModel);
     if (provider === AIProvider.ANTHROPIC) {
-      const result = await callAnthropic(this.anthropic, aiModel, system, messages as Anthropic.MessageParam[], useSearch, opts?.tools as Anthropic.Tool[] | undefined);
+      const result = await callAnthropic(this.anthropic, aiModel, system, messages as Anthropic.MessageParam[], useSearch, opts?.tools as Anthropic.Tool[] | undefined, signal);
       ({ text, inputTokens, outputTokens, toolCalls, stopReason, searchLog } = result);
     } else if (provider === AIProvider.GOOGLE) {
       const result = await callGoogle(this.google, aiModel, system + '\n\n' + promptText, useSearch);
       ({ text, inputTokens, outputTokens } = result);
     } else {
-      const result = await callOpenAI(this.openai, aiModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined);
+      const result = await callOpenAI(this.openai, aiModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
       ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
     }
 

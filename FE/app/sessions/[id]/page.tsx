@@ -117,11 +117,11 @@ export default function SessionPage() {
 
   // models/webEngines 로드 후 초기값 설정
   useEffect(() => {
-    if (!headerCloudAiModel && cloudAiModels.length > 0) {
-      setHeaderCloudAiModel(session?.researchCloudAIModel ?? cloudAiModels[0].id);
+    if (!headerCloudAiModel && models.length > 0) {
+      setHeaderCloudAiModel(session?.researchCloudAIModel ?? models[0].id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cloudAiModels.length]);
+  }, [models.length]);
 
   useEffect(() => {
     if (!headerWebModel && webEngines.length > 0) {
@@ -182,7 +182,7 @@ export default function SessionPage() {
         hasDoneTasks={hasDoneTasks}
         showDetail={showDetail}
         models={models}
-        cloudAiModels={cloudAiModels}
+        cloudAiModels={models}
         webEngines={webEngines}
         selectedCloudAiModel={headerCloudAiModel}
         selectedWebModel={headerWebModel}
@@ -220,11 +220,11 @@ export default function SessionPage() {
                     webModel={webModel[task.id]}
                     aiModel={session.researchCloudAIModel}
                     models={models}
-                    cloudAiModels={cloudAiModels}
+                    cloudAiModels={models}
                     webEngines={webEngines}
                     syncedCloudAiModel={headerCloudAiModel}
                     syncedWebModel={headerWebModel}
-                    onRun={(cloudAiModel, runWebModel) => handleRunTask(task, cloudAiModel, runWebModel)}
+                    onRun={(aiModel, runWebModel) => handleRunTask(task, aiModel, runWebModel)}
                     onCancel={() => handleCancelItem(task)}
                     onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}
                     onConfidenceUpdate={(c) => handleConfidenceUpdate(task.itemId, c)}

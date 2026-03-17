@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useSummaryProgress } from "@/contexts/SummaryProgressContext";
-import { getQueueStatus, QueueStatus } from "@/lib/api/queue";
+import { getQueueStatus, cancelSummary, QueueStatus } from "@/lib/api/queue";
+import { stopResearchItem, cancelLightResearch } from "@/lib/api/research";
 
 const MIN_INTERVAL = 3_000;
 const MAX_INTERVAL = 60_000;
@@ -74,6 +75,21 @@ export function QueueWidget() {
     };
   }, []);
 
+  const handleCancelJob = async (job: QueueStatus["jobs"][0]) => {
+    try {
+      if (job.taskType === "deepresearch") {
+        await stopResearchItem(job.sessionId, job.itemId);
+      } else if (job.taskType === "lightresearch") {
+        await cancelLightResearch(job.sessionId);
+      } else if (job.taskType === "summary") {
+        await cancelSummary(job.sessionId);
+      }
+      setQueueStatus((prev) =>
+        prev ? { ...prev, jobs: prev.jobs.filter((j) => j.jobId !== job.jobId) } : prev
+      );
+    } catch { /* 취소 실패 무시 */ }
+  };
+
   const activeJobs = queueStatus?.jobs.filter((j) => j.status === "pending" || j.status === "running") ?? [];
   const hasQueue = activeJobs.length > 0;
 
@@ -141,9 +157,18 @@ export function QueueWidget() {
                 )}
                 <span className="text-xs text-slate-500 truncate font-mono">{job.itemId.slice(0, 8)}…</span>
               </div>
-              <span className={`text-2xs font-medium shrink-0 ${STATUS_COLOR[job.status]}`}>
-                {job.phase ? `${STATUS_LABEL[job.status]} · ${job.phase}` : STATUS_LABEL[job.status]}
-              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                <span className={`text-2xs font-medium ${STATUS_COLOR[job.status]}`}>
+                  {job.phase ? `${STATUS_LABEL[job.status]} · ${job.phase}` : STATUS_LABEL[job.status]}
+                </span>
+                <button
+                  onClick={() => handleCancelJob(job)}
+                  className="text-2xs text-slate-300 hover:text-red-400 px-1 transition-colors"
+                  title="취소"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           ))}
           <div className="text-2xs text-slate-400 text-right">

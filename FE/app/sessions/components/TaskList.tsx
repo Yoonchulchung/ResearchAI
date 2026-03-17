@@ -22,7 +22,7 @@ export function TaskList({
   tasks: Task[];
   topic?: string;
   model?: string;
-  onUpdate: (idx: number, field: keyof Task, value: string) => void;
+  onUpdate: (taskId: number, field: keyof Task, value: string) => void;
   onRemove: (idx: number) => void;
   onAdd: () => void;
   searchSource?: "web" | "recruit" | "both" | null;
@@ -39,17 +39,17 @@ export function TaskList({
     els.forEach((el) => { el.style.height = `${avg}px`; });
   }, [tasks]);
 
-  const handleImprove = async (idx: number, task: Task) => {
+  const handleImprove = async (task: Task) => {
     if (!topic || !model) return;
-    setImproving((prev) => ({ ...prev, [idx]: true }));
+    setImproving((prev) => ({ ...prev, [task.id]: true }));
     try {
       const result = await improveTask(topic, task.title, task.webSearchPrompt, model);
-      onUpdate(idx, "title", result.title);
-      onUpdate(idx, "webSearchPrompt", result.prompt);
+      onUpdate(task.id, "title", result.title);
+      onUpdate(task.id, "webSearchPrompt", result.prompt);
     } catch {
       // 실패 시 무시
     } finally {
-      setImproving((prev) => ({ ...prev, [idx]: false }));
+      setImproving((prev) => ({ ...prev, [task.id]: false }));
     }
   };
 
@@ -77,15 +77,15 @@ export function TaskList({
               <div className="flex items-center gap-2">
                 <input
                   value={task.title}
-                  onChange={(e) => onUpdate(idx, "title", e.target.value)}
+                  onChange={(e) => onUpdate(task.id, "title", e.target.value)}
                   placeholder="항목 제목"
                   className="flex-1 min-w-0 font-semibold text-sm text-slate-800 border-0 focus:outline-none bg-transparent"
                 />
                 <div className="flex items-center gap-1 shrink-0">
                   {canImprove && (
                     <button
-                      onClick={() => handleImprove(idx, task)}
-                      disabled={improving[idx]}
+                      onClick={() => handleImprove(task)}
+                      disabled={improving[task.id]}
                       title="AI로 항목 개선"
                       className="text-slate-300 hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-100 disabled:cursor-not-allowed"
                     >
@@ -107,7 +107,7 @@ export function TaskList({
               <textarea
                 ref={(el) => { textareaRefs.current[idx] = el; }}
                 value={task.webSearchPrompt}
-                onChange={(e) => onUpdate(idx, "webSearchPrompt", e.target.value)}
+                onChange={(e) => onUpdate(task.id, "webSearchPrompt", e.target.value)}
                 placeholder="검색 프롬프트"
                 className="w-full text-xs text-slate-500 border border-slate-100 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200 resize-none leading-relaxed"
               />

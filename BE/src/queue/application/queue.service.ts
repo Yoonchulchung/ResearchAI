@@ -249,14 +249,18 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         continue;
       }
       await this.sessionItemCommandService.updateStatus(item.itemId, ResearchState.PENDING);
+      const isLocal = requestBody.aiModel?.startsWith('ollama:');
+      const localAIModel = isLocal ? requestBody.aiModel! : '';
+      const cloudAIModel = isLocal ? (session.researchCloudAIModel ?? '') : (requestBody.aiModel ?? session.researchCloudAIModel ?? '');
+
       await this.pushJob({
         jobId: `${sessionId}-${item.itemId}-${Date.now()}`,
         sessionId,
         itemId: item.itemId,
         itemPrompt: item.prompt,
         taskType: QueueJob.TaskType.DEEPRESEARCH,
-        localAIModel: requestBody.localAIModel,
-        CloudAIModel: requestBody.cloudAIModel,
+        localAIModel,
+        CloudAIModel: cloudAIModel,
         webModel: (requestBody.webModel ?? session.researchWebModel) as SearchEngine,
         status: QueueJobStatus.PENDING,
       });
@@ -441,6 +445,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
           job.itemPrompt,
           job.CloudAIModel,
           job.webModel ?? SearchEngine.TAVILY,
+          job.localAIModel || undefined,
+          controller.signal,
         );
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: aiResult, webSources });
 
@@ -487,6 +493,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
       }
     } catch (e) {
+      // AbortError: cancelByItem/cancelBySession에서 이미 STOPPED 처리됨
+      if (controller.signal.aborted) return;
       console.log(e);
       const msg = e instanceof Error ? e.message : '오류';
       this.updateJob(job.jobId, { status: QueueJobStatus.ERROR, phase: undefined, result: msg });
