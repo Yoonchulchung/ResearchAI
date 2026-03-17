@@ -67,6 +67,8 @@ export class SessionRepository {
       researchState: item.researchState,
       webResult: item.webResult || null,
       webModel: row.researchWebModel,
+      usedWebModel: item.usedWebModel ?? null,
+      searchLog: item.searchLog ? (() => { try { return JSON.parse(item.searchLog); } catch { return null; } })() : null,
       result: item.aiResult || null,
       confidenceScore: item.confidenceScore ?? null,
       confidenceReason: item.confidenceReason ?? null,

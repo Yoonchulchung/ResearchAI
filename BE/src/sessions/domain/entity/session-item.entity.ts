@@ -54,6 +54,12 @@ export class SessionItemEntity {
   @Column({ name: 'estimated_fees', type: 'float', nullable: true })
   estimatedFees: number | null;
 
+  @Column({ name: 'used_web_model', type: 'text', nullable: true })
+  usedWebModel: string | null;
+
+  @Column({ name: 'search_log', type: 'text', nullable: true })
+  searchLog: string | null; // JSON string: { query, result }[]
+
   @Column({ name: 'research_state', type: 'simple-enum', enum: ResearchState, default: ResearchState.IDLE })
   researchState: ResearchState;
 

@@ -17,8 +17,8 @@ export default function PipelinePage() {
     getModels().then(setModels);
   }, []);
 
-  const apiModels = models.filter((m) => m.provider !== "ollama");
-  const localModels = models.filter((m) => m.provider === "ollama");
+  const cloudAiModels = models.filter((m) => m.provider !== "ollama");
+  const localAiModels = models.filter((m) => m.provider === "ollama");
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "pipeline", label: "파이프라인 테스트" },
@@ -58,7 +58,7 @@ export default function PipelinePage() {
                 각 파이프라인 단계를 개별적으로 또는 순서대로 테스트합니다.
               </p>
             </div>
-            <PipelineDiagram apiModels={apiModels} localModels={localModels} />
+            <PipelineDiagram cloudAiModels={cloudAiModels} localAiModels={localAiModels} />
           </div>
         )}
 
@@ -82,7 +82,7 @@ export default function PipelinePage() {
                 태스크 생성 파이프라인 전체를 API 모델로 실행합니다.
               </p>
             </div>
-            <PromptTestPanel models={apiModels} />
+            <PromptTestPanel models={cloudAiModels} />
           </div>
         )}
 
@@ -94,8 +94,8 @@ export default function PipelinePage() {
                 태스크 생성 파이프라인 전체를 Ollama 로컬 모델로 실행합니다.
               </p>
             </div>
-            {localModels.length > 0 ? (
-              <PromptTestPanel models={localModels} />
+            {localAiModels.length > 0 ? (
+              <PromptTestPanel models={localAiModels} />
             ) : (
               <div className="bg-white border border-slate-200 rounded-2xl px-5 py-8 text-center">
                 <p className="text-sm text-slate-400">Ollama가 실행 중이지 않거나 설치된 모델이 없습니다.</p>

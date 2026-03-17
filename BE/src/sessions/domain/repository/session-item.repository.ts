@@ -42,6 +42,7 @@ export class SessionItemRepository {
     state?: ResearchState,
     confidence?: { score: number; reason: string },
     tokenUsage?: { inputTokens: number; outputTokens: number; estimatedFees: number },
+    extra?: { usedWebModel?: string; searchLog?: { query: string; result: string }[] },
   ): Promise<void> {
     await this.repo.update(id, {
       aiResult,
@@ -49,6 +50,8 @@ export class SessionItemRepository {
       ...(state && { researchState: state as any }),
       ...(confidence && { confidenceScore: confidence.score, confidenceReason: confidence.reason }),
       ...(tokenUsage && { inputTokens: tokenUsage.inputTokens, outputTokens: tokenUsage.outputTokens, estimatedFees: tokenUsage.estimatedFees }),
+      ...(extra?.usedWebModel != null && { usedWebModel: extra.usedWebModel }),
+      ...(extra?.searchLog != null && { searchLog: JSON.stringify(extra.searchLog) }),
     });
   }
 

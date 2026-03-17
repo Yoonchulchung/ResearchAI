@@ -29,8 +29,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const apiModels = models.filter((m) => m.provider !== "ollama");
-  const localModels = models.filter((m) => m.provider === "ollama");
+  const cloudAiModels = models.filter((m) => m.provider !== "ollama");
+  const localAiModels = models.filter((m) => m.provider === "ollama");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
@@ -75,8 +75,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         {/* Content */}
         <div className="flex-1 overflow-y-auto min-w-0">
           {section === "overview" && <OverviewSection />}
-          {section === "pipeline" && <PipelineSection apiModels={apiModels} />}
-          {section === "ai-test" && <AITestSection apiModels={apiModels} localModels={localModels} />}
+          {section === "pipeline" && <PipelineSection cloudAiModels={cloudAiModels} />}
+          {section === "ai-test" && <AITestSection cloudAiModels={cloudAiModels} localAiModels={localAiModels} />}
         </div>
       </div>
     </div>
@@ -107,7 +107,7 @@ function OverviewSection() {
   );
 }
 
-function PipelineSection({ apiModels }: { apiModels: ModelDefinition[] }) {
+function PipelineSection({ cloudAiModels }: { cloudAiModels: ModelDefinition[] }) {
   return (
     <div>
       <SectionHeader
@@ -115,18 +115,18 @@ function PipelineSection({ apiModels }: { apiModels: ModelDefinition[] }) {
         desc="각 파이프라인 단계를 개별적으로 또는 순서대로 테스트합니다."
       />
       <div className="px-8 py-6">
-        <PipelineDiagram apiModels={apiModels} />
+        <PipelineDiagram cloudAiModels={cloudAiModels} />
       </div>
     </div>
   );
 }
 
 function AITestSection({
-  apiModels,
-  localModels,
+  cloudAiModels,
+  localAiModels,
 }: {
-  apiModels: ModelDefinition[];
-  localModels: ModelDefinition[];
+  cloudAiModels: ModelDefinition[];
+  localAiModels: ModelDefinition[];
 }) {
   return (
     <div>
@@ -141,7 +141,7 @@ function AITestSection({
             <span className="text-xs font-bold uppercase tracking-widest text-slate-400">API 모델</span>
             <div className="flex-1 h-px bg-slate-200" />
           </div>
-          <PromptTestPanel models={apiModels} />
+          <PromptTestPanel models={cloudAiModels} />
         </section>
 
         {/* 로컬 모델 */}
@@ -150,8 +150,8 @@ function AITestSection({
             <span className="text-xs font-bold uppercase tracking-widest text-slate-400">로컬 모델 (Ollama)</span>
             <div className="flex-1 h-px bg-slate-200" />
           </div>
-          {localModels.length > 0 ? (
-            <PromptTestPanel models={localModels} />
+          {localAiModels.length > 0 ? (
+            <PromptTestPanel models={localAiModels} />
           ) : (
             <div className="bg-white border border-slate-200 rounded-2xl px-5 py-8 text-center">
               <p className="text-sm text-slate-400">Ollama가 실행 중이지 않거나 설치된 모델이 없습니다.</p>

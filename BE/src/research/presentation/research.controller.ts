@@ -4,7 +4,7 @@ import { WebSearchService } from '../application/web-search.service';
 import { ResearchService } from '../application/research.service';
 import { TestLightSearchDto } from './dto/request/test-light-search.dto';
 import { TestSearchDto } from './dto/request/test-search.dto';
-import { TestOllamaFilterDto } from './dto/request/test-ollama-filter.dto';
+
 import { TestLightSearchResponseDto } from './dto/response/test-light-search.response.dto';
 import { TestStep0PlanDto, TestStep1aWebSearchDto, TestStep1bRecruitSearchDto, TestStep2GenerateTasksDto } from './dto/request/test-pipeline-step.dto';
 
@@ -19,6 +19,11 @@ export class ResearchController {
   @Get('models')
   getModels() {
     return this.aiProvider.getLocalAiModels();
+  }
+
+  @Get('search-engines')
+  getSearchEngines() {
+    return this.searchService.getAvailableEngines();
   }
 
   // *************** //
@@ -37,11 +42,6 @@ export class ResearchController {
   @Post('test/search')
   testSearch(@Body() body: TestSearchDto) {
     return this.searchService.testSearchEngine(body.engine as any, body.query);
-  }
-
-  @Post('test/ollama-filter')
-  testOllamaFilter(@Body() body: TestOllamaFilterDto) {
-    return this.searchService.testOllamaFilter(body.query, body.context, body.customFilterPrompt);
   }
 
   // ****************** //

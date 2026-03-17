@@ -12,11 +12,13 @@ import { TaskChatBar } from "./components/TaskChatBar";
 
 export default function NewSession() {
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-  const { apiModels, localModels, isLoading, models } = useModels();
+  const { cloudAiModels, localAiModels, isLoading, models } = useModels();
   const {
     topic, setTopic,
-    selectedApiModel, setSelectedApiModel,
-    selectedLocalModel, setSelectedLocalModel,
+    selectedCloudAiModel, setSelectedCloudAiModel,
+    selectedLocalAiModel, setSelectedLocalModel,
+    selectedWebModel, setSelectedWebModel,
+    webEngines,
     tasks,
     searchSource,
     jobPostings,
@@ -43,9 +45,9 @@ export default function NewSession() {
           {/* API 모델 */}
           <ModelSelector
             title="API 모델"
-            models={apiModels}
-            selectedModel={selectedApiModel}
-            onSelect={setSelectedApiModel}
+            models={cloudAiModels}
+            selectedModel={selectedCloudAiModel}
+            onSelect={setSelectedCloudAiModel}
             loading={isLoading}
             defaultOpen={false}
           />
@@ -53,8 +55,8 @@ export default function NewSession() {
           {/* 로컬 모델 */}
           <ModelSelector
             title="로컬 모델 (Ollama)"
-            models={localModels}
-            selectedModel={selectedLocalModel}
+            models={localAiModels}
+            selectedModel={selectedLocalAiModel}
             onSelect={setSelectedLocalModel}
             loading={isLoading}
             emptyMessage="Ollama가 실행 중이지 않거나 설치된 모델이 없습니다."
@@ -67,12 +69,15 @@ export default function NewSession() {
             onChange={setTopic}
             onGenerate={handleGenerate}
             generating={generating}
-            apiModels={apiModels}
-            localModels={localModels}
-            selectedApiModel={selectedApiModel}
-            selectedLocalModel={selectedLocalModel}
-            onApiModelChange={setSelectedApiModel}
-            onLocalModelChange={setSelectedLocalModel}
+            cloudAiModels={cloudAiModels}
+            localAiModels={localAiModels}
+            webEngines={webEngines}
+            selectedCloudAiModel={selectedCloudAiModel}
+            selectedLocalAiModel={selectedLocalAiModel}
+            selectedWebModel={selectedWebModel}
+            onCloudAiModelChange={setSelectedCloudAiModel}
+            onLocalAiModelChange={setSelectedLocalModel}
+            onWebModelChange={setSelectedWebModel}
             dropdownDirection="down"
             attachedFiles={attachedFiles}
             onAttachedFilesChange={setAttachedFiles}
@@ -100,7 +105,7 @@ export default function NewSession() {
             <TaskList
               tasks={tasks}
               topic={topic}
-              model={selectedApiModel}
+              model={selectedCloudAiModel}
               onUpdate={updateTask}
               onRemove={removeTask}
               onAdd={addTask}
@@ -124,7 +129,7 @@ export default function NewSession() {
       {/* Chat bar — fixed at bottom of main area */}
       <TaskChatBar
         topic={topic}
-        model={selectedApiModel}
+        model={selectedCloudAiModel}
         tasks={tasks}
         onTasksReplace={replaceTasks}
       />

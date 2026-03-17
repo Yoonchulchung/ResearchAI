@@ -4,6 +4,15 @@ import { apiFetch, API_BASE, readSSE } from "./base";
 export const getModels = () =>
   apiFetch<ModelDefinition[]>("/research/models");
 
+export interface WebSearchEngine {
+  id: string;
+  name: string;
+  builtin: boolean;
+}
+
+export const getSearchEngines = () =>
+  apiFetch<WebSearchEngine[]>("/research/search-engines");
+
 // ── Light Research ────────────────────────────────────────────────────────────
 
 export interface JobItem {
@@ -28,7 +37,7 @@ export async function enqueueLightResearch(params: {
   topic: string;
   localAIModel: string;
   cloudAIModel: string;
-  webModel: "tavily" | "serper" | "naver" | "brave";
+  webModel: string;
   searchMode?: "web" | "recruit" | "both" | "auto";
 }): Promise<{ searchId: string; status: string }> {
   const result = await apiFetch<{ searchId: string; status: string }>("/queue/research/light", {
@@ -63,10 +72,11 @@ export async function deepResearch(
   items: { itemId: string; prompt: string }[],
   localAIModel: string,
   cloudAIModel: string,
+  webModel?: string,
 ): Promise<{ status: string; sessionId: string }> {
   const result = await apiFetch<{ status: string; sessionId: string }>(`/queue/research/${sessionId}/deep`, {
     method: "POST",
-    body: JSON.stringify({ items, localAIModel, cloudAIModel, status: "start" }),
+    body: JSON.stringify({ items, localAIModel, cloudAIModel, webModel, status: "start" }),
   });
   window.dispatchEvent(new CustomEvent("queue:enqueue"));
   return result;

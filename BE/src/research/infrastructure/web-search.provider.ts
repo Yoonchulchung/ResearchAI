@@ -4,17 +4,13 @@ import { searchTavily } from './search/tavily.search';
 import { searchSerper } from './search/serper.search';
 import { searchNaver } from './search/naver.search';
 import { searchBrave } from './search/brave.search';
-import { filterWithOllama } from './search/ollama-filter.search';
+import { searchDuckDuckGo } from './search/duckduckgo.search';
+
 
 @Injectable()
 export class WebSearchProvider {
   hasExternalSearch(): boolean {
-    return [
-      process.env.TAVILY_API_KEY,
-      process.env.SERPER_API_KEY,
-      process.env.NAVER_CLIENT_ID,
-      process.env.BRAVE_API_KEY,
-    ].some((k) => k && !k.startsWith('your_'));
+    return true; // DuckDuckGo는 항상 사용 가능
   }
 
   getAvailableTasks(query: string): { key: keyof SearchSources; fn: () => Promise<string> }[] {
@@ -31,6 +27,8 @@ export class WebSearchProvider {
     if (process.env.BRAVE_API_KEY && !process.env.BRAVE_API_KEY.startsWith('your_')) {
       tasks.push({ key: 'brave', fn: () => searchBrave(query) });
     }
+    // API 키 불필요 — 항상 포함
+    tasks.push({ key: 'duckduckgo', fn: () => searchDuckDuckGo(query) });
     return tasks;
   }
 
@@ -97,16 +95,15 @@ export class WebSearchProvider {
     }
   }
 
-  async searchSingle(engine: 'tavily' | 'serper' | 'naver' | 'brave', query: string): Promise<string> {
+  async searchSingle(engine: string, query: string): Promise<string> {
     switch (engine) {
-      case 'tavily': return searchTavily(query);
-      case 'serper': return searchSerper(query);
-      case 'naver': return searchNaver(query);
-      case 'brave': return searchBrave(query);
+      case 'tavily':      return searchTavily(query);
+      case 'serper':      return searchSerper(query);
+      case 'naver':       return searchNaver(query);
+      case 'brave':       return searchBrave(query);
+      case 'duckduckgo':  return searchDuckDuckGo(query);
+      default: return '';
     }
   }
 
-  async filterWithOllama(query: string, context: string, customFilterPrompt?: string): Promise<string> {
-    return filterWithOllama(query, context, customFilterPrompt);
-  }
 }

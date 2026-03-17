@@ -12,5 +12,6 @@ export class EnqueueDeepResearchDto {
   items: EnqueueDeepResearchItemDto[];
   localAIModel: string;
   cloudAIModel: string;
+  webModel?: string;
   status: DeepResearchAction;
 }

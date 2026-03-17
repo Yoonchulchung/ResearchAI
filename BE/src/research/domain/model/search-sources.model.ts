@@ -3,6 +3,7 @@ export interface SearchSources {
   serper?: string;
   naver?: string;
   brave?: string;
+  duckduckgo?: string;
   ollama?: string;
 }
 

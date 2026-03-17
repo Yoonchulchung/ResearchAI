@@ -11,9 +11,15 @@ interface Props {
   hasDoneTasks: boolean;
   showDetail: boolean;
   models?: ModelDefinition[];
+  cloudAiModels?: ModelDefinition[];
+  webEngines?: { id: string; name: string; builtin: boolean }[];
+  selectedCloudAiModel?: string;
+  selectedWebModel?: string;
+  onCloudAiModelChange?: (id: string) => void;
+  onWebModelChange?: (id: string) => void;
   reEvalProgress?: { done: number; total: number } | null;
   avgConfidence?: number | null;
-  onRunAll: () => void;
+  onRunAll: (cloudAiModel?: string, webModel?: string) => void;
   onCancel: () => void;
   onExport: () => void;
   onToggleDetail: () => void;
@@ -28,6 +34,12 @@ export function SessionHeader({
   hasDoneTasks,
   showDetail,
   models,
+  cloudAiModels,
+  webEngines,
+  selectedCloudAiModel,
+  selectedWebModel,
+  onCloudAiModelChange,
+  onWebModelChange,
   reEvalProgress,
   avgConfidence,
   onRunAll,
@@ -38,6 +50,7 @@ export function SessionHeader({
 }: Props) {
   const [reEvalModel, setReEvalModel] = useState(model);
   const isReEvaluating = !!reEvalProgress;
+  const hasRunSelectors = (cloudAiModels && cloudAiModels.length > 0) || (webEngines && webEngines.length > 0);
 
   return (
     <div className="px-8 pt-4 py-2.5 border-b border-slate-200 bg-white sticky top-0 z-10">
@@ -126,7 +139,7 @@ export function SessionHeader({
         )}
         {!hasDoneTasks && (
           <button
-            onClick={onRunAll}
+            onClick={() => onRunAll(selectedCloudAiModel, selectedWebModel)}
             disabled={isRunning}
             className="bg-indigo-600 text-white font-bold text-sm px-5 py-2 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
           >
@@ -135,13 +148,43 @@ export function SessionHeader({
         )}
         {hasDoneTasks && !isRunning && !allDone && (
           <button
-            onClick={onRunAll}
+            onClick={() => onRunAll(selectedCloudAiModel, selectedWebModel)}
             className="bg-indigo-600 text-white font-bold text-sm px-5 py-2 rounded-xl hover:bg-indigo-700 transition-colors shrink-0"
           >
             전체 실행
           </button>
         )}
       </div>
+
+      {/* 실행 모델 셀렉터 행 */}
+      {hasRunSelectors && (
+        <div className="flex items-center gap-2 pb-2.5">
+          <span className="text-xs text-slate-400 shrink-0">실행 모델</span>
+          {cloudAiModels && cloudAiModels.length > 0 && (
+            <select
+              value={selectedCloudAiModel ?? ""}
+              onChange={(e) => onCloudAiModelChange?.(e.target.value)}
+              className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-44 truncate"
+            >
+              {cloudAiModels.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          )}
+          {webEngines && webEngines.length > 0 && (
+            <select
+              value={selectedWebModel ?? ""}
+              onChange={(e) => onWebModelChange?.(e.target.value)}
+              className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-44 truncate"
+            >
+              {webEngines.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          )}
+          <span className="text-xs text-slate-300">— 각 태스크에서 개별 변경 가능</span>
+        </div>
+      )}
     </div>
   );
 }

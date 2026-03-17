@@ -12,6 +12,8 @@ export interface AiCallResult {
   outputTokens: number;
   toolCalls?: ToolCallResult[];
   stopReason?: string;
+  /** Anthropic 내장 웹검색 또는 에이전트 루프에서 실제 수행된 검색 기록 */
+  searchLog?: { query: string; result: string }[];
 }
 
 export async function callAnthropic(
@@ -34,10 +36,31 @@ export async function callAnthropic(
         } as any,
         { headers: { 'anthropic-beta': 'web-search-2025-03-05' } },
       );
+
+      // 검색 쿼리와 결과를 searchLog로 추출
+      const searchLog: { query: string; result: string }[] = [];
+      const blocks = response.content as any[];
+      for (const block of blocks) {
+        if (block.type === 'server_tool_use' && block.name === 'web_search') {
+          const query: string = block.input?.query ?? '';
+          // 해당 tool_use_id와 매칭되는 결과 블록 찾기
+          const resultBlock = blocks.find(
+            (b) => b.type === 'web_search_tool_result' && b.tool_use_id === block.id,
+          );
+          const result = resultBlock?.content
+            ? (resultBlock.content as any[])
+                .map((r: any) => `[${r.title ?? ''}]\n${r.url ?? ''}\n${r.encrypted_content ?? ''}`.trim())
+                .join('\n\n')
+            : '';
+          if (query) searchLog.push({ query, result });
+        }
+      }
+
       return {
-        text: response.content.filter((b) => b.type === 'text').map((b) => (b as any).text).join(''),
+        text: blocks.filter((b) => b.type === 'text').map((b) => b.text).join(''),
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
+        searchLog: searchLog.length ? searchLog : undefined,
       };
     } catch {
       // 웹 검색 미지원 시 일반 API로 폴백

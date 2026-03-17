@@ -50,13 +50,27 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   // ************* //
   // 서버 재시작 복구 //
   // ************* //
+  private static readonly STALE_JOB_THRESHOLD_MS = 60 * 60 * 1000; // 1시간
+
   async onModuleInit() {
     const activeJobs = await this.queueJobRepository.findByStatuses([
       QueueJobDbStatus.INIT,
       QueueJobDbStatus.RUNNING,
     ]);
 
+    const now = Date.now();
+
     for (const entity of activeJobs) {
+      const isStale = now - new Date(entity.createdAt).getTime() > QueueService.STALE_JOB_THRESHOLD_MS;
+
+      if (isStale) {
+        await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.STOPPED);
+        if (entity.itemId) {
+          await this.sessionItemCommandService.updateStatus(entity.itemId, ResearchState.STOPPED).catch(() => {});
+        }
+        continue;
+      }
+
       if (entity.taskType === QueueJob.TaskType.DEEPRESEARCH) {
         // DB 상태를 INIT으로 되돌리고 메모리 큐에 재등록
         await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.INIT);
@@ -243,7 +257,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         taskType: QueueJob.TaskType.DEEPRESEARCH,
         localAIModel: requestBody.localAIModel,
         CloudAIModel: requestBody.cloudAIModel,
-        webModel: session.researchWebModel as SearchEngine,
+        webModel: (requestBody.webModel ?? session.researchWebModel) as SearchEngine,
         status: QueueJobStatus.PENDING,
       });
     }

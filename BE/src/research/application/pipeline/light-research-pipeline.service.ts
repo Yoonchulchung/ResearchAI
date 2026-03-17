@@ -6,7 +6,7 @@ import { searchSerper } from '../../infrastructure/search/serper.search';
 import { searchNaver } from '../../infrastructure/search/naver.search';
 import { searchBrave } from '../../infrastructure/search/brave.search';
 import { SearchPlannerService, SearchModeInput } from '../search-planner.service';
-import { SearchPlan, SearchMode, PlannerMode, SearchEngine } from 'src/research/domain/model/search-planner.model';
+import { SearchPlan, SearchMode, PlannerMode, SearchEngine, isBuiltinSearchEngine } from 'src/research/domain/model/search-planner.model';
 import { AIProvider, AI_MODEL_PREFIX, getProvider } from '../../../ai/domain/models';
 import { RecruitContextService } from '../../../recruit/application/recruit-context.service';
 import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
@@ -172,8 +172,10 @@ export class LightResearchPipelineService {
     const model = cloudAIModel || localAIModel;
     const searchPlan = yield* this.step0Plan(topic, localAIModel, searchMode);
 
+    const useBuiltin = isBuiltinSearchEngine(webModel);
+
     let webContext: string | undefined;
-    if ((searchPlan.searchMode === SearchMode.WEB || searchPlan.searchMode === SearchMode.BOTH) && this.hasEngine(webModel)) {
+    if (!useBuiltin && (searchPlan.searchMode === SearchMode.WEB || searchPlan.searchMode === SearchMode.BOTH) && this.hasEngine(webModel)) {
       webContext = yield* this.step1aWebSearch(searchPlan.keyword, webModel);
     }
 
@@ -182,7 +184,7 @@ export class LightResearchPipelineService {
       recruitCtx = yield* this.step1bRecruitSearch(searchPlan.companyTypes, searchPlan.jobTypes, searchPlan.keyword, searchId);
     }
 
-    yield* this.step2GenerateTasks(topic, model, searchPlan, webContext, recruitCtx, searchId);
+    yield* this.step2GenerateTasks(topic, model, searchPlan, webContext, recruitCtx, searchId, useBuiltin);
   }
 
   // ── Step 0: 검색 소스 결정 ──
@@ -264,6 +266,7 @@ export class LightResearchPipelineService {
     webContext: string | undefined,
     recruitCtx: string | undefined,
     searchId?: string,
+    useBuiltinSearch?: boolean,
   ): AsyncGenerator<LightResearchEvent> {
     yield* this.printFront(`AI 검색 실행을 시작하겠습니다. 잠시만 기다려주세요.`);
     yield* this.printFront(`사용된 모델: ${model}`);
@@ -281,7 +284,7 @@ export class LightResearchPipelineService {
       : '';
     yield* this.printFront(`프롬프트 크기: ${promptChars.toLocaleString()}자 / 약 ${approxTokens.toLocaleString()} 토큰${estimatedCost}`);
 
-    const raw = await this.callAI(model, fullPrompt);
+    const raw = await this.callAI(model, fullPrompt, undefined, useBuiltinSearch);
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
     const tasks = JSON.parse(jsonMatch[0]);
@@ -324,13 +327,13 @@ export class LightResearchPipelineService {
     }
   }
 
-  private async callAI(model: string, prompt: string, systemOverride?: string): Promise<string> {
+  private async callAI(model: string, prompt: string, systemOverride?: string, useBuiltinSearch?: boolean): Promise<string> {
     const system = systemOverride ?? PROMPTS.system;
     const providerType = getProvider(model);
     const provider = providerType === AIProvider.OLLAMA
       ? `${AIProvider.OLLAMA} (${model.slice(AI_MODEL_PREFIX.OLLAMA.length)})`
       : providerType;
     this.logger.log(`[태스크 생성] ${provider} — model=${model}`);
-    return (await this.aiProvier.call(model, system, prompt)).text;
+    return (await this.aiProvier.call(model, system, prompt, { useBuiltinSearch })).text;
   }
 }

@@ -211,12 +211,15 @@ export function TopicInput({
   generating,
   placeholder = "리서치 주제를 입력하세요...",
   generatingLabel: _generatingLabel,
-  apiModels = [],
-  localModels = [],
-  selectedApiModel = "",
-  selectedLocalModel = "",
-  onApiModelChange,
-  onLocalModelChange,
+  cloudAiModels = [],
+  localAiModels = [],
+  webEngines = [],
+  selectedCloudAiModel = "",
+  selectedLocalAiModel = "",
+  selectedWebModel = "",
+  onCloudAiModelChange,
+  onLocalAiModelChange,
+  onWebModelChange,
   attachedFiles,
   onAttachedFilesChange,
   dropdownDirection = "down",
@@ -228,12 +231,15 @@ export function TopicInput({
   generating: boolean;
   placeholder?: string;
   generatingLabel?: string;
-  apiModels?: ModelDefinition[];
-  localModels?: ModelDefinition[];
-  selectedApiModel?: string;
-  selectedLocalModel?: string;
-  onApiModelChange?: (id: string) => void;
-  onLocalModelChange?: (id: string) => void;
+  cloudAiModels?: ModelDefinition[];
+  localAiModels?: ModelDefinition[];
+  webEngines?: { id: string; name: string; builtin: boolean }[];
+  selectedCloudAiModel?: string;
+  selectedLocalAiModel?: string;
+  selectedWebModel?: string;
+  onCloudAiModelChange?: (id: string) => void;
+  onLocalAiModelChange?: (id: string) => void;
+  onWebModelChange?: (id: string) => void;
   attachedFiles?: AttachedFile[];
   onAttachedFilesChange?: (files: AttachedFile[]) => void;
   dropdownDirection?: "up" | "down";
@@ -367,20 +373,34 @@ export function TopicInput({
 
         <div className="flex items-center gap-2">
           <ModelSelect
-            models={apiModels}
-            selectedModel={selectedApiModel}
-            onChange={onApiModelChange ?? (() => {})}
+            models={cloudAiModels}
+            selectedModel={selectedCloudAiModel}
+            onChange={onCloudAiModelChange ?? (() => {})}
             placeholder="API 모델"
           />
-          {apiModels.length > 0 && localModels.length > 0 && (
+          {cloudAiModels.length > 0 && localAiModels.length > 0 && (
             <span className="text-slate-200 text-xs select-none">|</span>
           )}
           <ModelSelect
-            models={localModels}
-            selectedModel={selectedLocalModel}
-            onChange={onLocalModelChange ?? (() => {})}
+            models={localAiModels}
+            selectedModel={selectedLocalAiModel}
+            onChange={onLocalAiModelChange ?? (() => {})}
             placeholder="로컬 모델"
           />
+          {webEngines.length > 0 && (
+            <>
+              <span className="text-slate-200 text-xs select-none">|</span>
+              <select
+                value={selectedWebModel}
+                onChange={(e) => onWebModelChange?.(e.target.value)}
+                className="text-sm text-slate-500 bg-transparent focus:outline-none cursor-pointer max-w-36 truncate"
+              >
+                {webEngines.map((e) => (
+                  <option key={e.id} value={e.id}>{e.name}</option>
+                ))}
+              </select>
+            </>
+          )}
 
           {generating && onAbort ? (
             <button

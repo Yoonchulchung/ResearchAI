@@ -8,6 +8,18 @@ export class AiService {
   constructor(private readonly aiProvider: AiProviderService) {}
 
   /**
+   * 단순 AI 호출: 검색 없이 AI에게 직접 질문.
+   */
+  async call(
+    aiModel: string,
+    system: string,
+    prompt: string,
+    opts?: { useBuiltinSearch?: boolean },
+  ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number }> {
+    return this.aiProvider.call(aiModel, system, prompt, opts);
+  }
+
+  /**
    * AI 에이전트 루프: web_search 도구를 제공하여 AI가 필요 시 검색을 결정하게 함.
    * - Claude (Anthropic): tool_use API
    * - OpenAI / Ollama: function calling API (OpenAI 호환 format)

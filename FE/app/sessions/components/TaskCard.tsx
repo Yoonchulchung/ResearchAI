@@ -15,6 +15,7 @@ export const SOURCE_LABELS: { key: WebModelKey; label: string }[] = [
   { key: "serper", label: "Serper" },
   { key: "naver", label: "네이버" },
   { key: "brave", label: "Brave" },
+  { key: "duckduckgo", label: "DuckDuckGo" },
   { key: "ollama", label: "Ollama 압축" },
 ];
 
@@ -26,6 +27,10 @@ export function TaskCard({
   webModel,
   aiModel,
   models,
+  cloudAiModels,
+  webEngines,
+  syncedCloudAiModel,
+  syncedWebModel,
   onRun,
   onCancel,
   onDelete,
@@ -38,7 +43,11 @@ export function TaskCard({
   webModel?: WebModels;
   aiModel?: string;
   models?: ModelDefinition[];
-  onRun: () => void;
+  cloudAiModels?: ModelDefinition[];
+  webEngines?: { id: string; name: string; builtin: boolean }[];
+  syncedCloudAiModel?: string;
+  syncedWebModel?: string;
+  onRun: (cloudAiModel?: string, webModel?: string) => void;
   onCancel: () => void;
   onDelete: () => void;
   onConfidenceUpdate?: (confidence: { score: number; reason: string }) => void;
@@ -48,6 +57,29 @@ export function TaskCard({
   const [reEvalModel, setReEvalModel] = useState(aiModel ?? "claude-haiku-4-5-20251001");
   const [reEvalLoading, setReEvalLoading] = useState(false);
   const [reEvalError, setReEvalError] = useState<string | null>(null);
+  const [selectedRunModel, setSelectedRunModel] = useState(() => syncedCloudAiModel ?? cloudAiModels?.[0]?.id ?? "");
+  const [selectedRunWebModel, setSelectedRunWebModel] = useState(() => syncedWebModel ?? webEngines?.[0]?.id ?? "");
+
+  // 헤더에서 모델 변경 시 동기화
+  useEffect(() => {
+    if (syncedCloudAiModel) setSelectedRunModel(syncedCloudAiModel);
+  }, [syncedCloudAiModel]);
+
+  useEffect(() => {
+    if (syncedWebModel) setSelectedRunWebModel(syncedWebModel);
+  }, [syncedWebModel]);
+
+  useEffect(() => {
+    if (!selectedRunModel && cloudAiModels && cloudAiModels.length > 0) {
+      setSelectedRunModel(cloudAiModels[0].id);
+    }
+  }, [cloudAiModels, selectedRunModel]);
+
+  useEffect(() => {
+    if (!selectedRunWebModel && webEngines && webEngines.length > 0) {
+      setSelectedRunWebModel(webEngines[0].id);
+    }
+  }, [webEngines, selectedRunWebModel]);
 
   useEffect(() => {
     if (aiModel) setReEvalModel(aiModel);
@@ -154,7 +186,7 @@ export function TaskCard({
   }, [subText]);
 
   const handleCardClick = () => {
-    if (status === TaskStatus.IDLE) onRun();
+    if (status === TaskStatus.IDLE) onRun(selectedRunModel || undefined, selectedRunWebModel || undefined);
     else if (hasContent) setExpanded((e) => !e);
   };
 
@@ -212,14 +244,42 @@ export function TaskCard({
               ✕
             </button>
           )}
-          {(status === "error" || status === TaskStatus.STOPPED || status === TaskStatus.ABORTED) && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onRun(); }}
-              className="text-xs font-semibold text-slate-400 hover:text-indigo-500 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
-              title="재시도"
-            >
-              ↺
-            </button>
+          {(status === TaskStatus.IDLE || status === "error" || status === TaskStatus.STOPPED || status === TaskStatus.ABORTED) && (
+            <>
+              {cloudAiModels && cloudAiModels.length > 0 && (
+                <select
+                  value={selectedRunModel}
+                  onChange={(e) => { e.stopPropagation(); setSelectedRunModel(e.target.value); }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-slate-500 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none cursor-pointer max-w-28 truncate"
+                >
+                  {cloudAiModels.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              )}
+              {webEngines && webEngines.length > 0 && (
+                <select
+                  value={selectedRunWebModel}
+                  onChange={(e) => { e.stopPropagation(); setSelectedRunWebModel(e.target.value); }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-slate-500 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none cursor-pointer max-w-28 truncate"
+                >
+                  {webEngines.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+              )}
+              {(status === "error" || status === TaskStatus.STOPPED || status === TaskStatus.ABORTED) && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRun(selectedRunModel || undefined, selectedRunWebModel || undefined); }}
+                  className="text-xs font-semibold text-slate-400 hover:text-indigo-500 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+                  title="재시도"
+                >
+                  ↺
+                </button>
+              )}
+            </>
           )}
           {status !== TaskStatus.RUNNING && status !== TaskStatus.PENDING && (
             <button
@@ -398,15 +458,15 @@ export function TaskCard({
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">검색 정보</p>
                 <div className="bg-white rounded-lg border border-slate-100 divide-y divide-slate-100 text-xs">
                   <div className="flex items-center px-3 py-2 gap-2">
-                    <span className="text-slate-400 w-20 shrink-0">검색 엔진</span>
-                    <span className="text-slate-700 font-medium">{task.webModel ?? "—"}</span>
+                    <span className="text-slate-400 w-24 shrink-0">사용된 엔진</span>
+                    <span className="text-slate-700 font-medium">{task.usedWebModel ?? task.webModel ?? "—"}</span>
                   </div>
                   <div className="flex items-center px-3 py-2 gap-2">
-                    <span className="text-slate-400 w-20 shrink-0">연구 상태</span>
+                    <span className="text-slate-400 w-24 shrink-0">연구 상태</span>
                     <span className="text-slate-700 font-medium">{task.researchState ?? task.status ?? "—"}</span>
                   </div>
                   <div className="flex items-center px-3 py-2 gap-2">
-                    <span className="text-slate-400 w-20 shrink-0">항목 ID</span>
+                    <span className="text-slate-400 w-24 shrink-0">항목 ID</span>
                     <span className="text-slate-500 font-mono">{task.itemId || "—"}</span>
                   </div>
                 </div>
@@ -420,7 +480,31 @@ export function TaskCard({
                 </pre>
               </section>
 
-              {/* 원본 웹 검색 결과 요약 */}
+              {/* AI 검색 기록 (agentic loop / Anthropic built-in) */}
+              {task.searchLog && task.searchLog.length > 0 && (
+                <section>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                    AI 검색 기록 <span className="normal-case font-normal text-slate-400">({task.searchLog.length}회)</span>
+                  </p>
+                  <div className="space-y-2">
+                    {task.searchLog.map((log, i) => (
+                      <div key={i} className="bg-white rounded-lg border border-slate-100 text-xs overflow-hidden">
+                        <div className="flex items-start gap-2 px-3 py-2 bg-indigo-50 border-b border-indigo-100">
+                          <span className="text-indigo-400 font-bold shrink-0">Q{i + 1}</span>
+                          <span className="text-indigo-700 font-medium break-all">{log.query}</span>
+                        </div>
+                        {log.result && (
+                          <pre className="text-slate-500 whitespace-pre-wrap font-mono leading-relaxed px-3 py-2 max-h-40 overflow-y-auto">
+                            {log.result}
+                          </pre>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* 원본 웹 검색 결과 (외부 엔진 직접 검색) */}
               {task.webResult && (
                 <section>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">

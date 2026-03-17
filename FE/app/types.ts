@@ -7,6 +7,8 @@ export interface Task {
   researchState?: string;
   webResult?: string | null;
   webModel?: string;
+  usedWebModel?: string | null;
+  searchLog?: { query: string; result: string }[] | null;
   aiResult?: string | null;
   confidence?: { score: number; reason: string } | null;
   inputTokens?: number | null;
@@ -19,6 +21,7 @@ export interface WebModels {
   serper?: string;
   naver?: string;
   brave?: string;
+  duckduckgo?: string;
   ollama?: string;
 }
 

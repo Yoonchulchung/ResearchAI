@@ -100,7 +100,7 @@ export function useTaskRunner(session: Session | null, id: string) {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const runTasks = useCallback(async (tasks: Task[]) => {
+  const runTasks = useCallback(async (tasks: Task[], cloudAiModel?: string, webModel?: string) => {
     if (!session || tasks.length === 0) return;
     const updates: Record<string, { status: TaskStatus; phase: Phase }> = {};
     for (const task of tasks) {
@@ -113,7 +113,8 @@ export function useTaskRunner(session: Session | null, id: string) {
         id,
         tasks.map((t) => ({ itemId: t.itemId, prompt: t.webSearchPrompt })),
         session.researchLocalAIModel,
-        session.researchCloudAIModel,
+        cloudAiModel ?? session.researchCloudAIModel,
+        webModel,
       );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "오류";
@@ -127,17 +128,17 @@ export function useTaskRunner(session: Session | null, id: string) {
     }
   }, [session, id]);
 
-  const handleRunTask = useCallback(async (task: Task) => {
+  const handleRunTask = useCallback(async (task: Task, cloudAiModel?: string, webModel?: string) => {
     if (isRunning) return;
     setLocalRunning(true);
     try {
-      await runTasks([task]);
+      await runTasks([task], cloudAiModel, webModel);
     } finally {
       setLocalRunning(false);
     }
   }, [isRunning, runTasks]);
 
-  const handleRunAll = useCallback(async () => {
+  const handleRunAll = useCallback(async (cloudAiModel?: string, webModel?: string) => {
     if (isRunning || !session) return;
     const pendingTasks = (session.items ?? []).filter((t) => {
       const s = statuses[String(t.id)];
@@ -146,7 +147,7 @@ export function useTaskRunner(session: Session | null, id: string) {
 
     setLocalRunning(true);
     try {
-      await runTasks(pendingTasks);
+      await runTasks(pendingTasks, cloudAiModel, webModel);
     } finally {
       setLocalRunning(false);
     }

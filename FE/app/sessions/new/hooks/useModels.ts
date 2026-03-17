@@ -11,8 +11,8 @@ export function useModels() {
 
   return {
     models,
-    apiModels: models.filter((m) => m.provider !== "ollama"),
-    localModels: models.filter((m) => m.provider === "ollama"),
+    cloudAiModels: models.filter((m) => m.provider !== "ollama"),
+    localAiModels: models.filter((m) => m.provider === "ollama"),
     isLoading: models.length === 0,
   };
 }

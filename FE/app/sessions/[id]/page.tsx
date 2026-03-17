@@ -12,6 +12,7 @@ import { SummarySection } from "@/sessions/components/SummarySection";
 import { DetailPanel } from "@/sessions/components/DetailPanel";
 import { TopicInput, AttachedFile } from "@/components/TopicInput";
 import { ModelDefinition } from "@/types";
+import { getSearchEngines, WebSearchEngine } from "@/lib/api/research";
 import { useSessionData } from "./hooks/useSessionData";
 import { useTaskRunner } from "./hooks/useTaskRunner";
 import { useChatHandler } from "./hooks/useChatHandler";
@@ -21,22 +22,28 @@ const ChatInputArea = memo(function ChatInputArea({
   onSend,
   onAbort,
   generating,
-  apiModels,
-  localModels,
+  cloudAiModels,
+  localAiModels,
+  webEngines,
   defaultModel,
+  defaultWebModel,
 }: {
   onSend: (message: string, model: string) => void;
   onAbort: () => void;
   generating: boolean;
-  apiModels: ModelDefinition[];
-  localModels: ModelDefinition[];
+  cloudAiModels: ModelDefinition[];
+  localAiModels: ModelDefinition[];
+  webEngines: WebSearchEngine[];
   defaultModel: string;
+  defaultWebModel: string;
 }) {
   const [value, setValue] = useState("");
   const [selectedModel, setSelectedModel] = useState(defaultModel);
+  const [selectedWebModel, setSelectedWebModel] = useState(defaultWebModel);
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
 
   useEffect(() => { setSelectedModel(defaultModel); }, [defaultModel]);
+  useEffect(() => { setSelectedWebModel(defaultWebModel); }, [defaultWebModel]);
 
   const handleSend = useCallback(() => {
     const msg = value.trim();
@@ -54,12 +61,15 @@ const ChatInputArea = memo(function ChatInputArea({
       generating={generating}
       placeholder="리서치 내용에 대해 질문하세요..."
       generatingLabel="AI가 답변을 생성하고 있습니다..."
-      apiModels={apiModels} 
-      localModels={localModels}
-      selectedApiModel={selectedModel}
-      selectedLocalModel={selectedModel}
-      onApiModelChange={setSelectedModel}
-      onLocalModelChange={setSelectedModel}
+      cloudAiModels={cloudAiModels}
+      localAiModels={localAiModels}
+      webEngines={webEngines}
+      selectedCloudAiModel={selectedModel}
+      selectedLocalAiModel={selectedModel}
+      selectedWebModel={selectedWebModel}
+      onCloudAiModelChange={setSelectedModel}
+      onLocalAiModelChange={setSelectedModel}
+      onWebModelChange={setSelectedWebModel}
       dropdownDirection="up"
       attachedFiles={attachedFiles}
       onAttachedFilesChange={setAttachedFiles}
@@ -97,6 +107,28 @@ export default function SessionPage() {
     }
     setReEvalProgress(null);
   }, [session, statuses, deletedItemIds]);
+
+  const [webEngines, setWebEngines] = useState<WebSearchEngine[]>([]);
+  useEffect(() => { getSearchEngines().then(setWebEngines).catch(() => {}); }, []);
+
+  const cloudAiModels = models.filter((m) => m.provider !== "ollama");
+  const [headerCloudAiModel, setHeaderCloudAiModel] = useState("");
+  const [headerWebModel, setHeaderWebModel] = useState("");
+
+  // models/webEngines 로드 후 초기값 설정
+  useEffect(() => {
+    if (!headerCloudAiModel && cloudAiModels.length > 0) {
+      setHeaderCloudAiModel(session?.researchCloudAIModel ?? cloudAiModels[0].id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudAiModels.length]);
+
+  useEffect(() => {
+    if (!headerWebModel && webEngines.length > 0) {
+      setHeaderWebModel(session?.researchWebModel ?? webEngines[0].id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webEngines.length]);
 
   useEffect(() => { setDeletedItemIds(new Set()); }, [id]);
   useEffect(() => { setShowDetail(false); }, [id]);
@@ -150,6 +182,12 @@ export default function SessionPage() {
         hasDoneTasks={hasDoneTasks}
         showDetail={showDetail}
         models={models}
+        cloudAiModels={cloudAiModels}
+        webEngines={webEngines}
+        selectedCloudAiModel={headerCloudAiModel}
+        selectedWebModel={headerWebModel}
+        onCloudAiModelChange={setHeaderCloudAiModel}
+        onWebModelChange={setHeaderWebModel}
         reEvalProgress={reEvalProgress}
         avgConfidence={avgConfidence}
         onRunAll={handleRunAll}
@@ -164,7 +202,7 @@ export default function SessionPage() {
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative">
           <div className="flex-1 overflow-y-auto px-8 py-6">
             <div className="px-6">
-              <SummarySection sessionId={id} topic={session.topic} localModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} summaryState={session.summaryState ?? null} />
+              <SummarySection sessionId={id} topic={session.topic} localAiModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} summaryState={session.summaryState ?? null} />
             </div>
 
             <div className="space-y-3 px-6">
@@ -182,7 +220,11 @@ export default function SessionPage() {
                     webModel={webModel[task.id]}
                     aiModel={session.researchCloudAIModel}
                     models={models}
-                    onRun={() => handleRunTask(task)}
+                    cloudAiModels={cloudAiModels}
+                    webEngines={webEngines}
+                    syncedCloudAiModel={headerCloudAiModel}
+                    syncedWebModel={headerWebModel}
+                    onRun={(cloudAiModel, runWebModel) => handleRunTask(task, cloudAiModel, runWebModel)}
                     onCancel={() => handleCancelItem(task)}
                     onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}
                     onConfidenceUpdate={(c) => handleConfidenceUpdate(task.itemId, c)}
@@ -208,9 +250,11 @@ export default function SessionPage() {
               onSend={handleChatSend}
               onAbort={handleChatAbort}
               generating={chatLoading}
-              apiModels={models.filter((m) => m.provider !== "ollama")}
-              localModels={models.filter((m) => m.provider === "ollama")}
+              cloudAiModels={cloudAiModels}
+              localAiModels={models.filter((m) => m.provider === "ollama")}
+              webEngines={webEngines}
               defaultModel={session.researchCloudAIModel}
+              defaultWebModel={session.researchWebModel ?? "anthropic-builtin"}
             />
           </div>
         </div>

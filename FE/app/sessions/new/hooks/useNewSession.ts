@@ -6,8 +6,10 @@ import {
   cancelLightResearch,
   getQueueStatus,
   createSession,
+  getSearchEngines,
   JobItem,
   LightResearchEvent,
+  WebSearchEngine,
 } from "@/lib/api";
 import { Task, ModelDefinition } from "@/types";
 
@@ -19,16 +21,18 @@ interface DraftState {
   searchSource: "web" | "recruit" | "both" | null;
   terminalLogs: string[];
   jobPostings: JobItem[];
-  selectedApiModel: string;
-  selectedLocalModel: string;
+  selectedCloudAiModel: string;
+  selectedLocalAiModel: string;
 }
 
 export function useNewSession(models: ModelDefinition[]) {
   const router = useRouter();
 
   const [topic, setTopic] = useState("");
-  const [selectedApiModel, setSelectedApiModel] = useState("claude-haiku-4-5");
-  const [selectedLocalModel, setSelectedLocalModel] = useState("");
+  const [selectedCloudAiModel, setSelectedCloudAiModel] = useState("claude-haiku-4-5");
+  const [selectedLocalAiModel, setSelectedLocalAiModel] = useState("");
+  const [selectedWebModel, setSelectedWebModel] = useState("anthropic-builtin");
+  const [webEngines, setWebEngines] = useState<WebSearchEngine[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [searchSource, setSearchSource] = useState<"web" | "recruit" | "both" | null>(null);
   const [jobPostings, setJobPostings] = useState<JobItem[]>([]);
@@ -46,10 +50,15 @@ export function useNewSession(models: ModelDefinition[]) {
 
   // 모델 목록이 로드되면 기본 로컬 모델 설정 (draft 복원값이 없을 때만)
   useEffect(() => {
-    if (selectedLocalModel) return;
+    if (selectedLocalAiModel) return;
     const firstLocal = models.find((m) => m.provider === "ollama");
-    if (firstLocal) setSelectedLocalModel(firstLocal.id);
+    if (firstLocal) setSelectedLocalAiModel(firstLocal.id);
   }, [models]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 검색 엔진 목록 로드
+  useEffect(() => {
+    getSearchEngines().then(setWebEngines).catch(() => {});
+  }, []);
 
   // Draft 복원 + 진행 중인 검색 재연결
   useEffect(() => {
@@ -62,8 +71,8 @@ export function useNewSession(models: ModelDefinition[]) {
         if (draft.searchSource) setSearchSource(draft.searchSource);
         if (draft.terminalLogs?.length) setTerminalLogs(draft.terminalLogs);
         if (draft.jobPostings?.length) setJobPostings(draft.jobPostings);
-        if (draft.selectedApiModel) setSelectedApiModel(draft.selectedApiModel);
-        if (draft.selectedLocalModel) setSelectedLocalModel(draft.selectedLocalModel);
+        if (draft.selectedCloudAiModel) setSelectedCloudAiModel(draft.selectedCloudAiModel);
+        if (draft.selectedLocalAiModel) setSelectedLocalAiModel(draft.selectedLocalAiModel);
       }
     } catch {}
 
@@ -116,10 +125,10 @@ export function useNewSession(models: ModelDefinition[]) {
   useEffect(() => {
     if (!initialized) return;
     try {
-      const draft: DraftState = { topic, tasks, searchSource, terminalLogs, jobPostings, selectedApiModel, selectedLocalModel };
+      const draft: DraftState = { topic, tasks, searchSource, terminalLogs, jobPostings, selectedCloudAiModel, selectedLocalAiModel };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
     } catch {}
-  }, [initialized, topic, tasks, searchSource, terminalLogs, jobPostings, selectedApiModel, selectedLocalModel]);
+  }, [initialized, topic, tasks, searchSource, terminalLogs, jobPostings, selectedCloudAiModel, selectedLocalAiModel]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -162,9 +171,9 @@ export function useNewSession(models: ModelDefinition[]) {
     try {
       const { searchId } = await enqueueLightResearch({
         topic: topic.trim(),
-        cloudAIModel: selectedApiModel,
-        localAIModel: selectedLocalModel,
-        webModel: 'tavily',
+        cloudAIModel: selectedCloudAiModel,
+        localAIModel: selectedLocalAiModel,
+        webModel: selectedWebModel,
       });
       searchIdRef.current = searchId;
       await subscribeLightResearch(searchId, handleSearchEvent, controller.signal);
@@ -196,7 +205,7 @@ export function useNewSession(models: ModelDefinition[]) {
     setCreating(true);
     setError("");
     try {
-      const session = await createSession(topic.trim(), selectedApiModel, selectedLocalModel, 'tavily', tasks);
+      const session = await createSession(topic.trim(), selectedCloudAiModel, selectedLocalAiModel, selectedWebModel, tasks);
       router.push(`/sessions/${session.id}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "세션 생성 실패");
@@ -223,8 +232,10 @@ export function useNewSession(models: ModelDefinition[]) {
 
   return {
     topic, setTopic,
-    selectedApiModel, setSelectedApiModel,
-    selectedLocalModel, setSelectedLocalModel,
+    selectedCloudAiModel, setSelectedCloudAiModel,
+    selectedLocalAiModel, setSelectedLocalAiModel,
+    selectedWebModel, setSelectedWebModel,
+    webEngines,
     tasks,
     searchSource,
     jobPostings,

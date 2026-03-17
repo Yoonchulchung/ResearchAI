@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { GoogleGenAI } from '@google/genai';
@@ -14,6 +14,8 @@ import { randomUUID } from 'crypto';
 
 @Injectable()
 export class AiProviderService {
+  private readonly logger = new Logger(AiProviderService.name);
+
   readonly anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   readonly openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   private readonly google = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
@@ -25,7 +27,12 @@ export class AiProviderService {
     system: string,
     prompt: string | any[],
     opts?: { useBuiltinSearch?: boolean; tools?: any[] },
-  ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number; toolCalls?: ToolCallResult[]; stopReason?: string }> {
+  ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number; toolCalls?: ToolCallResult[]; stopReason?: string; searchLog?: { query: string; result: string }[] }> {
+    const promptPreview = typeof prompt === 'string'
+      ? prompt.slice(0, 100).replace(/\n/g, ' ')
+      : `[messages:${prompt.length}]`;
+    this.logger.log(`model=${aiModel} | prompt="${promptPreview}${typeof prompt === 'string' && prompt.length > 100 ? '...' : ''}"`);
+
     const useSearch = opts?.useBuiltinSearch ?? false;
     const promptText = typeof prompt === 'string'
       ? prompt
@@ -57,11 +64,12 @@ export class AiProviderService {
     let text = '';
     let toolCalls: ToolCallResult[] | undefined;
     let stopReason: string | undefined;
+    let searchLog: { query: string; result: string }[] | undefined;
 
     const provider = getProvider(aiModel);
     if (provider === AIProvider.ANTHROPIC) {
       const result = await callAnthropic(this.anthropic, aiModel, system, messages as Anthropic.MessageParam[], useSearch, opts?.tools as Anthropic.Tool[] | undefined);
-      ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
+      ({ text, inputTokens, outputTokens, toolCalls, stopReason, searchLog } = result);
     } else if (provider === AIProvider.GOOGLE) {
       const result = await callGoogle(this.google, aiModel, system + '\n\n' + promptText, useSearch);
       ({ text, inputTokens, outputTokens } = result);
@@ -80,7 +88,7 @@ export class AiProviderService {
       .save({ id: randomUUID(), aiModel, usedTokens: `input:${inputTokens}/output:${outputTokens}`, estimatedFees })
       .catch(() => {});
 
-    return { text, inputTokens, outputTokens, estimatedFees, toolCalls, stopReason };
+    return { text, inputTokens, outputTokens, estimatedFees, toolCalls, stopReason, searchLog };
   }
 
   async *stream(

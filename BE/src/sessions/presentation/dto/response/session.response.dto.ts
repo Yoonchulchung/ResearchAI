@@ -9,6 +9,8 @@ export class ItemResponseDto {
   researchState?: string;
   webResult: string | null;
   webModel: string;
+  usedWebModel: string | null;
+  searchLog: { query: string; result: string }[] | null;
   aiResult: string | null;
   confidence: { score: number; reason: string } | null;
   inputTokens: number | null;
@@ -25,6 +27,8 @@ export class ItemResponseDto {
     dto.researchState = item.researchState;
     dto.webResult = item.webResult;
     dto.webModel = item.webModel;
+    dto.usedWebModel = item.usedWebModel;
+    dto.searchLog = item.searchLog;
     dto.aiResult = item.result;
     dto.confidence =
       item.confidenceScore != null

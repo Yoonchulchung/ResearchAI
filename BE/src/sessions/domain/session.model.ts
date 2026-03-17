@@ -10,6 +10,8 @@ export interface ItemWithResult extends Task {
   researchState?: string;
   webResult: string | null;
   webModel: string;
+  usedWebModel: string | null;
+  searchLog: { query: string; result: string }[] | null;
   result: string | null;
   confidenceScore: number | null;
   confidenceReason: string | null;

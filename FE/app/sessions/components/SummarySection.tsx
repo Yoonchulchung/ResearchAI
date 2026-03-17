@@ -10,27 +10,27 @@ import { ModelDefinition } from "@/types";
 interface Props {
   sessionId: string;
   topic: string;
-  localModels: ModelDefinition[];
+  localAiModels: ModelDefinition[];
   allDone: boolean;
   summaryState?: string | null;
 }
 
 type SummaryStatus = "idle" | "pending" | "running" | "done" | "error" | "stopped" | "changed";
 
-export function SummarySection({ sessionId, topic, localModels, allDone, summaryState }: Props) {
+export function SummarySection({ sessionId, topic, localAiModels, allDone, summaryState }: Props) {
   const [summary, setSummary] = useState<string>("");
   const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [expanded, setExpanded] = useState(true);
-  const [selectedModel, setSelectedModel] = useState(() => localModels[0]?.id ?? "");
+  const [selectedModel, setSelectedModel] = useState(() => localAiModels[0]?.id ?? "");
   const abortRef = useRef<AbortController | null>(null);
 
-  // localModels가 나중에 로드될 경우 selectedModel 초기화
+  // localAiModels가 나중에 로드될 경우 selectedModel 초기화
   useEffect(() => {
-    if (selectedModel === "" && localModels.length > 0) {
-      setSelectedModel(localModels[0].id);
+    if (selectedModel === "" && localAiModels.length > 0) {
+      setSelectedModel(localAiModels[0].id);
     }
-  }, [localModels, selectedModel]);
+  }, [localAiModels, selectedModel]);
 
   // BE summaryState가 바뀔 때마다 서머리 텍스트 + 상태 동기화
   useEffect(() => {
@@ -153,14 +153,14 @@ export function SummarySection({ sessionId, topic, localModels, allDone, summary
 
         <div className="flex items-center gap-1 shrink-0">
           {/* 모델 선택 */}
-          {localModels.length > 0 && (
+          {localAiModels.length > 0 && (
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
               disabled={summaryStatus === "running"}
               className="text-sm text-slate-500 bg-transparent focus:outline-none cursor-pointer max-w-36 truncate disabled:opacity-50 disabled:cursor-not-allowed mr-1"
             >
-              {localModels.map((m) => (
+              {localAiModels.map((m) => (
                 <option key={m.id} value={m.id}>{m.name}</option>
               ))}
             </select>
@@ -222,7 +222,7 @@ export function SummarySection({ sessionId, topic, localModels, allDone, summary
                 <span className="inline-block w-0.5 h-4 bg-indigo-400 ml-0.5 align-middle animate-pulse" />
               )}
             </div>
-          ) : localModels.length === 0 ? (
+          ) : localAiModels.length === 0 ? (
             <div className="pt-4">
               <p className="text-sm text-slate-400">로컬 LLM 모델이 없어 서머리를 생성할 수 없습니다.</p>
             </div>

@@ -24,11 +24,16 @@ export class DeepResearchExecutorService {
     await this.sessionCommandService.updateSessionState(sessionId, ResearchState.RUNNING);
     await this.sessionItemCommandService.updateStatus(itemId, ResearchState.RUNNING);
 
-    const { aiResult, webSources, confidence, inputTokens, outputTokens, estimatedFees } =
+    const { aiResult, webSources, confidence, inputTokens, outputTokens, estimatedFees, searchLog, usedWebModel } =
       await this.researchService.research({ type: 'deep', itemPrompt, cloudAIModel, webModel });
 
-    const webResult = webSources.tavily ?? webSources.serper ?? webSources.naver ?? webSources.brave ?? '';
-    await this.sessionCommandService.updateSessionItem(sessionId, itemId, aiResult, webResult, ResearchState.DONE, confidence, { inputTokens, outputTokens, estimatedFees });
+    const webResult = webSources.tavily ?? webSources.serper ?? webSources.naver ?? webSources.brave ?? webSources.duckduckgo ?? '';
+    await this.sessionCommandService.updateSessionItem(
+      sessionId, itemId, aiResult, webResult,
+      ResearchState.DONE, confidence,
+      { inputTokens, outputTokens, estimatedFees },
+      { usedWebModel, searchLog },
+    );
     await this.sessionCommandService.updateSession(sessionId, ResearchState.DONE);
 
     return { aiResult, webSources };

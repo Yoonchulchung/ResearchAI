@@ -5,7 +5,7 @@ import { ConfidenceScore } from '../../domain/model/confidence.model';
 import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
 import { AiService } from '../../../ai/application/ai.service';
 import { WebSearchService } from '../web-search.service';
-import { SearchEngine } from '../../domain/model/search-planner.model';
+import { SearchEngine, isBuiltinSearchEngine } from '../../domain/model/search-planner.model';
 
 export interface DeepResearchResult {
   aiResult: string;
@@ -14,6 +14,8 @@ export interface DeepResearchResult {
   inputTokens: number;
   outputTokens: number;
   estimatedFees: number;
+  searchLog?: { query: string; result: string }[];
+  usedWebModel: string;
 }
 
 export type DeepResearchEvent =
@@ -30,6 +32,7 @@ export type DeepResearchEvent =
  * ├─────────────────────────────────────────────────────────┤
  * │  [Gemini / Ollama] 고정 파이프라인                          │
  * │    Step 1. 웹 검색 → Step 2. AI 심층 분석                  │
+ * |    AI 벤더사에서 제공하는 Web 검색 사용안하면 Ollama로 필터 적용 있음 |
  * ├─────────────────────────────────────────────────────────┤
  * │  Step 3. 신뢰도 평가 (Haiku 고정, 압축 컨텍스트)              │
  * │          → 출처·교차검증·불확실성 기반 0~100점 산출             │
@@ -60,6 +63,7 @@ export class DeepResearchPipelineService {
     let inputTokens = 0;
     let outputTokens = 0;
     let estimatedFees = 0;
+    let searchLog: { query: string; result: string }[] | undefined;
 
     if (contextOverride) {
       // 미리 가져온 컨텍스트: 기존 방식으로 분석
@@ -70,18 +74,28 @@ export class DeepResearchPipelineService {
       estimatedFees = usage.estimatedFees;
       webSources = { [webModel]: contextOverride };
 
+    } else if (isBuiltinSearchEngine(webModel)) {
+      // AI 벤더 내장 검색: useBuiltinSearch=true 로 AI 단독 처리
+      const usage = await this.deepAnalyze(aiModel, prompt, '');
+      aiResult = usage.text;
+      inputTokens = usage.inputTokens;
+      outputTokens = usage.outputTokens;
+      estimatedFees = usage.estimatedFees;
+      if (usage.searchLog?.length) searchLog = usage.searchLog;
+
     } else if (this.supportsAgentLoop(aiModel)) {
       // Claude / OpenAI: AI 에이전트 루프
       const searchFn = this.getSearchFn(webModel);
-      const { result, searchLog } = await this.aiService.runAgenticLoop(
+      const agentResult = await this.aiService.runAgenticLoop(
         aiModel,
         PROMPTS.system,
         prompt,
         searchFn,
       );
-      aiResult = result;
-      if (searchLog.length > 0) {
-        webSources = { [webModel]: searchLog.map((s) => s.result).join('\n\n') };
+      aiResult = agentResult.result;
+      if (agentResult.searchLog.length > 0) {
+        searchLog = agentResult.searchLog;
+        webSources = { [webModel]: agentResult.searchLog.map((s) => s.result).join('\n\n') };
       }
     } else {
       // Gemini / Ollama: 고정 파이프라인 (검색 → 분석)
@@ -91,6 +105,7 @@ export class DeepResearchPipelineService {
         if (searchResult) {
           context = searchResult;
           webSources = { [webModel]: searchResult };
+          searchLog = [{ query: prompt, result: searchResult }];
         }
       } catch {
         // 검색 실패 시 컨텍스트 없이 진행
@@ -108,7 +123,7 @@ export class DeepResearchPipelineService {
       ? await this.evaluateConfidence(aiResult, context)
       : { score: 50, reason: '검색 결과 없이 AI 자체 지식으로 답변하여 신뢰도를 측정할 수 없습니다.' };
 
-    return { aiResult, webSources, confidence, inputTokens, outputTokens, estimatedFees };
+    return { aiResult, webSources, confidence, inputTokens, outputTokens, estimatedFees, searchLog, usedWebModel: webModel };
   }
 
   /** Claude / OpenAI는 tool use API 지원 → 에이전트 루프 사용 */

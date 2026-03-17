@@ -23,23 +23,23 @@ function logsToResult(logs: string[]): string {
 }
 
 export function PipelineDiagram({
-  apiModels,
-  localModels,
+  cloudAiModels,
+  localAiModels,
 }: {
-  apiModels: ModelDefinition[];
-  localModels: ModelDefinition[];
+  cloudAiModels: ModelDefinition[];
+  localAiModels: ModelDefinition[];
 }) {
   const [topic, setTopic] = useState("");
-  const [localModel, setLocalModel] = useState(localModels[0]?.id ?? "");
-  const [cloudModel, setCloudModel] = useState(apiModels[0]?.id ?? "");
+  const [localModel, setLocalModel] = useState(localAiModels[0]?.id ?? "");
+  const [cloudModel, setCloudModel] = useState(cloudAiModels[0]?.id ?? "");
 
   useEffect(() => {
-    if (apiModels.length > 0 && !cloudModel) setCloudModel(apiModels[0].id);
-  }, [apiModels]);
+    if (cloudAiModels.length > 0 && !cloudModel) setCloudModel(cloudAiModels[0].id);
+  }, [cloudAiModels]);
 
   useEffect(() => {
-    if (localModels.length > 0 && !localModel) setLocalModel(localModels[0].id);
-  }, [localModels]);
+    if (localAiModels.length > 0 && !localModel) setLocalModel(localAiModels[0].id);
+  }, [localAiModels]);
   const [runningAll, setRunningAll] = useState(false);
 
   const [step0, setStep0] = useState<NodeState>(initNode());
@@ -232,19 +232,19 @@ export function PipelineDiagram({
           className="w-full text-sm text-slate-800 placeholder:text-slate-300 bg-slate-50 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-200 mb-3"
         />
         <div className="flex gap-3 flex-wrap items-center">
-          {localModels.length > 0 && (
+          {localAiModels.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400 shrink-0">로컬 모델</span>
               <select value={localModel} onChange={(e) => setLocalModel(e.target.value)} className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none">
-                {localModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                {localAiModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
           )}
-          {apiModels.length > 0 && (
+          {cloudAiModels.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400 shrink-0">API 모델</span>
               <select value={cloudModel} onChange={(e) => setCloudModel(e.target.value)} className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none">
-                {apiModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                {cloudAiModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
           )}
@@ -338,7 +338,7 @@ export function PipelineDiagram({
         <div className="max-w-sm mx-auto">
           <NodeCard
             icon="🤖"
-            label={apiModels.find((m) => m.id === cloudModel)?.name ?? "AI 모델"}
+            label={cloudAiModels.find((m) => m.id === cloudModel)?.name ?? "AI 모델"}
             desc="수집된 컨텍스트 기반 태스크 생성"
             state={canRun2 ? step2 : { ...step2, status: "disabled", expanded: false }}
             onRun={runStep2}
