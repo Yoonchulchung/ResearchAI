@@ -19,12 +19,14 @@ import { useCompaction } from "./hooks/useCompaction";
 
 const ChatInputArea = memo(function ChatInputArea({
   onSend,
+  onAbort,
   generating,
   apiModels,
   localModels,
   defaultModel,
 }: {
   onSend: (message: string, model: string) => void;
+  onAbort: () => void;
   generating: boolean;
   apiModels: ModelDefinition[];
   localModels: ModelDefinition[];
@@ -48,6 +50,7 @@ const ChatInputArea = memo(function ChatInputArea({
       value={value}
       onChange={setValue}
       onGenerate={handleSend}
+      onAbort={onAbort}
       generating={generating}
       placeholder="리서치 내용에 대해 질문하세요..."
       generatingLabel="AI가 답변을 생성하고 있습니다..."
@@ -98,7 +101,7 @@ export default function SessionPage() {
   useEffect(() => { setDeletedItemIds(new Set()); }, [id]);
   useEffect(() => { setShowDetail(false); }, [id]);
 
-  const { chatMessages, chatLoading, chatBottomRef, handleChatSend, handleClearChat } = useChatHandler(session, id);
+  const { chatMessages, chatLoading, chatBottomRef, handleChatSend, handleClearChat, handleChatAbort } = useChatHandler(session, id);
   const { compactionStatus } = useCompaction(session, statuses, isRunning, id);
 
   if (loading) return <SessionSkeleton />;
@@ -124,7 +127,7 @@ export default function SessionPage() {
       "",
     ];
     for (const task of tasks) {
-      lines.push(`## ${task.icon} ${task.title}`);
+      lines.push(`## ${task.title}`);
       lines.push(aiResult[task.id] ?? "*(미완료)*");
       lines.push("");
     }
@@ -192,6 +195,8 @@ export default function SessionPage() {
               chatMessages={chatMessages}
               chatBottomRef={chatBottomRef}
               onClearChat={handleClearChat}
+              onAbort={handleChatAbort}
+              chatLoading={chatLoading}
               compactionStatus={compactionStatus}
             />
           </div>
@@ -201,6 +206,7 @@ export default function SessionPage() {
           <div className="px-8 relative z-10 pb-4">
             <ChatInputArea
               onSend={handleChatSend}
+              onAbort={handleChatAbort}
               generating={chatLoading}
               apiModels={models.filter((m) => m.provider !== "ollama")}
               localModels={models.filter((m) => m.provider === "ollama")}

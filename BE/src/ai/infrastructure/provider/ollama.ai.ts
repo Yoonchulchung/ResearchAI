@@ -45,22 +45,23 @@ interface OllamaChatResponse {
 export async function* streamOllama(
   model: string,
   system: string,
-  prompt: string,
-  options?: OllamaOptions,
+  messages: { role: 'user' | 'assistant'; content: string }[] | string,
+  opts?: { format?: 'json'; options?: OllamaOptions },
 ): AsyncGenerator<string> {
   const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+  const msgList = typeof messages === 'string'
+    ? [{ role: 'user' as const, content: messages }]
+    : messages;
+
   const res = await fetch(`${ollamaUrl}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model,
       stream: true,
-      format: 'json',
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: prompt },
-      ],
-      options,
+      ...(opts?.format ? { format: opts.format } : {}),
+      messages: [{ role: 'system', content: system }, ...msgList],
+      options: opts?.options,
     }),
   });
   if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
@@ -90,49 +91,93 @@ export async function* streamOllama(
   }
 }
 
-export async function callOllama(model: string, system: string, prompt: string, options?: OllamaOptions, timeoutMs?: number): Promise<string>;
-export async function callOllama(model: string, system: string, prompt: string, options: OllamaOptions | undefined, timeoutMs: number | undefined, tools: OllamaTool[]): Promise<OllamaCallResult>;
+const CALL_MAX_RETRIES = 3;
+const CALL_RETRY_DELAY_MS = 5000;
+
+export async function callOllama(model: string, system: string, prompt: string, options?: OllamaOptions, timeoutMs?: number, tools?: undefined, format?: 'json'): Promise<string>;
+export async function callOllama(model: string, system: string, prompt: string | any[], options: OllamaOptions | undefined, timeoutMs: number | undefined, tools: OllamaTool[], format?: 'json'): Promise<OllamaCallResult>;
 export async function callOllama(
   model: string,
   system: string,
-  prompt: string,
+  prompt: string | any[],
   options?: OllamaOptions,
   timeoutMs?: number,
   tools?: OllamaTool[],
+  format?: 'json',
 ): Promise<string | OllamaCallResult> {
   const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-  let res: Response;
-  try {
-    res = await fetch(`${ollamaUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        stream: false,
-        format: 'json',
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: prompt },
-        ],
-        options,
-        ...(tools ? { tools } : {}),
-      }),
-      signal: timeoutMs != null ? AbortSignal.timeout(timeoutMs) : undefined,
-    });
-  } catch (error: any) {
-    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-      throw new Error(`Ollama 요청 시간 초과 (${timeoutMs}ms)`);
-    }
-    throw new Error(`Ollama 통신 오류: ${error.message}`);
-  }
-  if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
-  const data = (await res.json()) as OllamaChatResponse;
+  const msgList = typeof prompt === 'string'
+    ? [{ role: 'system', content: system }, { role: 'user', content: prompt }]
+    : [{ role: 'system', content: system }, ...prompt];
 
-  if (tools) {
-    return {
-      content: data.message?.content ?? '',
-      toolCalls: data.message?.tool_calls ?? [],
-    };
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= CALL_MAX_RETRIES; attempt++) {
+    // 콜드 스타트로 모델 로드 실패가 있어 재시도 로직 추가.
+    try {
+      let res: Response;
+      try {
+        res = await fetch(`${ollamaUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            stream: false,
+            ...(format ? { format } : {}),
+            messages: msgList,
+            options,
+            ...(tools ? { tools } : {}),
+          }),
+          signal: timeoutMs != null ? AbortSignal.timeout(timeoutMs) : undefined,
+        });
+      } catch (error: any) {
+        if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+          throw new Error(`Ollama 요청 시간 초과 (${timeoutMs}ms)`);
+        }
+        throw new Error(`Ollama 통신 오류: ${error.message}`);
+      }
+      if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
+      const data = (await res.json()) as OllamaChatResponse;
+
+      if (tools) {
+        return { content: data.message?.content ?? '', toolCalls: data.message?.tool_calls ?? [] };
+      }
+      return data.message?.content ?? '';
+    } catch (err) {
+      lastError = err;
+      if (attempt < CALL_MAX_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, CALL_RETRY_DELAY_MS * (attempt + 1)));
+      }
+    }
   }
-  return data.message?.content ?? '';
+  throw lastError;
+}
+
+const OLLAMA_BASE = () => process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+
+export async function getOllamaLocalModels(): Promise<{ name: string }[]> {
+  try {
+    const res = await fetch(`${OLLAMA_BASE()}/api/tags`, { signal: AbortSignal.timeout(2000) });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { models: { name: string }[] };
+    return data.models ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getOllamaRunningModels(): Promise<{ name: string; size_vram: number }[]> {
+  const res = await fetch(`${OLLAMA_BASE()}/api/ps`, { signal: AbortSignal.timeout(3000) });
+  if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
+  const data = (await res.json()) as { models: { name: string; size_vram: number }[] };
+  return data.models ?? [];
+}
+
+export async function unloadOllamaModel(model: string): Promise<void> {
+  const res = await fetch(`${OLLAMA_BASE()}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, keep_alive: 0 }),
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
 }

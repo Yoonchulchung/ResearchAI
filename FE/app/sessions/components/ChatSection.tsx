@@ -9,10 +9,12 @@ interface Props {
   chatMessages: ChatMessage[];
   chatBottomRef: RefObject<HTMLDivElement | null>;
   onClearChat: () => void;
+  onAbort?: () => void;
+  chatLoading?: boolean;
   compactionStatus?: "idle" | "running" | "done";
 }
 
-export function ChatSection({ chatMessages, chatBottomRef, onClearChat, compactionStatus }: Props) {
+export function ChatSection({ chatMessages, chatBottomRef, onClearChat, onAbort, chatLoading, compactionStatus }: Props) {
   return (
     <div className="mt-8 px-6">
       <div className="flex items-center gap-3 mb-4">
@@ -28,7 +30,16 @@ export function ChatSection({ chatMessages, chatBottomRef, onClearChat, compacti
         {compactionStatus === "done" && (
           <span className="text-xs text-emerald-500 shrink-0">✦ 압축됨</span>
         )}
-        {chatMessages.length > 0 && (
+        {chatLoading && onAbort && (
+          <button
+            onClick={onAbort}
+            className="text-xs text-red-400 hover:text-red-600 transition-colors shrink-0 flex items-center gap-1"
+          >
+            <span className="w-2 h-2 bg-red-400 rounded-sm inline-block" />
+            생성 중단
+          </button>
+        )}
+        {chatMessages.length > 0 && !chatLoading && (
           <button
             onClick={onClearChat}
             className="text-xs text-slate-400 hover:text-red-400 transition-colors shrink-0"

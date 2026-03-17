@@ -12,6 +12,7 @@ import { SearchListRepository } from './domain/repository/search-list.repository
 import { ResearchRecruitEntity } from './domain/entity/researchrecruit.entity';
 import { LightResearchEntity } from './domain/entity/lightsearch.entity';
 import { SearchListEntity } from './domain/entity/searchlist.entity';
+import { WebSearchProvider } from './infrastructure/web-search.provider';
 import { RecruitModule } from '../recruit/recruit.module';
 import { AiModule } from '../ai/ai.module';
 import { SessionsModule } from '../sessions/sessions.module';
@@ -21,6 +22,7 @@ import { QueueModule } from '../queue/queue.module';
   imports: [TypeOrmModule.forFeature([ResearchRecruitEntity, LightResearchEntity, SearchListEntity]), RecruitModule, AiModule, SessionsModule, forwardRef(() => QueueModule)],
   controllers: [ResearchController],
   providers: [
+    WebSearchProvider,
     WebSearchService,
     SearchPlannerService,
     LightResearchPipelineService,

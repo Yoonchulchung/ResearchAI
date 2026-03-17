@@ -302,7 +302,6 @@ export function PromptTestPanel({ models }: { models: ModelDefinition[] }) {
               {result.tasks.map((task) => (
                 <div key={task.id} className="px-4 py-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-lg leading-none">{task.icon}</span>
                     <span className="text-sm font-semibold text-slate-800">
                       {task.id}. {task.title}
                     </span>

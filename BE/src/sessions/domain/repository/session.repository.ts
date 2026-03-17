@@ -62,7 +62,6 @@ export class SessionRepository {
       id: idx + 1,
       itemId: item.id,
       title: item.topic,
-      icon: item.taskIcon || '📄',
       webSearchPrompt: item.webPrompt,
       status: item.researchState,
       researchState: item.researchState,

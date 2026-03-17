@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { PROMPTS } from '../../research/domain/prompt/research.prompts';
+import { LIGHT_RESEARCH_PROMPTS } from '../../research/domain/prompt/research.prompts';
 import { makeCache } from '../../research/infrastructure/cache/ttl-cache';
 import { fetchTavilyUsage } from '../infrastructure/tavily.client';
 import { fetchAnthropicUsageReport } from '../infrastructure/anthropic.client';
@@ -93,9 +93,9 @@ export class OverviewService {
 
   getPromptTemplates() {
     return {
-      lightResearchCloud: PROMPTS.lightResearchCloud('{{topic}}', '{{searchContext}}'),
-      system: PROMPTS.system,
-      ollamaFilter: PROMPTS.ollamaFilter('{{query}}', '{{context}}'),
+      lightResearchCloud: LIGHT_RESEARCH_PROMPTS.taskList('{{topic}}', '{{searchContext}}'),
+      system: LIGHT_RESEARCH_PROMPTS.system,
+      ollamaFilter: LIGHT_RESEARCH_PROMPTS.ollamaFilter('{{query}}', '{{context}}'),
     };
   }
 

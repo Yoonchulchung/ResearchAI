@@ -2,7 +2,6 @@ export interface Task {
   id: number;
   itemId: string;
   title: string;
-  icon: string;
   webSearchPrompt: string;
   status?: string;
   researchState?: string;

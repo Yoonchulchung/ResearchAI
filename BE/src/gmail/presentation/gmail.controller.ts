@@ -1,5 +1,5 @@
 import { Controller, Delete, Get, Query, Res } from '@nestjs/common';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { GmailService } from '../application/gmail.service';
 
 const FE_BASE = process.env.FE_BASE_URL ?? 'http://localhost:3000';

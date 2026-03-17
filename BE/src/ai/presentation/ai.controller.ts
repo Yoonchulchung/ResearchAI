@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Param, Body, HttpCode } from '@nestjs/common';
-import { AiProviderService } from '../application/ai-provider.service';
+import { AiProviderService } from '../infrastructure/ai-provider.service';
+import { AiService } from '../application/ai.service';
 import { SessionItemQueryService } from '../../sessions/application/query/session-item-query.service';
 import { SessionItemCommandService } from '../../sessions/application/command/session-item-command.service';
 
@@ -7,6 +8,7 @@ import { SessionItemCommandService } from '../../sessions/application/command/se
 export class AiController {
   constructor(
     private readonly aiProviderService: AiProviderService,
+    private readonly aiService: AiService,
     private readonly sessionItemQueryService: SessionItemQueryService,
     private readonly sessionItemCommandService: SessionItemCommandService,
   ) {}
@@ -28,7 +30,7 @@ export class AiController {
   async improveTask(
     @Body() body: { topic: string; title: string; prompt: string; model: string },
   ) {
-    return this.aiProviderService.improveTask(body.topic, body.title, body.prompt, body.model);
+    return this.aiService.improveTask(body.topic, body.title, body.prompt, body.model);
   }
 
   @Post('re-evaluate-confidence')
@@ -37,7 +39,7 @@ export class AiController {
     @Body() body: { itemId: string; model: string },
   ) {
     const item = await this.sessionItemQueryService.findById(body.itemId);
-    const confidence = await this.aiProviderService.evaluateConfidence(
+    const confidence = await this.aiService.evaluateConfidence(
       item.aiResult ?? '',
       item.webResult ?? '',
       body.model,
@@ -52,13 +54,13 @@ export class AiController {
     @Body()
     body: {
       topic: string;
-      tasks: Array<{ id: number; title: string; icon: string; webSearchPrompt: string }>;
+      tasks: Array<{ id: number; title: string; webSearchPrompt: string }>;
       message: string;
       model: string;
       history: Array<{ role: string; content: string }>;
     },
   ) {
-    return this.aiProviderService.chatTasks(
+    return this.aiService.chatTasks(
       body.topic,
       body.tasks,
       body.message,

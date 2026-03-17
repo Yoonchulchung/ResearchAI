@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AiProviderService } from '../../../ai/application/ai-provider.service';
+import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
 import { NewsBriefingEntity } from '../../domain/entity/news-briefing.entity';
-import { NewsProviderService, GHRepo, HFItem, GNewsItem } from './news-provider.service';
+import { NewsProviderService, GHRepo, HFItem, GNewsItem } from '../../infrastructure/news-provider.service';
 import { AppConfigService, CONFIG_KEYS } from '../../../config/application/app-config.service';
 
 @Injectable()
@@ -73,7 +73,7 @@ export class NewsSummaryService {
       `${i + 1}. ${r.full_name} (⭐${r.stargazers_count}${r.language ? ', ' + r.language : ''})${r.description ? ': ' + r.description : ''}`,
     ).join('\n');
 
-    const summary = await this.aiProvider.call(
+    const { text: summary } = await this.aiProvider.call(
       model,
       '',
       `다음은 GitHub에서 ${periodLabel} 가장 핫한 저장소 목록이야.\n\n${repoList}\n\n위 저장소들을 분석해서 현재 개발자 커뮤니티에서 주목받는 트렌드 3~5개를 뽑아줘.\n각 항목은 아래 형식으로 작성해:\n\n• [트렌드]: 실제 저장소명을 포함해 한 문장으로 설명해줘.\n\n어떤 기능이 주요 관심사인지 알려줘.`,
@@ -103,7 +103,7 @@ export class NewsSummaryService {
       `${i + 1}. ${item.id}${item.pipeline_tag ? ` (${item.pipeline_tag})` : ''}${item.trendingScore != null ? ` - 트렌딩 ${item.trendingScore.toFixed(1)}` : ''}${item.likes ? ` ❤️${item.likes}` : ''}`,
     ).join('\n');
 
-    const summary = await this.aiProvider.call(
+    const { text: summary } = await this.aiProvider.call(
       model,
       '',
       `다음은 Hugging Face에서 현재 가장 트렌딩인 ${categoryLabel} 목록이야.\n\n${itemList}\n\n위 항목들을 분석해서 현재 AI/ML 커뮤니티에서 주목받는 트렌드 3~5개를 뽑아줘.\n각 항목은 아래 형식으로 작성해:\n\n• [트렌드]: 실제 ${categoryLabel}명을 포함해 한 문장으로 설명해줘.\n\n어떤 기능이 주요 관심사인지 알려줘.`,
@@ -135,7 +135,7 @@ export class NewsSummaryService {
     }
 
     const model = await this.appConfig.get(CONFIG_KEYS.DEFAULT_CLOUD_MODEL, 'claude-haiku-4-5-20251001');
-    const summary = await this.aiProvider.call(
+    const { text: summary } = await this.aiProvider.call(
       model,
       '',
       `다음은 오늘의 실시간 뉴스 헤드라인 목록이야.\n\n[헤드라인]\n${titleSample.join('\n')}\n\n위 헤드라인을 분석해서 오늘의 주요 뉴스 5개를 뽑아줘.\n각 항목은 아래 형식으로 작성해:\n\n• [구체적 사실]: 실제 기사에 등장한 기업명·인물명·수치·지명 등을 반드시 포함해서 한 문장으로 설명해줘. 검색하면 바로 찾을 수 있을 만큼 구체적으로 써줘.\n\n추상적인 표현("기술 발전", "경제 위기" 등) 없이, 헤드라인에 있는 고유명사와 구체적 내용만 사용해.`,

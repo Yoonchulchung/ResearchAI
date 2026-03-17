@@ -40,7 +40,6 @@ export class SessionCommandService {
           id: randomUUID(),
           sessionId: session.id,
           topic: task.title,
-          taskIcon: task.icon,
           webPrompt: task.webSearchPrompt,
         }),
       ),
@@ -62,7 +61,7 @@ export class SessionCommandService {
     if (status === ResearchState.DONE) {
       const item = await this.sessionItemRepository.findById(itemId);
       this.vectorService
-        .indexTaskResult(sessionId, itemId, item.topic, '📄', aiResult)
+        .indexTaskResult(sessionId, itemId, item.topic, aiResult)
         .catch(() => {});
     }
   }

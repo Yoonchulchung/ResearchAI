@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { NewsController } from './application/presentation/news.controller';
+import { NewsController } from './presentation/news.controller';
 import { NewsService } from './application/service/news.service';
 import { MarketService } from './application/service/market.service';
 import { NewsSummaryService } from './application/service/news-summary.service';
-import { NewsProviderService } from './application/service/news-provider.service';
+import { NewsProviderService } from './infrastructure/news-provider.service';
 import { GithubApi } from './infrastructure/provider/github.api';
 import { HuggingfaceApi } from './infrastructure/provider/huggingface.api';
 import { GoogleNewsApi } from './infrastructure/provider/google-news.api';

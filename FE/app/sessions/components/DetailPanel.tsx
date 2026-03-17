@@ -38,7 +38,6 @@ export function DetailPanel({ session, onClose }: Props) {
             {doneTasks.map((task) => (
               <section key={task.id}>
                 <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                  <span>{task.icon}</span>
                   {task.title}
                 </h3>
                 <div className="prose prose-sm prose-slate max-w-none

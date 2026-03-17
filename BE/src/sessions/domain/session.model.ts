@@ -1,7 +1,6 @@
 export interface Task {
   id: number;
   title: string;
-  icon: string;
   webSearchPrompt: string;
 }
 

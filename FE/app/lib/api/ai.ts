@@ -27,7 +27,7 @@ export async function improveTask(
 
 export async function chatTasks(
   topic: string,
-  tasks: Array<{ id: number; title: string; icon: string; webSearchPrompt: string }>,
+  tasks: Array<{ id: number; title: string; webSearchPrompt: string }>,
   message: string,
   model: string,
   history: Array<{ role: string; content: string }>,

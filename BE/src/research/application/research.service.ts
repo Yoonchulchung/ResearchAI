@@ -1,14 +1,51 @@
 import { Injectable } from '@nestjs/common';
 import { LightResearchPipelineService, JobItem, LightResearchEvent } from './pipeline/light-research-pipeline.service';
+import { DeepResearchPipelineService, DeepResearchResult } from './pipeline/deep-research-pipeline.service';
 import { SearchModeInput } from './search-planner.service';
 import { SearchEngine, SearchPlan, PlannerMode } from '../domain/model/search-planner.model';
 import { LightResearchEventType } from '../domain/model/light-research.model';
+
+export interface LightResearchInput {
+  type: 'light';
+  topic: string;
+  localAIModel: string;
+  cloudAIModel: string;
+  webModel: SearchEngine;
+  searchMode: SearchModeInput;
+  searchId: string;
+  onEvent: (event: LightResearchEvent) => void;
+}
+
+export interface DeepResearchInput {
+  type: 'deep';
+  itemPrompt: string;
+  cloudAIModel: string;
+  webModel: SearchEngine;
+}
 
 @Injectable()
 export class ResearchService {
   constructor(
     private readonly lightPipeline: LightResearchPipelineService,
+    private readonly deepPipeline: DeepResearchPipelineService,
   ) {}
+
+  async research(input: LightResearchInput): Promise<{ tasks: any[] }>;
+  async research(input: DeepResearchInput): Promise<DeepResearchResult>;
+  async research(input: LightResearchInput | DeepResearchInput): Promise<{ tasks: any[] } | DeepResearchResult> {
+    if (input.type === 'light') {
+      return this.lightPipeline.run(
+        input.topic,
+        input.localAIModel,
+        input.cloudAIModel,
+        input.webModel,
+        input.searchMode,
+        input.searchId,
+        input.onEvent,
+      );
+    }
+    return this.deepPipeline.run(input.itemPrompt, input.cloudAIModel, input.webModel);
+  }
 
   async testGenerateTasks(
     topic: string,

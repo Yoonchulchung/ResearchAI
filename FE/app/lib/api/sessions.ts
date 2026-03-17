@@ -86,11 +86,13 @@ export async function chatStream(
   message: string,
   model: string,
   onChunk: (text: string) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/chat/${sessionId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, model }),
+    signal,
   });
   if (!res.ok || !res.body) throw new Error("Chat stream failed");
 

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { GithubApi, GHRepo } from '../../infrastructure/provider/github.api';
-import { HuggingfaceApi, HFItem } from '../../infrastructure/provider/huggingface.api';
-import { GoogleNewsApi, GNewsItem } from '../../infrastructure/provider/google-news.api';
+import { GithubApi, GHRepo } from './provider/github.api';
+import { HuggingfaceApi, HFItem } from './provider/huggingface.api';
+import { GoogleNewsApi, GNewsItem } from './provider/google-news.api';
 
 export type { GHRepo, HFItem, GNewsItem };
 

@@ -50,7 +50,6 @@ export function TaskChatBar({
       const taskPayload = tasks.map((t) => ({
         id: t.id,
         title: t.title,
-        icon: t.icon,
         webSearchPrompt: t.webSearchPrompt,
       }));
       const { tasks: newTasks, reply } = await chatTasks(

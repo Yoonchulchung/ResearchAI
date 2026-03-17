@@ -63,7 +63,6 @@ export default function DetailPage() {
             doneTasks.map((task) => (
               <section key={task.id}>
                 <h2 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                  <span>{task.icon}</span>
                   {task.title}
                 </h2>
                 <div className="prose prose-sm prose-slate max-w-none

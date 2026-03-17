@@ -1,13 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { searchTavily } from '../../infrastructure/search/tavily.search';
-import { searchSerper } from '../../infrastructure/search/serper.search';
-import { searchNaver } from '../../infrastructure/search/naver.search';
-import { searchBrave } from '../../infrastructure/search/brave.search';
-import { PROMPTS } from '../../domain/prompt/research.prompts';
+import { DEEP_RESEARCH_PROMPTS as PROMPTS } from '../../domain/prompt/research.prompts';
 import { SearchSources } from '../../domain/model/search-sources.model';
 import { ConfidenceScore } from '../../domain/model/confidence.model';
-import { AiProviderService } from '../../../ai/application/ai-provider.service';
-import { SearchEngine } from 'src/research/domain/model/search-planner.model';
+import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
+import { AiService } from '../../../ai/application/ai.service';
+import { WebSearchService } from '../web-search.service';
+import { SearchEngine } from '../../domain/model/search-planner.model';
 
 export interface DeepResearchResult {
   aiResult: string;
@@ -44,7 +42,11 @@ export class DeepResearchPipelineService {
   private static readonly CONFIDENCE_MODEL = 'claude-haiku-4-5-20251001';
   private static readonly BODY_LIMIT = 400;
 
-  constructor(private readonly aiProvider: AiProviderService) {}
+  constructor(
+    private readonly aiProvider: AiProviderService,
+    private readonly aiService: AiService,
+    private readonly webSearch: WebSearchService,
+  ) {}
 
   async run(
     prompt: string,
@@ -67,10 +69,11 @@ export class DeepResearchPipelineService {
       outputTokens = usage.outputTokens;
       estimatedFees = usage.estimatedFees;
       webSources = { [webModel]: contextOverride };
+
     } else if (this.supportsAgentLoop(aiModel)) {
       // Claude / OpenAI: AI 에이전트 루프
       const searchFn = this.getSearchFn(webModel);
-      const { result, searchLog } = await this.aiProvider.runAgenticLoop(
+      const { result, searchLog } = await this.aiService.runAgenticLoop(
         aiModel,
         PROMPTS.system,
         prompt,
@@ -114,25 +117,17 @@ export class DeepResearchPipelineService {
   }
 
   private getSearchFn(webModel: SearchEngine): (query: string) => Promise<string> {
-    return (query: string) => {
-      if (webModel === SearchEngine.SERPER) return searchSerper(query);
-      if (webModel === SearchEngine.NAVER) return searchNaver(query);
-      if (webModel === SearchEngine.BRAVE) return searchBrave(query);
-      return searchTavily(query);
-    };
+    return (query: string) => this.webSearch.searchByEngine(webModel, query);
   }
 
   private doSearch(webModel: SearchEngine, query: string): Promise<string | undefined> {
-    if (webModel === SearchEngine.SERPER) return searchSerper(query);
-    if (webModel === SearchEngine.NAVER) return searchNaver(query);
-    if (webModel === SearchEngine.BRAVE) return searchBrave(query);
-    return searchTavily(query);
+    return this.webSearch.searchByEngine(webModel, query);
   }
 
   private deepAnalyze(aiModel: string, prompt: string, context: string) {
     const fullPrompt = context ? PROMPTS.withSearchContext(context, prompt) : prompt;
     const useBuiltinSearch = !context;
-    return this.aiProvider.callWithUsage(aiModel, PROMPTS.system, fullPrompt, { useBuiltinSearch });
+    return this.aiProvider.call(aiModel, PROMPTS.system, fullPrompt, { useBuiltinSearch });
   }
 
   /**
@@ -161,6 +156,6 @@ export class DeepResearchPipelineService {
 
   private async evaluateConfidence(answer: string, context: string): Promise<ConfidenceScore> {
     const compressed = this.compressContext(context);
-    return this.aiProvider.evaluateConfidence(answer, compressed, DeepResearchPipelineService.CONFIDENCE_MODEL);
+    return this.aiService.evaluateConfidence(answer, compressed, DeepResearchPipelineService.CONFIDENCE_MODEL);
   }
 }

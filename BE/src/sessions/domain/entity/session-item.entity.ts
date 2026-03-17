@@ -26,9 +26,6 @@ export class SessionItemEntity {
   @Column()
   topic: string;
 
-  @Column({ name: 'task_icon', nullable: true })
-  taskIcon: string;
-
   // Web 서칭 프롬프트 -> 웹 결과 -> aiPrompt 순으로 작성되어야 함.
   @Column({ name: 'web_prompt'})
   webPrompt: string;

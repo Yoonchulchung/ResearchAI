@@ -1,4 +1,4 @@
-import { PROMPTS } from '../../domain/prompt/research.prompts';
+import { LIGHT_RESEARCH_PROMPTS } from '../../domain/prompt/research.prompts';
 
 export async function filterWithOllama(query: string, context: string, customPrompt?: string): Promise<string> {
   if (!context) return context;
@@ -7,7 +7,7 @@ export async function filterWithOllama(query: string, context: string, customPro
     const ollamaModel = process.env.OLLAMA_MODEL || 'phi4';
     const prompt = customPrompt
       ? customPrompt.replaceAll('{{query}}', query).replaceAll('{{context}}', context)
-      : PROMPTS.ollamaFilter(query, context);
+      : LIGHT_RESEARCH_PROMPTS.ollamaFilter(query, context);
     const res = await fetch(`${ollamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

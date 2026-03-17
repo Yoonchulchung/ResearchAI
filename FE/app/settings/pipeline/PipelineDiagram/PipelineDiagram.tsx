@@ -134,7 +134,7 @@ export function PipelineDiagram({
         `태스크 ${res.tasks.length}개 생성`,
         ...res.logs,
         "",
-        ...res.tasks.map((t: any) => `${t.icon ?? "•"} ${t.title}\n  ${t.webSearchPrompt ?? t.prompt ?? ""}`),
+        ...res.tasks.map((t: any) => `${t.title}\n  ${t.webSearchPrompt ?? t.prompt ?? ""}`),
       ].filter(Boolean).join("\n");
       setStep2({ status: "ok", result: summary, ms: Date.now() - t0, expanded: true });
     } catch (e: unknown) {
@@ -204,7 +204,7 @@ export function PipelineDiagram({
       setStep2({ status: "running", expanded: false });
       try {
         const res = await testPipelineStep2(topic.trim(), cloudModel, plan, wCtx, rCtx);
-        const summary = [`태스크 ${res.tasks.length}개 생성`, ...res.logs, "", ...res.tasks.map((t: any) => `${t.icon ?? "•"} ${t.title}\n  ${t.webSearchPrompt ?? t.prompt ?? ""}`)].filter(Boolean).join("\n");
+        const summary = [`태스크 ${res.tasks.length}개 생성`, ...res.logs, "", ...res.tasks.map((t: any) => `${t.title}\n  ${t.webSearchPrompt ?? t.prompt ?? ""}`)].filter(Boolean).join("\n");
         setStep2({ status: "ok", result: summary, ms: Date.now() - t2, expanded: true });
       } catch (e: unknown) {
         setStep2({ status: "error", error: e instanceof Error ? e.message : "AI 태스크 생성 실패", ms: Date.now() - t2, expanded: false });

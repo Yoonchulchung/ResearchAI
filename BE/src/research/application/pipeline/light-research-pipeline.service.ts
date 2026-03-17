@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { PROMPTS } from '../../domain/prompt/research.prompts';
+import { LIGHT_RESEARCH_PROMPTS as PROMPTS } from '../../domain/prompt/research.prompts';
 import { searchTavilyLight } from '../../infrastructure/search/tavily.search';
 import { searchSerper } from '../../infrastructure/search/serper.search';
 import { searchNaver } from '../../infrastructure/search/naver.search';
@@ -9,7 +9,7 @@ import { SearchPlannerService, SearchModeInput } from '../search-planner.service
 import { SearchPlan, SearchMode, PlannerMode, SearchEngine } from 'src/research/domain/model/search-planner.model';
 import { AIProvider, AI_MODEL_PREFIX, getProvider } from '../../../ai/domain/models';
 import { RecruitContextService } from '../../../recruit/application/recruit-context.service';
-import { AiProviderService } from '../../../ai/application/ai-provider.service';
+import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
 import { SearchListRepository } from '../../domain/repository/search-list.repository';
 import { ResearchRecruitRepository } from '../../domain/repository/research-recruit.repository';
 import { LightResearchEventType } from '../../domain/model/light-research.model';
@@ -85,7 +85,7 @@ export class LightResearchPipelineService {
       ? opts.customPrompt
           .replaceAll('{{topic}}', topic)
           .replaceAll('{{searchContext}}', searchContext ?? '')
-      : PROMPTS.lightResearchCloud(topic, searchContext);
+      : PROMPTS.taskList(topic, searchContext);
 
     const raw = await this.callAI(model, fullPrompt, opts?.customSystem);
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
@@ -192,7 +192,7 @@ export class LightResearchPipelineService {
     searchMode: SearchModeInput = PlannerMode.AUTO,
   ): AsyncGenerator<LightResearchEvent, SearchPlan> {
     yield* this.printFront(`검색 소스 결정 중...`);
-
+    
     const searchPlan: SearchPlan = searchMode === PlannerMode.AUTO
       ? await this.planner.plan(topic, localAIModel)
       : { searchMode, reason: '수동 지정', keyword: topic };
@@ -271,7 +271,7 @@ export class LightResearchPipelineService {
     const parts = [webContext, recruitCtx].filter(Boolean) as string[];
     const searchContext = parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
 
-    const fullPrompt = PROMPTS.lightResearchCloud(topic, searchContext);
+    const fullPrompt = PROMPTS.taskList(topic, searchContext);
     
       const promptChars = fullPrompt.length;
     const approxTokens = Math.round(promptChars / 4);
@@ -331,6 +331,6 @@ export class LightResearchPipelineService {
       ? `${AIProvider.OLLAMA} (${model.slice(AI_MODEL_PREFIX.OLLAMA.length)})`
       : providerType;
     this.logger.log(`[태스크 생성] ${provider} — model=${model}`);
-    return this.aiProvier.call(model, system, prompt);
+    return (await this.aiProvier.call(model, system, prompt)).text;
   }
 }

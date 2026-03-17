@@ -6,6 +6,7 @@ export function useChatHandler(session: Session | null, id: string) {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // id 변경 시 초기화 및 히스토리 로드
   useEffect(() => {
@@ -44,32 +45,42 @@ export function useChatHandler(session: Session | null, id: string) {
       rafId = null;
     };
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       await chatStream(id, message, model || session.researchCloudAIModel, (chunk) => {
         accumulated += chunk;
         if (rafId === null) rafId = requestAnimationFrame(flush);
-      });
+      }, controller.signal);
       if (rafId !== null) cancelAnimationFrame(rafId);
       flush();
-    } catch {
+    } catch (e) {
       if (rafId !== null) cancelAnimationFrame(rafId);
-      setChatMessages((prev) => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last?.role === "assistant" && !last.content) {
-          updated[updated.length - 1] = { ...last, content: "오류가 발생했습니다. 다시 시도해 주세요." };
-        }
-        return updated;
-      });
+      if ((e as Error)?.name !== "AbortError") {
+        setChatMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === "assistant" && !last.content) {
+            updated[updated.length - 1] = { ...last, content: "오류가 발생했습니다. 다시 시도해 주세요." };
+          }
+          return updated;
+        });
+      }
     } finally {
+      abortRef.current = null;
       setChatLoading(false);
     }
   }, [session, chatLoading, id]);
+
+  const handleChatAbort = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
 
   const handleClearChat = useCallback(async () => {
     await clearChatHistory(id);
     setChatMessages([]);
   }, [id]);
 
-  return { chatMessages, chatLoading, chatBottomRef, handleChatSend, handleClearChat };
+  return { chatMessages, chatLoading, chatBottomRef, handleChatSend, handleClearChat, handleChatAbort };
 }

@@ -253,7 +253,7 @@ export function TaskCard({
                   : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
-              🤖 AI 결과
+              AI 결과
             </button>
             {availableSources.map(({ key: sourceKey, label }) => (
               <button
@@ -265,7 +265,7 @@ export function TaskCard({
                     : "border-transparent text-slate-500 hover:text-slate-700"
                 }`}
               >
-                🔍 {label}
+                {label}
               </button>
             ))}
             <button
@@ -276,7 +276,7 @@ export function TaskCard({
                   : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
-              📊 상세
+              상세
             </button>
           </div>
 

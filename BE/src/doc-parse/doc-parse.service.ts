@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AiProviderService } from '../ai/application/ai-provider.service';
+import { AiProviderService } from '../ai/infrastructure/ai-provider.service';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse');
 
@@ -35,7 +35,7 @@ ${docText.slice(0, 30000)}
 === 질문 ===
 ${question}`;
 
-    const answer = await this.aiProvider.call(aiModel, system, prompt);
+    const { text: answer } = await this.aiProvider.call(aiModel, system, prompt);
     return { answer };
   }
 

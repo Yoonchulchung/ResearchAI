@@ -1,8 +1,8 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { NewsService, NewsItem, CountryNewsItem, KeywordItem, ConflictZone } from '../service/news.service';
-import { MarketService, MarketItem, ChartPoint } from '../service/market.service';
-import { NewsSummaryService } from '../service/news-summary.service';
-import { PuppeteerService } from '../../puppeteer.service';
+import { NewsService, NewsItem, CountryNewsItem, KeywordItem, ConflictZone } from '../application/service/news.service';
+import { MarketService, MarketItem, ChartPoint } from '../application/service/market.service';
+import { NewsSummaryService } from '../application/service/news-summary.service';
+import { PuppeteerService } from '../puppeteer.service';
 
 @Controller('news')
 export class NewsController {

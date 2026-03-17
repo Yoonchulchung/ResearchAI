@@ -4,7 +4,6 @@ export class ItemResponseDto {
   id: number;
   itemId: string;
   title: string;
-  icon: string;
   webSearchPrompt: string;
   status: string;
   researchState?: string;
@@ -21,7 +20,6 @@ export class ItemResponseDto {
     dto.id = item.id;
     dto.itemId = item.itemId;
     dto.title = item.title;
-    dto.icon = item.icon;
     dto.webSearchPrompt = item.webSearchPrompt;
     dto.status = item.status;
     dto.researchState = item.researchState;

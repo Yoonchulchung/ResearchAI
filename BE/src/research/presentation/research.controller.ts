@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
-import { AiProviderService } from '../../ai/application/ai-provider.service';
+import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 import { WebSearchService } from '../application/web-search.service';
 import { ResearchService } from '../application/research.service';
 import { TestLightSearchDto } from './dto/request/test-light-search.dto';
@@ -18,7 +18,7 @@ export class ResearchController {
 
   @Get('models')
   getModels() {
-    return this.aiProvider.getModels();
+    return this.aiProvider.getLocalAiModels();
   }
 
   // *************** //

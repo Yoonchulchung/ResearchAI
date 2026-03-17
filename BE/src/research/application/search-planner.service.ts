@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AiProviderService } from '../../ai/application/ai-provider.service';
+import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 import { SearchMode, PlannerMode, SearchPlan } from '../domain/model/search-planner.model';
 import { AI_MODEL_PREFIX } from '../../ai/domain/models';
 
@@ -63,7 +63,7 @@ jobTypes 판단 기준.
 - 없으면 빈 배열`;
 
     try {
-      const text = await this.aiProvider.call(aiModel, SYSTEM, prompt);
+      const { text } = await this.aiProvider.call(aiModel, SYSTEM, prompt);
 
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return this.fallback(rawModel, topic, 'JSON 파싱 실패');

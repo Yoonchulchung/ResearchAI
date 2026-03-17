@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DeepResearchPipelineService } from '../../../research/application/pipeline/deep-research-pipeline.service';
+import { ResearchService } from '../../../research/application/research.service';
 import { SessionCommandService } from '../../../sessions/application/command/session-command.service';
 import { SessionItemCommandService } from '../../../sessions/application/command/session-item-command.service';
 import { ResearchState } from '../../../sessions/domain/entity/session.entity';
@@ -9,7 +9,7 @@ import { SearchSources } from '../../../research/domain/model/search-sources.mod
 @Injectable()
 export class DeepResearchExecutorService {
   constructor(
-    private readonly deepPipeline: DeepResearchPipelineService,
+    private readonly researchService: ResearchService,
     private readonly sessionCommandService: SessionCommandService,
     private readonly sessionItemCommandService: SessionItemCommandService,
   ) {}
@@ -24,7 +24,8 @@ export class DeepResearchExecutorService {
     await this.sessionCommandService.updateSessionState(sessionId, ResearchState.RUNNING);
     await this.sessionItemCommandService.updateStatus(itemId, ResearchState.RUNNING);
 
-    const { aiResult, webSources, confidence, inputTokens, outputTokens, estimatedFees } = await this.deepPipeline.run(itemPrompt, cloudAIModel, webModel);
+    const { aiResult, webSources, confidence, inputTokens, outputTokens, estimatedFees } =
+      await this.researchService.research({ type: 'deep', itemPrompt, cloudAIModel, webModel });
 
     const webResult = webSources.tavily ?? webSources.serper ?? webSources.naver ?? webSources.brave ?? '';
     await this.sessionCommandService.updateSessionItem(sessionId, itemId, aiResult, webResult, ResearchState.DONE, confidence, { inputTokens, outputTokens, estimatedFees });

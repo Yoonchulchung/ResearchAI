@@ -207,6 +207,7 @@ export function TopicInput({
   value,
   onChange,
   onGenerate,
+  onAbort,
   generating,
   placeholder = "리서치 주제를 입력하세요...",
   generatingLabel: _generatingLabel,
@@ -223,6 +224,7 @@ export function TopicInput({
   value: string;
   onChange: (value: string) => void;
   onGenerate: () => void;
+  onAbort?: () => void;
   generating: boolean;
   placeholder?: string;
   generatingLabel?: string;
@@ -380,14 +382,21 @@ export function TopicInput({
             placeholder="로컬 모델"
           />
 
-          <button
-            onClick={onGenerate}
-            disabled={!value.trim() || generating}
-            className="w-9 h-9 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-colors"
-          >
-            {generating ? (
-              <span className="text-xs animate-spin inline-block">◌</span>
-            ) : (
+          {generating && onAbort ? (
+            <button
+              onClick={onAbort}
+              className="w-9 h-9 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                <rect x="2" y="2" width="8" height="8" rx="1.5" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={onGenerate}
+              disabled={!value.trim() || generating}
+              className="w-9 h-9 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-colors"
+            >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path
                   d="M8 12V4M4 8l4-4 4 4"
@@ -397,8 +406,8 @@ export function TopicInput({
                   strokeLinejoin="round"
                 />
               </svg>
-            )}
-          </button>
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -4,7 +4,6 @@ import { createHash } from 'crypto';
 export interface VectorSearchResult {
   text: string;
   taskTitle: string;
-  taskIcon: string;
   score: number;
 }
 
@@ -107,7 +106,6 @@ export class VectorService implements OnModuleInit {
     sessionId: string,
     taskId: string,
     taskTitle: string,
-    taskIcon: string,
     content: string,
   ): Promise<void> {
     if (!this.available) return;
@@ -127,7 +125,6 @@ export class VectorService implements OnModuleInit {
             sessionId,
             taskId,
             taskTitle,
-            taskIcon,
             chunkIndex: i,
             text: chunks[i],
           },
@@ -185,7 +182,6 @@ export class VectorService implements OnModuleInit {
       return (data.result ?? []).map((r: any) => ({
         text: r.payload.text,
         taskTitle: r.payload.taskTitle,
-        taskIcon: r.payload.taskIcon,
         score: r.score,
       }));
     } catch {

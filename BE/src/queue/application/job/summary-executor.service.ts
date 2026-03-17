@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AiProviderService } from '../../../ai/application/ai-provider.service';
+import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
 import { SessionQueryService } from '../../../sessions/application/query/session-query.service';
 import { SessionCommandService } from '../../../sessions/application/command/session-command.service';
 import { SummaryState } from '../../../sessions/domain/entity/session.entity';
