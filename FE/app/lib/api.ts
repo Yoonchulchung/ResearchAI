@@ -4,3 +4,4 @@ export * from "./api/research";
 export * from "./api/overview";
 export * from "./api/ai";
 export * from "./api/queue";
+export * from "./api/gmail";

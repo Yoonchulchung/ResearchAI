@@ -12,6 +12,7 @@ import { NewsModule } from './news/news.module';
 import { DocParseModule } from './doc-parse/doc-parse.module';
 import { MediaModule } from './media/media.module';
 import { AppConfigModule } from './config/config.module';
+import { GmailModule } from './gmail/gmail.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AppConfigModule } from './config/config.module';
     DocParseModule,
     MediaModule,
     AppConfigModule,
+    GmailModule,
   ],
 })
 export class AppModule {}

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { NewsController } from './news.controller';
+import { NewsController } from './application/presentation/news.controller';
 import { NewsService } from './application/service/news.service';
 import { MarketService } from './application/service/market.service';
 import { NewsSummaryService } from './application/service/news-summary.service';

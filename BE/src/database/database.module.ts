@@ -10,6 +10,7 @@ import { TokenHistoryEntity } from 'src/overview/domain/entity/token-history.ent
 import { QueueJobEntity } from '../queue/domain/entity/queue-job.entity';
 import { NewsBriefingEntity } from '../news/domain/entity/news-briefing.entity';
 import { AppConfigEntity } from '../config/domain/entity/app-config.entity';
+import { GmailTokenEntity } from '../gmail/domain/entity/gmail-token.entity';
 
 @Module({
   imports: [
@@ -20,7 +21,8 @@ import { AppConfigEntity } from '../config/domain/entity/app-config.entity';
                  ChatEntity, ResearchRecruitEntity,
                  LightResearchEntity, SearchListEntity,
                  TokenHistoryEntity, QueueJobEntity,
-                 NewsBriefingEntity, AppConfigEntity],
+                 NewsBriefingEntity, AppConfigEntity,
+                 GmailTokenEntity],
       synchronize: true,
     }),
   ],
