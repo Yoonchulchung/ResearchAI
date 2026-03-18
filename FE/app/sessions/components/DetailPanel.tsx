@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Session } from "@/types";
+import { markdownComponents } from "@/lib/markdown";
+import { getConfig, setConfig } from "@/lib/api";
 
 const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20] as const;
 const DEFAULT_FONT_SIZE_IDX = 2; // 14px
@@ -28,7 +30,35 @@ export function DetailPanel({ session, expanded, onExpand, onClose }: Props) {
   const doneTasks = (session.items ?? []).filter((t) => t.aiResult);
   const [fontSizeIdx, setFontSizeIdx] = useState(DEFAULT_FONT_SIZE_IDX);
   const fontSize = FONT_SIZES[fontSizeIdx];
-  const [bgColor, setBgColor] = useState(BG_COLORS[1].value); // 크림 기본값
+  const [bgColor, setBgColor] = useState(BG_COLORS[1].value);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 초기 로드
+  useEffect(() => {
+    getConfig().then((cfg) => {
+      if (cfg.viewer_font_size_idx !== undefined) {
+        const idx = parseInt(cfg.viewer_font_size_idx, 10);
+        if (!isNaN(idx) && idx >= 0 && idx < FONT_SIZES.length) setFontSizeIdx(idx);
+      }
+      if (cfg.viewer_bg_color) setBgColor(cfg.viewer_bg_color);
+    }).catch(() => {});
+  }, []);
+
+  // 변경 시 debounce 저장
+  const save = (key: string, value: string) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => setConfig(key, value).catch(() => {}), 500);
+  };
+
+  const handleFontSizeIdx = (idx: number) => {
+    setFontSizeIdx(idx);
+    save("viewer_font_size_idx", String(idx));
+  };
+
+  const handleBgColor = (color: string) => {
+    setBgColor(color);
+    save("viewer_bg_color", color);
+  };
 
   return (
     <div className={`flex flex-col h-full border-l border-slate-200 shrink-0 ${expanded ? "w-full" : "w-[52%]"}`} style={{ backgroundColor: bgColor }}>
@@ -42,7 +72,7 @@ export function DetailPanel({ session, expanded, onExpand, onClose }: Props) {
           {BG_COLORS.map((c) => (
             <button
               key={c.value}
-              onClick={() => setBgColor(c.value)}
+              onClick={() => handleBgColor(c.value)}
               title={c.label}
               className="w-4 h-4 rounded-full border transition-all"
               style={{
@@ -57,7 +87,7 @@ export function DetailPanel({ session, expanded, onExpand, onClose }: Props) {
         {/* 글자 크기 */}
         <div className="flex items-center gap-1 shrink-0">
           <button
-            onClick={() => setFontSizeIdx((i) => Math.max(0, i - 1))}
+            onClick={() => handleFontSizeIdx(Math.max(0, fontSizeIdx - 1))}
             disabled={fontSizeIdx === 0}
             className="text-slate-400 hover:text-slate-600 disabled:opacity-30 transition-colors leading-none px-1"
             title="글자 작게"
@@ -66,7 +96,7 @@ export function DetailPanel({ session, expanded, onExpand, onClose }: Props) {
           </button>
           <span className="text-xs text-slate-400 w-6 text-center">{fontSize}</span>
           <button
-            onClick={() => setFontSizeIdx((i) => Math.min(FONT_SIZES.length - 1, i + 1))}
+            onClick={() => handleFontSizeIdx(Math.min(FONT_SIZES.length - 1, fontSizeIdx + 1))}
             disabled={fontSizeIdx === FONT_SIZES.length - 1}
             className="text-slate-400 hover:text-slate-600 disabled:opacity-30 transition-colors leading-none px-1"
             title="글자 크게"
@@ -128,7 +158,7 @@ export function DetailPanel({ session, expanded, onExpand, onClose }: Props) {
                   [&_code]:bg-slate-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700
                   [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
                   [&_hr]:border-slate-200 [&_hr]:my-3">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.aiResult ?? ""}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{task.aiResult ?? ""}</ReactMarkdown>
                 </div>
                 <div className="mt-6 border-b border-slate-100" />
               </section>

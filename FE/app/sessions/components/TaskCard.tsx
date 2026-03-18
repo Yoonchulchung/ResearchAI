@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Task, TaskStatus, WebModels, ModelDefinition } from "@/types";
+import { markdownComponents } from "@/lib/markdown";
 import { reEvaluateConfidence } from "@/lib/api/ai";
 
 export type Phase = "searching" | "analyzing";
@@ -564,7 +565,7 @@ export function TaskCard({
                 [&_code]:bg-slate-200 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700
                 [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
                 [&_hr]:border-slate-200 [&_hr]:my-3">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiResult}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{aiResult}</ReactMarkdown>
               </div>
             ) : (
               <div className="px-5 py-8 bg-slate-50 flex flex-col items-center gap-2 text-slate-400">

@@ -3,6 +3,7 @@
 import { RefObject } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { markdownComponents } from "@/lib/markdown";
 import { ChatMessage } from "@/types";
 
 interface Props {
@@ -80,7 +81,7 @@ export function ChatSection({ chatMessages, chatBottomRef, onClearChat, onAbort,
                       [&_p]:my-1 [&_p]:leading-relaxed [&_p]:text-slate-700
                       [&_code]:bg-slate-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs
                       [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{msg.content}</ReactMarkdown>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 text-slate-400">

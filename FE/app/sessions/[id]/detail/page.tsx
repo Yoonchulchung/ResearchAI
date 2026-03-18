@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import { markdownComponents } from "@/lib/markdown";
 import remarkGfm from "remark-gfm";
 import { getSession } from "@/lib/api";
 import { Session } from "@/types";
@@ -81,7 +82,7 @@ export default function DetailPage() {
                   [&_code]:bg-slate-200 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700
                   [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
                   [&_hr]:border-slate-200 [&_hr]:my-3">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.aiResult ?? ""}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{task.aiResult ?? ""}</ReactMarkdown>
                 </div>
                 <div className="mt-6 border-b border-slate-100" />
               </section>

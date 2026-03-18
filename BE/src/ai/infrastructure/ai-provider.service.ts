@@ -30,8 +30,14 @@ export class AiProviderService {
   ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number; toolCalls?: ToolCallResult[]; stopReason?: string; searchLog?: { query: string; result: string }[] }> {
     const promptPreview = typeof prompt === 'string'
       ? prompt.slice(0, 100).replace(/\n/g, ' ')
-      : `[messages:${prompt.length}]`;
-    this.logger.log(`model=${aiModel} | prompt="${promptPreview}${typeof prompt === 'string' && prompt.length > 100 ? '...' : ''}"`);
+      : prompt.map((m: any) => {
+          const content = typeof m.content === 'string'
+            ? m.content.slice(0, 60).replace(/\n/g, ' ')
+            : JSON.stringify(m.content).slice(0, 60);
+          return `[${m.role}] ${content}`;
+        }).join(' | ');
+    const isTruncated = typeof prompt === 'string' ? prompt.length > 100 : false;
+    this.logger.log(`model=${aiModel} | prompt="${promptPreview}${isTruncated ? '...' : ''}"`);
 
     const useSearch = opts?.useBuiltinSearch ?? false;
     const promptText = typeof prompt === 'string'
@@ -98,7 +104,10 @@ export class AiProviderService {
     system: string,
     messages: { role: 'user' | 'assistant'; content: string }[],
   ): AsyncGenerator<string> {
-    
+
+    const streamPreview = messages.map((m) => `[${m.role}] ${m.content.slice(0, 60).replace(/\n/g, ' ')}`).join(' | ');
+    this.logger.log(`model=${aiModel} | stream="${streamPreview}"`);
+
     // **** 로컬 **** //
     if (aiModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) {
       const ollamaModel = aiModel.slice(AI_MODEL_PREFIX.OLLAMA.length);

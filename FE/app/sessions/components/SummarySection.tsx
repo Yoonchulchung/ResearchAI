@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { markdownComponents } from "@/lib/markdown";
 import { getSessionSummary, requestSessionSummary, streamSessionSummary } from "@/lib/api/sessions";
 import { useSummaryProgress } from "@/contexts/SummaryProgressContext";
 import { ModelDefinition } from "@/types";
@@ -216,7 +217,7 @@ export function SummarySection({ sessionId, topic, localAiModels, allDone, summa
           ) : summary || summaryStatus === "running" ? (
             <div className="prose prose-sm prose-slate max-w-none pt-4">
               {summary ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{summary}</ReactMarkdown>
               ) : null}
               {summaryStatus === "running" && (
                 <span className="inline-block w-0.5 h-4 bg-indigo-400 ml-0.5 align-middle animate-pulse" />

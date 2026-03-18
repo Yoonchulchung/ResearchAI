@@ -54,6 +54,12 @@ export class WebSearchService {
     return { result: await this.webSearchProvider.searchSingle(engine, query) };
   }
 
+  /** AI 필터링 없이 원본 검색 결과 반환 (URL 보존 목적) */
+  async searchRaw(engine: SearchEngine, query: string): Promise<string> {
+    if (isBuiltinSearchEngine(engine)) return '';
+    return this.webSearchProvider.searchSingle(engine, query);
+  }
+
   async searchByEngine(engine: SearchEngine, query: string, filterModel?: string): Promise<string> {
     if (isBuiltinSearchEngine(engine)) return '';
     const raw = await this.webSearchProvider.searchSingle(engine, query);
