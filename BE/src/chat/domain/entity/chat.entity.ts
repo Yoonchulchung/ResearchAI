@@ -24,6 +24,10 @@ export class ChatEntity {
   @Column()
   message: string;
 
+  /** AI 컨텍스트용 메시지 (검색 결과 등 포함). null이면 message를 그대로 사용 */
+  @Column({ name: 'context_message', nullable: true, type: 'text' })
+  contextMessage: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

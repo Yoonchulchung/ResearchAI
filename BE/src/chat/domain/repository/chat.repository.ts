@@ -17,7 +17,7 @@ export class ChatRepository {
     });
   }
 
-  async save(chat: { id: string; sessionId: string; whoSent: WhoSent; message: string }): Promise<ChatEntity> {
+  async save(chat: { id: string; sessionId: string; whoSent: WhoSent; message: string; contextMessage?: string | null }): Promise<ChatEntity> {
     return this.repo.save(chat);
   }
 

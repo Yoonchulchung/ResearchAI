@@ -8,21 +8,29 @@ export function useChatHandler(session: Session | null, id: string) {
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // id 변경 시 초기화 및 히스토리 로드
+  // id 변경 시 초기화 및 히스토리 로드 후 하단 스크롤
   useEffect(() => {
     setChatMessages([]);
-    getChatHistory(id).then(setChatMessages).catch(() => {});
+    getChatHistory(id).then((msgs) => {
+      setChatMessages(msgs);
+      setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 0);
+    }).catch(() => {});
   }, [id]);
 
   // 새 메시지 추가 시 하단으로 스크롤
+  // — 바텀 sentinel이 뷰포트 아래 200px 이내일 때만 스크롤 (사용자가 위로 올렸으면 스킵)
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = chatBottomRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.top <= window.innerHeight + 10) {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
   }, [chatMessages]);
 
   const handleChatSend = useCallback(async (message: string, model: string) => {
     if (!session || chatLoading) return;
     setChatLoading(true);
-
     setChatMessages((prev) => [
       ...prev,
       { role: "user", content: message },

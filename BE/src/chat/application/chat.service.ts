@@ -25,6 +25,7 @@ export class ChatService {
     private readonly webSearchService: WebSearchService,
   ) {}
 
+  /** UI 표시용: 원본 메시지만 반환 */
   async getHistory(sessionId: string): Promise<ChatMessage[]> {
     const rows = await this.chatRepository.findBySessionId(sessionId);
     return rows.map((row) => ({
@@ -33,16 +34,26 @@ export class ChatService {
     }));
   }
 
+  /** AI 컨텍스트용: 검색 결과 포함 버전 반환 (없으면 원본 사용) */
+  private async getHistoryForAI(sessionId: string): Promise<ChatMessage[]> {
+    const rows = await this.chatRepository.findBySessionId(sessionId);
+    return rows.map((row) => ({
+      role: row.whoSent === WhoSent.USER ? ChatRole.USER : ChatRole.ASSISTANT,
+      content: row.contextMessage ?? row.message,
+    }));
+  }
+
   async clearHistory(sessionId: string): Promise<void> {
     await this.chatRepository.deleteBySessionId(sessionId);
   }
 
-  private async appendMessage(sessionId: string, role: ChatRole, content: string): Promise<void> {
+  private async appendMessage(sessionId: string, role: ChatRole, content: string, contextMessage?: string | null): Promise<void> {
     await this.chatRepository.save({
       id: randomUUID(),
       sessionId,
       whoSent: role === ChatRole.USER ? WhoSent.USER : WhoSent.AI,
       message: content,
+      contextMessage: contextMessage ?? null,
     });
   }
 
@@ -61,7 +72,7 @@ export class ChatService {
     const session = await this.sessionsService.findOne(sessionId);
 
     // 현재 메시지는 아직 저장하지 않음 — 검색 결과 포함 후 저장
-    const rawHistory = await this.getHistory(sessionId);
+    const rawHistory = await this.getHistoryForAI(sessionId);
 
     // RAG 컨텍스트 구성
     let ragContext: string;
@@ -143,18 +154,18 @@ ${ragContext}`;
       }
     }
 
-    // *** 유저 메시지 저장 (검색 결과 포함 — 이후 대화에서 참조 가능) ***
-    const persistedUserContent = extraContext
+    // *** 유저 메시지 저장: UI용(원본)과 AI 컨텍스트용(검색 결과 포함) 분리 ***
+    const contextUserContent = extraContext
       ? `${message}\n\n[참조한 웹 검색 결과]\n${extraContext}`
-      : message;
-    await this.appendMessage(sessionId, ChatRole.USER, persistedUserContent);
+      : null;
+    await this.appendMessage(sessionId, ChatRole.USER, message, contextUserContent);
 
     // *** Sliding Window: 최근 WINDOW_SIZE개 메시지 + 현재 메시지 ***
     const windowedHistory = (rawHistory as { role: 'user' | 'assistant'; content: string }[])
       .slice(-ChatService.WINDOW_SIZE);
     const streamMessages = [
       ...windowedHistory,
-      { role: 'user' as const, content: persistedUserContent },
+      { role: 'user' as const, content: contextUserContent ?? message },
     ];
 
     // *** 최종 스트리밍 답변 ***
