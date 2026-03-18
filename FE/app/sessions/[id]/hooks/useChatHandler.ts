@@ -18,7 +18,7 @@ export function useChatHandler(session: Session | null, id: string) {
   }, [id]);
 
   // 새 메시지 추가 시 하단으로 스크롤
-  // — 바텀 sentinel이 뷰포트 아래 200px 이내일 때만 스크롤 (사용자가 위로 올렸으면 스킵)
+  // — 바텀 sentinel이 뷰포트 아래 10px 이내일 때만 스크롤 (사용자가 위로 올렸으면 스킵)
   useEffect(() => {
     const el = chatBottomRef.current;
     if (!el) return;
