@@ -28,13 +28,13 @@ export class ChatController {
     req.on('close', cleanup);
 
     try {
-      for await (const chunk of this.chatService.chatStream(
+      for await (const event of this.chatService.chatStream(
         sessionId,
         body.message,
         body.model,
       )) {
         if (res.writableEnded) break;
-        res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
       }
       if (!res.writableEnded) {
         res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);

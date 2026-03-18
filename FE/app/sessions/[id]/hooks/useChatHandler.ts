@@ -48,11 +48,22 @@ export function useChatHandler(session: Session | null, id: string) {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    const handleStatus = (status: string) => {
+      setChatMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last?.role === "assistant" && !accumulated) {
+          updated[updated.length - 1] = { ...last, content: `_${status}_` };
+        }
+        return updated;
+      });
+    };
+
     try {
       await chatStream(id, message, model || session.researchCloudAIModel, (chunk) => {
         accumulated += chunk;
         if (rafId === null) rafId = requestAnimationFrame(flush);
-      }, controller.signal);
+      }, controller.signal, handleStatus);
       if (rafId !== null) cancelAnimationFrame(rafId);
       flush();
     } catch (e) {

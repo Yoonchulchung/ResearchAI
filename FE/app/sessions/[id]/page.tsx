@@ -84,6 +84,7 @@ export default function SessionPage() {
   const { statuses, phases, aiResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const [showDetail, setShowDetail] = useState(false);
+  const [expandedDetail, setExpandedDetail] = useState(false);
   const [confidenceOverrides, setConfidenceOverrides] = useState<Record<string, { score: number; reason: string }>>({});
   const [reEvalProgress, setReEvalProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -139,7 +140,7 @@ export default function SessionPage() {
   }, [models.length]);
 
   useEffect(() => { setDeletedItemIds(new Set()); }, [id]);
-  useEffect(() => { setShowDetail(false); }, [id]);
+  useEffect(() => { setShowDetail(false); setExpandedDetail(false); }, [id]);
 
   const { chatMessages, chatLoading, chatBottomRef, handleChatSend, handleClearChat, handleChatAbort } = useChatHandler(session, id);
   const { compactionStatus } = useCompaction(session, statuses, isRunning, id);
@@ -210,7 +211,7 @@ export default function SessionPage() {
 
       <div className="flex flex-1 min-h-0">
         {/* 왼쪽: 태스크 목록 + 채팅 */}
-        <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative">
+        <div className={`flex flex-col flex-1 min-w-0 overflow-hidden relative ${expandedDetail ? "hidden" : ""}`}>
           <div className="flex-1 overflow-y-auto px-8 py-6">
             <div className="px-6">
               <SummarySection sessionId={id} topic={session.topic} localAiModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} summaryState={session.summaryState ?? null} />
@@ -276,7 +277,9 @@ export default function SessionPage() {
         {showDetail && (
           <DetailPanel
             session={session}
-            onClose={() => setShowDetail(false)}
+            expanded={expandedDetail}
+            onExpand={() => setExpandedDetail((v) => !v)}
+            onClose={() => { setShowDetail(false); setExpandedDetail(false); }}
           />
         )}
       </div>

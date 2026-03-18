@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { SearchSources, SearchStreamEvent } from '../domain/model/search-sources.model';
 import { searchTavily } from './search/tavily.search';
 import { searchSerper } from './search/serper.search';
@@ -9,6 +9,8 @@ import { searchDuckDuckGo } from './search/duckduckgo.search';
 
 @Injectable()
 export class WebSearchProvider {
+  private readonly logger = new Logger(WebSearchProvider.name);
+
   hasExternalSearch(): boolean {
     return true; // DuckDuckGo는 항상 사용 가능
   }
@@ -96,6 +98,7 @@ export class WebSearchProvider {
   }
 
   async searchSingle(engine: string, query: string): Promise<string> {
+    this.logger.log(`engine=${engine} | query="${query}"`);
     switch (engine) {
       case 'tavily':      return searchTavily(query);
       case 'serper':      return searchSerper(query);

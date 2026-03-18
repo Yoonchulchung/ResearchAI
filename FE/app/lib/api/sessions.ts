@@ -87,6 +87,7 @@ export async function chatStream(
   model: string,
   onChunk: (text: string) => void,
   signal?: AbortSignal,
+  onStatus?: (text: string) => void,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/chat/${sessionId}`, {
     method: "POST",
@@ -98,6 +99,7 @@ export async function chatStream(
 
   await readSSE<{ type: string; text?: string; message?: string }>(res, (event) => {
     if (event.type === "chunk" && event.text) onChunk(event.text);
+    else if (event.type === "status" && event.text) onStatus?.(event.text);
     else if (event.type === "done") return true;
     else if (event.type === "error") throw new Error(event.message);
   });
