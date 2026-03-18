@@ -114,6 +114,7 @@ export default function SessionPage() {
   const cloudAiModels = models.filter((m) => m.provider !== "ollama");
   const [headerCloudAiModel, setHeaderCloudAiModel] = useState("");
   const [headerWebModel, setHeaderWebModel] = useState("");
+  const [headerFilterModel, setHeaderFilterModel] = useState("");
 
   // models/webEngines 로드 후 초기값 설정
   useEffect(() => {
@@ -129,6 +130,13 @@ export default function SessionPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [webEngines.length]);
+
+  useEffect(() => {
+    if (!headerFilterModel && models.length > 0) {
+      setHeaderFilterModel(models[0].id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [models.length]);
 
   useEffect(() => { setDeletedItemIds(new Set()); }, [id]);
   useEffect(() => { setShowDetail(false); }, [id]);
@@ -183,11 +191,14 @@ export default function SessionPage() {
         showDetail={showDetail}
         models={models}
         cloudAiModels={models}
+        filterModels={models}
         webEngines={webEngines}
         selectedCloudAiModel={headerCloudAiModel}
         selectedWebModel={headerWebModel}
+        selectedFilterModel={headerFilterModel}
         onCloudAiModelChange={setHeaderCloudAiModel}
         onWebModelChange={setHeaderWebModel}
+        onFilterModelChange={setHeaderFilterModel}
         reEvalProgress={reEvalProgress}
         avgConfidence={avgConfidence}
         onRunAll={handleRunAll}
@@ -221,10 +232,12 @@ export default function SessionPage() {
                     aiModel={session.researchCloudAIModel}
                     models={models}
                     cloudAiModels={models}
+                    filterModels={models}
                     webEngines={webEngines}
                     syncedCloudAiModel={headerCloudAiModel}
                     syncedWebModel={headerWebModel}
-                    onRun={(aiModel, runWebModel) => handleRunTask(task, aiModel, runWebModel)}
+                    syncedFilterModel={headerFilterModel}
+                    onRun={(aiModel, runWebModel, filterModel) => handleRunTask(task, aiModel, runWebModel, filterModel)}
                     onCancel={() => handleCancelItem(task)}
                     onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}
                     onConfidenceUpdate={(c) => handleConfidenceUpdate(task.itemId, c)}

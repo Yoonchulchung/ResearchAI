@@ -22,6 +22,7 @@ export class DeepResearchExecutorService {
     webModel: SearchEngine,
     localAIModel?: string,
     signal?: AbortSignal,
+    filterModel?: string,
   ): Promise<{ aiResult: string; webSources: SearchSources }> {
     await this.sessionCommandService.updateSessionState(sessionId, ResearchState.RUNNING);
     await this.sessionItemCommandService.updateStatus(itemId, ResearchState.RUNNING);
@@ -30,7 +31,7 @@ export class DeepResearchExecutorService {
     const aiModel = localAIModel || cloudAIModel;
 
     const { aiResult, webSources, confidence, inputTokens, outputTokens, estimatedFees, searchLog, usedWebModel } =
-      await this.researchService.research({ type: 'deep', itemPrompt, cloudAIModel: aiModel, webModel, signal });
+      await this.researchService.research({ type: 'deep', itemPrompt, cloudAIModel: aiModel, webModel, signal, filterModel });
 
     const webResult = webSources.tavily ?? webSources.serper ?? webSources.naver ?? webSources.brave ?? webSources.duckduckgo ?? '';
     await this.sessionCommandService.updateSessionItem(

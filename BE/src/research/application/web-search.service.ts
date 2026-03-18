@@ -54,14 +54,13 @@ export class WebSearchService {
     return { result: await this.webSearchProvider.searchSingle(engine, query) };
   }
 
-  async searchByEngine(engine: SearchEngine, query: string): Promise<string> {
+  async searchByEngine(engine: SearchEngine, query: string, filterModel?: string): Promise<string> {
     if (isBuiltinSearchEngine(engine)) return '';
-    console.log(engine);
     const raw = await this.webSearchProvider.searchSingle(engine, query);
     if (!raw) return raw;
     try {
       const { text } = await this.aiService.call(
-        WebSearchService.FILTER_MODEL,
+        filterModel || WebSearchService.FILTER_MODEL,
         `You are a mechanical text filter. Your ONLY task is to DELETE certain lines from search results.
 
 STRICT RULES:

@@ -262,6 +262,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         localAIModel,
         CloudAIModel: cloudAIModel,
         webModel: (requestBody.webModel ?? session.researchWebModel) as SearchEngine,
+        filterModel: requestBody.filterModel,
         status: QueueJobStatus.PENDING,
       });
     }
@@ -447,6 +448,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
           job.webModel ?? SearchEngine.TAVILY,
           job.localAIModel || undefined,
           controller.signal,
+          job.filterModel,
         );
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: aiResult, webSources });
 

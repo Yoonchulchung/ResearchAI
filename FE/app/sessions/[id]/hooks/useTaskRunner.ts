@@ -100,7 +100,7 @@ export function useTaskRunner(session: Session | null, id: string) {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const runTasks = useCallback(async (tasks: Task[], aiModel?: string, webModel?: string) => {
+  const runTasks = useCallback(async (tasks: Task[], aiModel?: string, webModel?: string, filterModel?: string) => {
     if (!session || tasks.length === 0) return;
     const updates: Record<string, { status: TaskStatus; phase: Phase }> = {};
     for (const task of tasks) {
@@ -114,6 +114,7 @@ export function useTaskRunner(session: Session | null, id: string) {
         tasks.map((t) => ({ itemId: t.itemId, prompt: t.webSearchPrompt })),
         aiModel,
         webModel,
+        filterModel,
       );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "오류";
@@ -127,17 +128,17 @@ export function useTaskRunner(session: Session | null, id: string) {
     }
   }, [session, id]);
 
-  const handleRunTask = useCallback(async (task: Task, aiModel?: string, webModel?: string) => {
+  const handleRunTask = useCallback(async (task: Task, aiModel?: string, webModel?: string, filterModel?: string) => {
     if (isRunning) return;
     setLocalRunning(true);
     try {
-      await runTasks([task], aiModel, webModel);
+      await runTasks([task], aiModel, webModel, filterModel);
     } finally {
       setLocalRunning(false);
     }
   }, [isRunning, runTasks]);
 
-  const handleRunAll = useCallback(async (cloudAiModel?: string, webModel?: string) => {
+  const handleRunAll = useCallback(async (cloudAiModel?: string, webModel?: string, filterModel?: string) => {
     if (isRunning || !session) return;
     const pendingTasks = (session.items ?? []).filter((t) => {
       const s = statuses[String(t.id)];
@@ -146,7 +147,7 @@ export function useTaskRunner(session: Session | null, id: string) {
 
     setLocalRunning(true);
     try {
-      await runTasks(pendingTasks, cloudAiModel, webModel);
+      await runTasks(pendingTasks, cloudAiModel, webModel, filterModel);
     } finally {
       setLocalRunning(false);
     }

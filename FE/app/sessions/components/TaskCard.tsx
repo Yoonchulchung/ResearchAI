@@ -28,9 +28,11 @@ export function TaskCard({
   aiModel,
   models,
   cloudAiModels,
+  filterModels,
   webEngines,
   syncedCloudAiModel,
   syncedWebModel,
+  syncedFilterModel,
   onRun,
   onCancel,
   onDelete,
@@ -44,10 +46,12 @@ export function TaskCard({
   aiModel?: string;
   models?: ModelDefinition[];
   cloudAiModels?: ModelDefinition[];
+  filterModels?: ModelDefinition[];
   webEngines?: { id: string; name: string; builtin: boolean }[];
   syncedCloudAiModel?: string;
   syncedWebModel?: string;
-  onRun: (cloudAiModel?: string, webModel?: string) => void;
+  syncedFilterModel?: string;
+  onRun: (cloudAiModel?: string, webModel?: string, filterModel?: string) => void;
   onCancel: () => void;
   onDelete: () => void;
   onConfidenceUpdate?: (confidence: { score: number; reason: string }) => void;
@@ -59,6 +63,7 @@ export function TaskCard({
   const [reEvalError, setReEvalError] = useState<string | null>(null);
   const [selectedRunModel, setSelectedRunModel] = useState(() => syncedCloudAiModel ?? cloudAiModels?.[0]?.id ?? "");
   const [selectedRunWebModel, setSelectedRunWebModel] = useState(() => syncedWebModel ?? webEngines?.[0]?.id ?? "");
+  const [selectedRunFilterModel, setSelectedRunFilterModel] = useState(() => syncedFilterModel || filterModels?.[0]?.id || "");
 
   // 헤더에서 모델 변경 시 동기화
   useEffect(() => {
@@ -68,6 +73,10 @@ export function TaskCard({
   useEffect(() => {
     if (syncedWebModel) setSelectedRunWebModel(syncedWebModel);
   }, [syncedWebModel]);
+
+  useEffect(() => {
+    if (syncedFilterModel) setSelectedRunFilterModel(syncedFilterModel);
+  }, [syncedFilterModel]);
 
   useEffect(() => {
     if (!selectedRunModel && cloudAiModels && cloudAiModels.length > 0) {
@@ -80,6 +89,14 @@ export function TaskCard({
       setSelectedRunWebModel(webEngines[0].id);
     }
   }, [webEngines, selectedRunWebModel]);
+
+  useEffect(() => {
+    if (!selectedRunFilterModel && filterModels && filterModels.length > 0) {
+      setSelectedRunFilterModel(filterModels[0].id);
+    }
+  }, [filterModels, selectedRunFilterModel]);
+
+  const isNonBuiltinWebEngine = !!webEngines?.find((e) => e.id === selectedRunWebModel && !e.builtin);
 
   useEffect(() => {
     if (aiModel) setReEvalModel(aiModel);
@@ -186,7 +203,7 @@ export function TaskCard({
   }, [subText]);
 
   const handleCardClick = () => {
-    if (status === TaskStatus.IDLE) onRun(selectedRunModel || undefined, selectedRunWebModel || undefined);
+    if (status === TaskStatus.IDLE) onRun(selectedRunModel || undefined, selectedRunWebModel || undefined, isNonBuiltinWebEngine ? selectedRunFilterModel || undefined : undefined);
     else if (hasContent) setExpanded((e) => !e);
   };
 
@@ -270,9 +287,22 @@ export function TaskCard({
                   ))}
                 </select>
               )}
+              {isNonBuiltinWebEngine && filterModels && filterModels.length > 0 && (
+                <select
+                  value={selectedRunFilterModel}
+                  onChange={(e) => { e.stopPropagation(); setSelectedRunFilterModel(e.target.value); }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-slate-500 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none cursor-pointer max-w-28 truncate"
+                  title="필터 모델"
+                >
+                  {filterModels.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              )}
               {(status === "error" || status === TaskStatus.STOPPED || status === TaskStatus.ABORTED) && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); onRun(selectedRunModel || undefined, selectedRunWebModel || undefined); }}
+                  onClick={(e) => { e.stopPropagation(); onRun(selectedRunModel || undefined, selectedRunWebModel || undefined, isNonBuiltinWebEngine ? selectedRunFilterModel || undefined : undefined); }}
                   className="text-xs font-semibold text-slate-400 hover:text-indigo-500 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
                   title="재시도"
                 >

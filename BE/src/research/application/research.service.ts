@@ -22,6 +22,7 @@ export interface DeepResearchInput {
   cloudAIModel: string;
   webModel: SearchEngine;
   signal?: AbortSignal;
+  filterModel?: string;
 }
 
 @Injectable()
@@ -45,7 +46,7 @@ export class ResearchService {
         input.onEvent,
       );
     }
-    return this.deepPipeline.run(input.itemPrompt, input.cloudAIModel, input.webModel, undefined, input.signal);
+    return this.deepPipeline.run(input.itemPrompt, input.cloudAIModel, input.webModel, undefined, input.signal, input.filterModel);
   }
 
   async testGenerateTasks(

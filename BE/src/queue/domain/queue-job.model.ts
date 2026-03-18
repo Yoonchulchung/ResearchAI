@@ -43,4 +43,5 @@ export interface QueueJob {
   result?: string;
   webModel?: SearchEngine;
   searchMode?: string;
+  filterModel?: string;
 }

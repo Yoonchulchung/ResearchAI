@@ -58,6 +58,7 @@ export class DeepResearchPipelineService {
     /** QueueService에서 이미 검색 결과를 받아온 경우 직접 넘겨 에이전트 루프를 건너뜀 */
     contextOverride?: string,
     signal?: AbortSignal,
+    filterModel?: string,
   ): Promise<DeepResearchResult> {
     let aiResult = '';
     let webSources: SearchSources = {};
@@ -89,7 +90,7 @@ export class DeepResearchPipelineService {
 
     } else if (this.supportsAgentLoop(aiModel)) {
       // Claude / OpenAI: AI 에이전트 루프
-      const searchFn = this.getSearchFn(webModel);
+      const searchFn = this.getSearchFn(webModel, filterModel);
       const agentResult = await this.aiService.runAgenticLoop(
         aiModel,
         PROMPTS.system,
@@ -137,12 +138,12 @@ export class DeepResearchPipelineService {
     return aiModel.startsWith('claude') || (!aiModel.startsWith('gemini') && !aiModel.startsWith('ollama:'));
   }
 
-  private getSearchFn(webModel: SearchEngine): (query: string) => Promise<string> {
-    return (query: string) => this.webSearch.searchByEngine(webModel, query);
+  private getSearchFn(webModel: SearchEngine, filterModel?: string): (query: string) => Promise<string> {
+    return (query: string) => this.webSearch.searchByEngine(webModel, query, filterModel);
   }
 
-  private doSearch(webModel: SearchEngine, query: string): Promise<string | undefined> {
-    return this.webSearch.searchByEngine(webModel, query);
+  private doSearch(webModel: SearchEngine, query: string, filterModel?: string): Promise<string | undefined> {
+    return this.webSearch.searchByEngine(webModel, query, filterModel);
   }
 
   private deepAnalyze(aiModel: string, prompt: string, context: string, signal?: AbortSignal) {

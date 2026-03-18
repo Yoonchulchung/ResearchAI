@@ -12,14 +12,17 @@ interface Props {
   showDetail: boolean;
   models?: ModelDefinition[];
   cloudAiModels?: ModelDefinition[];
+  filterModels?: ModelDefinition[];
   webEngines?: { id: string; name: string; builtin: boolean }[];
   selectedCloudAiModel?: string;
   selectedWebModel?: string;
+  selectedFilterModel?: string;
   onCloudAiModelChange?: (id: string) => void;
   onWebModelChange?: (id: string) => void;
+  onFilterModelChange?: (id: string) => void;
   reEvalProgress?: { done: number; total: number } | null;
   avgConfidence?: number | null;
-  onRunAll: (cloudAiModel?: string, webModel?: string) => void;
+  onRunAll: (cloudAiModel?: string, webModel?: string, filterModel?: string) => void;
   onCancel: () => void;
   onExport: () => void;
   onToggleDetail: () => void;
@@ -35,11 +38,14 @@ export function SessionHeader({
   showDetail,
   models,
   cloudAiModels,
+  filterModels,
   webEngines,
   selectedCloudAiModel,
   selectedWebModel,
+  selectedFilterModel,
   onCloudAiModelChange,
   onWebModelChange,
+  onFilterModelChange,
   reEvalProgress,
   avgConfidence,
   onRunAll,
@@ -51,6 +57,7 @@ export function SessionHeader({
   const [reEvalModel, setReEvalModel] = useState(model);
   const isReEvaluating = !!reEvalProgress;
   const hasRunSelectors = (cloudAiModels && cloudAiModels.length > 0) || (webEngines && webEngines.length > 0);
+  const isNonBuiltinWebEngine = !!webEngines?.find((e) => e.id === selectedWebModel && !e.builtin);
 
   return (
     <div className="px-8 pt-4 py-2.5 border-b border-slate-200 bg-white sticky top-0 z-10">
@@ -139,7 +146,7 @@ export function SessionHeader({
         )}
         {!hasDoneTasks && (
           <button
-            onClick={() => onRunAll(selectedCloudAiModel, selectedWebModel)}
+            onClick={() => onRunAll(selectedCloudAiModel, selectedWebModel, isNonBuiltinWebEngine ? selectedFilterModel || undefined : undefined)}
             disabled={isRunning}
             className="bg-indigo-600 text-white font-bold text-sm px-5 py-2 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
           >
@@ -148,7 +155,7 @@ export function SessionHeader({
         )}
         {hasDoneTasks && !isRunning && !allDone && (
           <button
-            onClick={() => onRunAll(selectedCloudAiModel, selectedWebModel)}
+            onClick={() => onRunAll(selectedCloudAiModel, selectedWebModel, isNonBuiltinWebEngine ? selectedFilterModel || undefined : undefined)}
             className="bg-indigo-600 text-white font-bold text-sm px-5 py-2 rounded-xl hover:bg-indigo-700 transition-colors shrink-0"
           >
             전체 실행
@@ -181,6 +188,20 @@ export function SessionHeader({
                 <option key={e.id} value={e.id}>{e.name}</option>
               ))}
             </select>
+          )}
+          {isNonBuiltinWebEngine && filterModels && filterModels.length > 0 && (
+            <>
+              <span className="text-xs text-slate-400 shrink-0">필터 모델</span>
+              <select
+                value={selectedFilterModel ?? ""}
+                onChange={(e) => onFilterModelChange?.(e.target.value)}
+                className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-44 truncate"
+              >
+                {filterModels.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </>
           )}
           <span className="text-xs text-slate-300">— 각 태스크에서 개별 변경 가능</span>
         </div>

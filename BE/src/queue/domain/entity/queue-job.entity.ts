@@ -37,6 +37,9 @@ export class QueueJobEntity {
   @Column({ nullable: true })
   searchMode: string;
 
+  @Column({ name: 'filter_model', nullable: true })
+  filterModel: string;
+
   @Column({ name: 'job_status', type: 'simple-enum', enum: QueueJobDbStatus, default: QueueJobDbStatus.INIT })
   jobStatus: QueueJobDbStatus;
 

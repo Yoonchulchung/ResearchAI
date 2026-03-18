@@ -12,5 +12,6 @@ export class EnqueueDeepResearchDto {
   items: EnqueueDeepResearchItemDto[];
   aiModel?: string;
   webModel?: string;
+  filterModel?: string;
   status: DeepResearchAction;
 }

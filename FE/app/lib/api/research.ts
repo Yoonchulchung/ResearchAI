@@ -72,10 +72,11 @@ export async function deepResearch(
   items: { itemId: string; prompt: string }[],
   aiModel?: string,
   webModel?: string,
+  filterModel?: string,
 ): Promise<{ status: string; sessionId: string }> {
   const result = await apiFetch<{ status: string; sessionId: string }>(`/queue/research/${sessionId}/deep`, {
     method: "POST",
-    body: JSON.stringify({ items, aiModel, webModel, status: "start" }),
+    body: JSON.stringify({ items, aiModel, webModel, filterModel, status: "start" }),
   });
   window.dispatchEvent(new CustomEvent("queue:enqueue"));
   return result;
