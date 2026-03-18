@@ -7,9 +7,26 @@ export function useChatHandler(session: Session | null, id: string) {
   const [chatLoading, setChatLoading] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const scrollContainerRef = useRef<HTMLElement | null>(null);
+
+  // 스크롤 컨테이너를 한 번 탐색 후 캐시
+  const getScrollContainer = useCallback((): HTMLElement | null => {
+    if (scrollContainerRef.current) return scrollContainerRef.current;
+    let el: HTMLElement | null = chatBottomRef.current?.parentElement ?? null;
+    while (el) {
+      const { overflowY } = getComputedStyle(el);
+      if (overflowY === "auto" || overflowY === "scroll") {
+        scrollContainerRef.current = el;
+        return el;
+      }
+      el = el.parentElement;
+    }
+    return null;
+  }, []);
 
   // id 변경 시 초기화 및 히스토리 로드 후 하단 스크롤
   useEffect(() => {
+    scrollContainerRef.current = null; // 컨테이너 캐시 초기화
     setChatMessages([]);
     getChatHistory(id).then((msgs) => {
       setChatMessages(msgs);
@@ -18,15 +35,15 @@ export function useChatHandler(session: Session | null, id: string) {
   }, [id]);
 
   // 새 메시지 추가 시 하단으로 스크롤
-  // — 바텀 sentinel이 뷰포트 아래 10px 이내일 때만 스크롤 (사용자가 위로 올렸으면 스킵)
+  // — 스크롤 이벤트 대신 scrollTop을 직접 읽어 현재 위치를 정확히 판단
   useEffect(() => {
-    const el = chatBottomRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    if (rect.top <= window.innerHeight + 10) {
-      el.scrollIntoView({ behavior: "smooth" });
+    const container = getScrollContainer();
+    if (!container) return;
+    const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    if (distFromBottom < 30) {
+      chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [chatMessages]);
+  }, [chatMessages, getScrollContainer]);
 
   const handleChatSend = useCallback(async (message: string, model: string) => {
     if (!session || chatLoading) return;
