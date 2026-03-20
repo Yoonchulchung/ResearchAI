@@ -17,6 +17,7 @@ import { LightResearchRepository } from '../../research/domain/repository/light-
 import { DeepResearchExecutorService } from './job/deep-research-executor.service';
 import { LightResearchExecutorService } from './job/light-research-executor.service';
 import { SummaryExecutorService } from './job/summary-executor.service';
+import { WriteAssistExecutorService } from './job/write-assist-executor.service';
 import { QueueJobRepository } from '../domain/repository/queue-job.repository';
 import { QueueJobDbStatus } from '../domain/entity/queue-job.entity';
 import { randomUUID } from 'crypto';
@@ -29,6 +30,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private summaryAccumulated = new Map<string, string>();
   private lightResearchSubjects = new Map<string, Subject<MessageEvent>>();
   private lightResearchAccumulated = new Map<string, LightResearchEvent[]>();
+  private writeAssistSubjects = new Map<string, Subject<MessageEvent>>();
+  private writeAssistAccumulated = new Map<string, string>();
   private cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private running = false;
 
@@ -44,6 +47,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     private readonly deepResearchExecutor: DeepResearchExecutorService,
     private readonly lightResearchExecutor: LightResearchExecutorService,
     private readonly summaryExecutor: SummaryExecutorService,
+    private readonly writeAssistExecutor: WriteAssistExecutorService,
     private readonly queueJobRepository: QueueJobRepository,
   ) {}
 
@@ -95,6 +99,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       } else if (entity.taskType === QueueJob.TaskType.LIGHTRESEARCH) {
         // LightResearch는 SSE가 끊겼으므로 Stopped 처리
         await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.STOPPED);
+      } else if (entity.taskType === QueueJob.TaskType.WRITEASSIST) {
+        // WriteAssist는 SSE가 끊겼으므로 Stopped 처리
+        await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.STOPPED);
       }
     }
 
@@ -111,6 +118,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       subject.complete();
     }
     for (const subject of this.lightResearchSubjects.values()) {
+      subject.complete();
+    }
+    for (const subject of this.writeAssistSubjects.values()) {
       subject.complete();
     }
     for (const timer of this.cleanupTimers.values()) {
@@ -296,6 +306,53 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  async enqueueWriteAssist(
+    content: string,
+    instruction: string,
+    model: string,
+  ): Promise<{ jobId: string }> {
+    const jobId = randomUUID();
+    this.writeAssistSubjects.set(jobId, new Subject<MessageEvent>());
+    this.writeAssistAccumulated.set(jobId, '');
+    await this.pushJob({
+      jobId,
+      sessionId: jobId,
+      itemId: '',
+      itemPrompt: JSON.stringify({ content, instruction }),
+      taskType: QueueJob.TaskType.WRITEASSIST,
+      localAIModel: '',
+      CloudAIModel: model,
+      status: QueueJobStatus.PENDING,
+    });
+    return { jobId };
+  }
+
+  getWriteAssistStream(jobId: string): Observable<MessageEvent> | null {
+    const subject = this.writeAssistSubjects.get(jobId);
+    if (!subject) return null;
+    const accumulated = this.writeAssistAccumulated.get(jobId) ?? '';
+    if (accumulated) {
+      return concat(
+        of({ data: { type: SseEventType.CHUNK, text: accumulated } } as MessageEvent),
+        subject.asObservable(),
+      );
+    }
+    return subject.asObservable();
+  }
+
+  cancelWriteAssist(jobId: string): void {
+    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.WRITEASSIST);
+    if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
+      this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
+      this.abortControllers.get(job.jobId)?.abort();
+    }
+    const subject = this.writeAssistSubjects.get(jobId);
+    subject?.next({ data: { type: SseEventType.ERROR, message: '작업이 중단되었습니다.' } });
+    subject?.complete();
+    this.writeAssistSubjects.delete(jobId);
+    this.writeAssistAccumulated.delete(jobId);
+  }
+
   // ********* //
   // 큐 작업 중단 //
   // ********* //
@@ -475,6 +532,27 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.lightResearchAccumulated.delete(job.sessionId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: JSON.stringify(tasks) });
 
+      } else if (job.taskType === QueueJob.TaskType.WRITEASSIST) {
+
+        const subject = this.writeAssistSubjects.get(job.jobId);
+        const { content, instruction } = JSON.parse(job.itemPrompt) as { content: string; instruction: string };
+        const fullText = await this.writeAssistExecutor.execute(
+          content,
+          instruction,
+          job.CloudAIModel,
+          (chunk) => {
+            this.writeAssistAccumulated.set(job.jobId, (this.writeAssistAccumulated.get(job.jobId) ?? '') + chunk);
+            subject?.next({ data: { type: SseEventType.CHUNK, text: chunk } });
+          },
+          controller.signal,
+        );
+
+        subject?.next({ data: { type: SseEventType.DONE } });
+        subject?.complete();
+        this.writeAssistSubjects.delete(job.jobId);
+        this.writeAssistAccumulated.delete(job.jobId);
+        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
+
       } else if (job.taskType === QueueJob.TaskType.SUMMARY) {
 
         const subject = this.summarySubjects.get(job.sessionId);
@@ -521,6 +599,14 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
         this.sessionCommandService.updateSessionItem(job.sessionId, job.itemId, msg, '', ResearchState.ERROR).catch(() => {});
         this.sessionCommandService.updateSession(job.sessionId, ResearchState.ERROR).catch(() => {});
+
+      } else if (job.taskType === QueueJob.TaskType.WRITEASSIST) {
+
+        const subject = this.writeAssistSubjects.get(job.jobId);
+        subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
+        subject?.complete();
+        this.writeAssistSubjects.delete(job.jobId);
+        this.writeAssistAccumulated.delete(job.jobId);
 
       } else {
         console.log("Unsupported taskType is called");

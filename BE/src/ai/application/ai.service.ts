@@ -191,6 +191,72 @@ ${answer}
   }
 
   /**
+   * 문서 작성 AI 어시스턴트: 현재 문서 내용과 지시사항을 받아 새 내용을 생성한다.
+   */
+  async writeAssist(
+    content: string,
+    instruction: string,
+    model: string,
+  ): Promise<{ result: string }> {
+    const systemPrompt = `당신은 전문적인 문서 작성 AI 어시스턴트입니다.
+- 마크다운 형식으로 작성합니다
+- 명확하고 전문적인 한국어를 사용합니다
+- 기존 문서의 스타일과 일관성을 유지합니다
+- 요청된 내용만 반환하고 불필요한 설명은 하지 않습니다`;
+
+    const prompt = `## 현재 문서 내용
+${content.trim() || "(빈 문서)"}
+
+## 요청사항
+${instruction}
+
+위 요청에 따라 마크다운으로 작성해주세요.`;
+
+    try {
+      const { text } = await this.aiProvider.call(model, systemPrompt, prompt, { useBuiltinSearch: false });
+      return { result: text };
+    } catch (err) {
+      throw err;
+    }
+  }
+
+  /**
+   * 리서치 주제와 태스크 목록으로 세션 제목을 생성한다.
+   */
+  async generateTitle(
+    topic: string,
+    tasks: Array<{ title: string }>,
+    model: string,
+  ): Promise<{ title: string }> {
+    const taskList = tasks.map((t) => `- ${t.title}`).join('\n');
+    const prompt = `리서치 주제: "${topic}"
+
+조사 항목:
+${taskList}
+
+위 리서치의 핵심을 담은 간결한 제목을 생성해주세요.
+- 20자 이내 한국어
+- 구체적이고 명확하게
+- 검색어가 아닌 제목 형식으로 (예: "AI 반도체 시장 동향 분석")
+
+반드시 아래 JSON만 반환하세요 (마크다운 코드블록 없이 순수 JSON):
+{"title": "생성된 제목"}`;
+
+    let raw = '';
+    try {
+      ({ text: raw } = await this.aiProvider.call(model, '', prompt, { useBuiltinSearch: false }));
+      const cleaned = raw
+        .replace(/^```json\s*/m, '')
+        .replace(/^```\s*/m, '')
+        .replace(/```\s*$/m, '')
+        .trim();
+      return JSON.parse(cleaned) as { title: string };
+    } catch {
+      return { title: topic.slice(0, 20) };
+    }
+  }
+
+  /**
    * 채팅을 통해 조사 항목을 수정한다.
    */
   async chatTasks(

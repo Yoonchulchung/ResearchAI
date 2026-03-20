@@ -38,6 +38,41 @@ export async function chatTasks(
   });
 }
 
+export async function enqueueWriteAssist(
+  content: string,
+  instruction: string,
+  model: string,
+): Promise<{ jobId: string }> {
+  return apiFetch('/queue/write-assist', {
+    method: 'POST',
+    body: JSON.stringify({ content, instruction, model }),
+  });
+}
+
+export async function streamWriteAssist(
+  jobId: string,
+  onEvent: (event: SummaryEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/queue/write-assist/${jobId}/stream`, { signal });
+  if (!res.ok || !res.body) throw new Error('Write assist stream 실패');
+  await readSSE<SummaryEvent>(res, (event) => {
+    onEvent(event);
+    if (event.type === 'done' || event.type === 'error') return true;
+  });
+}
+
+export async function generateSessionTitle(
+  topic: string,
+  tasks: Array<{ title: string }>,
+  model: string,
+): Promise<{ title: string }> {
+  return apiFetch('/ai/generate-title', {
+    method: 'POST',
+    body: JSON.stringify({ topic, tasks, model }),
+  });
+}
+
 export async function reEvaluateConfidence(
   itemId: string,
   model: string,

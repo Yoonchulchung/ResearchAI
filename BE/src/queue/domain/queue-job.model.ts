@@ -26,6 +26,7 @@ export namespace QueueJob {
     LIGHTRESEARCH = 'lightresearch',
     DEEPRESEARCH = 'deepresearch',
     SUMMARY = 'summary',
+    WRITEASSIST = 'writeassist',
   }
 }
 

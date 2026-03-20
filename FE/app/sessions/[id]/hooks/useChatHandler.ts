@@ -40,7 +40,7 @@ export function useChatHandler(session: Session | null, id: string) {
     const container = getScrollContainer();
     if (!container) return;
     const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-    if (distFromBottom < 30) {
+    if (distFromBottom < 3) {
       chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [chatMessages, getScrollContainer]);

@@ -15,6 +15,8 @@ export default function NewSession() {
   const { cloudAiModels, localAiModels, isLoading, models } = useModels();
   const {
     topic, setTopic,
+    sessionTitle, setSessionTitle,
+    generatingTitle,
     selectedCloudAiModel, setSelectedCloudAiModel,
     selectedLocalAiModel, setSelectedLocalAiModel,
     selectedWebModel, setSelectedWebModel,
@@ -113,11 +115,38 @@ export default function NewSession() {
             />
           </div>
 
+          {/* 세션 제목 (태스크 생성 후 표시) */}
+          {tasks.length > 0 && (
+            <div className="bg-white border border-slate-200/60 rounded-xl px-5 py-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-indigo-500 shrink-0">
+                  <path d="M7 1L8.5 5.5L13 7L8.5 8.5L7 13L5.5 8.5L1 7L5.5 5.5L7 1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+                </svg>
+                <span className="text-xs font-semibold text-slate-500">세션 제목</span>
+                {generatingTitle && (
+                  <span className="flex items-center gap-1 text-xs text-indigo-400">
+                    <span className="w-3 h-3 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin inline-block" />
+                    AI 생성 중...
+                  </span>
+                )}
+              </div>
+              <input
+                type="text"
+                value={sessionTitle}
+                onChange={(e) => setSessionTitle(e.target.value)}
+                placeholder={generatingTitle ? "AI가 제목을 생성하고 있습니다..." : topic}
+                disabled={generatingTitle}
+                className="w-full text-base font-semibold text-slate-800 bg-transparent placeholder-slate-300 focus:outline-none disabled:opacity-50"
+              />
+              <p className="text-xs text-slate-400 mt-1.5">직접 수정할 수 있습니다</p>
+            </div>
+          )}
+
           {/* Start button */}
           {tasks.length > 0 && (
             <button
               onClick={handleResearchStart}
-              disabled={creating || !topic.trim()}
+              disabled={creating || !topic.trim() || generatingTitle}
               className="w-full bg-linear-to-r from-slate-400 to-slate-400 text-white font-bold text-base py-4 rounded-2xl hover:from-slate-500 hover:to-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-slate-200"
             >
               {creating ? "세션 생성 중..." : "리서치 세션 시작"}

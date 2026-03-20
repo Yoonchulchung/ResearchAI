@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Sse, Param, Body, BadRequestException, MessageEvent } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Sse, Param, Body, BadRequestException, MessageEvent, HttpCode } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { QueueService } from '../application/queue.service';
 import { QueueStatusDto } from './dto/response/queue-status.dto';
@@ -97,6 +97,30 @@ export class QueueController {
   async streamSummary(@Param('id') id: string): Promise<Observable<MessageEvent>> {
     const obs = await this.queueService.getSummaryStream(id);
     if (!obs) throw new BadRequestException('진행 중인 서머리 작업이 없습니다.');
+    return obs;
+  }
+
+  // ************ //
+  // Write Assist //
+  // ************ //
+  @Post('write-assist')
+  @HttpCode(202)
+  async enqueueWriteAssist(
+    @Body() body: { content: string; instruction: string; model: string },
+  ) {
+    return this.queueService.enqueueWriteAssist(body.content, body.instruction, body.model);
+  }
+
+  @Delete('write-assist/:jobId')
+  cancelWriteAssist(@Param('jobId') jobId: string) {
+    this.queueService.cancelWriteAssist(jobId);
+    return { ok: true };
+  }
+
+  @Sse('write-assist/:jobId/stream')
+  streamWriteAssist(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getWriteAssistStream(jobId);
+    if (!obs) throw new BadRequestException('진행 중인 작업이 없습니다.');
     return obs;
   }
 }

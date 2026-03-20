@@ -48,6 +48,22 @@ export class AiController {
     return confidence;
   }
 
+  @Post('write-assist')
+  @HttpCode(200)
+  async writeAssist(
+    @Body() body: { content: string; instruction: string; model: string },
+  ) {
+    return this.aiService.writeAssist(body.content, body.instruction, body.model);
+  }
+
+  @Post('generate-title')
+  @HttpCode(200)
+  async generateTitle(
+    @Body() body: { topic: string; tasks: Array<{ title: string }>; model: string },
+  ) {
+    return this.aiService.generateTitle(body.topic, body.tasks, body.model);
+  }
+
   @Post('chat-tasks')
   @HttpCode(200)
   async chatTasks(

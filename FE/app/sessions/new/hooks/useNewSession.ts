@@ -11,6 +11,7 @@ import {
   LightResearchEvent,
   WebSearchEngine,
 } from "@/lib/api";
+import { generateSessionTitle } from "@/lib/api/ai";
 import { Task, ModelDefinition } from "@/types";
 
 const STORAGE_KEY = "new-session-draft";
@@ -33,6 +34,8 @@ export function useNewSession(models: ModelDefinition[]) {
   const [selectedLocalAiModel, setSelectedLocalAiModel] = useState("");
   const [selectedWebModel, setSelectedWebModel] = useState("anthropic-builtin");
   const [webEngines, setWebEngines] = useState<WebSearchEngine[]>([]);
+  const [sessionTitle, setSessionTitle] = useState("");
+  const [generatingTitle, setGeneratingTitle] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [searchSource, setSearchSource] = useState<"web" | "recruit" | "both" | null>(null);
   const [jobPostings, setJobPostings] = useState<JobItem[]>([]);
@@ -47,6 +50,10 @@ export function useNewSession(models: ModelDefinition[]) {
   const taskListRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const searchIdRef = useRef<string | null>(null);
+  const topicRef = useRef(topic);
+  const cloudAiModelRef = useRef(selectedCloudAiModel);
+  useEffect(() => { topicRef.current = topic; }, [topic]);
+  useEffect(() => { cloudAiModelRef.current = selectedCloudAiModel; }, [selectedCloudAiModel]);
 
   // 모델 목록이 로드되면 기본 로컬 모델 설정 (draft 복원값이 없을 때만)
   useEffect(() => {
@@ -106,6 +113,11 @@ export function useNewSession(models: ModelDefinition[]) {
             setTasks(event.tasks);
             setSearchSource(event.searchPlan.source);
             setProgressStep(null);
+            setGeneratingTitle(true);
+            generateSessionTitle(topicRef.current, event.tasks, cloudAiModelRef.current)
+              .then(({ title }) => setSessionTitle(title))
+              .catch(() => {})
+              .finally(() => setGeneratingTitle(false));
           }
         },
         controller.signal,
@@ -152,6 +164,12 @@ export function useNewSession(models: ModelDefinition[]) {
       setSearchSource(event.searchPlan.source);
       setProgressStep(null);
       setTimeout(() => taskListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+      // AI로 세션 제목 자동 생성
+      setGeneratingTitle(true);
+      generateSessionTitle(topic, event.tasks, selectedCloudAiModel)
+        .then(({ title }) => setSessionTitle(title))
+        .catch(() => setSessionTitle(topic.slice(0, 20)))
+        .finally(() => setGeneratingTitle(false));
     }
   };
 
@@ -205,7 +223,8 @@ export function useNewSession(models: ModelDefinition[]) {
     setCreating(true);
     setError("");
     try {
-      const session = await createSession(topic.trim(), selectedCloudAiModel, selectedLocalAiModel, selectedWebModel, tasks);
+      const title = sessionTitle.trim() || topic.trim();
+      const session = await createSession(title, selectedCloudAiModel, selectedLocalAiModel, selectedWebModel, tasks);
       router.push(`/sessions/${session.id}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "세션 생성 실패");
@@ -232,6 +251,8 @@ export function useNewSession(models: ModelDefinition[]) {
 
   return {
     topic, setTopic,
+    sessionTitle, setSessionTitle,
+    generatingTitle,
     selectedCloudAiModel, setSelectedCloudAiModel,
     selectedLocalAiModel, setSelectedLocalAiModel,
     selectedWebModel, setSelectedWebModel,

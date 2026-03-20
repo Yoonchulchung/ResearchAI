@@ -89,7 +89,35 @@ export class ChatService {
         : '아직 완료된 리서치 결과가 없습니다.';
     }
 
-    const systemPrompt = `[필수 규칙] 답변에 이모지(👋📌😊 등)를 절대 사용하지 마세요. 텍스트만 사용하세요.
+    // *** 에이전트 검색 ***
+    const provider = getProvider(aiModel);
+    const supportsTools = provider === AIProvider.ANTHROPIC || provider === AIProvider.OPENAI || provider === AIProvider.OLLAMA;
+    const isLocal = provider === AIProvider.OLLAMA;
+
+    const systemPrompt = isLocal
+      ? `[CURRENT QUESTION - TOP PRIORITY] "${message}"
+Focus on answering this question. Previous conversation and research results are for reference only.
+
+---
+[RULES] Never use emojis. Text only.
+[URL RULE] Only cite URLs that appear in search result '출처:' fields. Never fabricate or guess URLs. If no source URL exists, answer without URLs.
+
+You are a senior research analyst specializing in "${session.topic}".
+
+Guidelines:
+- Lead with the conclusion, then support with evidence.
+- Avoid hedging phrases like "it appears that" or "it seems like".
+- Write in flowing sentences, not bullet lists.
+- Quote URLs, figures, and article titles from previous conversation as-is.
+- Always respond in Korean.
+
+## Research Results
+${ragContext}`
+      : `[현재 질문 - 최우선] "${message}"
+이 질문에 집중해서 답변하세요. 이전 대화와 리서치 결과는 참고용입니다.
+
+---
+[필수 규칙] 답변에 이모지(👋📌😊 등)를 절대 사용하지 마세요. 텍스트만 사용하세요.
 [URL 규칙] URL은 반드시 검색 결과의 '출처:' 항목에 있는 것만 인용하세요. URL을 직접 생성하거나 추측하지 마세요. 출처 URL이 없으면 URL 없이 답변하세요.
 
 당신은 "${session.topic}" 분야의 시니어 리서치 애널리스트입니다.
@@ -103,10 +131,6 @@ export class ChatService {
 
 ## 리서치 결과
 ${ragContext}`;
-
-    // *** 에이전트 검색 ***
-    const provider = getProvider(aiModel);
-    const supportsTools = provider === AIProvider.ANTHROPIC || provider === AIProvider.OPENAI || provider === AIProvider.OLLAMA;
     let extraContext = '';
 
     if (supportsTools) {
@@ -133,9 +157,16 @@ ${ragContext}`;
       };
       const tools = provider === AIProvider.ANTHROPIC ? [anthropicTool] : [openaiTool];
 
+      const decisionPrompt = isLocal
+        ? `Topic: "${session.topic}".
+Call web_search ONLY IF the user is explicitly asking for recent news, specific data, or facts not commonly known.
+Do NOT call web_search for: greetings, simple questions, opinions, follow-up conversation, or anything answerable from general knowledge.
+If unsure, do NOT search.`
+        : `주제: "${session.topic}". 사용자 질문에 답변하기 위해 최신 뉴스·구체적 수치·리서치에 없는 사실이 필요할 때만 web_search를 호출하세요. 인사말, 간단한 질문, 일반 상식으로 답할 수 있는 경우에는 호출하지 마세요.`;
+
       const decision = await this.aiProvider.call(
         aiModel,
-        `주제: "${session.topic}". 사용자 질문에 답변하기 위해 최신 정보나 구체적인 데이터가 필요하면 web_search를 호출하세요.`,
+        decisionPrompt,
         [{ role: 'user', content: message }],
         { tools },
       );
@@ -169,9 +200,12 @@ ${ragContext}`;
     ];
 
     // *** 최종 스트리밍 답변 ***
-    const finalSystem = extraContext
-      ? `${systemPrompt}\n\n---\n[검색 완료] 위 검색 결과를 바탕으로 답변하세요. "검색할 수 없다"는 응답은 하지 마세요.`
-      : systemPrompt;
+    const searchSuffix = extraContext
+      ? isLocal
+        ? `\n\n---\n[SEARCH COMPLETE] Answer based on the search results above. Do not say you cannot search.`
+        : `\n\n---\n[검색 완료] 위 검색 결과를 바탕으로 답변하세요. "검색할 수 없다"는 응답은 하지 마세요.`
+      : '';
+    const finalSystem = `${systemPrompt}${searchSuffix}`;
 
     let fullResponse = '';
     for await (const chunk of this.aiProvider.stream(aiModel, finalSystem, streamMessages)) {

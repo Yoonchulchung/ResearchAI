@@ -4,6 +4,7 @@ import { QueueService } from './application/queue.service';
 import { DeepResearchExecutorService } from './application/job/deep-research-executor.service';
 import { LightResearchExecutorService } from './application/job/light-research-executor.service';
 import { SummaryExecutorService } from './application/job/summary-executor.service';
+import { WriteAssistExecutorService } from './application/job/write-assist-executor.service';
 import { QueueController } from './presentation/queue.controller';
 import { ResearchModule } from '../research/research.module';
 import { SessionsModule } from '../sessions/sessions.module';
@@ -15,7 +16,7 @@ import { AppConfigModule } from '../config/config.module';
 @Module({
   imports: [forwardRef(() => ResearchModule), SessionsModule, AiModule, TypeOrmModule.forFeature([QueueJobEntity]), AppConfigModule],
   controllers: [QueueController],
-  providers: [QueueService, DeepResearchExecutorService, LightResearchExecutorService, SummaryExecutorService, QueueJobRepository],
+  providers: [QueueService, DeepResearchExecutorService, LightResearchExecutorService, SummaryExecutorService, WriteAssistExecutorService, QueueJobRepository],
   exports: [QueueService],
 })
 export class QueueModule {}

@@ -3,9 +3,19 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+function IconSettings() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.3"/>
+      <path d="M7 1.5V3M7 11V12.5M1.5 7H3M11 7H12.5M3.22 3.22L4.27 4.27M9.73 9.73L10.78 10.78M3.22 10.78L4.27 9.73M9.73 4.27L10.78 3.22" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
 export function SettingsMenu() {
   const router = useRouter();
   const [showMenu, setShowMenu] = useState(false);
+
   useEffect(() => {
     if (!showMenu) return;
     const close = () => setShowMenu(false);
@@ -13,74 +23,61 @@ export function SettingsMenu() {
     return () => document.removeEventListener("click", close);
   }, [showMenu]);
 
+  const menuItems = [
+    { label: "Overview", path: "/settings/overview", shortcut: "⌘," },
+    { label: "Analytics", path: "/settings/analytics" },
+    { label: "파이프라인 테스트", path: "/settings/pipeline" },
+    { label: "시스템", path: "/settings/system" },
+  ];
+
   return (
     <div className="px-3 py-3 border-t border-slate-100 shrink-0 relative">
       {showMenu && (
         <div
-          className="absolute bottom-full left-0 right-0 mx-0 mb-1 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-20"
+          className="absolute bottom-full left-2 right-2 mb-1.5 bg-white rounded-xl shadow-xl shadow-slate-200/60 border border-slate-200/80 overflow-hidden z-20"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-4 py-3.5 border-b border-slate-100">
+          {/* Header */}
+          <div className="px-3.5 py-3 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0">
-                AI
+              <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+                <svg width="14" height="14" viewBox="0 0 28 28" fill="none">
+                  <path d="M8 20V9H13.5C15.433 9 17 10.567 17 12.5C17 14.433 15.433 16 13.5 16H8" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M14 16L18 20" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+                </svg>
               </div>
               <div>
-                <div className="text-sm font-semibold text-slate-800 leading-tight">AI 리서치</div>
-                <div className="text-xs text-slate-400">Research System</div>
+                <div className="text-xs font-semibold text-slate-800 leading-tight">ResearchAI</div>
+                <div className="text-2xs text-slate-400">AI Research Platform</div>
               </div>
             </div>
           </div>
 
+          {/* Menu Items */}
           <div className="py-1">
-            <button
-              onClick={() => { setShowMenu(false); router.push("/settings/overview"); }}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                Overview
-              </div>
-              <span className="text-xs text-slate-300">⌘,</span>
-            </button>
-
-            <button
-              onClick={() => { setShowMenu(false); router.push("/settings/analytics"); }}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                Analytics
-              </div>
-              <span className="text-xs text-slate-300">›</span>
-            </button>
-
-            <button
-              onClick={() => { setShowMenu(false); router.push("/settings/pipeline"); }}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <div className="flex items-center gap-2.5">
-                파이프라인 테스트
-              </div>
-              <span className="text-xs text-slate-300">›</span>
-            </button>
-
-            <button
-              onClick={() => { setShowMenu(false); router.push("/settings/system"); }}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <div className="flex items-center gap-2.5">시스템</div>
-              <span className="text-xs text-slate-300">›</span>
-            </button>
+            {menuItems.map((item) => (
+              <button
+                key={item.path}
+                onClick={() => { setShowMenu(false); router.push(item.path); }}
+                className="w-full flex items-center justify-between px-3.5 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <span>{item.label}</span>
+                {item.shortcut && (
+                  <span className="text-2xs text-slate-300 font-mono">{item.shortcut}</span>
+                )}
+              </button>
+            ))}
           </div>
 
           <div className="h-px bg-slate-100 mx-2" />
 
           <div className="py-1">
-            <button className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
+            <button className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
               <span className="text-slate-400">↗</span>
               피드백 보내기
             </button>
-            <button className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-              <span className="text-slate-400">ℹ️</span>
+            <button className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
+              <span className="text-slate-400">?</span>
               자세히 알아보기
             </button>
           </div>
@@ -89,16 +86,15 @@ export function SettingsMenu() {
 
       <button
         onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
-        className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+        className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-medium transition-all ${
           showMenu
             ? "bg-slate-100 text-slate-800"
             : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
         }`}
       >
-        <span className="text-sm">⚙️</span>
+        <IconSettings />
         설정
       </button>
-
     </div>
   );
 }

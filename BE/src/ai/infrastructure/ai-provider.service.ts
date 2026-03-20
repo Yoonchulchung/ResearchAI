@@ -6,7 +6,7 @@ import type { ToolCallResult } from './provider/anthropic.ai';
 import { callAnthropic, streamAnthropic } from './provider/anthropic.ai';
 import { callOpenAI, streamOpenAI } from './provider/openai.ai';
 import { callGoogle, streamGoogle } from './provider/google.ai';
-import { callOllama, streamOllama, getOllamaLocalModels, getOllamaRunningModels, unloadOllamaModel, OllamaTool } from './provider/ollama.ai';
+import { callOllama, streamOllama, getOllamaLocalModels, getOllamaRunningModels, unloadOllamaModel, OllamaTool, OllamaInsufficientMemoryError } from './provider/ollama.ai';
 import { MODELS, AI_MODEL_PREFIX, getProvider, AIProvider } from '../domain/models';
 import { InvalidAiTypeException } from '../../shared/exceptions/invalid-ai-type.exception';
 import { TokenHistoryRepository } from '../../overview/domain/repository/token-history.repository';
@@ -49,22 +49,31 @@ export class AiProviderService {
 
     if (aiModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) {
       const ollamaModel = aiModel.slice(AI_MODEL_PREFIX.OLLAMA.length);
-      if (opts?.tools?.length) {
-        const result = await callOllama(ollamaModel, system, messages, undefined, undefined, opts.tools as OllamaTool[], undefined, signal);
-        const toolCalls = result.toolCalls.map((tc) => ({
-          id: randomUUID(),
-          name: tc.function.name,
-          input: tc.function.arguments as Record<string, unknown>,
-        }));
-        return {
-          text: result.content,
-          inputTokens: 0, outputTokens: 0, estimatedFees: 0,
-          toolCalls: toolCalls.length ? toolCalls : undefined,
-          stopReason: toolCalls.length ? 'tool_use' : 'end_turn',
-        };
+      try {
+        if (opts?.tools?.length) {
+          const result = await callOllama(ollamaModel, system, messages, undefined, undefined, opts.tools as OllamaTool[], undefined, signal);
+          const toolCalls = result.toolCalls.map((tc) => ({
+            id: randomUUID(),
+            name: tc.function.name,
+            input: tc.function.arguments as Record<string, unknown>,
+          }));
+          return {
+            text: result.content,
+            inputTokens: 0, outputTokens: 0, estimatedFees: 0,
+            toolCalls: toolCalls.length ? toolCalls : undefined,
+            stopReason: toolCalls.length ? 'tool_use' : 'end_turn',
+          };
+        }
+        const text = await callOllama(ollamaModel, system, promptText, undefined, undefined, undefined, undefined, signal);
+        return { text, inputTokens: 0, outputTokens: 0, estimatedFees: 0 };
+      } catch (err) {
+        if (err instanceof OllamaInsufficientMemoryError) {
+          this.logger.error(`[메모리 부족] model=${ollamaModel} | ${err.message}`);
+        } else {
+          this.logger.error(`[Ollama 호출 오류] model=${ollamaModel} | ${(err as Error).message}`);
+        }
+        throw err;
       }
-      const text = await callOllama(ollamaModel, system, promptText, undefined, undefined, undefined, undefined, signal);
-      return { text, inputTokens: 0, outputTokens: 0, estimatedFees: 0 };
     }
 
     let inputTokens = 0;
@@ -111,7 +120,16 @@ export class AiProviderService {
     // **** 로컬 **** //
     if (aiModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) {
       const ollamaModel = aiModel.slice(AI_MODEL_PREFIX.OLLAMA.length);
-      yield* streamOllama(ollamaModel, system, messages);
+      try {
+        yield* streamOllama(ollamaModel, system, messages);
+      } catch (err) {
+        if (err instanceof OllamaInsufficientMemoryError) {
+          this.logger.error(`[메모리 부족] model=${ollamaModel} | ${err.message}`);
+        } else {
+          this.logger.error(`[Ollama 스트림 오류] model=${ollamaModel} | ${(err as Error).message}`);
+        }
+        throw err;
+      }
       return;
     }
 

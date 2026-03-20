@@ -7,24 +7,105 @@ import { Session } from "@/types";
 
 import { SettingsMenu } from "./SettingsMenu";
 import { QueueWidget } from "./QueueWidget";
+import { useNewSessionModal } from "@/contexts/NewSessionModalContext";
 
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("ko-KR", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const date = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffHours = diffMs / (1000 * 60 * 60);
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+  if (diffHours < 24) {
+    return date.toLocaleString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  } else if (diffDays < 7) {
+    return date.toLocaleString("ko-KR", { month: "short", day: "numeric" });
+  } else {
+    return date.toLocaleString("ko-KR", { month: "short", day: "numeric" });
+  }
 }
 
-function StatusDot({ status }: { status: "idle" | "partial" | "done" }) {
+type DotStatus = "idle" | "partial" | "done" | "running";
+
+function StatusDot({ status }: { status: DotStatus }) {
+  if (status === "running") {
+    return (
+      <span className="relative flex w-2 h-2 shrink-0 mt-0.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-60" />
+        <span className="relative inline-flex rounded-full w-2 h-2 bg-indigo-500" />
+      </span>
+    );
+  }
   const cls = {
     idle: "bg-slate-300",
-    partial: "bg-blue-400",
-    done: "bg-green-400",
-  }[status];
-  return <span className={`w-2 h-2 rounded-full shrink-0 ${cls}`} />;
+    partial: "bg-amber-400",
+    done: "bg-emerald-400",
+  }[status] ?? "bg-slate-300";
+  return <span className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${cls}`} />;
+}
+
+// Inline SVG Icons
+function IconResearch() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+      <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function IconDocument() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+      <path d="M9 2H4C3.44772 2 3 2.44772 3 3V13C3 13.5523 3.44772 14 4 14H12C12.5523 14 13 13.5523 13 13V6L9 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+      <path d="M9 2V6H13" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+      <path d="M6 9H10M6 11.5H8.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function IconPencil() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+      <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+      <path d="M9.5 4L12 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function IconPlus() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
+      <path d="M7 2V12M2 7H12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function IconChevronLeft() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M9 11L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function IconChevronRight() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function LogoMark({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 28 28" fill="none" className="shrink-0">
+      <rect width="28" height="28" rx="7" fill="#4F46E5"/>
+      <path d="M8 20V9H13.5C15.433 9 17 10.567 17 12.5C17 14.433 15.433 16 13.5 16H8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M14 16L18 20" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  );
 }
 
 
@@ -33,6 +114,7 @@ const COLLAPSE_BREAKPOINT = 1024; // px — 이 너비 이하에서 자동 축�
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
+  const { openModal } = useNewSessionModal();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -87,61 +169,66 @@ export function Sidebar() {
 
   if (collapsed) {
     return (
-      <aside className="w-12 shrink-0 flex flex-col h-screen bg-[var(--sidebar)] border-r border-slate-200 overflow-hidden transition-all duration-200">
-        <div className="flex flex-col items-center gap-3 py-4">
-          {/* Logo icon */}
-          <div
+      <aside className="w-13 shrink-0 flex flex-col h-screen bg-white border-r border-slate-200/80 overflow-hidden transition-all duration-200">
+        <div className="flex flex-col items-center gap-1 pt-4 pb-2 px-2">
+          <button
             onClick={() => router.push("/")}
-            className="w-8 h-8 bg-slate-400 rounded-lg flex items-center justify-center text-white text-sm font-bold cursor-pointer hover:bg-slate-400 transition-colors"
+            className="w-8 h-8 flex items-center justify-center mb-1"
+            title="홈"
           >
-            AI
-          </div>
-          {/* Expand button */}
+            <LogoMark size={28} />
+          </button>
           <button
             onClick={() => setCollapsed(false)}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
             title="사이드바 펼치기"
           >
-            ▶
+            <IconChevronRight />
           </button>
-          {/* New session icon */}
+          <div className="w-6 h-px bg-slate-200 my-1" />
           <button
-            onClick={() => router.push("/sessions/new")}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg text-base font-bold transition-colors ${
-              pathname === "/sessions/new"
-                ? "bg-slate-400 text-white"
-                : "bg-slate-200 text-indigo-700 hover:bg-indigo-100"
-            }`}
+            onClick={openModal}
+            className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-slate-500 hover:bg-indigo-50 hover:text-indigo-600"
             title="새 리서치"
           >
-            +
+            <IconPlus />
           </button>
-          {/* Doc parse icon */}
           <button
             onClick={() => router.push("/doc-parse")}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg text-base transition-colors ${
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
               pathname === "/doc-parse"
                 ? "bg-indigo-600 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
             }`}
             title="문서 파싱"
           >
-            📄
+            <IconDocument />
+          </button>
+          <button
+            onClick={() => router.push("/doc-write")}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+              pathname === "/doc-write"
+                ? "bg-indigo-600 text-white"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            }`}
+            title="문서 작성"
+          >
+            <IconPencil />
           </button>
         </div>
         {/* Session dots */}
-        <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1.5 py-2 min-h-0">
+        <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1 py-2 px-2 min-h-0">
           {sessions.map((s) => {
+            const isRunning = s.researchState === "running" || s.researchState === "pending";
             const done = s.doneCount ?? 0;
-            const dotStatus: "idle" | "partial" | "done" =
-              done > 0 ? "partial" : "idle";
+            const dotStatus: DotStatus = isRunning ? "running" : done > 0 ? "partial" : "idle";
             const isActive = currentId === s.id;
             return (
               <button
                 key={s.id}
                 onClick={() => router.push(`/sessions/${s.id}`)}
                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                  isActive ? "bg-indigo-50" : "hover:bg-slate-50"
+                  isActive ? "bg-indigo-50 ring-1 ring-indigo-200" : "hover:bg-slate-50"
                 }`}
                 title={s.topic}
               >
@@ -155,125 +242,141 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-64 shrink-0 flex flex-col h-screen bg-[var(--sidebar)] border-r border-slate-200 overflow-hidden transition-all duration-200">
-      {/* Logo */}
-      <div className="px-4 py-5 flex items-center justify-between">
-        <div
+    <aside className="w-60 shrink-0 flex flex-col h-screen bg-white border-r border-slate-200/80 overflow-hidden transition-all duration-200">
+      {/* Header */}
+      <div className="px-4 pt-5 pb-3 flex items-center justify-between">
+        <button
           onClick={() => router.push("/")}
-          className="flex items-center gap-2.5 cursor-pointer group"
+          className="flex items-center gap-2.5 group min-w-0"
         >
-          <div className="w-8 h-8 bg-slate-400 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0">
-            AI
-          </div>
-          <div>
-            <div className="text-sm font-bold text-slate-800 leading-tight">
-              AI 리서치
+          <LogoMark size={26} />
+          <div className="min-w-0">
+            <div className="text-xs2 font-bold text-slate-800 leading-tight tracking-tight">
+              ResearchAI
             </div>
-            <div className="text-2xs text-slate-400">Research System</div>
+            <div className="text-2xs text-slate-400 leading-tight">AI Research Platform</div>
           </div>
-        </div>
-        {/* Collapse button */}
+        </button>
         <button
           onClick={() => setCollapsed(true)}
-          className="w-6 h-6 flex items-center justify-center rounded-md text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition-colors text-xs"
+          className="w-6 h-6 flex items-center justify-center rounded-md text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition-colors"
           title="사이드바 접기"
         >
-          ◀
+          <IconChevronLeft />
         </button>
       </div>
 
-      {/* New session button */}
-      <div className="px-3 pt-3 pb-1.5">
+      {/* Primary Actions */}
+      <div className="px-3 pb-3 space-y-1">
         <button
-          onClick={() => router.push("/sessions/new")}
-          className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-            pathname === "/sessions/new"
-              ? "bg-indigo-600 text-white"
-              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-          }`}
+          onClick={openModal}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
         >
+          <IconPlus />
           새 리서치
         </button>
-      </div>
-
-      {/* Doc parse button */}
-      <div className="px-3 pb-3">
         <button
           onClick={() => router.push("/doc-parse")}
-          className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
             pathname === "/doc-parse"
-              ? "bg-indigo-600 text-white"
-              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              ? "bg-slate-800 text-white"
+              : "text-slate-600 hover:bg-slate-100"
           }`}
         >
+          <IconDocument />
           문서 파싱
         </button>
+        <button
+          onClick={() => router.push("/doc-write")}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+            pathname === "/doc-write"
+              ? "bg-slate-800 text-white"
+              : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          <IconPencil />
+          문서 작성
+        </button>
       </div>
+
+      {/* Divider */}
+      <div className="mx-3 h-px bg-slate-100 mb-3" />
 
       {/* Search */}
       <div className="px-3 pb-2">
         <div className="relative">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none"></span>
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+            <IconResearch />
+          </span>
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="리서치 검색..."
-            className="w-full pl-3 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 placeholder-slate-300 text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300"
+            placeholder="세션 검색..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-slate-50 placeholder-slate-400 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300/50 focus:border-indigo-300 transition-all"
           />
         </div>
       </div>
 
       {/* Sessions list */}
-      <div className="flex-1 overflow-y-auto py-2 min-h-0">
+      <div className="flex-1 overflow-y-auto min-h-0">
         {sessions.length === 0 ? (
-          <div className="px-4 py-6 text-center text-slate-400 text-xs">
-            세션이 없습니다
+          <div className="px-4 py-8 text-center">
+            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2">
+              <IconResearch />
+            </div>
+            <p className="text-xs text-slate-400">리서치 세션이 없습니다</p>
           </div>
         ) : filteredSessions.length === 0 ? (
           <div className="px-4 py-6 text-center text-slate-400 text-xs">
-            '{searchQuery}'에 대한 결과가 없습니다
+            &apos;{searchQuery}&apos;에 대한 결과가 없습니다
           </div>
         ) : (
-          <div className="space-y-0.5 px-2">
-            <div className="px-2 py-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              리서치 목록 ({filteredSessions.length}{searchQuery ? `/${sessions.length}` : ""})
+          <div className="px-2 pb-2">
+            <div className="px-2 py-1.5 text-2xs font-semibold text-slate-400 uppercase tracking-widest flex items-center justify-between">
+              <span>리서치</span>
+              <span className="text-slate-300 font-normal normal-case tracking-normal">
+                {filteredSessions.length}{searchQuery ? `/${sessions.length}` : ""}
+              </span>
             </div>
             <QueueWidget />
             {filteredSessions.map((s) => {
+              const isRunning = s.researchState === "running" || s.researchState === "pending";
               const done = s.doneCount ?? 0;
-              const dotStatus: "idle" | "partial" | "done" =
-                done > 0 ? "partial" : "idle";
+              const dotStatus: DotStatus = isRunning ? "running" : done > 0 ? "partial" : "idle";
               const isActive = currentId === s.id;
 
               return (
                 <div
                   key={s.id}
                   onClick={() => router.push(`/sessions/${s.id}`)}
-                  className={`group relative flex items-start gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
+                  className={`group relative flex items-start gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-all ${
                     isActive
-                      ? "bg-indigo-50 text-indigo-700"
-                      : "hover:bg-slate-50 text-slate-700"
+                      ? "bg-indigo-50/80 border border-indigo-100"
+                      : "hover:bg-slate-50 border border-transparent"
                   }`}
                 >
-                  <StatusDot status={dotStatus} />
-                  <div className="flex-1 min-w-0 pt-px">
+                  <div className="mt-0.5">
+                    <StatusDot status={dotStatus} />
+                  </div>
+                  <div className="flex-1 min-w-0 pr-4">
                     <div
-                      className={`text-xs font-semibold truncate leading-snug ${
+                      className={`text-xs font-medium truncate leading-snug ${
                         isActive ? "text-indigo-700" : "text-slate-700"
                       }`}
                     >
                       {s.topic}
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5">
+                    <div className={`text-2xs mt-0.5 ${isActive ? "text-indigo-400" : "text-slate-400"}`}>
                       {formatDate(s.createdAt)}
-                      {done > 0 && ` · ${done}완료`}
+                      {done > 0 && ` · ${done}개 완료`}
                     </div>
                   </div>
                   <button
                     onClick={(e) => handleDelete(e, s.id)}
                     disabled={deletingId === s.id}
-                    className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all p-0.5 shrink-0 mt-px"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded text-slate-300 hover:text-red-400 hover:bg-red-50 transition-all text-xs"
+                    title="삭제"
                   >
                     ✕
                   </button>

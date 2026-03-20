@@ -42,6 +42,30 @@ interface OllamaChatResponse {
   total_duration?: number;
 }
 
+export class OllamaInsufficientMemoryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OllamaInsufficientMemoryError';
+  }
+}
+
+function checkOllamaMemoryError(errorText: string): void {
+  const lower = errorText.toLowerCase();
+  if (
+    lower.includes('not enough memory') ||
+    lower.includes('out of memory') ||
+    lower.includes('requires more system memory') ||
+    lower.includes('cannot allocate memory') ||
+    lower.includes('oom')
+  ) {
+    throw new OllamaInsufficientMemoryError(
+      `메모리 부족으로 모델을 로드할 수 없습니다: ${errorText}`,
+    );
+  }
+}
+
+const STREAM_LOAD_TIMEOUT_MS = 60_000; // 모델 로드 대기 최대 60초
+
 export async function* streamOllama(
   model: string,
   system: string,
@@ -53,18 +77,31 @@ export async function* streamOllama(
     ? [{ role: 'user' as const, content: messages }]
     : messages;
 
-  const res = await fetch(`${ollamaUrl}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      stream: true,
-      ...(opts?.format ? { format: opts.format } : {}),
-      messages: [{ role: 'system', content: system }, ...msgList],
-      options: opts?.options,
-    }),
-  });
-  if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
+  let res: Response;
+  try {
+    res = await fetch(`${ollamaUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        stream: true,
+        ...(opts?.format ? { format: opts.format } : {}),
+        messages: [{ role: 'system', content: system }, ...msgList],
+        options: opts?.options,
+      }),
+      signal: AbortSignal.timeout(STREAM_LOAD_TIMEOUT_MS),
+    });
+  } catch (error: any) {
+    if (error.name === 'TimeoutError') {
+      throw new Error(`Ollama 모델 로드 타임아웃 (${STREAM_LOAD_TIMEOUT_MS / 1000}초): 메모리 부족으로 모델을 로드하지 못했을 수 있습니다.`);
+    }
+    throw new Error(`Ollama 연결 오류: ${error.message}`);
+  }
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    checkOllamaMemoryError(errText);
+    throw new Error(`Ollama 오류: ${res.status} ${errText}`);
+  }
   if (!res.body) return;
 
   const reader = res.body.getReader();
@@ -80,10 +117,18 @@ export async function* streamOllama(
       for (const line of lines) {
         if (!line.trim()) continue;
         try {
-          const data = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
+          const data = JSON.parse(line) as { message?: { content?: string }; done?: boolean; error?: string };
+          if (data.error) {
+            checkOllamaMemoryError(data.error);
+            throw new Error(`Ollama 스트림 오류: ${data.error}`);
+          }
           if (data.message?.content) yield data.message.content;
           if (data.done) return;
-        } catch { /* ignore */ }
+        } catch (e) {
+          if (e instanceof OllamaInsufficientMemoryError) throw e;
+          if ((e as Error).message?.startsWith('Ollama 스트림 오류')) throw e;
+          /* JSON parse 실패 무시 */
+        }
       }
     }
   } finally {
@@ -140,7 +185,21 @@ export async function callOllama(
         }
         throw new Error(`Ollama 통신 오류: ${error.message}`);
       }
-      if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        checkOllamaMemoryError(errText);
+        // tools 미지원 모델: tools 없이 재호출하고 toolCalls 빈 배열 반환
+        if (res.status === 400 && errText.includes('does not support tools') && tools) {
+          const fallbackRes = await fetch(`${ollamaUrl}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model, stream: false, ...(format ? { format } : {}), messages: msgList, options }),
+          });
+          const fallbackData = (await fallbackRes.json()) as OllamaChatResponse;
+          return { content: fallbackData.message?.content ?? '', toolCalls: [] };
+        }
+        throw new Error(`Ollama 오류: ${res.status} ${errText}`);
+      }
       const data = (await res.json()) as OllamaChatResponse;
 
       if (tools) {
@@ -148,6 +207,7 @@ export async function callOllama(
       }
       return data.message?.content ?? '';
     } catch (err) {
+      if (err instanceof OllamaInsufficientMemoryError) throw err; // 재시도 불필요
       lastError = err;
       if (attempt < CALL_MAX_RETRIES) {
         await new Promise((resolve) => setTimeout(resolve, CALL_RETRY_DELAY_MS * (attempt + 1)));
