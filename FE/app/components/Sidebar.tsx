@@ -74,6 +74,15 @@ function IconPencil() {
   );
 }
 
+function IconBookmark() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+      <path d="M4 2H12C12.55 2 13 2.45 13 3V14L8 11L3 14V3C3 2.45 3.45 2 4 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+      <path d="M6 6H10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
 function IconPlus() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
@@ -215,6 +224,17 @@ export function Sidebar() {
           >
             <IconPencil />
           </button>
+          <button
+            onClick={() => router.push("/doc-store")}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+              pathname === "/doc-store"
+                ? "bg-indigo-600 text-white"
+                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            }`}
+            title="문서 저장"
+          >
+            <IconBookmark />
+          </button>
         </div>
         {/* Session dots */}
         <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1 py-2 px-2 min-h-0">
@@ -296,6 +316,17 @@ export function Sidebar() {
         >
           <IconPencil />
           문서 작성
+        </button>
+        <button
+          onClick={() => router.push("/doc-store")}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+            pathname === "/doc-store"
+              ? "bg-slate-800 text-white"
+              : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          <IconBookmark />
+          문서 저장
         </button>
       </div>
 

@@ -7,7 +7,17 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : {};
-  if (!res.ok) throw new Error(data.message ?? data.error ?? "API 오류");
+  if (!res.ok) {
+    const msg = data.message;
+    const errStr = Array.isArray(msg)
+      ? msg.join(", ")
+      : typeof msg === "string"
+      ? msg
+      : typeof data.error === "string"
+      ? data.error
+      : `API 오류 (${res.status})`;
+    throw new Error(errStr);
+  }
   return data as T;
 }
 

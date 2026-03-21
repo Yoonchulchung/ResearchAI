@@ -6,3 +6,5 @@ export * from "./api/ai";
 export * from "./api/queue";
 export * from "./api/gmail";
 export * from "./api/config";
+export * from "./api/experiences";
+export * from "./api/documents";

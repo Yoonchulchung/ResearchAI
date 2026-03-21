@@ -13,6 +13,8 @@ import { DocParseModule } from './doc-parse/doc-parse.module';
 import { MediaModule } from './media/media.module';
 import { AppConfigModule } from './config/config.module';
 import { GmailModule } from './gmail/gmail.module';
+import { ExperiencesModule } from './experiences/experiences.module';
+import { DocumentsModule } from './documents/documents.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { GmailModule } from './gmail/gmail.module';
     MediaModule,
     AppConfigModule,
     GmailModule,
+    ExperiencesModule,
+    DocumentsModule,
   ],
 })
 export class AppModule {}
