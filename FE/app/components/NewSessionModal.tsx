@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNewSessionModal } from "@/contexts/NewSessionModalContext";
+import { useSidebar } from "@/contexts/SidebarContext";
 import { useModels } from "@/sessions/new/hooks/useModels";
 import { useNewSession } from "@/sessions/new/hooks/useNewSession";
 import { TaskList } from "@/sessions/components/TaskList";
@@ -320,6 +321,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
 
 export function NewSessionModal() {
   const { isOpen, closeModal } = useNewSessionModal();
+  const { collapsed } = useSidebar();
   const [mountKey, setMountKey] = useState(0);
 
   // 열릴 때마다 내부 컨텐츠를 새로 마운트 (상태 초기화)
@@ -355,7 +357,8 @@ export function NewSessionModal() {
 
       {/* Floating Panel — 왼쪽에서 슬라이드, 사이드바 너비만큼 offset */}
       <div
-        className={`fixed left-72 top-4 bottom-4 z-50 w-160 max-w-[calc(100vw-18rem)] bg-white rounded-2xl shadow-2xl shadow-black/15 flex flex-col border border-slate-200/60 transition-all duration-300 ease-out overflow-hidden ${
+        style={{ left: collapsed ? "3.5rem" : "15.5rem" }}
+        className={`fixed top-4 bottom-4 z-50 w-160 max-w-[calc(100vw-4rem)] bg-white rounded-2xl shadow-2xl shadow-black/15 flex flex-col border border-slate-200/60 transition-all duration-300 ease-out overflow-hidden ${
           isOpen ? "opacity-100 translate-x-0 pointer-events-auto" : "opacity-0 -translate-x-4 pointer-events-none"
         }`}
       >

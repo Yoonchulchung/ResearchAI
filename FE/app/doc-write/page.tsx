@@ -1,19 +1,45 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useEditor } from "./_hooks/useEditor";
 import { useDocSave } from "./_hooks/useDocSave";
 import { useAiAssist } from "./_hooks/useAiAssist";
 import { useRag } from "./_hooks/useRag";
+import { useResize } from "./_hooks/useResize";
 import { AiPanel } from "./_components/AiPanel";
 import { EditorPanel } from "./_components/EditorPanel";
-import { SaveModal } from "./_components/SaveModal";
-import { IconDownload, IconEdit, IconEye } from "./_components/icons";
+import { ResizeDivider } from "./_components/ResizeDivider";
+
+import { IconDownload } from "./_components/icons";
 
 export default function DocWritePage() {
   const editor = useEditor();
   const docSave = useDocSave(editor.setContent);
   const ai = useAiAssist(editor.setContent);
   const rag = useRag();
+  const { splitRatio, containerRef, startResize, isDragging } = useResize();
+  const [pendingImprovement, setPendingImprovement] = useState<{
+    original: string;
+    improved: string;
+    start: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        if (!editor.content.trim() || docSave.saving) return;
+        if (docSave.savedDocId) {
+          docSave.handleSave(editor.content);
+        } else {
+          docSave.setSaveTitleInput("");
+          docSave.setSaveModal(true);
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [editor.content, docSave]);
 
   const handleRunAssist = (instruction: string, userLabel?: string) => {
     ai.runAssist(
@@ -30,49 +56,17 @@ export default function DocWritePage() {
 
       {/* ── Topbar ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 px-5 py-2.5 bg-white border-b border-slate-200/60 shrink-0">
-        <div className="flex items-center gap-1.5">
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" className="text-slate-500">
-            <path d="M4 2H12C12.55 2 13 2.45 13 3V13C13 13.55 12.55 14 12 14H4C3.45 14 3 13.55 3 13V3C3 2.45 3.45 2 4 2Z" stroke="currentColor" strokeWidth="1.4" />
-            <path d="M6 5H10M6 8H10M6 11H8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-          </svg>
-          <span className="text-sm font-bold text-slate-800">문서 작성</span>
-        </div>
+        <input
+          value={docSave.savedDocTitle}
+          onChange={(e) => docSave.setSavedDocTitle(e.target.value)}
+          placeholder="제목 없음"
+          className="text-sm font-semibold text-slate-800 bg-transparent border-0 focus:outline-none placeholder-slate-300 min-w-0 w-64"
+        />
 
         <div className="flex-1" />
 
-        {/* Edit / Preview toggle */}
-        <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
-          <button
-            onClick={() => editor.setMode("edit")}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-              editor.mode === "edit" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            <IconEdit /> 편집
-          </button>
-          <button
-            onClick={() => editor.setMode("preview")}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-              editor.mode === "preview" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            <IconEye /> 미리보기
-          </button>
-        </div>
-
-        {docSave.savedDocTitle && (
-          <span className="text-xs text-slate-400 truncate max-w-40">{docSave.savedDocTitle}</span>
-        )}
-
         <button
-          onClick={() => {
-            if (docSave.savedDocId) {
-              docSave.handleSave(editor.content);
-            } else {
-              docSave.setSaveTitleInput("");
-              docSave.setSaveModal(true);
-            }
-          }}
+          onClick={() => docSave.handleSave(editor.content)}
           disabled={!editor.content.trim() || docSave.saving}
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
             docSave.saveSuccess
@@ -104,50 +98,100 @@ export default function DocWritePage() {
         </button>
       </div>
 
-      {/* ── Save Modal ─────────────────────────────────────────────────────── */}
-      {docSave.saveModal && (
-        <SaveModal
-          saveTitleInput={docSave.saveTitleInput}
-          setSaveTitleInput={docSave.setSaveTitleInput}
-          saving={docSave.saving}
-          onSave={(title) => docSave.handleSave(editor.content, title)}
-          onClose={() => docSave.setSaveModal(false)}
-        />
+
+      {/* ── Context Menu ───────────────────────────────────────────────────── */}
+      {editor.contextMenu && editor.selectedText && (
+        <div
+          style={{ top: editor.contextMenu.y, left: editor.contextMenu.x }}
+          className="fixed z-50 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-30"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              handleRunAssist(
+                "선택된 글을 평가해줘. 문장의 명확성, 논리 구조, 표현력 등을 분석하고 개선점을 제안해줘.",
+                "글 평가",
+              );
+            }}
+            className="w-full flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2 3h8M2 6h6M2 9h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+            글 평가
+          </button>
+          <button
+            onClick={() => {
+              const original = editor.selectedText;
+              const start = editor.selectedRange?.start ?? 0;
+              ai.runImprove(original, (improved) => {
+                editor.replaceSelected(improved);
+                setPendingImprovement({ original, improved, start });
+              });
+            }}
+            disabled={ai.aiLoading}
+            className="w-full flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-40"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6h4M4 4l2 2-2 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M7 2a5 5 0 1 1 0 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+            내용 개선
+          </button>
+        </div>
       )}
 
-      {/* ── Split View ─────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        <EditorPanel
-          content={editor.content}
-          setContent={editor.setContent}
-          mode={editor.mode}
-          textareaRef={editor.textareaRef}
-          words={editor.words}
-          chars={editor.chars}
-          onTextareaSelect={editor.handleTextareaSelect}
-          onContextMenu={editor.handleContextMenu}
-          applyToolbar={editor.applyToolbar}
-        />
 
-        <AiPanel
-          messages={ai.messages}
-          streamingContent={ai.streamingContent}
-          aiLoading={ai.aiLoading}
-          aiError={ai.aiError}
-          customPrompt={ai.customPrompt}
-          setCustomPrompt={ai.setCustomPrompt}
-          model={ai.model}
-          setModel={ai.setModel}
-          copiedId={ai.copiedId}
-          messagesEndRef={ai.messagesEndRef}
-          selectedText={editor.selectedText}
-          content={editor.content}
-          selectedExperiences={rag.selectedExperiences}
-          onClearMessages={() => ai.setMessages([])}
-          onRunAssist={handleRunAssist}
-          onApplyResult={ai.applyResult}
-          onCopyText={ai.copyText}
-        />
+      {/* ── Split View ─────────────────────────────────────────────────────── */}
+      <div
+        ref={containerRef}
+        className={`flex-1 flex min-h-0 overflow-hidden ${isDragging ? "select-none cursor-col-resize" : ""}`}
+      >
+        <div style={{ width: `${splitRatio * 100}%` }} className="flex flex-col min-h-0 overflow-hidden">
+          <EditorPanel
+            content={editor.content}
+            setContent={editor.setContent}
+            mode={editor.mode}
+            textareaRef={editor.textareaRef}
+            words={editor.words}
+            chars={editor.chars}
+            onTextareaSelect={editor.handleTextareaSelect}
+            onContextMenu={editor.handleContextMenu}
+            pendingImprovement={pendingImprovement}
+            onAccept={() => setPendingImprovement(null)}
+            onRevert={() => {
+              const { original, improved, start } = pendingImprovement!;
+              editor.setContent((prev) =>
+                prev.slice(0, start) + original + prev.slice(start + improved.length),
+              );
+              setPendingImprovement(null);
+            }}
+          />
+        </div>
+
+        <ResizeDivider onMouseDown={startResize} isDragging={isDragging} />
+
+        <div style={{ width: `${(1 - splitRatio) * 100}%` }} className="flex flex-col min-h-0 overflow-hidden">
+          <AiPanel
+            messages={ai.messages}
+            streamingContent={ai.streamingContent}
+            aiLoading={ai.aiLoading}
+            aiError={ai.aiError}
+            customPrompt={ai.customPrompt}
+            setCustomPrompt={ai.setCustomPrompt}
+            model={ai.model}
+            setModel={ai.setModel}
+            copiedId={ai.copiedId}
+            messagesEndRef={ai.messagesEndRef}
+            selectedText={editor.selectedText}
+            content={editor.content}
+            selectedExperiences={rag.selectedExperiences}
+            onClearMessages={() => ai.setMessages([])}
+            onRunAssist={handleRunAssist}
+            onApplyResult={ai.applyResult}
+            onCopyText={ai.copyText}
+          />
+        </div>
       </div>
     </div>
   );

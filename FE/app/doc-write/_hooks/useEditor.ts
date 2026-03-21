@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { ToolbarAction } from "../_types";
+
+const DRAFT_KEY = "doc-write-draft";
 
 function wordCount(text: string) {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
@@ -8,11 +11,29 @@ function wordCount(text: string) {
 }
 
 export function useEditor() {
-  const [content, setContent] = useState("");
+  const searchParams = useSearchParams();
+  const isExistingDoc = !!searchParams.get("docId");
+
+  const [content, setContent] = useState(() => {
+    if (isExistingDoc) return "";
+    if (typeof window === "undefined") return "";
+    return localStorage.getItem(DRAFT_KEY) ?? "";
+  });
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [selectedText, setSelectedText] = useState("");
+  const [selectedRange, setSelectedRange] = useState<{ start: number; end: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 새 문서일 때만 draft 자동저장
+  useEffect(() => {
+    if (isExistingDoc) return;
+    if (content) {
+      localStorage.setItem(DRAFT_KEY, content);
+    } else {
+      localStorage.removeItem(DRAFT_KEY);
+    }
+  }, [content, isExistingDoc]);
 
   // 컨텍스트 메뉴 닫기
   useEffect(() => {
@@ -28,7 +49,18 @@ export function useEditor() {
   const handleTextareaSelect = () => {
     const ta = textareaRef.current;
     if (!ta) return;
-    setSelectedText(ta.value.substring(ta.selectionStart, ta.selectionEnd));
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    setSelectedText(ta.value.substring(start, end));
+    setSelectedRange(start !== end ? { start, end } : null);
+  };
+
+  const replaceSelected = (replacement: string) => {
+    if (!selectedRange) return;
+    const { start, end } = selectedRange;
+    setContent((prev) => prev.slice(0, start) + replacement + prev.slice(end));
+    setSelectedRange(null);
+    setSelectedText("");
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -70,6 +102,8 @@ export function useEditor() {
     mode,
     setMode,
     selectedText,
+    selectedRange,
+    replaceSelected,
     contextMenu,
     textareaRef,
     handleTextareaSelect,

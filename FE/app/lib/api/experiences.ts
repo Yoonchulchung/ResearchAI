@@ -5,6 +5,7 @@ export interface Experience {
   title: string;
   content: string;
   category?: string;
+  aiCategories?: string[] | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -28,7 +29,7 @@ export function createExperience(data: { title: string; content: string; categor
   });
 }
 
-export function updateExperience(id: string, data: { title?: string; content?: string; category?: string }): Promise<Experience> {
+export function updateExperience(id: string, data: { title?: string; content?: string; category?: string; aiCategories?: string[] | null }): Promise<Experience> {
   return apiFetch<Experience>(`/experiences/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),

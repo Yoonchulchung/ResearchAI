@@ -20,7 +20,7 @@ export default function DocStorePage() {
   const docs = useDocuments();
   const exp = useExperiences();
   const popup = useCardPopup();
-  const ai = useAiSuggest();
+  const ai = useAiSuggest(exp.experiences);
 
   // 팝업 닫기 + 삭제 조합 핸들러
   const handleDocDelete = (id: string) => {
@@ -38,34 +38,18 @@ export default function DocStorePage() {
     exp.openEdit(experience);
   };
 
+  const handleApplyCategory = (experience: Experience, category: string) =>
+    exp.updateExpCategory(experience.id, category);
+
   return (
     <div className="h-full flex flex-col overflow-hidden bg-[#F4F5F7]">
-      {/* Topbar */}
-      <div className="flex items-center gap-3 px-5 py-2.5 bg-white border-b border-slate-200/60 shrink-0">
-        <div className="flex items-center gap-1.5">
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" className="text-slate-500">
-            <path d="M3 2H13C13.55 2 14 2.45 14 3V13C14 13.55 13.55 14 13 14H3C2.45 14 2 13.55 2 13V3C2 2.45 2.45 2 3 2Z" stroke="currentColor" strokeWidth="1.4" />
-            <path d="M5 6H11M5 9H9M5 12H7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-          </svg>
-          <span className="text-sm font-bold text-slate-800">문서 저장</span>
-        </div>
-        <div className="flex-1" />
-        {tab === "exp" && (
-          <button
-            onClick={exp.openAdd}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <IconPlus /> 경험 추가
-          </button>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 px-5 pt-3 pb-0 bg-white border-b border-slate-200/60 shrink-0">
+      {/* Header: 탭 + 검색 + 액션 */}
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-white border-b border-slate-200/60 shrink-0">
+        {/* Tabs */}
         <button
           onClick={() => setTab("docs")}
-          className={`px-4 py-2 text-xs font-semibold border-b-2 transition-all ${
-            tab === "docs" ? "border-indigo-600 text-indigo-700" : "border-transparent text-slate-500 hover:text-slate-700"
+          className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+            tab === "docs" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:text-slate-700"
           }`}
         >
           저장된 문서
@@ -77,8 +61,8 @@ export default function DocStorePage() {
         </button>
         <button
           onClick={() => setTab("exp")}
-          className={`px-4 py-2 text-xs font-semibold border-b-2 transition-all ${
-            tab === "exp" ? "border-indigo-600 text-indigo-700" : "border-transparent text-slate-500 hover:text-slate-700"
+          className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+            tab === "exp" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:text-slate-700"
           }`}
         >
           경험
@@ -88,6 +72,46 @@ export default function DocStorePage() {
             </span>
           )}
         </button>
+
+        <div className="w-px h-4 bg-slate-200 mx-1 shrink-0" />
+
+        {/* 검색 */}
+        {tab === "docs" && (
+          <input
+            value={docs.docSearch}
+            onChange={(e) => docs.setDocSearch(e.target.value)}
+            placeholder="문서 검색..."
+            className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200 w-44"
+          />
+        )}
+        {tab === "exp" && (
+          <input
+            value={exp.expSearch}
+            onChange={(e) => exp.setExpSearch(e.target.value)}
+            placeholder="경험 검색..."
+            className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200 w-44"
+          />
+        )}
+
+        <div className="flex-1" />
+
+        {/* 액션 버튼 */}
+        {tab === "docs" && (
+          <button
+            onClick={() => router.push("/doc-write")}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <IconPlus /> 문서 작성
+          </button>
+        )}
+        {tab === "exp" && (
+          <button
+            onClick={exp.openAdd}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <IconPlus /> 경험 추가
+          </button>
+        )}
       </div>
 
       {tab === "docs" && (
@@ -149,6 +173,7 @@ export default function DocStorePage() {
           onExpEdit={handleExpEdit}
           onExpDelete={handleExpDelete}
           onSuggestOne={ai.handleSuggestOne}
+          onApplyCategory={handleApplyCategory}
         />
       )}
     </div>

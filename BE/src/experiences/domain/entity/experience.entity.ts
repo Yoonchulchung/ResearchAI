@@ -20,6 +20,9 @@ export class ExperienceEntity {
   @Column({ nullable: true })
   category: string;
 
+  @Column({ type: 'simple-json', nullable: true })
+  aiCategories: string[] | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

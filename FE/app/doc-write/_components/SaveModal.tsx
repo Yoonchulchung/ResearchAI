@@ -10,8 +10,8 @@ interface Props {
 
 export function SaveModal({ saveTitleInput, setSaveTitleInput, saving, onSave, onClose }: Props) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm mx-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-slate-100">
           <h2 className="text-sm font-bold text-slate-800">문서 저장</h2>
         </div>
@@ -23,6 +23,7 @@ export function SaveModal({ saveTitleInput, setSaveTitleInput, saving, onSave, o
             onChange={(e) => setSaveTitleInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && saveTitleInput.trim()) onSave(saveTitleInput.trim());
+              if (e.key === "Escape") onClose();
             }}
             placeholder="제목을 입력하세요"
             className="w-full text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300/50 focus:border-indigo-300 placeholder-slate-300"

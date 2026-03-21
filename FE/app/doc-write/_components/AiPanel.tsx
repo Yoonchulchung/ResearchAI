@@ -109,12 +109,6 @@ export function AiPanel({
           <path d="M7 1L8.5 5.5L13 7L8.5 8.5L7 13L5.5 8.5L1 7L5.5 5.5L7 1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
         </svg>
         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">AI 어시스턴트</span>
-        {selectedText && (
-          <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 rounded-full text-xs text-amber-600 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-            선택 영역 적용 중
-          </span>
-        )}
         <div className="flex-1" />
         {messages.length > 0 && (
           <button

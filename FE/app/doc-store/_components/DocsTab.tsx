@@ -23,15 +23,6 @@ export function DocsTab({
 }: Props) {
   return (
     <>
-      <div className="flex items-center gap-2 px-5 py-2.5 bg-white border-b border-slate-100 shrink-0">
-        <input
-          value={docSearch}
-          onChange={(e) => setDocSearch(e.target.value)}
-          placeholder="문서 검색..."
-          className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200 w-56"
-        />
-      </div>
-
       <div className="flex-1 overflow-y-auto px-5 py-5">
         {docsLoading ? (
           <div className="flex items-center justify-center h-40 text-slate-400 text-sm">로딩 중...</div>

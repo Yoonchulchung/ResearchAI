@@ -18,7 +18,7 @@ export class ExperiencesController {
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateExperienceDto) {
-    return this.service.update(id, dto.title, dto.content, dto.category);
+    return this.service.update(id, dto.title, dto.content, dto.category, dto.aiCategories);
   }
 
   @Delete(':id')

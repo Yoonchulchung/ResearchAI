@@ -17,6 +17,7 @@ interface Props {
   onExpEdit: (exp: Experience) => void;
   onExpDelete: (id: string) => void;
   onSuggestOne: (exp: Experience) => void;
+  onApplyCategory: (exp: Experience, category: string) => Promise<void>;
 }
 
 export function CardPopup({
@@ -30,6 +31,7 @@ export function CardPopup({
   onExpEdit,
   onExpDelete,
   onSuggestOne,
+  onApplyCategory,
 }: Props) {
   const isDoc = activePopup.kind === "doc";
   const doc = isDoc ? (activePopup.data as SavedDocument) : null;
@@ -78,12 +80,45 @@ export function CardPopup({
           </h3>
           <p className="text-xs text-slate-400">{dateStr}</p>
         </div>
-        <button
-          onClick={onClose}
-          className="ml-2 shrink-0 p-1 text-slate-300 hover:text-slate-500 transition-colors"
-        >
-          <IconX />
-        </button>
+        <div className="ml-2 shrink-0 flex items-center gap-1">
+          {isDoc ? (
+            <>
+              <button
+                onClick={() => onDocOpen(activePopup.data.id)}
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <IconOpen /> 열기
+              </button>
+              <button
+                onClick={() => onDocDelete(activePopup.data.id)}
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                <IconTrash /> 삭제
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => exp && onExpEdit(exp)}
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
+              >
+                <IconEdit /> 수정
+              </button>
+              <button
+                onClick={() => onExpDelete(activePopup.data.id)}
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                <IconTrash /> 삭제
+              </button>
+            </>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1 text-slate-300 hover:text-slate-500 transition-colors"
+          >
+            <IconX />
+          </button>
+        </div>
       </div>
 
       {/* 본문 */}
@@ -105,18 +140,24 @@ export function CardPopup({
               분석 중...
             </span>
           ) : aiCats && aiCats.length > 0 ? (
-            aiCats.map((c) => (
-              <span
-                key={c}
-                className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${
-                  CATEGORY_COLOR[c]
-                    ? `${CATEGORY_COLOR[c].bg} ${CATEGORY_COLOR[c].text}`
-                    : "bg-slate-100 text-slate-600"
-                }`}
-              >
-                {c}
-              </span>
-            ))
+            aiCats.map((c) => {
+              const isCurrent = c === exp.category;
+              return (
+                <button
+                  key={c}
+                  onClick={() => !isCurrent && onApplyCategory(exp, c)}
+                  title={isCurrent ? "현재 카테고리" : `'${c}'로 카테고리 변경`}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold transition-all ${
+                    CATEGORY_COLOR[c]
+                      ? `${CATEGORY_COLOR[c].bg} ${CATEGORY_COLOR[c].text}`
+                      : "bg-slate-100 text-slate-600"
+                  } ${isCurrent ? "opacity-50 cursor-default" : "hover:opacity-80 hover:scale-105 cursor-pointer"}`}
+                >
+                  {c}
+                  {!isCurrent && <span className="opacity-70 text-[9px]">적용</span>}
+                </button>
+              );
+            })
           ) : (
             <span className="text-xs text-slate-300">없음</span>
           )}
@@ -131,40 +172,6 @@ export function CardPopup({
         </div>
       )}
 
-      {/* 액션 버튼 */}
-      <div className="flex items-center gap-1.5 px-4 py-3 border-t border-slate-100">
-        {isDoc ? (
-          <>
-            <button
-              onClick={() => onDocOpen(activePopup.data.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <IconOpen /> 열기
-            </button>
-            <button
-              onClick={() => onDocDelete(activePopup.data.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-            >
-              <IconTrash /> 삭제
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={() => exp && onExpEdit(exp)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
-            >
-              <IconEdit /> 수정
-            </button>
-            <button
-              onClick={() => onExpDelete(activePopup.data.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-            >
-              <IconTrash /> 삭제
-            </button>
-          </>
-        )}
-      </div>
     </div>
   );
 }

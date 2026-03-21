@@ -38,12 +38,19 @@ export class ExperiencesService {
     return saved;
   }
 
-  async update(id: string, title?: string, content?: string, category?: string): Promise<ExperienceEntity | null> {
+  async update(
+    id: string,
+    title?: string,
+    content?: string,
+    category?: string,
+    aiCategories?: string[] | null,
+  ): Promise<ExperienceEntity | null> {
     const entity = await this.repo.findOne({ where: { id } });
     if (!entity) return null;
     if (title !== undefined) entity.title = title;
     if (content !== undefined) entity.content = content;
     if (category !== undefined) entity.category = category;
+    if (aiCategories !== undefined) entity.aiCategories = aiCategories;
     const saved = await this.repo.save(entity);
     await this.vectorService.indexExperience(saved.id, saved.title, saved.content);
     return saved;
@@ -82,6 +89,9 @@ ${entity.content}
         .trim();
       const parsed = JSON.parse(cleaned) as { categories: string[] };
       const valid = parsed.categories.filter((c) => CATEGORY_LIST.includes(c));
+      // DB에 자동 저장
+      entity.aiCategories = valid;
+      await this.repo.save(entity);
       return { categories: valid };
     } catch {
       return { categories: [] };

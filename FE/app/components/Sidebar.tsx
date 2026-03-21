@@ -8,6 +8,8 @@ import { Session } from "@/types";
 import { SettingsMenu } from "./SettingsMenu";
 import { QueueWidget } from "./QueueWidget";
 import { useNewSessionModal } from "@/contexts/NewSessionModalContext";
+import { useDocStoreModal } from "@/contexts/DocStoreModalContext";
+import { useSidebar } from "@/contexts/SidebarContext";
 
 
 function formatDate(iso: string) {
@@ -124,20 +126,27 @@ export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { openModal } = useNewSessionModal();
+  const { openModal: openDocStore } = useDocStoreModal();
+  const { setCollapsed: setSidebarCollapsed } = useSidebar();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  const updateCollapsed = useCallback((v: boolean) => {
+    setCollapsed(v);
+    setSidebarCollapsed(v);
+  }, [setSidebarCollapsed]);
+
   // 반응형: 창 너비에 따라 자동 축소/확장
   useEffect(() => {
     const handleResize = () => {
-      setCollapsed(window.innerWidth < COLLAPSE_BREAKPOINT);
+      updateCollapsed(window.innerWidth < COLLAPSE_BREAKPOINT);
     };
     handleResize(); // 초기 실행
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [updateCollapsed]);
 
   const fetchSessions = useCallback(() => {
     getSessions().then(setSessions).catch(() => {});
@@ -188,7 +197,7 @@ export function Sidebar() {
             <LogoMark size={28} />
           </button>
           <button
-            onClick={() => setCollapsed(false)}
+            onClick={() => updateCollapsed(false)}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
             title="사이드바 펼치기"
           >
@@ -225,12 +234,8 @@ export function Sidebar() {
             <IconPencil />
           </button>
           <button
-            onClick={() => router.push("/doc-store")}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
-              pathname === "/doc-store"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-            }`}
+            onClick={openDocStore}
+            className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-700"
             title="문서 저장"
           >
             <IconBookmark />
@@ -278,7 +283,7 @@ export function Sidebar() {
           </div>
         </button>
         <button
-          onClick={() => setCollapsed(true)}
+          onClick={() => updateCollapsed(true)}
           className="w-6 h-6 flex items-center justify-center rounded-md text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition-colors"
           title="사이드바 접기"
         >
@@ -318,12 +323,8 @@ export function Sidebar() {
           문서 작성
         </button>
         <button
-          onClick={() => router.push("/doc-store")}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-            pathname === "/doc-store"
-              ? "bg-slate-800 text-white"
-              : "text-slate-600 hover:bg-slate-100"
-          }`}
+          onClick={openDocStore}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-100"
         >
           <IconBookmark />
           문서 저장

@@ -57,6 +57,11 @@ export function useExperiences() {
     new Set(experiences.map((e) => e.category).filter(Boolean)),
   ) as string[];
 
+  const updateExpCategory = async (id: string, category: string) => {
+    const updated = await updateExperience(id, { category });
+    setExperiences((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+  };
+
   return {
     experiences,
     expLoading,
@@ -71,6 +76,7 @@ export function useExperiences() {
     allCategories,
     handleExpSave,
     handleExpDelete,
+    updateExpCategory,
     openAdd,
     openEdit,
   };

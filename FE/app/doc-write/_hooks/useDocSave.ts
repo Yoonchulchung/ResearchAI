@@ -35,12 +35,13 @@ export function useDocSave(setContent: Dispatch<SetStateAction<string>>) {
         await updateDocument(savedDocId, { content, title: title ?? savedDocTitle });
         if (title) setSavedDocTitle(title);
       } else {
-        const t = (title ?? saveTitleInput.trim()) || "제목 없음";
+        const t = (title ?? savedDocTitle.trim()) || "제목 없음";
         const doc = await createDocument(t, content);
         setSavedDocId(doc.id);
         setSavedDocTitle(doc.title);
         router.replace(`/doc-write?docId=${doc.id}`);
       }
+      localStorage.removeItem("doc-write-draft");
       setSaveSuccess(true);
       setSaveModal(false);
       setSaveTitleInput("");
@@ -53,6 +54,7 @@ export function useDocSave(setContent: Dispatch<SetStateAction<string>>) {
   return {
     savedDocId,
     savedDocTitle,
+    setSavedDocTitle,
     saveModal,
     setSaveModal,
     saveTitleInput,

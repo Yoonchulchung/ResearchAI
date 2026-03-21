@@ -48,15 +48,8 @@ export function ExperienceTab({
 }: Props) {
   return (
     <>
-      {/* 검색 + 카테고리 필터 */}
+      {/* 카테고리 필터 */}
       <div className="flex items-center gap-2 px-5 py-2.5 bg-white border-b border-slate-100 shrink-0 overflow-x-auto">
-        <input
-          value={expSearch}
-          onChange={(e) => setExpSearch(e.target.value)}
-          placeholder="경험 검색..."
-          className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200 w-48 shrink-0"
-        />
-        <div className="w-px h-4 bg-slate-200 shrink-0" />
         <button
           onClick={() => setCategoryFilter("")}
           className={`px-3 py-1 rounded-full text-xs font-medium border transition-all shrink-0 ${
