@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback, useEffect, memo } from "react";
+import { useState, useCallback, useEffect, useRef, memo } from "react";
 import { useParams } from "next/navigation";
 import { Task } from "@/types";
 import { TaskCard } from "@/sessions/components/TaskCard";
+import { ScrollReveal } from "@/components/ScrollReveal";
 import { SessionHeader } from "@/sessions/components/SessionHeader";
 import { reEvaluateConfidence } from "@/lib/api/ai";
 import { SessionSkeleton } from "@/sessions/components/SessionSkeleton";
@@ -82,9 +83,29 @@ export default function SessionPage() {
 
   const { session, loading, models } = useSessionData(id);
   const { statuses, phases, aiResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 세션별 스크롤 위치 복원
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const saved = sessionStorage.getItem(`scroll:${id}`);
+    if (saved) el.scrollTop = Number(saved);
+
+    const handleScroll = () => {
+      sessionStorage.setItem(`scroll:${id}`, String(el.scrollTop));
+    };
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [id]);
+
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
-  const [showDetail, setShowDetail] = useState(false);
-  const [expandedDetail, setExpandedDetail] = useState(false);
+  const [showDetail, setShowDetail] = useState(() => {
+    try { return sessionStorage.getItem(`detail-open:${id}`) === "1"; } catch { return false; }
+  });
+  const [expandedDetail, setExpandedDetail] = useState(() => {
+    try { return sessionStorage.getItem(`detail-expanded:${id}`) === "1"; } catch { return false; }
+  });
   const [confidenceOverrides, setConfidenceOverrides] = useState<Record<string, { score: number; reason: string }>>({});
   const [reEvalProgress, setReEvalProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -140,7 +161,12 @@ export default function SessionPage() {
   }, [models.length]);
 
   useEffect(() => { setDeletedItemIds(new Set()); }, [id]);
-  useEffect(() => { setShowDetail(false); setExpandedDetail(false); }, [id]);
+  useEffect(() => {
+    try {
+      setShowDetail(sessionStorage.getItem(`detail-open:${id}`) === "1");
+      setExpandedDetail(sessionStorage.getItem(`detail-expanded:${id}`) === "1");
+    } catch {}
+  }, [id]);
 
   const { chatMessages, chatLoading, chatBottomRef, handleChatSend, handleClearChat, handleChatAbort } = useChatHandler(session, id);
   const { compactionStatus } = useCompaction(session, statuses, isRunning, id);
@@ -205,14 +231,17 @@ export default function SessionPage() {
         onRunAll={handleRunAll}
         onCancel={handleCancelAll}
         onExport={exportMarkdown}
-        onToggleDetail={() => setShowDetail((v) => !v)}
+        onToggleDetail={() => setShowDetail((v) => {
+          try { sessionStorage.setItem(`detail-open:${id}`, v ? "0" : "1"); } catch {}
+          return !v;
+        })}
         onReEvaluateAll={handleReEvaluateAll}
       />
 
       <div className="flex flex-1 min-h-0">
         {/* 왼쪽: 태스크 목록 + 채팅 */}
         <div className={`flex flex-col flex-1 min-w-0 overflow-hidden relative ${expandedDetail ? "hidden" : ""}`}>
-          <div className="flex-1 overflow-y-auto px-8 py-6">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6">
             <div className="px-6">
               <SummarySection sessionId={id} topic={session.topic} localAiModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} summaryState={session.summaryState ?? null} />
             </div>
@@ -223,26 +252,27 @@ export default function SessionPage() {
                   ? { ...task, confidence: confidenceOverrides[task.itemId] }
                   : task;
                 return (
-                  <TaskCard
-                    key={task.id}
-                    task={mergedTask}
-                    status={statuses[task.id] ?? "idle"}
-                    phase={phases[task.id]}
-                    aiResult={aiResult[task.id]}
-                    webModel={webModel[task.id]}
-                    aiModel={session.researchCloudAIModel}
-                    models={models}
-                    cloudAiModels={models}
-                    filterModels={models}
-                    webEngines={webEngines}
-                    syncedCloudAiModel={headerCloudAiModel}
-                    syncedWebModel={headerWebModel}
-                    syncedFilterModel={headerFilterModel}
-                    onRun={(aiModel, runWebModel, filterModel) => handleRunTask(task, aiModel, runWebModel, filterModel)}
-                    onCancel={() => handleCancelItem(task)}
-                    onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}
-                    onConfidenceUpdate={(c) => handleConfidenceUpdate(task.itemId, c)}
-                  />
+                  <ScrollReveal key={task.id}>
+                    <TaskCard
+                      task={mergedTask}
+                      status={statuses[task.id] ?? "idle"}
+                      phase={phases[task.id]}
+                      aiResult={aiResult[task.id]}
+                      webModel={webModel[task.id]}
+                      aiModel={session.researchCloudAIModel}
+                      models={models}
+                      cloudAiModels={models}
+                      filterModels={models}
+                      webEngines={webEngines}
+                      syncedCloudAiModel={headerCloudAiModel}
+                      syncedWebModel={headerWebModel}
+                      syncedFilterModel={headerFilterModel}
+                      onRun={(aiModel, runWebModel, filterModel) => handleRunTask(task, aiModel, runWebModel, filterModel)}
+                      onCancel={() => handleCancelItem(task)}
+                      onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}
+                      onConfidenceUpdate={(c) => handleConfidenceUpdate(task.itemId, c)}
+                    />
+                  </ScrollReveal>
                 );
               })}
             </div>
@@ -277,9 +307,17 @@ export default function SessionPage() {
         {showDetail && (
           <DetailPanel
             session={session}
+            sessionId={id}
             expanded={expandedDetail}
-            onExpand={() => setExpandedDetail((v) => !v)}
-            onClose={() => { setShowDetail(false); setExpandedDetail(false); }}
+            onExpand={() => setExpandedDetail((v) => {
+              try { sessionStorage.setItem(`detail-expanded:${id}`, v ? "0" : "1"); } catch {}
+              return !v;
+            })}
+            onClose={() => {
+              try { sessionStorage.setItem(`detail-open:${id}`, "0"); sessionStorage.setItem(`detail-expanded:${id}`, "0"); } catch {}
+              setShowDetail(false);
+              setExpandedDetail(false);
+            }}
           />
         )}
       </div>

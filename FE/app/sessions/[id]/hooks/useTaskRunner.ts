@@ -129,14 +129,8 @@ export function useTaskRunner(session: Session | null, id: string) {
   }, [session, id]);
 
   const handleRunTask = useCallback(async (task: Task, aiModel?: string, webModel?: string, filterModel?: string) => {
-    if (isRunning) return;
-    setLocalRunning(true);
-    try {
-      await runTasks([task], aiModel, webModel, filterModel);
-    } finally {
-      setLocalRunning(false);
-    }
-  }, [isRunning, runTasks]);
+    await runTasks([task], aiModel, webModel, filterModel);
+  }, [runTasks]);
 
   const handleRunAll = useCallback(async (cloudAiModel?: string, webModel?: string, filterModel?: string) => {
     if (isRunning || !session) return;

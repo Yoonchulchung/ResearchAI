@@ -21,17 +21,51 @@ const BG_COLORS = [
 
 interface Props {
   session: Session;
+  sessionId: string;
   expanded?: boolean;
   onExpand?: () => void;
   onClose: () => void;
 }
 
-export function DetailPanel({ session, expanded, onExpand, onClose }: Props) {
+export function DetailPanel({ session, sessionId, expanded, onExpand, onClose }: Props) {
   const doneTasks = (session.items ?? []).filter((t) => t.aiResult);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [fontSizeIdx, setFontSizeIdx] = useState(DEFAULT_FONT_SIZE_IDX);
   const fontSize = FONT_SIZES[fontSizeIdx];
   const [bgColor, setBgColor] = useState(BG_COLORS[1].value);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 스크롤 위치 저장/복원
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const saved = sessionStorage.getItem(`detail-scroll:${sessionId}`);
+
+    let isRestoring = false;
+    let rAFId: number;
+
+    const handleScroll = () => {
+      if (isRestoring) return;
+      sessionStorage.setItem(`detail-scroll:${sessionId}`, String(el.scrollTop));
+    };
+    el.addEventListener("scroll", handleScroll, { passive: true });
+
+    if (saved) {
+      isRestoring = true;
+      // 이중 rAF: 콘텐츠(ReactMarkdown) 렌더 완료 후 복원
+      rAFId = requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          el.scrollTop = Number(saved);
+          requestAnimationFrame(() => { isRestoring = false; });
+        });
+      });
+    }
+
+    return () => {
+      el.removeEventListener("scroll", handleScroll);
+      cancelAnimationFrame(rAFId);
+    };
+  }, [sessionId]);
 
   // 초기 로드
   useEffect(() => {
@@ -130,7 +164,7 @@ export function DetailPanel({ session, expanded, onExpand, onClose }: Props) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-6 py-6" style={{ fontSize }}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6" style={{ fontSize, overflowAnchor: "none" }}>
         {doneTasks.length === 0 ? (
           <p className="text-slate-400 text-sm text-center py-16">
             완료된 리서치 항목이 없습니다.

@@ -84,6 +84,30 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ─── Scroll reveal animation ───────────────────────────────────────────── */
+[data-scroll-hidden] {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
+[data-scroll-revealed] {
+  animation: scroll-reveal 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes scroll-reveal {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-scroll-hidden],
+  [data-scroll-revealed] {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}
+
 /* ─── Highlight pulse animation (doc-write 단락 포커스) ─────────────────── */
 @keyframes highlight-pulse {
   0%   { box-shadow: inset 0 0 0 3px #818cf8; opacity: 1; }

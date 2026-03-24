@@ -104,7 +104,17 @@ export function TaskCard({
   onDelete: () => void;
   onConfidenceUpdate?: (confidence: { score: number; reason: string }) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const expandedKey = `task-expanded:${task.itemId}`;
+  const [expanded, setExpandedRaw] = useState(() => {
+    try { return sessionStorage.getItem(expandedKey) === "1"; } catch { return false; }
+  });
+  const setExpanded = (val: boolean | ((prev: boolean) => boolean)) => {
+    setExpandedRaw((prev) => {
+      const next = typeof val === "function" ? val(prev) : val;
+      try { sessionStorage.setItem(expandedKey, next ? "1" : "0"); } catch {}
+      return next;
+    });
+  };
   const [activeTab, setActiveTab] = useState<"result" | "detail" | WebModelKey>("result");
   const [reEvalModel, setReEvalModel] = useState(aiModel ?? "claude-haiku-4-5-20251001");
   const [reEvalLoading, setReEvalLoading] = useState(false);
@@ -209,10 +219,8 @@ export function TaskCard({
       ? "클릭하여 분석 시작"
       : status === TaskStatus.PENDING
       ? "큐 대기 중..."
-      : status === TaskStatus.RUNNING && phase === "searching"
-      ? `웹 검색 중...${availableSources.length > 0 ? ` · ${availableSources.length}개 완료` : ""}`
-      : status === TaskStatus.RUNNING && phase === "analyzing"
-      ? `AI 분석 중...${hasContent ? " · 클릭하여 검색 결과 보기" : ""}`
+      : status === TaskStatus.RUNNING
+      ? `검색 중...${availableSources.length > 0 ? ` · ${availableSources.length}개 완료` : ""}`
       : status === TaskStatus.DONE
       ? "클릭하여 결과 보기"
       : status === TaskStatus.STOPPED || status === TaskStatus.ABORTED
@@ -232,8 +240,9 @@ export function TaskCard({
   }, [subText]);
 
   const handleCardClick = () => {
-    if (status === TaskStatus.IDLE) onRun(selectedRunModel || undefined, selectedRunWebModel || undefined, isNonBuiltinWebEngine ? selectedRunFilterModel || undefined : undefined);
-    else if (hasContent) setExpanded((e) => !e);
+    if (status === TaskStatus.IDLE) {
+      onRun(selectedRunModel || undefined, selectedRunWebModel || undefined, isNonBuiltinWebEngine ? selectedRunFilterModel || undefined : undefined);
+    } else if (hasContent) setExpanded((e) => !e);
   };
 
   const leftBorder = STATUS_LEFT_BORDER[status] ?? "border-l-slate-200";
