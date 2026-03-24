@@ -28,8 +28,11 @@ export class OverviewController {
   }
 
   @Get('analytics')
-  getAnalytics(@Query('range') range = '30d') {
-    return this.overviewService.getAnalytics(range);
+  getAnalytics(
+    @Query('range') range = '30d',
+    @Query('granularity') granularity = '1d',
+  ) {
+    return this.overviewService.getAnalytics(range, granularity);
   }
 
   @Get('logs')

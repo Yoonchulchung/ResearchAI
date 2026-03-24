@@ -37,9 +37,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private companyProfileSubjects = new Map<string, Subject<MessageEvent>>();
   private companyProfileAccumulated = new Map<string, string>();
   private cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private running = false;
+  private runningCount = 0;
 
   private static readonly DONE_JOB_TTL_MS = 5 * 60 * 1000; // 5분
+  private static readonly MAX_CONCURRENCY = 3;
 
   constructor(
     private readonly lightResearchRepository: LightResearchRepository,
@@ -142,7 +143,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   // ******** //
   getStatus(): QueueStatusDto {
     return {
-      running: this.running,
+      running: this.runningCount > 0,
       total: this.jobs.length,
       pending: this.jobs.filter((j) => j.status === QueueJobStatus.PENDING).length,
       running_jobs: this.jobs.filter((j) => j.status === QueueJobStatus.RUNNING).length,
@@ -505,14 +506,15 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   private runNext() {
-    if (this.running) return;
-    const next = this.jobs.find((j) => j.status === QueueJobStatus.PENDING);
-    if (!next) return;
-    this.running = true;
-    this.executeJob(next).finally(() => {
-      this.running = false;
-      this.runNext();
-    });
+    while (this.runningCount < QueueService.MAX_CONCURRENCY) {
+      const next = this.jobs.find((j) => j.status === QueueJobStatus.PENDING);
+      if (!next) break;
+      this.runningCount++;
+      this.executeJob(next).finally(() => {
+        this.runningCount--;
+        this.runNext();
+      });
+    }
   }
 
   private updateJob(jobId: string, updates: Partial<QueueJob>) {

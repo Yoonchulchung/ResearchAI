@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -13,12 +15,19 @@ import {
 } from "recharts";
 
 type AnalyticsRange = "7d" | "30d" | "90d" | "all";
+type Granularity = "1h" | "4h" | "1d";
 
 const RANGE_OPTIONS: { value: AnalyticsRange; label: string }[] = [
   { value: "7d", label: "최근 7일" },
   { value: "30d", label: "최근 30일" },
   { value: "90d", label: "최근 90일" },
   { value: "all", label: "전체" },
+];
+
+const GRANULARITY_OPTIONS: { value: Granularity; label: string }[] = [
+  { value: "1h", label: "1H" },
+  { value: "4h", label: "4H" },
+  { value: "1d", label: "1D" },
 ];
 
 const MODEL_COLORS = [
@@ -36,6 +45,16 @@ interface AnalyticsData {
 
 export default function AnalyticsPage() {
   const [range, setRange] = useState<AnalyticsRange>("30d");
+  const [granularity, setGranularity] = useState<Granularity>("1d");
+
+  useEffect(() => {
+    try {
+      const r = localStorage.getItem("analytics:range") as AnalyticsRange;
+      const g = localStorage.getItem("analytics:granularity") as Granularity;
+      if (r) setRange(r);
+      if (g) setGranularity(g);
+    } catch {}
+  }, []);
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,30 +62,47 @@ export default function AnalyticsPage() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`http://localhost:3001/api/overview/analytics?range=${range}`)
+    fetch(`http://localhost:3001/api/overview/analytics?range=${range}&granularity=${granularity}`)
       .then((r) => r.json())
       .then(setData)
       .catch(() => setError("데이터를 불러오지 못했습니다."))
       .finally(() => setLoading(false));
-  }, [range]);
+  }, [range, granularity]);
 
   return (
     <div className="space-y-6">
-      {/* Range selector */}
-      <div className="flex gap-1.5">
-        {RANGE_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => setRange(opt.value)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              range === opt.value
-                ? "bg-orange-500 text-white"
-                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
+      {/* Selectors */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1.5">
+          {RANGE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { setRange(opt.value); try { localStorage.setItem("analytics:range", opt.value); } catch {} }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                range === opt.value
+                  ? "bg-orange-500 text-white"
+                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-0.5 bg-slate-100 rounded-lg p-0.5">
+          {GRANULARITY_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { setGranularity(opt.value); try { localStorage.setItem("analytics:granularity", opt.value); } catch {} }}
+              className={`px-3 py-1 rounded-md text-xs font-bold transition-colors ${
+                granularity === opt.value
+                  ? "bg-white text-slate-800 shadow-sm"
+                  : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading && (
@@ -109,38 +145,73 @@ export default function AnalyticsPage() {
           {data.chartData.length > 0 ? (
             <div className="bg-slate-50 rounded-xl border border-slate-200 px-4 py-5">
               <p className="text-xs font-semibold text-slate-500 mb-4 uppercase tracking-widest">
-                일별 비용 (USD)
+                {granularity === "1h" ? "시간별" : granularity === "4h" ? "4시간별" : "일별"} 비용 (USD)
               </p>
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={data.chartData} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 10, fill: "#94a3b8" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 10, fill: "#94a3b8" }}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(v) => `$${v}`}
-                  />
-                  <Tooltip
-                    formatter={(value) => [`$${Number(value).toFixed(6)}`, undefined]}
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  {data.models.map((model, i) => (
-                    <Bar
-                      key={model}
-                      dataKey={model}
-                      stackId="cost"
-                      fill={MODEL_COLORS[i % MODEL_COLORS.length]}
-                      radius={i === data.models.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                {granularity !== "1d" ? (
+                  <LineChart data={data.chartData} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      tickLine={false}
+                      axisLine={false}
+                      interval="preserveStartEnd"
                     />
-                  ))}
-                </BarChart>
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => `$${v}`}
+                    />
+                    <Tooltip
+                      formatter={(value) => [`$${Number(value).toFixed(6)}`, undefined]}
+                      contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    {data.models.map((model, i) => (
+                      <Line
+                        key={model}
+                        type="monotone"
+                        dataKey={model}
+                        stroke={MODEL_COLORS[i % MODEL_COLORS.length]}
+                        strokeWidth={1.5}
+                        dot={false}
+                        activeDot={{ r: 3 }}
+                      />
+                    ))}
+                  </LineChart>
+                ) : (
+                  <BarChart data={data.chartData} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => `$${v}`}
+                    />
+                    <Tooltip
+                      formatter={(value) => [`$${Number(value).toFixed(6)}`, undefined]}
+                      contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    {data.models.map((model, i) => (
+                      <Bar
+                        key={model}
+                        dataKey={model}
+                        stackId="cost"
+                        fill={MODEL_COLORS[i % MODEL_COLORS.length]}
+                        radius={i === data.models.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                      />
+                    ))}
+                  </BarChart>
+                )}
               </ResponsiveContainer>
             </div>
           ) : (

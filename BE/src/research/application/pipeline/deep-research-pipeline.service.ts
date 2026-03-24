@@ -100,6 +100,9 @@ export class DeepResearchPipelineService {
         signal,
       );
       aiResult = agentResult.result;
+      inputTokens = agentResult.inputTokens;
+      outputTokens = agentResult.outputTokens;
+      estimatedFees = agentResult.estimatedFees;
       if (agentResult.searchLog.length > 0) {
         searchLog = agentResult.searchLog;
         webSources = { [webModel]: agentResult.searchLog.map((s) => s.result).join('\n\n') };

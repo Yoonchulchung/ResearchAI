@@ -239,7 +239,7 @@ export class OverviewService {
   // *********** //
   // Analytics   //
   // *********** //
-  async getAnalytics(range: string) {
+  async getAnalytics(range: string, granularity = '1d') {
     const all = await this.tokenHistoryRepository.findAll();
 
     const now = new Date();
@@ -257,19 +257,34 @@ export class OverviewService {
     // model id → display name
     const modelNameMap = new Map<string, string>(MODELS.map((m) => [m.id, m.name]));
 
-    // Group by date + model
+    const getKey = (createdAt: Date): string => {
+      const d = new Date(createdAt);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      if (granularity === '1h') {
+        const hh = String(d.getHours()).padStart(2, '0');
+        return `${mm}/${dd} ${hh}:00`;
+      }
+      if (granularity === '4h') {
+        const hh = String(Math.floor(d.getHours() / 4) * 4).padStart(2, '0');
+        return `${mm}/${dd} ${hh}:00`;
+      }
+      return `${mm}/${dd}`;
+    };
+
+    // Group by key + model
     const byDateModel = new Map<string, Map<string, number>>();
     const modelSet = new Set<string>();
     let totalCost = 0;
 
     for (const entry of filtered) {
-      const date = new Date(entry.createdAt).toISOString().slice(0, 10);
+      const key = getKey(new Date(entry.createdAt));
       const modelName = modelNameMap.get(entry.aiModel) ?? entry.aiModel;
       modelSet.add(modelName);
       totalCost += entry.estimatedFees ?? 0;
 
-      if (!byDateModel.has(date)) byDateModel.set(date, new Map());
-      const dateMap = byDateModel.get(date)!;
+      if (!byDateModel.has(key)) byDateModel.set(key, new Map());
+      const dateMap = byDateModel.get(key)!;
       dateMap.set(modelName, (dateMap.get(modelName) ?? 0) + (entry.estimatedFees ?? 0));
     }
 

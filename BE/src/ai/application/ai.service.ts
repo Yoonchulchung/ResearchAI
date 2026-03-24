@@ -32,8 +32,11 @@ export class AiService {
     searchFn: (query: string) => Promise<string>,
     maxIterations = 5,
     signal?: AbortSignal,
-  ): Promise<{ result: string; searchLog: Array<{ query: string; result: string }> }> {
+  ): Promise<{ result: string; searchLog: Array<{ query: string; result: string }>; inputTokens: number; outputTokens: number; estimatedFees: number }> {
     const searchLog: Array<{ query: string; result: string }> = [];
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let estimatedFees = 0;
     const provider = getProvider(aiModel);
 
     const anthropicTool = {
@@ -62,8 +65,11 @@ export class AiService {
 
     for (let i = 0; i < maxIterations; i++) {
       const result = await this.aiProvider.call(aiModel, system, messages, { tools, signal });
+      inputTokens += result.inputTokens;
+      outputTokens += result.outputTokens;
+      estimatedFees += result.estimatedFees;
       if (!result.toolCalls?.length || result.stopReason === 'end_turn') {
-        return { result: result.text, searchLog };
+        return { result: result.text, searchLog, inputTokens, outputTokens, estimatedFees };
       }
 
       if (provider === AIProvider.ANTHROPIC) {
@@ -110,7 +116,7 @@ export class AiService {
       : Array.isArray(lastAssistant?.content)
         ? (lastAssistant.content.find((c: any) => c.type === 'text')?.text ?? '')
         : '';
-    return { result: lastText, searchLog };
+    return { result: lastText, searchLog, inputTokens, outputTokens, estimatedFees };
   }
 
   /**

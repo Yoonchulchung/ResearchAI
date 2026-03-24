@@ -5,6 +5,25 @@ import { getCircuitBreaker } from '../../../shared/resilience/circuit-breaker';
 const policy = getCircuitBreaker('duckduckgo');
 
 const MAX_RESULTS = 8;
+const FETCH_LIMIT = MAX_RESULTS * 2; // 블랙리스트 필터 후 MAX_RESULTS 확보용
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5분
+const PAGE_CONTENT_TIMEOUT_MS = 5_000;
+const PAGE_CONTENT_MAX_CHARS = 2_000;
+
+const BLOCKED_DOMAINS = ['tistory.com', 'blog.naver.com', 'cafe.naver.com'];
+
+function isBlockedUrl(url: string): boolean {
+  return BLOCKED_DOMAINS.some((d) => url.includes(d));
+}
+
+interface SearchResult {
+  title: string;
+  snippet: string;
+  url: string;
+}
+
+// TTL 캐시
+const cache = new Map<string, { value: string; expiresAt: number }>();
 
 const USER_AGENTS = [
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -27,24 +46,24 @@ function decodeRedirectUrl(href: string): string {
   }
 }
 
-function parseResults(html: string): string {
+function parseResults(html: string): SearchResult[] {
   const $ = cheerio.load(html);
-  const results: string[] = [];
+  const results: SearchResult[] = [];
 
   // HTML endpoint 셀렉터 (https://html.duckduckgo.com/html/)
   $('.result:not(.result--ad)').each((_, el) => {
-    if (results.length >= MAX_RESULTS) return false as any;
+    if (results.length >= FETCH_LIMIT) return false as any;
     const title = $(el).find('.result__title').text().trim();
     const snippet = $(el).find('.result__snippet').text().trim();
     const rawHref = $(el).find('a.result__a').attr('href') ?? '';
     const url = decodeRedirectUrl(rawHref);
-    if (title) results.push(`[${title}]\n${snippet}\n출처: ${url}`);
+    if (title && !isBlockedUrl(url)) results.push({ title, snippet, url });
   });
 
   // JS 렌더링 결과 셀렉터 (Puppeteer fallback)
   if (results.length === 0) {
     $('[data-testid="result"], li[data-layout]').each((_, el) => {
-      if (results.length >= MAX_RESULTS) return false as any;
+      if (results.length >= FETCH_LIMIT) return false as any;
       const title =
         $(el).find('[data-testid="result-title-a"] span').text().trim() ||
         $(el).find('h2').text().trim();
@@ -55,16 +74,50 @@ function parseResults(html: string): string {
         $(el).find('a[data-testid="result-title-a"]').attr('href') ||
         $(el).find('a[href^="http"]').attr('href') ||
         '';
-      if (title) results.push(`[${title}]\n${snippet}\n출처: ${url}`);
+      if (title && !isBlockedUrl(url)) results.push({ title, snippet, url });
     });
   }
 
-  return results.join('\n\n');
+  return results.slice(0, MAX_RESULTS);
+}
+
+/** 각 결과 URL의 실제 페이지 본문 크롤링 */
+async function fetchPageContent(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': randomUA(),
+        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+      },
+      signal: AbortSignal.timeout(PAGE_CONTENT_TIMEOUT_MS),
+    });
+    if (!res.ok) return '';
+    const $ = cheerio.load(await res.text());
+    $('script, style, nav, footer, header, aside, [class*="ad"], [id*="ad"]').remove();
+    const text = ($('article, main, [class*="content"], [id*="content"]').first().text() || $('body').text())
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, PAGE_CONTENT_MAX_CHARS);
+    return text;
+  } catch {
+    return '';
+  }
+}
+
+/** 검색 결과에 실제 페이지 콘텐츠를 병렬로 추가 */
+async function enrichResults(results: SearchResult[]): Promise<string> {
+  const enriched = await Promise.all(
+    results.map(async (r) => {
+      const content = await fetchPageContent(r.url);
+      return `[${r.title}]\n${content || r.snippet}\n출처: ${r.url}`;
+    }),
+  );
+  return enriched.join('\n\n');
 }
 
 /** 1차: fetch + cheerio — 브라우저 없이 빠르게 처리 */
-async function searchViaHtml(query: string): Promise<string> {
-  const body = new URLSearchParams({ q: query, kl: 'us-en' }).toString();
+async function searchViaHtml(query: string): Promise<SearchResult[]> {
+  const body = new URLSearchParams({ q: query, kl: 'kr-kr' }).toString();
   const res = await fetch('https://html.duckduckgo.com/html/', {
     method: 'POST',
     headers: {
@@ -82,7 +135,7 @@ async function searchViaHtml(query: string): Promise<string> {
 }
 
 /** 2차: Puppeteer fallback — HTML 방식이 막혔을 때 */
-async function searchViaPuppeteer(query: string): Promise<string> {
+async function searchViaPuppeteer(query: string): Promise<SearchResult[]> {
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
@@ -92,10 +145,9 @@ async function searchViaPuppeteer(query: string): Promise<string> {
     await page.setUserAgent(randomUA());
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8' });
     await page.goto(
-      `https://duckduckgo.com/?q=${encodeURIComponent(query)}&ia=web`,
+      `https://duckduckgo.com/?q=${encodeURIComponent(query)}&ia=web&kl=kr-kr`,
       { waitUntil: 'networkidle2', timeout: 20_000 },
     );
-    // 결과 로드 대기
     await page.waitForSelector('[data-testid="result"], .result', { timeout: 8_000 }).catch(() => {});
     return parseResults(await page.content());
   } finally {
@@ -104,14 +156,21 @@ async function searchViaPuppeteer(query: string): Promise<string> {
 }
 
 export async function searchDuckDuckGo(query: string): Promise<string> {
-  return policy.execute(async () => {
+  // 캐시 확인
+  const cached = cache.get(query);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  const result = await policy.execute(async () => {
+    let results: SearchResult[];
     try {
-      const result = await searchViaHtml(query);
-      // 결과가 너무 짧으면(빈 응답 or 봇 차단) Puppeteer로 재시도
-      if (result.length > 100) return result;
-      return await searchViaPuppeteer(query);
+      results = await searchViaHtml(query);
+      if (results.length === 0) results = await searchViaPuppeteer(query);
     } catch {
-      return searchViaPuppeteer(query);
+      results = await searchViaPuppeteer(query);
     }
+    return enrichResults(results);
   });
+
+  cache.set(query, { value: result, expiresAt: Date.now() + CACHE_TTL_MS });
+  return result;
 }
