@@ -58,6 +58,8 @@ interface Props {
   onRevert: () => void;
   companyName: string;
   setCompanyName: (v: string) => void;
+  jobTitle: string;
+  setJobTitle: (v: string) => void;
   onFetchProfile: () => void;
   profileLoading: boolean;
   highlightFlash?: boolean;
@@ -77,6 +79,8 @@ export function EditorPanel({
   onRevert,
   companyName,
   setCompanyName,
+  jobTitle,
+  setJobTitle,
   onFetchProfile,
   profileLoading,
   highlightFlash,
@@ -92,7 +96,7 @@ export function EditorPanel({
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-white border-r border-slate-200/60 overflow-hidden">
 
-      {/* Company name input */}
+      {/* Company name + Job title input */}
       <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 shrink-0">
         <span className="text-xs text-slate-400 shrink-0">지원 기업</span>
         <input
@@ -100,6 +104,14 @@ export function EditorPanel({
           onChange={(e) => setCompanyName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onFetchProfile(); }}
           placeholder="기업명 입력..."
+          className="w-32 text-xs text-slate-700 bg-transparent border-0 focus:outline-none placeholder-slate-300 min-w-0"
+        />
+        <span className="text-slate-200 text-xs">|</span>
+        <span className="text-xs text-slate-400 shrink-0">직무</span>
+        <input
+          value={jobTitle}
+          onChange={(e) => setJobTitle(e.target.value)}
+          placeholder="직무명 입력..."
           className="flex-1 text-xs text-slate-700 bg-transparent border-0 focus:outline-none placeholder-slate-300 min-w-0"
         />
         <button

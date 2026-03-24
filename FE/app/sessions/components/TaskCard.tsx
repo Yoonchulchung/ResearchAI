@@ -50,6 +50,22 @@ const BADGE_LABEL: Record<TaskStatus, string> = {
   [TaskStatus.IDLE]: "대기",
 };
 
+function BatteryGauge({ score, reason }: { score: number; reason?: string }) {
+  const [fill, border, text] =
+    score >= 71 ? ["#10b981", "#a7f3d0", "#059669"]
+    : score >= 41 ? ["#f59e0b", "#fde68a", "#d97706"]
+    : ["#ef4444", "#fecaca", "#dc2626"];
+  return (
+    <div className="flex items-center cursor-help" title={reason ?? `신뢰도 ${score}%`}>
+      <div className="relative rounded-md overflow-hidden" style={{ width: 52, height: 20, border: `1.5px solid ${border}`, background: "#f8fafc" }}>
+        <div className="absolute left-0 top-0 bottom-0 transition-all duration-500" style={{ width: `${score}%`, backgroundColor: fill, opacity: 0.28 }} />
+        <span className="absolute inset-0 flex items-center justify-center text-2xs font-bold tabular-nums" style={{ color: text }}>{score}%</span>
+      </div>
+      <div className="w-1.5 h-2.5 rounded-r-sm" style={{ backgroundColor: border }} />
+    </div>
+  );
+}
+
 const MARKDOWN_PROSE = `px-5 py-4 bg-slate-50/60 max-h-[65vh] overflow-y-auto prose prose-slate max-w-none font-sans
   [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
   [&_th]:bg-slate-200 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
@@ -85,6 +101,7 @@ export function TaskCard({
   onCancel,
   onDelete,
   onConfidenceUpdate,
+  onOpen,
 }: {
   task: Task;
   status: TaskStatus;
@@ -103,6 +120,7 @@ export function TaskCard({
   onCancel: () => void;
   onDelete: () => void;
   onConfidenceUpdate?: (confidence: { score: number; reason: string }) => void;
+  onOpen?: (tab: "result" | "duckduckgo" | "detail") => void;
 }) {
   const expandedKey = `task-expanded:${task.itemId}`;
   const [expanded, setExpandedRaw] = useState(() => {
@@ -242,6 +260,8 @@ export function TaskCard({
   const handleCardClick = () => {
     if (status === TaskStatus.IDLE) {
       onRun(selectedRunModel || undefined, selectedRunWebModel || undefined, isNonBuiltinWebEngine ? selectedRunFilterModel || undefined : undefined);
+    } else if (status === TaskStatus.DONE && onOpen) {
+      onOpen("result");
     } else if (hasContent) setExpanded((e) => !e);
   };
 
@@ -258,7 +278,7 @@ export function TaskCard({
         style={{
           cursor: status === "idle" || hasContent ? "pointer" : "default",
         }}
-        className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+        className={`flex items-center gap-3 px-4 transition-all duration-200 ${expanded ? "py-2" : "py-3"} ${
           status === "running" ? "bg-indigo-50/50" : "hover:bg-slate-50/60"
         }`}
       >
@@ -267,10 +287,7 @@ export function TaskCard({
           {status === TaskStatus.RUNNING ? (
             <span className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin inline-block" />
           ) : status === TaskStatus.DONE ? (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-emerald-500">
-              <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M5 8.5L7 10.5L11 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            null
           ) : status === TaskStatus.ERROR ? (
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-red-400">
               <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
@@ -292,32 +309,32 @@ export function TaskCard({
           <div className="font-medium text-slate-800 text-sm leading-snug truncate">
             {task.title}
           </div>
-          <div className="text-xs text-slate-400 mt-0.5 truncate">{animatedText}</div>
+          {!expanded && <div className="text-xs text-slate-400 mt-0.5 truncate">{animatedText}</div>}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {availableSources.length > 0 && (
-            <span className="text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-full">
-              {availableSources.length}개
-            </span>
+          {(task.referenceCount != null && task.referenceCount > 0) && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onOpen?.("duckduckgo"); }}
+              className="text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-full hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+              title={`${task.referenceCount}개의 참고자료로 분석`}
+            >
+              참고 {task.referenceCount}개
+            </button>
           )}
           {status === TaskStatus.DONE && task.confidence != null && (
-            <span
-              title={task.confidence.reason}
-              className={`text-xs font-bold px-2 py-0.5 rounded-full cursor-help tabular-nums ${
-                task.confidence.score >= 71
-                  ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                  : task.confidence.score >= 41
-                  ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
-                  : "bg-red-50 text-red-600 ring-1 ring-red-200"
-              }`}
+            <button
+              onClick={(e) => { e.stopPropagation(); onOpen?.("detail"); }}
+              className="rounded-md"
             >
-              {task.confidence.score}%
+              <BatteryGauge score={task.confidence.score} reason={task.confidence.reason} />
+            </button>
+          )}
+          {status !== TaskStatus.DONE && (
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeStyle}`}>
+              {badgeLabel}
             </span>
           )}
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeStyle}`}>
-            {badgeLabel}
-          </span>
           {status === "running" && (
             <button
               onClick={(e) => { e.stopPropagation(); onCancel(); }}

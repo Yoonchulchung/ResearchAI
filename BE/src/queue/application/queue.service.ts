@@ -159,6 +159,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         phase,
         result,
         webSources,
+        referenceCount: result ? (result.match(/\[.+?\]\(https?:\/\/[^)]+\)/g) ?? []).length : undefined,
       })),
     };
   }

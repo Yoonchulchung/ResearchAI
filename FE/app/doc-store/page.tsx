@@ -141,7 +141,8 @@ export default function DocStorePage() {
           docSearch={docs.docSearch}
           setDocSearch={docs.setDocSearch}
           activePopup={popup.activePopup}
-          onCardClick={(doc, el) => {
+          onDocOpen={(doc) => { window.location.href = `/doc-write?docId=${doc.id}`; }}
+          onDetailClick={(doc, el) => {
             if (popup.activePopup?.data.id === doc.id) { popup.closePopup(); return; }
             popup.openPopup("doc", doc, el);
           }}

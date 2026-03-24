@@ -9,7 +9,6 @@ import { SessionHeader } from "@/sessions/components/SessionHeader";
 import { reEvaluateConfidence } from "@/lib/api/ai";
 import { SessionSkeleton } from "@/sessions/components/SessionSkeleton";
 import { ChatSection } from "@/sessions/components/ChatSection";
-import { SummarySection } from "@/sessions/components/SummarySection";
 import { DetailPanel } from "@/sessions/components/DetailPanel";
 import { TopicInput, AttachedFile } from "@/components/TopicInput";
 import { ModelDefinition } from "@/types";
@@ -18,6 +17,7 @@ import { useSessionData } from "./hooks/useSessionData";
 import { useTaskRunner } from "./hooks/useTaskRunner";
 import { useChatHandler } from "./hooks/useChatHandler";
 import { useCompaction } from "./hooks/useCompaction";
+import { TaskPanel, TaskPanelTab } from "@/sessions/components/TaskPanel";
 
 const ChatInputArea = memo(function ChatInputArea({
   onSend,
@@ -106,6 +106,10 @@ export default function SessionPage() {
   const [expandedDetail, setExpandedDetail] = useState(() => {
     try { return sessionStorage.getItem(`detail-expanded:${id}`) === "1"; } catch { return false; }
   });
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const prevShowDetailRef = useRef(false);
+  const [selectedTaskTab, setSelectedTaskTab] = useState<TaskPanelTab>("result");
+  const [showTaskPanel, setShowTaskPanel] = useState(false);
   const [confidenceOverrides, setConfidenceOverrides] = useState<Record<string, { score: number; reason: string }>>({});
   const [reEvalProgress, setReEvalProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -160,6 +164,19 @@ export default function SessionPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [models.length]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (showTaskPanel) { setShowTaskPanel(false); return; }
+      if (showDetail) {
+        try { sessionStorage.setItem(`detail-open:${id}`, "0"); sessionStorage.setItem(`detail-expanded:${id}`, "0"); } catch {}
+        setShowDetail(false); setExpandedDetail(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showTaskPanel, showDetail, id]);
+
   useEffect(() => { setDeletedItemIds(new Set()); }, [id]);
   useEffect(() => {
     try {
@@ -208,7 +225,7 @@ export default function SessionPage() {
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden relative">
       <SessionHeader
         topic={session.topic}
         model={session.researchCloudAIModel}
@@ -240,12 +257,8 @@ export default function SessionPage() {
 
       <div className="flex flex-1 min-h-0">
         {/* 왼쪽: 태스크 목록 + 채팅 */}
-        <div className={`flex flex-col flex-1 min-w-0 overflow-hidden relative ${expandedDetail ? "hidden" : ""}`}>
+        <div className={`flex flex-col flex-1 min-w-0 overflow-hidden relative transition-[padding-right] duration-300 ease-in-out ${expandedDetail ? "hidden" : (showDetail || showTaskPanel) ? "pr-[52%]" : "pr-0"}`}>
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6">
-            <div className="px-6">
-              <SummarySection sessionId={id} topic={session.topic} localAiModels={models.filter((m) => m.provider === "ollama")} allDone={allDone} summaryState={session.summaryState ?? null} />
-            </div>
-
             <div className="space-y-3 px-6">
               {tasks.map((task) => {
                 const mergedTask = confidenceOverrides[task.itemId]
@@ -270,6 +283,26 @@ export default function SessionPage() {
                       onRun={(aiModel, runWebModel, filterModel) => handleRunTask(task, aiModel, runWebModel, filterModel)}
                       onCancel={() => handleCancelItem(task)}
                       onDelete={() => handleDeleteItem(task, () => setDeletedItemIds((prev: Set<string>) => new Set([...prev, task.itemId])))}
+                      onOpen={(tab) => {
+                        if (tab === "result") {
+                          // 카드 클릭 → 한 번에 보기 (DetailPanel)
+                          if (showDetail && selectedTaskId === task.id && !showTaskPanel) {
+                            setShowDetail(false);
+                            prevShowDetailRef.current = false;
+                          } else {
+                            prevShowDetailRef.current = showDetail && !showTaskPanel;
+                            setSelectedTaskId(task.id); setShowDetail(true); setShowTaskPanel(false);
+                            try { sessionStorage.setItem(`detail-open:${id}`, "1"); } catch {}
+                          }
+                        } else {
+                          // 상세/DDG 버튼 → TaskPanel
+                          if (showTaskPanel && selectedTaskId === task.id && selectedTaskTab === tab) {
+                            setShowTaskPanel(false);
+                          } else {
+                            setSelectedTaskId(task.id); setSelectedTaskTab(tab); setShowTaskPanel(true); setShowDetail(false);
+                          }
+                        }
+                      }}
                       onConfidenceUpdate={(c) => handleConfidenceUpdate(task.itemId, c)}
                     />
                   </ScrollReveal>
@@ -303,12 +336,29 @@ export default function SessionPage() {
           </div>
         </div>
 
-        {/* 오른쪽: 한 번에 보기 패널 */}
-        {showDetail && (
+      </div>
+
+      {/* 오른쪽 패널 (전체 높이 오버레이) */}
+      <div className={`absolute inset-y-0 right-0 z-20 transition-[width] duration-300 ease-in-out overflow-hidden border-l border-slate-200 shadow-xl ${(showDetail || showTaskPanel) ? (expandedDetail ? "w-full" : "w-[52%]") : "w-0"}`}>
+        {showTaskPanel && selectedTaskId != null ? (() => {
+          const selectedTask = tasks.find((t) => t.id === selectedTaskId);
+          if (!selectedTask) return null;
+          return (
+            <TaskPanel
+              task={selectedTask}
+              aiResult={aiResult[selectedTaskId]}
+              webModel={webModel[selectedTaskId]}
+              initialTab={selectedTaskTab}
+              onClose={() => setShowTaskPanel(false)}
+            />
+          );
+        })() : showDetail ? (
           <DetailPanel
             session={session}
             sessionId={id}
             expanded={expandedDetail}
+            selectedTaskId={selectedTaskId}
+            instantScroll={prevShowDetailRef.current}
             onExpand={() => setExpandedDetail((v) => {
               try { sessionStorage.setItem(`detail-expanded:${id}`, v ? "0" : "1"); } catch {}
               return !v;
@@ -319,7 +369,7 @@ export default function SessionPage() {
               setExpandedDetail(false);
             }}
           />
-        )}
+        ) : null}
       </div>
     </div>
   );

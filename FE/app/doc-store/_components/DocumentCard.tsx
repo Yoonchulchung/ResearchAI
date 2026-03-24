@@ -7,10 +7,11 @@ import { IconDots } from "./icons";
 interface Props {
   doc: SavedDocument;
   isActive: boolean;
-  onCardClick: (el: HTMLDivElement) => void;
+  onDocOpen: () => void;
+  onDetailClick: (el: HTMLDivElement) => void;
 }
 
-export function DocumentCard({ doc, isActive, onCardClick }: Props) {
+export function DocumentCard({ doc, isActive, onDocOpen, onDetailClick }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const preview = doc.content.replace(/#{1,6}\s/g, "").replace(/[*_`>\-]/g, "").trim();
   const previewText = preview.length > 120 ? preview.slice(0, 120) + "…" : preview;
@@ -21,7 +22,7 @@ export function DocumentCard({ doc, isActive, onCardClick }: Props) {
   return (
     <div
       ref={ref}
-      onClick={(e) => { e.stopPropagation(); ref.current && onCardClick(ref.current); }}
+      onClick={() => onDocOpen()}
       className={`relative bg-white border rounded-2xl p-4 flex flex-col gap-3 hover:shadow-md transition-all min-h-64 cursor-pointer select-none ${
         isActive ? "border-indigo-300 shadow-md ring-2 ring-indigo-100" : "border-slate-200"
       }`}
@@ -37,7 +38,13 @@ export function DocumentCard({ doc, isActive, onCardClick }: Props) {
             </span>
           )}
         </div>
-        <span className="p-1 text-slate-300 shrink-0"><IconDots /></span>
+        <button
+          onClick={(e) => { e.stopPropagation(); ref.current && onDetailClick(ref.current); }}
+          className="p-1 text-slate-300 hover:text-slate-500 transition-colors shrink-0"
+          title="상세"
+        >
+          <IconDots />
+        </button>
       </div>
       <h3 className="text-base font-bold text-slate-900 leading-snug">{doc.title}</h3>
       <p className="text-sm text-slate-400 leading-relaxed flex-1 line-clamp-2">{previewText}</p>

@@ -16,6 +16,7 @@ export class ItemResponseDto {
   inputTokens: number | null;
   outputTokens: number | null;
   estimatedFees: number | null;
+  referenceCount: number | null;
 
   static from(item: ItemWithResult): ItemResponseDto {
     const dto = new ItemResponseDto();
@@ -37,6 +38,9 @@ export class ItemResponseDto {
     dto.inputTokens = item.inputTokens;
     dto.outputTokens = item.outputTokens;
     dto.estimatedFees = item.estimatedFees;
+    dto.referenceCount = item.result
+      ? (item.result.match(/\[.+?\]\(https?:\/\/[^)]+\)/g) ?? []).length
+      : null;
     return dto;
   }
 }

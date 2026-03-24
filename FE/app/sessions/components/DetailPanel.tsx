@@ -5,7 +5,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Session } from "@/types";
 import { markdownComponents } from "@/lib/markdown";
-import { getConfig, setConfig } from "@/lib/api";
 
 const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20] as const;
 const DEFAULT_FONT_SIZE_IDX = 2; // 14px
@@ -23,17 +22,42 @@ interface Props {
   session: Session;
   sessionId: string;
   expanded?: boolean;
+  selectedTaskId?: number | null;
+  instantScroll?: boolean;
   onExpand?: () => void;
   onClose: () => void;
 }
 
-export function DetailPanel({ session, sessionId, expanded, onExpand, onClose }: Props) {
+export function DetailPanel({ session, sessionId, expanded, selectedTaskId, instantScroll, onExpand, onClose }: Props) {
   const doneTasks = (session.items ?? []).filter((t) => t.aiResult);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [fontSizeIdx, setFontSizeIdx] = useState(DEFAULT_FONT_SIZE_IDX);
+  const [fontSizeIdx, setFontSizeIdx] = useState(() => {
+    try {
+      const v = localStorage.getItem("viewer_font_size_idx");
+      if (v !== null) {
+        const idx = parseInt(v, 10);
+        if (!isNaN(idx) && idx >= 0 && idx < FONT_SIZES.length) return idx;
+      }
+    } catch {}
+    return DEFAULT_FONT_SIZE_IDX;
+  });
   const fontSize = FONT_SIZES[fontSizeIdx];
-  const [bgColor, setBgColor] = useState(BG_COLORS[1].value);
+  const [bgColor, setBgColor] = useState(() => {
+    try { return localStorage.getItem("viewer_bg_color") ?? BG_COLORS[1].value; } catch {}
+    return BG_COLORS[1].value;
+  });
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // selectedTaskId 변경 시 해당 섹션으로 스크롤
+  useEffect(() => {
+    if (!selectedTaskId) return;
+    const delay = instantScroll ? 0 : 320;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`detail-task-${selectedTaskId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [selectedTaskId, instantScroll]);
 
   // 스크롤 위치 저장/복원
   useEffect(() => {
@@ -67,21 +91,10 @@ export function DetailPanel({ session, sessionId, expanded, onExpand, onClose }:
     };
   }, [sessionId]);
 
-  // 초기 로드
-  useEffect(() => {
-    getConfig().then((cfg) => {
-      if (cfg.viewer_font_size_idx !== undefined) {
-        const idx = parseInt(cfg.viewer_font_size_idx, 10);
-        if (!isNaN(idx) && idx >= 0 && idx < FONT_SIZES.length) setFontSizeIdx(idx);
-      }
-      if (cfg.viewer_bg_color) setBgColor(cfg.viewer_bg_color);
-    }).catch(() => {});
-  }, []);
-
   // 변경 시 debounce 저장
   const save = (key: string, value: string) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => setConfig(key, value).catch(() => {}), 500);
+    saveTimer.current = setTimeout(() => { try { localStorage.setItem(key, value); } catch {} }, 300);
   };
 
   const handleFontSizeIdx = (idx: number) => {
@@ -95,7 +108,7 @@ export function DetailPanel({ session, sessionId, expanded, onExpand, onClose }:
   };
 
   return (
-    <div className={`flex flex-col h-full border-l border-slate-200 shrink-0 ${expanded ? "w-full" : "w-[52%]"}`} style={{ backgroundColor: bgColor }}>
+    <div className="flex flex-col h-full w-full" style={{ backgroundColor: bgColor }}>
       {/* Header */}
       <div className="px-6 py-3.5 border-b border-slate-200 flex items-center gap-3 shrink-0 bg-white">
         <h2 className="font-bold text-sm text-slate-800 truncate flex-1">{session.topic}</h2>
@@ -172,7 +185,7 @@ export function DetailPanel({ session, sessionId, expanded, onExpand, onClose }:
         ) : (
           <div className="space-y-8">
             {doneTasks.map((task) => (
-              <section key={task.id}>
+              <section key={task.id} id={`detail-task-${task.id}`}>
                 <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2" style={{ fontSize }}>
                   {task.title}
                 </h3>

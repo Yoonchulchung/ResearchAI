@@ -9,6 +9,7 @@ export class QueueJobSummaryDto {
   status: QueueJobStatus;
   phase?: QueueJobPhase;
   webSources?: SearchSources;
+  referenceCount?: number;
 }
 
 export class QueueStatusDto {

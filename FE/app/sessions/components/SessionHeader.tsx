@@ -29,21 +29,6 @@ interface Props {
   onReEvaluateAll?: (model: string) => void;
 }
 
-function ConfidenceBadge({ score }: { score: number }) {
-  const color =
-    score >= 71 ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-    : score >= 41 ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
-    : "bg-red-50 text-red-600 ring-1 ring-red-200";
-  return (
-    <span
-      title="완료된 항목들의 평균 신뢰도"
-      className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full tabular-nums ${color}`}
-    >
-      <span className="text-2xs opacity-60">avg</span>
-      {score}%
-    </span>
-  );
-}
 
 function RunningSpinner() {
   return (
@@ -86,16 +71,26 @@ export function SessionHeader({
       {/* Row 1: Title + Badges + Actions */}
       <div className="flex items-start gap-3 mb-3.5">
         <div className="flex-1 min-w-0">
-          <h1 className="font-bold text-slate-900 leading-tight text-base truncate">
-            {topic}
-          </h1>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span className="inline-flex items-center text-2xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="font-bold text-slate-900 leading-tight text-base truncate">
+              {topic}
+            </h1>
+            <span
+              className="inline-flex items-center gap-1.5 text-2xs px-2 py-0.5 rounded-full font-medium shrink-0 transition-all"
+              style={avgConfidence != null ? {
+                background: `linear-gradient(to right, ${
+                  avgConfidence >= 71 ? "#d1fae5" : avgConfidence >= 41 ? "#fef3c7" : "#fee2e2"
+                } ${avgConfidence}%, #f1f5f9 ${avgConfidence}%)`,
+                color: avgConfidence >= 71 ? "#047857" : avgConfidence >= 41 ? "#b45309" : "#dc2626",
+              } : { background: "#f1f5f9", color: "#64748b" }}
+            >
               {model}
+              {avgConfidence != null && (
+                <span className="font-bold tabular-nums opacity-80">· {avgConfidence}%</span>
+              )}
             </span>
-            {avgConfidence != null && <ConfidenceBadge score={avgConfidence} />}
             {isRunning && (
-              <span className="inline-flex items-center gap-1.5 text-2xs text-indigo-500 font-medium">
+              <span className="inline-flex items-center gap-1.5 text-2xs text-indigo-500 font-medium shrink-0">
                 <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
                 분석 중
               </span>
@@ -202,7 +197,7 @@ export function SessionHeader({
       </div>
 
       {/* Row 2: Model Selectors */}
-      {hasRunSelectors && (
+      {hasRunSelectors && !allDone && (
         <div className="flex items-center gap-2 pb-3 flex-wrap">
           <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">실행 모델</span>
           {cloudAiModels && cloudAiModels.length > 0 && (

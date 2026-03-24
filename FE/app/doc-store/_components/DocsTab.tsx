@@ -10,7 +10,8 @@ interface Props {
   docSearch: string;
   setDocSearch: (v: string) => void;
   activePopup: ActivePopup;
-  onCardClick: (doc: SavedDocument, el: HTMLDivElement) => void;
+  onDocOpen: (doc: SavedDocument) => void;
+  onDetailClick: (doc: SavedDocument, el: HTMLDivElement) => void;
 }
 
 export function DocsTab({
@@ -19,7 +20,8 @@ export function DocsTab({
   docSearch,
   setDocSearch,
   activePopup,
-  onCardClick,
+  onDocOpen,
+  onDetailClick,
 }: Props) {
   return (
     <>
@@ -49,7 +51,8 @@ export function DocsTab({
                 key={doc.id}
                 doc={doc}
                 isActive={activePopup?.data.id === doc.id}
-                onCardClick={(el) => onCardClick(doc, el)}
+                onDocOpen={() => onDocOpen(doc)}
+                onDetailClick={(el) => onDetailClick(doc, el)}
               />
             ))}
           </div>

@@ -26,6 +26,7 @@ export default function DocWritePage() {
     start: number;
   } | null>(null);
 
+  const [jobTitle, setJobTitle] = useState("");
   const [companyProfile, setCompanyProfile] = useState("");
   const [profileLoading, setProfileLoading] = useState(false);
 
@@ -139,7 +140,7 @@ export default function DocWritePage() {
           <button
             onClick={() => {
               handleRunAssist(
-                "선택된 글을 평가해줘. 문장의 명확성, 논리 구조, 표현력 등을 분석하고 개선점을 제안해줘.",
+`선택된 글을 아래 항목별로 평가해줘.\n\n1. 문장 명확성 — 문장이 명확하고 이해하기 쉬운지\n2. 논리 구조 — 논리적 흐름과 일관성이 있는지\n3. 표현력 — 어휘 선택과 표현이 적절한지\n4. 구체적 스토리 — 추상적 주장에 그치지 않고 실제 경험·사례·에피소드가 구체적으로 드러나는지\n5. 직무 적합성 — ${jobTitle ? `지원 직무(${jobTitle})에 필요한 역량·경험이 잘 드러나는지` : "지원 직무에 필요한 역량·경험이 잘 드러나는지 (직무명을 입력하면 더 구체적으로 평가할 수 있습니다)"}\n\n각 항목에 대해 현재 수준을 간략히 평가하고, 개선이 필요한 부분은 구체적인 개선 방향을 제안해줘.`,
                 "글 평가",
               );
             }}
@@ -198,6 +199,8 @@ export default function DocWritePage() {
             }}
             companyName={companyName}
             setCompanyName={setCompanyName}
+            jobTitle={jobTitle}
+            setJobTitle={setJobTitle}
             onFetchProfile={fetchCompanyProfile}
             profileLoading={profileLoading}
             highlightFlash={editor.highlightFlash}

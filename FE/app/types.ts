@@ -14,6 +14,7 @@ export interface Task {
   inputTokens?: number | null;
   outputTokens?: number | null;
   estimatedFees?: number | null;
+  referenceCount?: number | null;
 }
 
 export interface WebModels {
