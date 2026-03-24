@@ -6,6 +6,7 @@ export interface Experience {
   content: string;
   category?: string;
   aiCategories?: string[] | null;
+  sourceDocId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -22,7 +23,7 @@ export function getExperiences(): Promise<Experience[]> {
   return apiFetch<Experience[]>("/experiences");
 }
 
-export function createExperience(data: { title: string; content: string; category?: string }): Promise<Experience> {
+export function createExperience(data: { title: string; content: string; category?: string; sourceDocId?: string | null }): Promise<Experience> {
   return apiFetch<Experience>("/experiences", {
     method: "POST",
     body: JSON.stringify(data),
@@ -51,5 +52,15 @@ export function suggestCategories(id: string, model: string): Promise<{ categori
   return apiFetch<{ categories: string[] }>(`/experiences/${id}/suggest-categories`, {
     method: "POST",
     body: JSON.stringify({ model }),
+  });
+}
+
+export function extractExperiencesFromDoc(
+  content: string,
+  model: string,
+): Promise<{ title: string; content: string }[]> {
+  return apiFetch<{ title: string; content: string }[]>("/experiences/extract-from-doc", {
+    method: "POST",
+    body: JSON.stringify({ content, model }),
   });
 }

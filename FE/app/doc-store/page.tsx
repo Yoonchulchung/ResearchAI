@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
+
 import type { Experience } from "@/lib/api/experiences";
+import type { SavedDocument } from "@/lib/api/documents";
+import { extractExperiencesFromDoc } from "@/lib/api/experiences";
 import { useDocuments } from "./_hooks/useDocuments";
 import { useExperiences } from "./_hooks/useExperiences";
 import { useCardPopup } from "./_hooks/useCardPopup";
@@ -11,16 +14,33 @@ import { CardPopup } from "./_components/CardPopup";
 import { DocsTab } from "./_components/DocsTab";
 import { ExperienceModal } from "./_components/ExperienceModal";
 import { ExperienceTab } from "./_components/ExperienceTab";
+import { ExtractExpModal } from "./_components/ExtractExpModal";
 import { IconPlus } from "./_components/icons";
 
 export default function DocStorePage() {
-  const router = useRouter();
+
   const [tab, setTab] = useState<"docs" | "exp">("docs");
+  const [extracting, setExtracting] = useState(false);
+  const [extractModal, setExtractModal] = useState<{
+    doc: SavedDocument;
+    items: { title: string; content: string }[];
+  } | null>(null);
 
   const docs = useDocuments();
   const exp = useExperiences();
   const popup = useCardPopup();
   const ai = useAiSuggest(exp.experiences);
+
+  const handleDocExtract = async (doc: SavedDocument) => {
+    popup.closePopup();
+    setExtracting(true);
+    try {
+      const items = await extractExperiencesFromDoc(doc.content, "claude-haiku-4-5-20251001");
+      setExtractModal({ doc, items });
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   // 팝업 닫기 + 삭제 조합 핸들러
   const handleDocDelete = (id: string) => {
@@ -98,7 +118,7 @@ export default function DocStorePage() {
         {/* 액션 버튼 */}
         {tab === "docs" && (
           <button
-            onClick={() => router.push("/doc-write")}
+            onClick={() => { window.location.href = "/doc-write"; }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
           >
             <IconPlus /> 문서 작성
@@ -161,20 +181,41 @@ export default function DocStorePage() {
         />
       )}
 
-      {popup.activePopup && (
+      {extracting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
+          <div className="bg-white rounded-2xl shadow-xl px-6 py-5 flex items-center gap-3">
+            <span className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+            <span className="text-sm text-slate-600">AI가 경험을 추출하고 있습니다...</span>
+          </div>
+        </div>
+      )}
+
+      {extractModal && (
+        <ExtractExpModal
+          docId={extractModal.doc.id}
+          docTitle={extractModal.doc.title}
+          items={extractModal.items}
+          onClose={() => setExtractModal(null)}
+          onSaved={() => { exp.reload(); setTab("exp"); }}
+        />
+      )}
+
+      {popup.activePopup && createPortal(
         <CardPopup
           activePopup={popup.activePopup}
           popupVisible={popup.popupVisible}
           aiSuggestions={ai.aiSuggestions}
           suggestingIds={ai.suggestingIds}
           onClose={popup.closePopup}
-          onDocOpen={(id) => { popup.closePopup(); router.push(`/doc-write?docId=${id}`); }}
+          onDocOpen={(id) => { window.location.href = `/doc-write?docId=${id}`; }}
           onDocDelete={handleDocDelete}
+          onDocExtract={handleDocExtract}
           onExpEdit={handleExpEdit}
           onExpDelete={handleExpDelete}
           onSuggestOne={ai.handleSuggestOne}
           onApplyCategory={handleApplyCategory}
-        />
+        />,
+        document.body,
       )}
     </div>
   );

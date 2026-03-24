@@ -16,13 +16,13 @@ export class DocumentsController {
   }
 
   @Post()
-  create(@Body() body: { title: string; content: string }) {
-    return this.service.create(body.title, body.content);
+  create(@Body() body: { title: string; content: string; companyName?: string }) {
+    return this.service.create(body.title, body.content, body.companyName);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: { title?: string; content?: string }) {
-    return this.service.update(id, body.title, body.content);
+  update(@Param('id') id: string, @Body() body: { title?: string; content?: string; companyName?: string }) {
+    return this.service.update(id, body.title, body.content, body.companyName);
   }
 
   @Delete(':id')

@@ -9,12 +9,14 @@ import { useResize } from "./_hooks/useResize";
 import { AiPanel } from "./_components/AiPanel";
 import { EditorPanel } from "./_components/EditorPanel";
 import { ResizeDivider } from "./_components/ResizeDivider";
+import { enqueueCompanyProfile, streamCompanyProfile } from "@/lib/api/ai";
 
 import { IconDownload } from "./_components/icons";
 
 export default function DocWritePage() {
   const editor = useEditor();
-  const docSave = useDocSave(editor.setContent);
+  const [companyName, setCompanyName] = useState("");
+  const docSave = useDocSave(editor.setContent, setCompanyName);
   const ai = useAiAssist(editor.setContent);
   const rag = useRag();
   const { splitRatio, containerRef, startResize, isDragging } = useResize();
@@ -24,13 +26,36 @@ export default function DocWritePage() {
     start: number;
   } | null>(null);
 
+  const [companyProfile, setCompanyProfile] = useState("");
+  const [profileLoading, setProfileLoading] = useState(false);
+
+  const fetchCompanyProfile = async () => {
+    if (!companyName.trim() || profileLoading) return;
+    setProfileLoading(true);
+    setCompanyProfile("");
+    let accumulated = "";
+    try {
+      const { jobId } = await enqueueCompanyProfile(companyName, ai.model);
+      await streamCompanyProfile(jobId, (event) => {
+        if (event.type === "chunk") {
+          accumulated += event.text;
+          setCompanyProfile(accumulated);
+        }
+      });
+    } catch {
+      setCompanyProfile("인재상 조회에 실패했습니다.");
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
         if (!editor.content.trim() || docSave.saving) return;
         if (docSave.savedDocId) {
-          docSave.handleSave(editor.content);
+          docSave.handleSave(editor.content, companyName);
         } else {
           docSave.setSaveTitleInput("");
           docSave.setSaveModal(true);
@@ -41,9 +66,14 @@ export default function DocWritePage() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [editor.content, docSave]);
 
-  const handleRunAssist = (instruction: string, userLabel?: string) => {
+  const handleRunAssist = (instruction: string, userLabel?: string, skipCompanyCtx?: boolean) => {
+    const companyCtx = skipCompanyCtx ? "" : companyProfile
+      ? `## 지원 기업 정보\n기업명: ${companyName}\n\n### 인재상\n${companyProfile}\n\n이 기업의 인재상을 반드시 고려하여 작업해주세요.\n\n---\n\n`
+      : companyName.trim()
+        ? `## 지원 기업\n기업명: ${companyName}\n\n---\n\n`
+        : "";
     ai.runAssist(
-      instruction,
+      companyCtx + instruction,
       editor.content,
       editor.selectedText,
       rag.selectedExperiences,
@@ -66,7 +96,7 @@ export default function DocWritePage() {
         <div className="flex-1" />
 
         <button
-          onClick={() => docSave.handleSave(editor.content)}
+          onClick={() => docSave.handleSave(editor.content, companyName)}
           disabled={!editor.content.trim() || docSave.saving}
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
             docSave.saveSuccess
@@ -166,6 +196,11 @@ export default function DocWritePage() {
               );
               setPendingImprovement(null);
             }}
+            companyName={companyName}
+            setCompanyName={setCompanyName}
+            onFetchProfile={fetchCompanyProfile}
+            profileLoading={profileLoading}
+            highlightFlash={editor.highlightFlash}
           />
         </div>
 
@@ -190,6 +225,9 @@ export default function DocWritePage() {
             onRunAssist={handleRunAssist}
             onApplyResult={ai.applyResult}
             onCopyText={ai.copyText}
+            companyName={companyName}
+            companyProfile={companyProfile}
+            profileLoading={profileLoading}
           />
         </div>
       </div>

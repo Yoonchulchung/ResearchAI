@@ -19,16 +19,17 @@ export class DocumentsService {
     return this.repo.findOne({ where: { id } });
   }
 
-  async create(title: string, content: string): Promise<DocumentEntity> {
-    const entity = this.repo.create({ id: randomUUID(), title, content });
+  async create(title: string, content: string, companyName?: string): Promise<DocumentEntity> {
+    const entity = this.repo.create({ id: randomUUID(), title, content, companyName: companyName ?? null });
     return this.repo.save(entity);
   }
 
-  async update(id: string, title?: string, content?: string): Promise<DocumentEntity | null> {
+  async update(id: string, title?: string, content?: string, companyName?: string): Promise<DocumentEntity | null> {
     const entity = await this.repo.findOne({ where: { id } });
     if (!entity) return null;
     if (title !== undefined) entity.title = title;
     if (content !== undefined) entity.content = content;
+    if (companyName !== undefined) entity.companyName = companyName || null;
     return this.repo.save(entity);
   }
 

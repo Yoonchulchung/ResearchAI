@@ -7,7 +7,7 @@ import { MODELS, PROSE_CLASS } from "../_constants";
 import type { AssistAction, ChatMessage } from "../_types";
 import {
   IconAppend, IconContinue, IconCopy, IconEvaluate,
-  IconImprove, IconInsert, IconSection, IconSummarize,
+  IconImprove, IconInsert, IconPlagiarism, IconSection, IconSummarize,
 } from "./icons";
 
 // ─── Quick actions ────────────────────────────────────────────────────────────
@@ -41,19 +41,43 @@ const QUICK_ACTIONS: AssistAction[] = [
     instruction: (c) => `아래 문서의 핵심 내용을 간결하게 요약해주세요:\n\n${c}`,
   },
   {
+    key: "plagiarism",
+    label: "AI 표절률 검사",
+    skipCompanyCtx: true,
+    icon: <IconPlagiarism />,
+    instruction: (c) => `당신은 AI 생성 텍스트 감지 전문가입니다. 아래 문서를 분석하여 AI 표절 가능성을 평가해주세요.
+
+## 분석 항목
+1. **AI 생성 가능성** — 문장 패턴, 반복적 구조, 지나치게 완성된 문체 등 AI 특징 여부 (0~100%)
+2. **표현 다양성** — 어휘·문장 구조의 다양성 및 자연스러운 개인 특색 유무
+3. **의심 구간** — AI가 작성했을 가능성이 높은 문장이나 단락을 인용하여 지적
+4. **독창성 점수** — 글 전체의 독창성 수준 (10점 만점)
+5. **개선 권고** — 더 인간적이고 개성 있는 글로 개선하기 위한 구체적 제안
+
+각 항목에 근거와 함께 답하고, 마지막에 종합 판정(인간 작성 / 일부 AI 보조 / AI 주도)을 내려주세요.
+
+---
+## 검사 대상 문서
+
+${c}`,
+  },
+  {
     key: "evaluate",
     label: "글 평가",
+    skipCompanyCtx: true,
     icon: <IconEvaluate />,
     instruction: (c) => `당신은 전문 글쓰기 컨설턴트입니다. 아래 문서를 다음 항목에 따라 컨설팅 보고서 형식으로 평가해주세요.
 
 ## 평가 항목
-1. **전체 완성도** — 글의 목적이 명확하고 내용이 충실한가
-2. **구조와 흐름** — 논리적 전개와 단락 구성이 자연스러운가
-3. **문장력** — 문장의 명확성, 간결성, 표현의 적절성
-4. **독자 친화성** — 대상 독자에게 이해하기 쉽게 쓰였는가
-5. **개선 제안** — 구체적이고 실행 가능한 개선 방향 3가지 이상
+1. **반복 단어 사용** — 같은 단어·표현이 과도하게 반복되는 구간을 찾아 원문을 인용하고 대안 표현을 제안해주세요
+2. **진부한 표현** — "최선을 다하다", "열정을 가지고" 등 식상하거나 의미가 희석된 표현을 원문 인용과 함께 지적해주세요
+3. **애매한 표현** — 독자가 오해하거나 의미가 불분명한 문장을 원문 인용과 함께 구체적인 수정 방향을 제안해주세요
+4. **지나치게 긴 문장** — 한 문장에 내용이 과도하게 압축되어 가독성을 해치는 구간을 원문 인용 후 분리 방법을 제안해주세요
+5. **논리적인 흐름** — 문단 간 연결이 자연스러운지, 주장과 근거가 논리적으로 이어지는지, 비약이나 모순이 없는지 평가해주세요
+6. **질문에 적절한 내용** — 글의 주제·질문 의도에 맞는 내용을 담고 있는지, 핵심에서 벗어난 불필요한 내용이 있는지 평가해주세요
+7. **종합 개선 제안** — 위 분석을 바탕으로 우선순위가 높은 개선 방향 3가지를 제안해주세요
 
-각 항목별로 점수(10점 만점)와 간단한 코멘트를 포함하고, 마지막에 종합 의견을 작성해주세요.
+각 항목에서 실제 원문을 인용(> 인용 형식)하여 근거를 명확히 하고, 마지막에 전체 완성도 점수(10점 만점)와 한 줄 종합 의견을 작성해주세요.
 
 ---
 ## 평가 대상 문서
@@ -79,9 +103,12 @@ interface Props {
   content: string;
   selectedExperiences: ExperienceSearchResult[];
   onClearMessages: () => void;
-  onRunAssist: (instruction: string, userLabel?: string) => void;
+  onRunAssist: (instruction: string, userLabel?: string, skipCompanyCtx?: boolean) => void;
   onApplyResult: (result: string, mode: "append" | "replace") => void;
   onCopyText: (text: string, id: string) => void;
+  companyName: string;
+  companyProfile: string;
+  profileLoading: boolean;
 }
 
 export function AiPanel({
@@ -100,6 +127,9 @@ export function AiPanel({
   onRunAssist,
   onApplyResult,
   onCopyText,
+  companyName,
+  companyProfile,
+  profileLoading,
 }: Props) {
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-[#FAFBFC] overflow-hidden">
@@ -128,6 +158,26 @@ export function AiPanel({
           ))}
         </select>
       </div>
+
+      {/* Company profile panel */}
+      {(companyProfile || profileLoading) && (
+        <div className="shrink-0 border-b border-indigo-100 bg-indigo-50/60 px-4 py-3 max-h-52 overflow-y-auto">
+          <div className="flex items-center gap-1.5 mb-2">
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="text-indigo-500 shrink-0">
+              <path d="M5.5 1L6.7 4.2L10 5L6.7 5.8L5.5 9L4.3 5.8L1 5L4.3 4.2L5.5 1Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+            </svg>
+            <span className="text-xs font-semibold text-indigo-600">{companyName} 인재상</span>
+            {profileLoading && (
+              <span className="w-2.5 h-2.5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin ml-1" />
+            )}
+          </div>
+          {companyProfile && (
+            <div className={`${PROSE_CLASS} text-xs`}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{companyProfile}</ReactMarkdown>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-4">
@@ -214,7 +264,7 @@ export function AiPanel({
         {/* Quick actions */}
         <div className="space-y-1.5">
           <div className="grid grid-cols-4 gap-1.5">
-            {QUICK_ACTIONS.filter((a) => a.key !== "evaluate").map((action) => (
+            {QUICK_ACTIONS.filter((a) => a.key !== "evaluate" && a.key !== "plagiarism").map((action) => (
               <button
                 key={action.key}
                 onClick={() => onRunAssist(action.instruction(selectedText || ""), action.label)}
@@ -226,17 +276,19 @@ export function AiPanel({
               </button>
             ))}
           </div>
-          {QUICK_ACTIONS.filter((a) => a.key === "evaluate").map((action) => (
-            <button
-              key={action.key}
-              onClick={() => onRunAssist(action.instruction(selectedText || ""), action.label)}
-              disabled={aiLoading}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 hover:border-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-              {action.icon}
-              <span>{action.label} — AI 컨설팅</span>
-            </button>
-          ))}
+          <div className="grid grid-cols-2 gap-1.5">
+            {QUICK_ACTIONS.filter((a) => a.key === "evaluate" || a.key === "plagiarism").map((action) => (
+              <button
+                key={action.key}
+                onClick={() => onRunAssist(action.instruction(selectedText || ""), action.label, action.skipCompanyCtx)}
+                disabled={aiLoading}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 hover:border-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                {action.icon}
+                <span>{action.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Custom prompt */}

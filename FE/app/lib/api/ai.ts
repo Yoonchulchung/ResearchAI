@@ -38,6 +38,29 @@ export async function chatTasks(
   });
 }
 
+export async function enqueueCompanyProfile(
+  companyName: string,
+  model: string,
+): Promise<{ jobId: string }> {
+  return apiFetch('/queue/company-profile', {
+    method: 'POST',
+    body: JSON.stringify({ companyName, model }),
+  });
+}
+
+export async function streamCompanyProfile(
+  jobId: string,
+  onEvent: (event: SummaryEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/queue/company-profile/${jobId}/stream`, { signal });
+  if (!res.ok || !res.body) throw new Error('Company profile stream 실패');
+  await readSSE<SummaryEvent>(res, (event) => {
+    onEvent(event);
+    if (event.type === 'done' || event.type === 'error') return true;
+  });
+}
+
 export async function enqueueWriteAssist(
   content: string,
   instruction: string,

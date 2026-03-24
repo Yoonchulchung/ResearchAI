@@ -15,10 +15,31 @@ export function useCardPopup() {
   ) => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     const POPUP_W = 360;
+    const POPUP_H = 400; // estimated max height
+
     const rect = cardEl.getBoundingClientRect();
-    const left = Math.min(rect.left, window.innerWidth - POPUP_W - 12);
+
+    // 가장 가까운 fixed 컨테이너 경계 구하기
+    let containerRight = window.innerWidth - 12;
+    let containerTop = 0;
+    let el: HTMLElement | null = cardEl.parentElement;
+    while (el) {
+      const pos = window.getComputedStyle(el).position;
+      if (pos === "fixed" || pos === "absolute") {
+        const cr = el.getBoundingClientRect();
+        containerRight = cr.right - 12;
+        containerTop = cr.top + 8;
+        break;
+      }
+      el = el.parentElement;
+    }
+
+    const left = Math.min(Math.max(rect.left, 8), containerRight - POPUP_W);
     const spaceBelow = window.innerHeight - rect.bottom;
-    const top = spaceBelow > 280 ? rect.bottom + 6 : rect.top - 6;
+    const top = spaceBelow > 280
+      ? rect.bottom + 6
+      : Math.max(containerTop, rect.top - POPUP_H - 6);
+
     const popup = { kind, data, top, left, width: POPUP_W } as ActivePopup;
     setActivePopup(popup);
     requestAnimationFrame(() => requestAnimationFrame(() => setPopupVisible(true)));

@@ -20,6 +20,9 @@ export class ExperienceEntity {
   @Column({ nullable: true })
   category: string;
 
+  @Column({ type: 'text', nullable: true, default: null })
+  sourceDocId: string | null;
+
   @Column({ type: 'simple-json', nullable: true })
   aiCategories: string[] | null;
 

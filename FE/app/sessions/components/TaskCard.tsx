@@ -50,7 +50,7 @@ const BADGE_LABEL: Record<TaskStatus, string> = {
   [TaskStatus.IDLE]: "대기",
 };
 
-const MARKDOWN_PROSE = `px-5 py-4 bg-slate-50/60 max-h-[65vh] overflow-y-auto prose prose-sm prose-slate max-w-none
+const MARKDOWN_PROSE = `px-5 py-4 bg-slate-50/60 max-h-[65vh] overflow-y-auto prose prose-slate max-w-none font-sans
   [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
   [&_th]:bg-slate-200 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
   [&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:border-slate-200
@@ -62,7 +62,7 @@ const MARKDOWN_PROSE = `px-5 py-4 bg-slate-50/60 max-h-[65vh] overflow-y-auto pr
   [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2
   [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2
   [&_li]:my-0.5 [&_li]:text-slate-700
-  [&_p]:my-2 [&_p]:leading-relaxed [&_p]:text-slate-700
+  [&_p]:my-2 [&_p]:leading-loose [&_p]:text-slate-700 [&_p]:text-base
   [&_code]:bg-slate-200 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700
   [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
   [&_hr]:border-slate-200 [&_hr]:my-3`;

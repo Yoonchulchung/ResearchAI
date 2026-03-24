@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { getSession, getModels } from "@/lib/api";
 import { Session, ModelDefinition } from "@/types";
 
-const POLL_INTERVAL = 3000;
+const WS_URL = "ws://localhost:3001/ws";
 
 export function useSessionData(id: string) {
   const router = useRouter();
@@ -15,6 +15,7 @@ export function useSessionData(id: string) {
     getModels().then(setModels).catch(() => {});
   }, []);
 
+  // 초기 데이터 로드
   useEffect(() => {
     setLoading(true);
     setSession(null);
@@ -24,18 +25,50 @@ export function useSessionData(id: string) {
       .finally(() => setLoading(false));
   }, [id, router]);
 
-  // RUNNING/PENDING 아이템이 있을 때만 폴링
-  const hasActiveResearch = session?.items?.some(
-    (t) => t.researchState === "running" || t.researchState === "pending"
-  ) ?? false;
-
+  // WebSocket으로 실시간 세션 업데이트 수신
   useEffect(() => {
-    if (!hasActiveResearch) return;
-    const timer = setInterval(() => {
-      getSession(id).then(setSession).catch(() => {});
-    }, POLL_INTERVAL);
-    return () => clearInterval(timer);
-  }, [id, hasActiveResearch]);
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let destroyed = false;
+
+    function connect() {
+      if (destroyed) return;
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        ws!.send(JSON.stringify({ event: "subscribe", data: { sessionId: id } }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data as string);
+          if (msg.event === "session:update" && msg.data) {
+            setSession(msg.data);
+          }
+        } catch {
+          // 파싱 오류 무시
+        }
+      };
+
+      ws.onclose = () => {
+        if (!destroyed) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      destroyed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }, [id]);
 
   return { session, loading, models };
 }

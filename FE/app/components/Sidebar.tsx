@@ -156,16 +156,52 @@ export function Sidebar() {
     fetchSessions();
   }, [pathname, fetchSessions]);
 
-  // 진행 중인 세션이 있을 때 폴링
-  const hasActiveSessions = sessions.some(
-    (s) => s.researchState === "running" || s.researchState === "pending"
-  );
-
+  // WebSocket으로 세션 상태 실시간 업데이트
   useEffect(() => {
-    if (!hasActiveSessions) return;
-    const timer = setInterval(fetchSessions, 5000);
-    return () => clearInterval(timer);
-  }, [hasActiveSessions, fetchSessions]);
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let destroyed = false;
+
+    function connect() {
+      if (destroyed) return;
+      ws = new WebSocket("ws://localhost:3001/ws");
+
+      ws.onopen = () => {
+        ws!.send(JSON.stringify({ event: "subscribe:sessions" }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data as string);
+          if (msg.event === "session:update" && msg.data) {
+            setSessions((prev) =>
+              prev.map((s) => (s.id === msg.data.id ? msg.data : s))
+            );
+          }
+        } catch {
+          // 파싱 오류 무시
+        }
+      };
+
+      ws.onclose = () => {
+        if (!destroyed) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      destroyed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }, []);
 
   const filteredSessions = searchQuery.trim()
     ? sessions.filter((s) => s.topic.toLowerCase().includes(searchQuery.toLowerCase()))

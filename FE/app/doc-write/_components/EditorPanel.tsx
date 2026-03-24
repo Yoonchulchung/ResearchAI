@@ -56,6 +56,11 @@ interface Props {
   pendingImprovement: PendingImprovement | null;
   onAccept: () => void;
   onRevert: () => void;
+  companyName: string;
+  setCompanyName: (v: string) => void;
+  onFetchProfile: () => void;
+  profileLoading: boolean;
+  highlightFlash?: boolean;
 }
 
 export function EditorPanel({
@@ -70,6 +75,11 @@ export function EditorPanel({
   pendingImprovement,
   onAccept,
   onRevert,
+  companyName,
+  setCompanyName,
+  onFetchProfile,
+  profileLoading,
+  highlightFlash,
 }: Props) {
   const diffTokens = pendingImprovement
     ? computeDiff(pendingImprovement.original, pendingImprovement.improved)
@@ -82,9 +92,35 @@ export function EditorPanel({
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-white border-r border-slate-200/60 overflow-hidden">
 
+      {/* Company name input */}
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 shrink-0">
+        <span className="text-xs text-slate-400 shrink-0">지원 기업</span>
+        <input
+          value={companyName}
+          onChange={(e) => setCompanyName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") onFetchProfile(); }}
+          placeholder="기업명 입력..."
+          className="flex-1 text-xs text-slate-700 bg-transparent border-0 focus:outline-none placeholder-slate-300 min-w-0"
+        />
+        <button
+          onClick={onFetchProfile}
+          disabled={!companyName.trim() || profileLoading}
+          className="shrink-0 flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {profileLoading ? (
+            <span className="w-2.5 h-2.5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+          ) : (
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M5 1L6.2 4.2L9.5 5L6.2 5.8L5 9L3.8 5.8L0.5 5L3.8 4.2L5 1Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+            </svg>
+          )}
+          인재상 조회
+        </button>
+      </div>
+
       {/* Word/char count */}
       <div className="flex justify-end px-4 py-1.5 shrink-0">
-        <span className="text-xs text-slate-300">
+        <span suppressHydrationWarning className="text-xs text-slate-300">
           {words.toLocaleString()}단어 · {chars.toLocaleString()}자
         </span>
       </div>
@@ -146,17 +182,28 @@ export function EditorPanel({
             </span>
           </div>
         ) : mode === "edit" ? (
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onSelect={onTextareaSelect}
-            onMouseUp={onTextareaSelect}
-            onKeyUp={onTextareaSelect}
-            onContextMenu={onContextMenu}
-            placeholder="내용을 작성하세요..."
-            className="flex-1 w-full px-8 py-6 text-base text-slate-700 leading-relaxed bg-transparent border-0 focus:outline-none resize-none placeholder-slate-300"
-          />
+          <div className="relative flex-1 flex flex-col min-h-0">
+            {highlightFlash && (
+              <div
+                className="absolute inset-0 pointer-events-none rounded-none z-10"
+                style={{
+                  animation: "highlight-pulse 2.5s ease-out forwards",
+                  boxShadow: "inset 0 0 0 3px #818cf8",
+                }}
+              />
+            )}
+            <textarea
+              ref={textareaRef}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              onSelect={onTextareaSelect}
+              onMouseUp={onTextareaSelect}
+              onKeyUp={onTextareaSelect}
+              onContextMenu={onContextMenu}
+              placeholder="내용을 작성하세요..."
+              className="flex-1 w-full px-8 py-6 text-base font-sans text-slate-700 leading-loose bg-transparent border-0 focus:outline-none resize-none placeholder-slate-300"
+            />
+          </div>
         ) : (
           <div className="px-8 py-6">
             <div className={PROSE_CLASS}>

@@ -9,6 +9,7 @@ export type AssistAction = {
   label: string;
   icon: React.ReactNode;
   instruction: (content: string) => string;
+  skipCompanyCtx?: boolean;
 };
 
 export type ToolbarAction = {

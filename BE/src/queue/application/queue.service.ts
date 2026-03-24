@@ -6,6 +6,7 @@ import { SessionCommandService } from '../../sessions/application/command/sessio
 import { SessionItemService } from '../../sessions/application/session-item.service';
 import { SessionItemQueryService } from '../../sessions/application/query/session-item-query.service';
 import { SessionItemCommandService } from '../../sessions/application/command/session-item-command.service';
+import { SessionGateway } from '../../sessions/presentation/session.gateway';
 import { ResearchState, SummaryState } from '../../sessions/domain/entity/session.entity';
 import { QueueStatusDto } from '../presentation/dto/response/queue-status.dto';
 import { EnqueueDeepResearchDto, DeepResearchAction } from '../presentation/dto/request/enqueue-deep-research.dto';
@@ -18,6 +19,7 @@ import { DeepResearchExecutorService } from './job/deep-research-executor.servic
 import { LightResearchExecutorService } from './job/light-research-executor.service';
 import { SummaryExecutorService } from './job/summary-executor.service';
 import { WriteAssistExecutorService } from './job/write-assist-executor.service';
+import { CompanyProfileExecutorService } from './job/company-profile-executor.service';
 import { QueueJobRepository } from '../domain/repository/queue-job.repository';
 import { QueueJobDbStatus } from '../domain/entity/queue-job.entity';
 import { randomUUID } from 'crypto';
@@ -32,6 +34,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private lightResearchAccumulated = new Map<string, LightResearchEvent[]>();
   private writeAssistSubjects = new Map<string, Subject<MessageEvent>>();
   private writeAssistAccumulated = new Map<string, string>();
+  private companyProfileSubjects = new Map<string, Subject<MessageEvent>>();
+  private companyProfileAccumulated = new Map<string, string>();
   private cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private running = false;
 
@@ -48,7 +52,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     private readonly lightResearchExecutor: LightResearchExecutorService,
     private readonly summaryExecutor: SummaryExecutorService,
     private readonly writeAssistExecutor: WriteAssistExecutorService,
+    private readonly companyProfileExecutor: CompanyProfileExecutorService,
     private readonly queueJobRepository: QueueJobRepository,
+    private readonly sessionGateway: SessionGateway,
   ) {}
 
   // ************* //
@@ -121,6 +127,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       subject.complete();
     }
     for (const subject of this.writeAssistSubjects.values()) {
+      subject.complete();
+    }
+    for (const subject of this.companyProfileSubjects.values()) {
       subject.complete();
     }
     for (const timer of this.cleanupTimers.values()) {
@@ -259,6 +268,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         continue;
       }
       await this.sessionItemCommandService.updateStatus(item.itemId, ResearchState.PENDING);
+      this.sessionGateway.emitSessionUpdate(sessionId).catch(() => {});
       const isLocal = requestBody.aiModel?.startsWith('ollama:');
       const localAIModel = isLocal ? requestBody.aiModel! : '';
       const cloudAIModel = isLocal ? (session.researchCloudAIModel ?? '') : (requestBody.aiModel ?? session.researchCloudAIModel ?? '');
@@ -353,6 +363,52 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     this.writeAssistAccumulated.delete(jobId);
   }
 
+  // *************** //
+  // Company Profile //
+  // *************** //
+  async enqueueCompanyProfile(companyName: string, model: string): Promise<{ jobId: string }> {
+    const jobId = randomUUID();
+    this.companyProfileSubjects.set(jobId, new Subject<MessageEvent>());
+    this.companyProfileAccumulated.set(jobId, '');
+    await this.pushJob({
+      jobId,
+      sessionId: jobId,
+      itemId: '',
+      itemPrompt: JSON.stringify({ companyName }),
+      taskType: QueueJob.TaskType.COMPANYPROFILE,
+      localAIModel: '',
+      CloudAIModel: model,
+      status: QueueJobStatus.PENDING,
+    });
+    return { jobId };
+  }
+
+  getCompanyProfileStream(jobId: string): Observable<MessageEvent> | null {
+    const subject = this.companyProfileSubjects.get(jobId);
+    if (!subject) return null;
+    const accumulated = this.companyProfileAccumulated.get(jobId) ?? '';
+    if (accumulated) {
+      return concat(
+        of({ data: { type: SseEventType.CHUNK, text: accumulated } } as MessageEvent),
+        subject.asObservable(),
+      );
+    }
+    return subject.asObservable();
+  }
+
+  cancelCompanyProfile(jobId: string): void {
+    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.COMPANYPROFILE);
+    if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
+      this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
+      this.abortControllers.get(job.jobId)?.abort();
+    }
+    const subject = this.companyProfileSubjects.get(jobId);
+    subject?.next({ data: { type: SseEventType.ERROR, message: '작업이 중단되었습니다.' } });
+    subject?.complete();
+    this.companyProfileSubjects.delete(jobId);
+    this.companyProfileAccumulated.delete(jobId);
+  }
+
   // ********* //
   // 큐 작업 중단 //
   // ********* //
@@ -407,6 +463,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     }
 
     await this.sessionItemService.updateStatus(itemId, ResearchState.STOPPED);
+    this.sessionGateway.emitSessionUpdate(sessionId).catch(() => {});
   }
 
   async cancelBySession(sessionId: string): Promise<void> {
@@ -423,6 +480,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.abortControllers.get(job.jobId)?.abort();
       }
     }
+    this.sessionGateway.emitSessionUpdate(sessionId).catch(() => {});
   }
 
   // ***** //
@@ -442,6 +500,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       jobStatus: QueueJobDbStatus.INIT,
     });
     this.jobs.push(job);
+    this.sessionGateway.emitQueueUpdate(this.getStatus());
     this.runNext();
   }
 
@@ -476,6 +535,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         }, QueueService.DONE_JOB_TTL_MS);
         this.cleanupTimers.set(jobId, timer);
       }
+
+      this.sessionGateway.emitQueueUpdate(this.getStatus());
     }
   }
 
@@ -531,6 +592,26 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.lightResearchSubjects.delete(job.sessionId);
         this.lightResearchAccumulated.delete(job.sessionId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: JSON.stringify(tasks) });
+
+      } else if (job.taskType === QueueJob.TaskType.COMPANYPROFILE) {
+
+        const subject = this.companyProfileSubjects.get(job.jobId);
+        const { companyName } = JSON.parse(job.itemPrompt) as { companyName: string };
+        const fullText = await this.companyProfileExecutor.execute(
+          companyName,
+          job.CloudAIModel,
+          (chunk) => {
+            this.companyProfileAccumulated.set(job.jobId, (this.companyProfileAccumulated.get(job.jobId) ?? '') + chunk);
+            subject?.next({ data: { type: SseEventType.CHUNK, text: chunk } });
+          },
+          controller.signal,
+        );
+
+        subject?.next({ data: { type: SseEventType.DONE } });
+        subject?.complete();
+        this.companyProfileSubjects.delete(job.jobId);
+        this.companyProfileAccumulated.delete(job.jobId);
+        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
 
       } else if (job.taskType === QueueJob.TaskType.WRITEASSIST) {
 
@@ -599,6 +680,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
         this.sessionCommandService.updateSessionItem(job.sessionId, job.itemId, msg, '', ResearchState.ERROR).catch(() => {});
         this.sessionCommandService.updateSession(job.sessionId, ResearchState.ERROR).catch(() => {});
+        this.sessionGateway.emitSessionUpdate(job.sessionId).catch(() => {});
 
       } else if (job.taskType === QueueJob.TaskType.WRITEASSIST) {
 
@@ -607,6 +689,14 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         subject?.complete();
         this.writeAssistSubjects.delete(job.jobId);
         this.writeAssistAccumulated.delete(job.jobId);
+
+      } else if (job.taskType === QueueJob.TaskType.COMPANYPROFILE) {
+
+        const subject = this.companyProfileSubjects.get(job.jobId);
+        subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
+        subject?.complete();
+        this.companyProfileSubjects.delete(job.jobId);
+        this.companyProfileAccumulated.delete(job.jobId);
 
       } else {
         console.log("Unsupported taskType is called");

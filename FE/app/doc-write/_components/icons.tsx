@@ -92,6 +92,17 @@ export function IconHr() {
     </svg>
   );
 }
+export function IconPlagiarism() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M3 2H9L11 4V12H3V2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M9 2V4H11" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M5 6H9M5 8H8M5 10H7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="10.5" cy="10.5" r="2" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M12 12L13 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
 export function IconDownload() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

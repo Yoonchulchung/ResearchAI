@@ -14,6 +14,7 @@ interface Props {
   onClose: () => void;
   onDocOpen: (id: string) => void;
   onDocDelete: (id: string) => void;
+  onDocExtract: (doc: SavedDocument) => void;
   onExpEdit: (exp: Experience) => void;
   onExpDelete: (id: string) => void;
   onSuggestOne: (exp: Experience) => void;
@@ -28,6 +29,7 @@ export function CardPopup({
   onClose,
   onDocOpen,
   onDocDelete,
+  onDocExtract,
   onExpEdit,
   onExpDelete,
   onSuggestOne,
@@ -71,9 +73,16 @@ export function CardPopup({
             </span>
           )}
           {doc && (
-            <span className="inline-flex items-center self-start px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white">
-              문서
-            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white">
+                문서
+              </span>
+              {doc.companyName && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-600">
+                  {doc.companyName}
+                </span>
+              )}
+            </div>
           )}
           <h3 className="text-sm font-bold text-slate-900 leading-snug wrap-break-word">
             {activePopup.data.title}
@@ -90,6 +99,15 @@ export function CardPopup({
                 <IconOpen /> 열기
               </button>
               <button
+                onClick={() => doc && onDocExtract(doc)}
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition-colors"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M6 1v7M3.5 5.5L6 8l2.5-2.5M2 10h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                경험 추출
+              </button>
+              <button
                 onClick={() => onDocDelete(activePopup.data.id)}
                 className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
               >
@@ -98,12 +116,23 @@ export function CardPopup({
             </>
           ) : (
             <>
-              <button
-                onClick={() => exp && onExpEdit(exp)}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
-              >
-                <IconEdit /> 수정
-              </button>
+              {exp?.sourceDocId ? (
+                <button
+                  onClick={() => {
+                    window.location.href = `/doc-write?docId=${exp.sourceDocId}&highlight=${encodeURIComponent(exp.content)}`;
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                >
+                  <IconEdit /> 수정
+                </button>
+              ) : (
+                <button
+                  onClick={() => exp && onExpEdit(exp)}
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                >
+                  <IconEdit /> 수정
+                </button>
+              )}
               <button
                 onClick={() => onExpDelete(activePopup.data.id)}
                 className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"

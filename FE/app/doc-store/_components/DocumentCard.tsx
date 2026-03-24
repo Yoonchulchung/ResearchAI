@@ -27,10 +27,17 @@ export function DocumentCard({ doc, isActive, onCardClick }: Props) {
       }`}
     >
       <div className="flex items-start justify-between">
-        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white">
-          문서
-        </span>
-        <span className="p-1 text-slate-300"><IconDots /></span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-600 text-white">
+            문서
+          </span>
+          {doc.companyName && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-600">
+              {doc.companyName}
+            </span>
+          )}
+        </div>
+        <span className="p-1 text-slate-300 shrink-0"><IconDots /></span>
       </div>
       <h3 className="text-base font-bold text-slate-900 leading-snug">{doc.title}</h3>
       <p className="text-sm text-slate-400 leading-relaxed flex-1 line-clamp-2">{previewText}</p>

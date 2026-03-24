@@ -2,6 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { ToolbarAction } from "../_types";
 
+function scrollTextareaToIndex(ta: HTMLTextAreaElement, index: number) {
+  const lines = ta.value.substring(0, index).split("\n");
+  const lineHeight = parseInt(getComputedStyle(ta).lineHeight) || 28;
+  ta.scrollTop = Math.max(0, (lines.length - 4) * lineHeight);
+}
+
 const DRAFT_KEY = "doc-write-draft";
 
 function wordCount(text: string) {
@@ -13,17 +19,47 @@ function wordCount(text: string) {
 export function useEditor() {
   const searchParams = useSearchParams();
   const isExistingDoc = !!searchParams.get("docId");
+  const highlightParam = searchParams.get("highlight");
 
-  const [content, setContent] = useState(() => {
-    if (isExistingDoc) return "";
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem(DRAFT_KEY) ?? "";
-  });
+  const [content, setContent] = useState("");
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [selectedText, setSelectedText] = useState("");
   const [selectedRange, setSelectedRange] = useState<{ start: number; end: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [highlightFlash, setHighlightFlash] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightApplied = useRef(false);
+
+  // mount 후 또는 docId 변경 시 content 초기화
+  useEffect(() => {
+    if (isExistingDoc) {
+      setContent("");
+    } else {
+      setContent(localStorage.getItem(DRAFT_KEY) ?? "");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExistingDoc]);
+
+  // highlight 파라미터: 내용이 로드되면 해당 단락으로 스크롤 + 선택 + 애니메이션
+  useEffect(() => {
+    if (!highlightParam || !content || highlightApplied.current) return;
+    const target = decodeURIComponent(highlightParam);
+    // 앞 50자로 위치 탐색 (URL 길이 제한 고려)
+    const snippet = target.substring(0, 50);
+    const idx = content.indexOf(snippet);
+    if (idx === -1) return;
+    highlightApplied.current = true;
+    const ta = textareaRef.current;
+    if (!ta) return;
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(idx, Math.min(idx + target.length, content.length));
+      scrollTextareaToIndex(ta, idx);
+      setHighlightFlash(true);
+      setTimeout(() => setHighlightFlash(false), 2500);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, highlightParam]);
 
   // 새 문서일 때만 draft 자동저장
   useEffect(() => {
@@ -106,6 +142,7 @@ export function useEditor() {
     replaceSelected,
     contextMenu,
     textareaRef,
+    highlightFlash,
     handleTextareaSelect,
     handleContextMenu,
     applyToolbar,

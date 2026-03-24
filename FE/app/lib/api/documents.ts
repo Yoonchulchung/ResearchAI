@@ -3,6 +3,7 @@ import { apiFetch } from "./base";
 export interface SavedDocument {
   id: string;
   title: string;
+  companyName: string | null;
   content: string;
   createdAt: string;
   updatedAt: string;
@@ -16,14 +17,14 @@ export function getDocument(id: string): Promise<SavedDocument> {
   return apiFetch<SavedDocument>(`/documents/${id}`);
 }
 
-export function createDocument(title: string, content: string): Promise<SavedDocument> {
+export function createDocument(title: string, content: string, companyName?: string): Promise<SavedDocument> {
   return apiFetch<SavedDocument>("/documents", {
     method: "POST",
-    body: JSON.stringify({ title, content }),
+    body: JSON.stringify({ title, content, companyName }),
   });
 }
 
-export function updateDocument(id: string, data: { title?: string; content?: string }): Promise<SavedDocument> {
+export function updateDocument(id: string, data: { title?: string; content?: string; companyName?: string }): Promise<SavedDocument> {
   return apiFetch<SavedDocument>(`/documents/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),

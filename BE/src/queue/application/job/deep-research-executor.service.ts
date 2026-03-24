@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ResearchService } from '../../../research/application/research.service';
 import { SessionCommandService } from '../../../sessions/application/command/session-command.service';
 import { SessionItemCommandService } from '../../../sessions/application/command/session-item-command.service';
+import { SessionGateway } from '../../../sessions/presentation/session.gateway';
 import { ResearchState } from '../../../sessions/domain/entity/session.entity';
 import { SearchEngine } from 'src/research/domain/model/search-planner.model';
 import { SearchSources } from '../../../research/domain/model/search-sources.model';
@@ -12,6 +13,7 @@ export class DeepResearchExecutorService {
     private readonly researchService: ResearchService,
     private readonly sessionCommandService: SessionCommandService,
     private readonly sessionItemCommandService: SessionItemCommandService,
+    private readonly sessionGateway: SessionGateway,
   ) {}
 
   async execute(
@@ -26,6 +28,7 @@ export class DeepResearchExecutorService {
   ): Promise<{ aiResult: string; webSources: SearchSources }> {
     await this.sessionCommandService.updateSessionState(sessionId, ResearchState.RUNNING);
     await this.sessionItemCommandService.updateStatus(itemId, ResearchState.RUNNING);
+    this.sessionGateway.emitSessionUpdate(sessionId).catch(() => {});
 
     // 로컬 모델이 명시적으로 지정된 경우 우선 사용
     const aiModel = localAIModel || cloudAIModel;
@@ -41,6 +44,7 @@ export class DeepResearchExecutorService {
       { usedWebModel, searchLog },
     );
     await this.sessionCommandService.updateSession(sessionId, ResearchState.DONE);
+    this.sessionGateway.emitSessionUpdate(sessionId).catch(() => {});
 
     return { aiResult, webSources };
   }

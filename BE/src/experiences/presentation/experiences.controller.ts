@@ -13,7 +13,7 @@ export class ExperiencesController {
 
   @Post()
   create(@Body() dto: CreateExperienceDto) {
-    return this.service.create(dto.title, dto.content, dto.category);
+    return this.service.create(dto.title, dto.content, dto.category, dto.sourceDocId);
   }
 
   @Patch(':id')
@@ -34,5 +34,10 @@ export class ExperiencesController {
   @Post(':id/suggest-categories')
   suggestCategories(@Param('id') id: string, @Body() dto: { model: string }) {
     return this.service.suggestCategories(id, dto.model);
+  }
+
+  @Post('extract-from-doc')
+  extractFromDoc(@Body() dto: { content: string; model: string }) {
+    return this.service.extractFromDocument(dto.content, dto.model);
   }
 }

@@ -2,6 +2,7 @@ export class CreateExperienceDto {
   title: string;
   content: string;
   category?: string;
+  sourceDocId?: string | null;
 }
 
 export class UpdateExperienceDto {

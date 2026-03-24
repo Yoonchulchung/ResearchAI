@@ -85,7 +85,7 @@ export function ChatSection({ chatMessages, chatBottomRef, onClearChat, onAbort,
               ) : (
                 <div className="max-w-[85%] bg-white border border-slate-200/60 shadow-sm rounded-2xl rounded-tl-md px-4 py-3.5">
                   {msg.content ? (
-                    <div className="prose prose-sm prose-slate max-w-none
+                    <div className="prose prose-slate max-w-none font-sans
                       [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
                       [&_th]:bg-slate-100 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-200
                       [&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:border-slate-200
@@ -95,7 +95,7 @@ export function ChatSection({ chatMessages, chatBottomRef, onClearChat, onAbort,
                       [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1.5
                       [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1.5
                       [&_li]:my-0.5 [&_li]:text-slate-700
-                      [&_p]:my-1.5 [&_p]:leading-relaxed [&_p]:text-slate-700
+                      [&_p]:my-2 [&_p]:leading-loose [&_p]:text-slate-700 [&_p]:text-base
                       [&_code]:bg-slate-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs
                       [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic">
                       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{msg.content}</ReactMarkdown>

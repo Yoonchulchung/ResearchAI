@@ -26,7 +26,9 @@
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-ws": "^11.1.17",
     "@nestjs/typeorm": "^11.0.0",
+    "@nestjs/websockets": "^11.1.17",
     "@tavily/core": "^0.7.2",
     "@types/multer": "^2.1.0",
     "@types/pdf-parse": "^1.1.5",
@@ -42,7 +44,8 @@
     "puppeteer": "^24.39.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "typeorm": "^0.3.28"
+    "typeorm": "^0.3.28",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -55,6 +58,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
     "@types/supertest": "^6.0.2",
+    "@types/ws": "^8.18.1",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",

@@ -1,17 +1,28 @@
 @import "tailwindcss";
 
+/* ─── Brand palette ─────────────────────────────────────────────────────────
+   여기에서 6개의 값만 수정하면 전체 앱 색상이 바뀝니다.
+   ─────────────────────────────────────────────────────────────────────────── */
 :root {
-  --background: #F4F5F7;
-  --sidebar: #FFFFFF;
-  --foreground: #0F172A;
-  --border: #E2E8F0;
-  --border-subtle: #F1F5F9;
-  --surface: #FFFFFF;
-  --surface-raised: #F8FAFC;
-  --primary: #4F46E5;
-  --primary-hover: #4338CA;
-  --primary-subtle: #EEF2FF;
-  --muted-foreground: #64748B;
+  --brand-dark:    #003366;   /* 짙은 네이비    */
+  --brand-primary: #0055A5;   /* 기본 파랑      */
+  --brand-accent:  #00A0DF;   /* 밝은 하늘색    */
+  --brand-bg:      #F5F7FA;   /* 페이지 배경    */
+  --brand-text:    #1A2B3D;   /* 기본 텍스트    */
+  --brand-muted:   #6B7A8F;   /* 보조 텍스트    */
+
+  /* ── Semantic tokens (팔레트에서 자동 참조) ── */
+  --background:         var(--brand-bg);
+  --sidebar:            #FFFFFF;
+  --foreground:         var(--brand-text);
+  --border:             #D0DBE8;
+  --border-subtle:      #E8EDF4;
+  --surface:            #FFFFFF;
+  --surface-raised:     #F0F4F9;
+  --primary:            var(--brand-primary);
+  --primary-hover:      var(--brand-dark);
+  --primary-subtle:     #E0EDF8;
+  --muted-foreground:   var(--brand-muted);
 }
 
 /* ─── Font size scale ───────────────────────────────────────────────────────
@@ -33,6 +44,20 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* ── Indigo 스케일 → 브랜드 파랑으로 교체 ──
+     bg-indigo-*, text-indigo-* 등 기존 클래스가 자동으로 새 색상을 사용합니다. */
+  --color-indigo-50:  #e0edf8;
+  --color-indigo-100: #c5ddf5;
+  --color-indigo-200: #8bbde9;
+  --color-indigo-300: #4d9ade;
+  --color-indigo-400: var(--brand-accent);   /* #00A0DF */
+  --color-indigo-500: #006dc5;
+  --color-indigo-600: var(--brand-primary);  /* #0055A5 */
+  --color-indigo-700: #004387;
+  --color-indigo-800: var(--brand-dark);     /* #003366 */
+  --color-indigo-900: #002655;
+  --color-indigo-950: #001833;
 
   /* 커스텀 사이즈 (기존 text-[Npx] 대체) */
   --text-micro: 0.5625rem; /* 9px  */
@@ -59,6 +84,14 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ─── Highlight pulse animation (doc-write 단락 포커스) ─────────────────── */
+@keyframes highlight-pulse {
+  0%   { box-shadow: inset 0 0 0 3px #818cf8; opacity: 1; }
+  40%  { box-shadow: inset 0 0 0 3px #818cf8; opacity: 0.9; }
+  70%  { box-shadow: inset 0 0 0 2px #a5b4fc; opacity: 0.5; }
+  100% { box-shadow: inset 0 0 0 0px #a5b4fc; opacity: 0; }
+}
+
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 5px;
@@ -77,13 +110,13 @@ body {
 
 /* ─── Selection ──────────────────────────────────────────────────────────── */
 ::selection {
-  background: #EEF2FF;
-  color: #4338CA;
+  background: var(--primary-subtle);
+  color: var(--brand-dark);
 }
 
 /* ─── Focus ──────────────────────────────────────────────────────────────── */
 *:focus-visible {
-  outline: 2px solid #6366F1;
+  outline: 2px solid var(--brand-accent);
   outline-offset: 2px;
   border-radius: 4px;
 }

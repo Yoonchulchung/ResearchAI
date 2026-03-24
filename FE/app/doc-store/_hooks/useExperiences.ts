@@ -15,8 +15,13 @@ export function useExperiences() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Experience | undefined>();
 
-  useEffect(() => {
+  const reload = () => {
+    setExpLoading(true);
     getExperiences().then(setExperiences).finally(() => setExpLoading(false));
+  };
+
+  useEffect(() => {
+    reload();
   }, []);
 
   const handleExpSave = async (data: { title: string; content: string; category?: string }) => {
@@ -79,5 +84,6 @@ export function useExperiences() {
     updateExpCategory,
     openAdd,
     openEdit,
+    reload,
   };
 }

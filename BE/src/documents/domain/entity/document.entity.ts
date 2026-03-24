@@ -8,6 +8,9 @@ export class DocumentEntity {
   @Column()
   title: string;
 
+  @Column({ type: 'text', nullable: true, default: null })
+  companyName: string | null;
+
   @Column({ type: 'text' })
   content: string;
 

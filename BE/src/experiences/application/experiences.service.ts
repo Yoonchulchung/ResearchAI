@@ -31,8 +31,8 @@ export class ExperiencesService {
     return this.repo.findOne({ where: { id } });
   }
 
-  async create(title: string, content: string, category?: string): Promise<ExperienceEntity> {
-    const entity = this.repo.create({ id: randomUUID(), title, content, category });
+  async create(title: string, content: string, category?: string, sourceDocId?: string | null): Promise<ExperienceEntity> {
+    const entity = this.repo.create({ id: randomUUID(), title, content, category, sourceDocId: sourceDocId ?? null });
     const saved = await this.repo.save(entity);
     await this.vectorService.indexExperience(saved.id, saved.title, saved.content);
     return saved;
@@ -95,6 +95,38 @@ ${entity.content}
       return { categories: valid };
     } catch {
       return { categories: [] };
+    }
+  }
+
+  async extractFromDocument(
+    content: string,
+    model: string,
+  ): Promise<{ title: string; content: string }[]> {
+    const prompt = `다음 자기소개서/문서에서 번호로 구분된 각 항목을 분리하여 경험 목록으로 추출해주세요.
+
+문서 내용:
+${content}
+
+각 번호별 항목을 분석하여 다음 형식으로 반환하세요:
+- title: 항목의 질문/주제를 간결하게 요약 (예: "한화엔진 지원 동기 및 목표")
+- content: 해당 항목의 답변 내용 전체
+
+반드시 아래 JSON만 반환하세요 (마크다운 코드블록 없이 순수 JSON):
+{"experiences": [{"title": "제목", "content": "내용"}, ...]}`;
+
+    try {
+      const { text: raw } = await this.aiService.call(model, '', prompt);
+      const cleaned = raw
+        .replace(/^```json\s*/m, '')
+        .replace(/^```\s*/m, '')
+        .replace(/```\s*$/m, '')
+        .trim();
+      const parsed = JSON.parse(cleaned) as {
+        experiences: { title: string; content: string }[];
+      };
+      return parsed.experiences ?? [];
+    } catch {
+      return [];
     }
   }
 

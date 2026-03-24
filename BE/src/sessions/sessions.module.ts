@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SessionsController } from './presentation/sessions.controller';
+import { SessionGateway } from './presentation/session.gateway';
 import { SessionsService } from './application/sessions.service';
 import { SessionQueryService } from './application/query/session-query.service';
 import { SessionCommandService } from './application/command/session-command.service';
@@ -16,7 +17,7 @@ import { VectorModule } from '../vector/vector.module';
 @Module({
   imports: [VectorModule, TypeOrmModule.forFeature([SessionEntity, SessionItemEntity])],
   controllers: [SessionsController],
-  providers: [SessionsService, SessionQueryService, SessionCommandService, SessionItemService, SessionItemQueryService, SessionItemCommandService, SessionRepository, SessionItemRepository],
-  exports: [SessionsService, SessionQueryService, SessionCommandService, SessionItemService, SessionItemQueryService, SessionItemCommandService],
+  providers: [SessionGateway, SessionsService, SessionQueryService, SessionCommandService, SessionItemService, SessionItemQueryService, SessionItemCommandService, SessionRepository, SessionItemRepository],
+  exports: [SessionGateway, SessionsService, SessionQueryService, SessionCommandService, SessionItemService, SessionItemQueryService, SessionItemCommandService],
 })
 export class SessionsModule {}
