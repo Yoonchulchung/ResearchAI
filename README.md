@@ -1,7 +1,6 @@
 # ResearchAI
 
-주제를 입력하면 AI가 리서치 항목을 자동 생성하고, 웹 검색 + AI 분석을 통해 구조화된 보고서를 만들어주는 도구입니다.
-클라우드 API 없이 Ollama 로컬 모델만으로도 동작합니다.
+주제를 입력하면 AI가 리서치 항목을 자동 생성하고, 웹 검색 + AI 분석을 통해 구조화된 보고서를 만들어주는 Research AI 에이전트입니다.
 
 ---
 
@@ -9,25 +8,23 @@
 
 ```
 ① 주제 입력
-    "FastAPI 신입 채용 공고 찾아줘. 대기업·외국계 위주로"
+    "NestJS 최신 트렌드와 마이크로서비스 아키텍처 분석해줘"
          │
          ▼
-② [LightResearch] 검색 계획 수립 (Ollama)
-    → source: "recruit", keyword: "FastAPI 백엔드",
-      companyTypes: ["대기업", "외국계"], jobTypes: ["신입"]
+② [LightResearch] 검색 계획 수립 (AI)
+    → source: "web", keywords: ["NestJS", "microservices"],
+      리서치 방향 자동 결정
          │
-         ├─ 웹 검색 (Tavily)            ← source가 "web" 또는 "both"일 때
-         └─ 채용 공고 크롤링 (사람인)    ← source가 "recruit" 또는 "both"일 때
-               • 기업유형 필터 (emp_tp)
-               • 경력 구분 필터 (career_cd / job_type)
+         ├─ 웹 검색 (Tavily / Serper / Naver / Brave)
+         └─ 채용 공고 크롤링 (사람인)  ← 채용 관련 주제일 때
          │
          ▼
-③ AI → 5~7개 리서치 태스크 생성
-    [{"title": "FastAPI 백엔드 신입 우대 스킬", ...}, ...]
+③ AI → 5~7개 리서치 태스크 자동 생성
+    [{"title": "NestJS 모듈 아키텍처 분석", ...}, ...]
          │
          ▼
-④ [DeepResearch] 태스크별 분석 (순차 실행)
-    Phase 1: 웹 검색 병렬 실행 (Tavily / Serper / Naver / Brave)
+④ [DeepResearch] 태스크별 심층 분석 (순차 실행)
+    Phase 1: 웹 검색 병렬 실행
     Phase 2: AI 분석 → 마크다운 보고서 생성
          │
          ▼
@@ -41,13 +38,15 @@
 
 | 기능 | 설명 |
 |------|------|
-| **검색 소스 자동 판단** | Ollama가 주제를 보고 웹 / 채용 공고 / 둘 다 중 선택 |
-| **채용 공고 검색** | 사람인 크롤러 (기업유형·경력 필터 지원) |
+| **AI 리서치 자동화** | 주제 입력 시 AI가 리서치 태스크를 자동 설계하고 분석 |
 | **멀티 검색 엔진** | Tavily · Serper · Naver · Brave 병렬 실행 |
+| **채용 공고 검색** | 사람인 크롤러 (기업유형·경력 필터 지원) |
+| **검색 소스 자동 판단** | 주제를 분석해 웹 / 채용 공고 / 둘 다 중 자동 선택 |
 | **다중 AI 지원** | Claude · GPT · Gemini · Ollama 전환 가능 |
-| **벡터 RAG 채팅** | Qdrant 시맨틱 검색 기반 Q&A |
+| **벡터 RAG 채팅** | Qdrant 시맨틱 검색 기반 리서치 결과 Q&A |
 | **실시간 진행 확인** | SSE로 단계별 로그 스트리밍 |
-| **검색 중단** | 진행 중 검색을 언제든 취소 가능 |
+| **문서 작성** | AI 어시스턴트 + 실시간 교정이 포함된 마크다운 에디터 |
+| **경험 관리** | 작성 문서에서 AI가 경험 단락을 자동 추출·저장 |
 
 ---
 
@@ -57,17 +56,9 @@
 
 - Node.js 20+
 - Docker (Qdrant 벡터 DB)
-- Ollama (로컬 AI / 검색 계획 / 임베딩)
+- Ollama (선택 — 로컬 AI 사용 시)
 
-### 1. Ollama 모델 준비
-
-```bash
-ollama pull llama3.1         # 검색 계획·필터링용 (필수)
-ollama pull nomic-embed-text # RAG 임베딩용 (필수)
-ollama pull llama3.2:3b      # 가벼운 모델 (16GB 이상)
-```
-
-### 2. 환경 변수 설정
+### 1. 환경 변수 설정
 
 ```bash
 cp BE/.env.example BE/.env
@@ -76,7 +67,7 @@ cp BE/.env.example BE/.env
 
 최소 **클라우드 AI 키 1개** + **웹 검색 키 1개** 이상을 권장합니다.
 
-### 3. 실행
+### 2. 실행
 
 ```bash
 ./run.sh
@@ -107,14 +98,14 @@ NAVER_CLIENT_SECRET=...
 BRAVE_API_KEY=...            # 무료 2,000회/월
 ```
 
-### Ollama
+### Ollama (선택)
 
 ```env
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_PLANNER_MODEL=llama3.1    # 검색 계획 (web/recruit/both 판단)
-OLLAMA_MODEL=llama3.2:3b         # 웹 검색 결과 필터링
+OLLAMA_PLANNER_MODEL=llama3.1
+OLLAMA_MODEL=llama3.2:3b
 OLLAMA_EMBED_MODEL=nomic-embed-text
-OLLAMA_COMPRESS_MODEL=llama3.1   # RAG 컨텍스트 압축
+OLLAMA_COMPRESS_MODEL=llama3.1
 ```
 
 ---
@@ -125,7 +116,7 @@ OLLAMA_COMPRESS_MODEL=llama3.1   # RAG 컨텍스트 압축
 Backend   NestJS + TypeScript       :3001
 Frontend  Next.js 14 + Tailwind     :3000
 Vector DB Qdrant                    :6333 (Docker)
-Local AI  Ollama                    :11434
+Local AI  Ollama                    :11434 (선택)
 ```
 
 ---
