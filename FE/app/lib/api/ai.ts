@@ -2,11 +2,23 @@ import { API_BASE, apiFetch, readSSE } from "./base";
 
 export interface OllamaRunningModel {
   name: string;
+  size: number;
   size_vram: number;
+}
+
+export interface SystemMemory {
+  total: number;
+  free: number;
+  used: number;
+  cached: number;
 }
 
 export async function getRunningOllamaModels(): Promise<OllamaRunningModel[]> {
   return apiFetch<OllamaRunningModel[]>("/ai/ollama/running");
+}
+
+export async function getSystemMemory(): Promise<SystemMemory> {
+  return apiFetch<SystemMemory>("/ai/system/memory");
 }
 
 export async function unloadOllamaModel(model: string): Promise<void> {

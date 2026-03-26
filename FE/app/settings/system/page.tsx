@@ -1,39 +1,63 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getRunningOllamaModels, unloadOllamaModel, OllamaRunningModel } from "@/lib/api/ai";
+import {
+  getRunningOllamaModels, unloadOllamaModel, getSystemMemory,
+  OllamaRunningModel, SystemMemory,
+} from "@/lib/api/ai";
 
-function formatVram(bytes: number): string {
+function formatBytes(bytes: number): string {
   if (bytes === 0) return "–";
   const gb = bytes / (1024 ** 3);
   return gb >= 1 ? `${gb.toFixed(1)} GB` : `${(bytes / (1024 ** 2)).toFixed(0)} MB`;
 }
 
+function MemoryBar({ used, total, label }: { used: number; total: number; label: string }) {
+  const pct = total > 0 ? Math.round((used / total) * 100) : 0;
+  const color = pct >= 85 ? "bg-red-400" : pct >= 60 ? "bg-amber-400" : "bg-emerald-400";
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs mb-1.5">
+        <span className="text-slate-500">{label}</span>
+        <span className="font-medium text-slate-700">{formatBytes(used)} / {formatBytes(total)} <span className="text-slate-400">({pct}%)</span></span>
+      </div>
+      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export default function SystemPage() {
   const [models, setModels] = useState<OllamaRunningModel[]>([]);
+  const [memory, setMemory] = useState<SystemMemory | null>(null);
   const [loading, setLoading] = useState(true);
   const [unloading, setUnloading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchModels = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const data = await getRunningOllamaModels();
-      setModels(data);
+      const [modelData, memData] = await Promise.all([
+        getRunningOllamaModels(),
+        getSystemMemory(),
+      ]);
+      setModels(modelData);
+      setMemory(memData);
       setError(null);
     } catch {
-      setError("Ollama에 연결할 수 없습니다.");
+      setError("데이터를 불러올 수 없습니다.");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchModels(); }, [fetchModels]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleUnload = async (name: string) => {
     setUnloading(name);
     try {
       await unloadOllamaModel(name);
-      await fetchModels();
+      await fetchData();
     } catch {
       setError(`${name} 언로드 실패`);
     } finally {
@@ -41,20 +65,52 @@ export default function SystemPage() {
     }
   };
 
+  const modelRamTotal = models.reduce((sum, m) => sum + (m.size ?? 0), 0);
+  const modelVramTotal = models.reduce((sum, m) => sum + (m.size_vram ?? 0), 0);
+
   return (
-    <div className="max-w-2xl mx-auto px-8 py-8">
-      <div className="mb-6">
+    <div className="max-w-2xl mx-auto px-8 py-8 space-y-6">
+      <div>
         <h1 className="text-lg font-bold text-slate-800">시스템</h1>
-        <p className="text-xs text-slate-400 mt-0.5">현재 메모리에 로드된 Ollama 모델을 관리합니다.</p>
+        <p className="text-xs text-slate-400 mt-0.5">메모리 현황 및 로드된 Ollama 모델을 관리합니다.</p>
       </div>
 
+      {/* 시스템 메모리 */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">시스템 메모리</span>
+        {loading ? (
+          <div className="text-xs text-slate-400">불러오는 중...</div>
+        ) : memory ? (
+          <>
+            <MemoryBar used={memory.used} total={memory.total} label="실제 사용 (wired + active + compressed)" />
+            {memory.cached > 0 && (
+              <MemoryBar used={memory.cached} total={memory.total} label="파일 캐시 (inactive)" />
+            )}
+            {modelRamTotal > 0 && (
+              <MemoryBar used={modelRamTotal} total={memory.total} label="모델 RAM 점유" />
+            )}
+            {modelVramTotal > 0 && (
+              <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                <span className="text-slate-500">모델 VRAM 점유</span>
+                <span className="font-medium text-slate-700">{formatBytes(modelVramTotal)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+              <span className="text-slate-400">여유 메모리</span>
+              <span className="text-slate-500">{formatBytes(memory.free)}</span>
+            </div>
+          </>
+        ) : null}
+      </div>
+
+      {/* 로드된 모델 */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
             로드된 모델 {!loading && `(${models.length})`}
           </span>
           <button
-            onClick={fetchModels}
+            onClick={fetchData}
             className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
           >
             새로고침
@@ -78,7 +134,10 @@ export default function SystemPage() {
               >
                 <div>
                   <div className="text-sm font-medium text-slate-800">{m.name}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">VRAM {formatVram(m.size_vram)}</div>
+                  <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
+                    {m.size > 0 && <span>RAM {formatBytes(m.size)}</span>}
+                    {m.size_vram > 0 && <span>VRAM {formatBytes(m.size_vram)}</span>}
+                  </div>
                 </div>
                 <button
                   onClick={() => handleUnload(m.name)}

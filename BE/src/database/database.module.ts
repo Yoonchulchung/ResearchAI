@@ -11,7 +11,7 @@ import { QueueJobEntity } from '../queue/domain/entity/queue-job.entity';
 import { NewsBriefingEntity } from '../news/domain/entity/news-briefing.entity';
 import { AppConfigEntity } from '../config/domain/entity/app-config.entity';
 import { GmailTokenEntity } from '../gmail/domain/entity/gmail-token.entity';
-import { ExperienceEntity } from '../experiences/domain/entity/experience.entity';
+import { ExperienceEntity } from '../documents/domain/entity/experience.entity';
 import { DocumentEntity } from '../documents/domain/entity/document.entity';
 
 @Module({

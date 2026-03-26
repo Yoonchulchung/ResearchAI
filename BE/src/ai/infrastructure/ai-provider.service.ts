@@ -167,7 +167,7 @@ export class AiProviderService {
     return models;
   }
 
-  async getRunningOllamaModels(): Promise<{ name: string; size_vram: number }[]> {
+  async getRunningOllamaModels(): Promise<{ name: string; size: number; size_vram: number }[]> {
     return getOllamaRunningModels();
   }
 

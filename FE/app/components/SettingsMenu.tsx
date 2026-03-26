@@ -28,6 +28,7 @@ export function SettingsMenu() {
     { label: "Analytics", path: "/settings/analytics" },
     { label: "파이프라인 테스트", path: "/settings/pipeline" },
     { label: "시스템", path: "/settings/system" },
+    { label: "배경화면", path: "/settings/background" },
   ];
 
   return (

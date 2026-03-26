@@ -66,7 +66,7 @@ function BatteryGauge({ score, reason }: { score: number; reason?: string }) {
   );
 }
 
-const MARKDOWN_PROSE = `px-5 py-4 bg-slate-50/60 max-h-[65vh] overflow-y-auto prose prose-slate max-w-none font-sans
+const MARKDOWN_PROSE = `px-5 py-4 bg-white/20 max-h-[65vh] overflow-y-auto prose prose-slate max-w-none font-sans
   [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
   [&_th]:bg-slate-200 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
   [&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:border-slate-200
@@ -270,7 +270,7 @@ export function TaskCard({
   return (
     <div
       ref={cardRef}
-      className={`rounded-xl bg-white shadow-sm border border-slate-200/60 border-l-4 ${leftBorder} overflow-hidden transition-all`}
+      className={`rounded-xl bg-white/75 backdrop-blur-sm shadow-sm border border-white/60 border-l-4 ${leftBorder} overflow-hidden transition-all`}
     >
       {/* Card Header */}
       <div
@@ -279,7 +279,7 @@ export function TaskCard({
           cursor: status === "idle" || hasContent ? "pointer" : "default",
         }}
         className={`flex items-center gap-3 px-4 transition-all duration-200 ${expanded ? "py-2" : "py-3"} ${
-          status === "running" ? "bg-indigo-50/50" : "hover:bg-slate-50/60"
+          status === "running" ? "bg-indigo-50/30" : "hover:bg-white/40"
         }`}
       >
         {/* Status Icon */}
@@ -397,7 +397,7 @@ export function TaskCard({
           {status !== TaskStatus.RUNNING && status !== TaskStatus.PENDING && (
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
-              className="text-xs text-slate-200 hover:text-red-400 w-6 h-6 flex items-center justify-center rounded-md hover:bg-red-50 transition-colors"
+              className="text-xs text-slate-400 hover:text-red-400 w-6 h-6 flex items-center justify-center rounded-md hover:bg-red-50 transition-colors"
               title="삭제"
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -427,7 +427,7 @@ export function TaskCard({
           <div style={{ overflow: "hidden" }}>
             <div className="border-t border-slate-100">
               {/* Tab Bar */}
-              <div className="flex gap-0.5 px-4 pt-2.5 pb-0 bg-slate-50/80 overflow-x-auto">
+              <div className="flex gap-0.5 px-4 pt-2.5 pb-0 bg-white/30 backdrop-blur-sm overflow-x-auto">
                 {[
                   { key: "result" as const, label: "AI 결과" },
                   ...availableSources.map(({ key, label }) => ({ key: key as "result" | "detail" | WebModelKey, label })),
@@ -449,7 +449,7 @@ export function TaskCard({
 
               {/* Tab Content */}
               {activeTab === "detail" ? (
-                <div className="px-5 py-4 bg-slate-50/60 max-h-[65vh] overflow-y-auto space-y-5">
+                <div className="px-5 py-4 bg-white/20 max-h-[65vh] overflow-y-auto space-y-5">
                   {/* 신뢰도 */}
                   {task.confidence != null ? (() => {
                     const isError = task.confidence.reason.startsWith("신뢰도 평가 중 오류");
@@ -629,7 +629,7 @@ export function TaskCard({
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{aiResult}</ReactMarkdown>
                   </div>
                 ) : (
-                  <div className="px-5 py-10 bg-slate-50/60 flex flex-col items-center gap-3 text-slate-400">
+                  <div className="px-5 py-10 bg-white/20 flex flex-col items-center gap-3 text-slate-400">
                     <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
                     <p className="text-xs">AI가 검색 결과를 분석하고 있습니다...</p>
                   </div>

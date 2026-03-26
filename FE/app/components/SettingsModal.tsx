@@ -75,7 +75,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         {/* Content */}
         <div className="flex-1 overflow-y-auto min-w-0">
           {section === "overview" && <OverviewSection />}
-          {section === "pipeline" && <PipelineSection cloudAiModels={cloudAiModels} />}
+          {section === "pipeline" && <PipelineSection cloudAiModels={cloudAiModels} localAiModels={localAiModels} />}
           {section === "ai-test" && <AITestSection cloudAiModels={cloudAiModels} localAiModels={localAiModels} />}
         </div>
       </div>
@@ -107,7 +107,7 @@ function OverviewSection() {
   );
 }
 
-function PipelineSection({ cloudAiModels }: { cloudAiModels: ModelDefinition[] }) {
+function PipelineSection({ cloudAiModels, localAiModels }: { cloudAiModels: ModelDefinition[]; localAiModels: ModelDefinition[] }) {
   return (
     <div>
       <SectionHeader
@@ -115,7 +115,7 @@ function PipelineSection({ cloudAiModels }: { cloudAiModels: ModelDefinition[] }
         desc="각 파이프라인 단계를 개별적으로 또는 순서대로 테스트합니다."
       />
       <div className="px-8 py-6">
-        <PipelineDiagram cloudAiModels={cloudAiModels} />
+        <PipelineDiagram cloudAiModels={cloudAiModels} localAiModels={localAiModels} />
       </div>
     </div>
   );

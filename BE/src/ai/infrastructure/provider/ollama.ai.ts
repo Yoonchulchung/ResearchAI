@@ -230,10 +230,10 @@ export async function getOllamaLocalModels(): Promise<{ name: string }[]> {
   }
 }
 
-export async function getOllamaRunningModels(): Promise<{ name: string; size_vram: number }[]> {
+export async function getOllamaRunningModels(): Promise<{ name: string; size: number; size_vram: number }[]> {
   const res = await fetch(`${OLLAMA_BASE()}/api/ps`, { signal: AbortSignal.timeout(3000) });
   if (!res.ok) throw new Error(`Ollama 오류: ${res.status}`);
-  const data = (await res.json()) as { models: { name: string; size_vram: number }[] };
+  const data = (await res.json()) as { models: { name: string; size: number; size_vram: number }[] };
   return data.models ?? [];
 }
 

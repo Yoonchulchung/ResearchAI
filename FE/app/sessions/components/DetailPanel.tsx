@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Session } from "@/types";
 import { markdownComponents } from "@/lib/markdown";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20] as const;
 const DEFAULT_FONT_SIZE_IDX = 2; // 14px
@@ -18,6 +19,15 @@ const BG_COLORS = [
   { label: "연한 회색", value: "#F8FAFC" },
 ];
 
+const DARK_BG_COLORS = [
+  { label: "슬레이트", value: "#1e293b" },
+  { label: "딥 블루", value: "#0f2233" },
+  { label: "차콜", value: "#1a1a2e" },
+  { label: "그린 다크", value: "#0d2117" },
+  { label: "어두운 회색", value: "#18181b" },
+  { label: "진한 슬레이트", value: "#0f172a" },
+];
+
 interface Props {
   session: Session;
   sessionId: string;
@@ -29,6 +39,7 @@ interface Props {
 }
 
 export function DetailPanel({ session, sessionId, expanded, selectedTaskId, instantScroll, onExpand, onClose }: Props) {
+  const { theme } = useTheme();
   const doneTasks = (session.items ?? []).filter((t) => t.aiResult);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [fontSizeIdx, setFontSizeIdx] = useState(() => {
@@ -46,7 +57,14 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
     try { return localStorage.getItem("viewer_bg_color") ?? BG_COLORS[1].value; } catch {}
     return BG_COLORS[1].value;
   });
+  const [darkBgColor, setDarkBgColor] = useState(() => {
+    try { return localStorage.getItem("viewer_dark_bg_color") ?? DARK_BG_COLORS[0].value; } catch {}
+    return DARK_BG_COLORS[0].value;
+  });
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const activePalette = theme === "dark" ? DARK_BG_COLORS : BG_COLORS;
+  const activeColor = theme === "dark" ? darkBgColor : bgColor;
 
   // selectedTaskId 변경 시 해당 섹션으로 스크롤
   useEffect(() => {
@@ -103,12 +121,17 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
   };
 
   const handleBgColor = (color: string) => {
-    setBgColor(color);
-    save("viewer_bg_color", color);
+    if (theme === "dark") {
+      setDarkBgColor(color);
+      save("viewer_dark_bg_color", color);
+    } else {
+      setBgColor(color);
+      save("viewer_bg_color", color);
+    }
   };
 
   return (
-    <div className="flex flex-col h-full w-full" style={{ backgroundColor: bgColor }}>
+    <div className="flex flex-col h-full w-full" style={{ backgroundColor: activeColor }}>
       {/* Header */}
       <div className="px-6 py-3.5 border-b border-slate-200 flex items-center gap-3 shrink-0 bg-white">
         <h2 className="font-bold text-sm text-slate-800 truncate flex-1">{session.topic}</h2>
@@ -116,7 +139,7 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
 
         {/* 배경 색상 */}
         <div className="flex items-center gap-1 shrink-0">
-          {BG_COLORS.map((c) => (
+          {activePalette.map((c) => (
             <button
               key={c.value}
               onClick={() => handleBgColor(c.value)}
@@ -124,8 +147,8 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
               className="w-4 h-4 rounded-full border transition-all"
               style={{
                 backgroundColor: c.value,
-                borderColor: bgColor === c.value ? "#64748b" : "#cbd5e1",
-                boxShadow: bgColor === c.value ? "0 0 0 1.5px #64748b" : undefined,
+                borderColor: activeColor === c.value ? "#64748b" : "#cbd5e1",
+                boxShadow: activeColor === c.value ? "0 0 0 1.5px #64748b" : undefined,
               }}
             />
           ))}

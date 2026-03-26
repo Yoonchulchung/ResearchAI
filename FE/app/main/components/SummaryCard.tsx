@@ -48,7 +48,7 @@ function SummaryList({ summary }: { summary: string }) {
       {lines.map((line, i) => {
         const text = line.replace(/^[•\-]\s*/, "").replace(/\*\*/g, "").trim();
         if (!text) return null;
-        const match = text.match(/^\[(.+?)\]\s*[:\-]\s*(.*)/s);
+        const match = text.match(/^\[(.+?)\]\s*[:\-]\s*(.*)/);
         const label = match?.[1] ?? null;
         const body = match ? match[2].trim() : text;
         return (

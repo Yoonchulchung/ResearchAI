@@ -1,4 +1,6 @@
 import { Controller, Get, Post, Param, Body, HttpCode } from '@nestjs/common';
+import * as os from 'os';
+import { execSync } from 'child_process';
 import { AiProviderService } from '../infrastructure/ai-provider.service';
 import { AiService } from '../application/ai.service';
 import { SessionItemQueryService } from '../../sessions/application/query/session-item-query.service';
@@ -12,6 +14,32 @@ export class AiController {
     private readonly sessionItemQueryService: SessionItemQueryService,
     private readonly sessionItemCommandService: SessionItemCommandService,
   ) {}
+
+  @Get('system/memory')
+  getSystemMemory() {
+    const total = os.totalmem();
+    if (os.platform() === 'darwin') {
+      try {
+        const vmstat = execSync('vm_stat', { encoding: 'utf8' });
+        const pageSize = parseInt(vmstat.match(/page size of (\d+)/)?.[1] ?? '16384', 10);
+        const get = (key: string) => {
+          const m = vmstat.match(new RegExp(`${key}:\\s+(\\d+)`));
+          return m ? parseInt(m[1], 10) * pageSize : 0;
+        };
+        const free = get('Pages free') + get('Pages speculative');
+        const cached = get('Pages inactive');
+        const wired = get('Pages wired down');
+        const active = get('Pages active');
+        const compressed = get('Pages occupied by compressor');
+        const used = wired + active + compressed;
+        return { total, free, used, cached };
+      } catch {
+        // fall through to os fallback
+      }
+    }
+    const free = os.freemem();
+    return { total, free, used: total - free, cached: 0 };
+  }
 
   @Get('ollama/running')
   async getRunningModels() {

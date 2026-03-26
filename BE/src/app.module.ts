@@ -13,6 +13,7 @@ import { MediaModule } from './media/media.module';
 import { AppConfigModule } from './config/config.module';
 import { GmailModule } from './gmail/gmail.module';
 import { DocumentsModule } from './documents/documents.module';
+import { BackgroundsModule } from './backgrounds/backgrounds.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { DocumentsModule } from './documents/documents.module';
     AppConfigModule,
     GmailModule,
     DocumentsModule,
+    BackgroundsModule,
   ],
 })
 export class AppModule {}

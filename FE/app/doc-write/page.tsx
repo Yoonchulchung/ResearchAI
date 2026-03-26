@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useEditor } from "./_hooks/useEditor";
 import { useDocSave } from "./_hooks/useDocSave";
 import { useAiAssist } from "./_hooks/useAiAssist";
@@ -13,7 +13,7 @@ import { enqueueCompanyProfile, streamCompanyProfile } from "@/lib/api/ai";
 
 import { IconDownload } from "./_components/icons";
 
-export default function DocWritePage() {
+function DocWritePageInner() {
   const editor = useEditor();
   const [companyName, setCompanyName] = useState("");
   const docSave = useDocSave(editor.setContent, setCompanyName);
@@ -84,7 +84,7 @@ export default function DocWritePage() {
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-[#F4F5F7]">
+    <div className="h-full flex flex-col overflow-hidden bg-slate-100">
 
       {/* ── Topbar ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 px-5 py-2.5 bg-white border-b border-slate-200/60 shrink-0">
@@ -236,5 +236,13 @@ export default function DocWritePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DocWritePage() {
+  return (
+    <Suspense>
+      <DocWritePageInner />
+    </Suspense>
   );
 }
