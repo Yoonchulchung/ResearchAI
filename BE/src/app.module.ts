@@ -9,11 +9,9 @@ import { QueueModule } from './queue/queue.module';
 import { ChatModule } from './chat/chat.module';
 import { RecruitModule } from './recruit/recruit.module';
 import { NewsModule } from './news/news.module';
-import { DocParseModule } from './doc-parse/doc-parse.module';
 import { MediaModule } from './media/media.module';
 import { AppConfigModule } from './config/config.module';
 import { GmailModule } from './gmail/gmail.module';
-import { ExperiencesModule } from './experiences/experiences.module';
 import { DocumentsModule } from './documents/documents.module';
 
 @Module({
@@ -28,11 +26,9 @@ import { DocumentsModule } from './documents/documents.module';
     ChatModule,
     RecruitModule,
     NewsModule,
-    DocParseModule,
     MediaModule,
     AppConfigModule,
     GmailModule,
-    ExperiencesModule,
     DocumentsModule,
   ],
 })
