@@ -1,6 +1,7 @@
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { enqueueWriteAssist, streamWriteAssist } from "@/lib/api/ai";
+import { enqueueDocWriteAssist } from "@/lib/api/doc-write";
 import type { ExperienceSearchResult } from "@/lib/api/experiences";
 import { MODELS } from "../_constants";
 import type { ChatMessage } from "../_types";
@@ -73,6 +74,7 @@ export function useAiAssist(setContent: Dispatch<SetStateAction<string>>) {
     selectedText: string,
     selectedExperiences: ExperienceSearchResult[],
     userLabel?: string,
+    actionKey?: string,
   ) => {
     if (aiLoading) return;
     const userMsg: ChatMessage = {
@@ -87,14 +89,21 @@ export function useAiAssist(setContent: Dispatch<SetStateAction<string>>) {
 
     let accumulated = "";
     const targetContent = selectedText || content;
-    const expContext =
-      selectedExperiences.length > 0
-        ? `## 참고할 나의 경험\n${selectedExperiences.map((e) => `### ${e.title}\n${e.content}`).join("\n\n")}\n\n---\n\n`
-        : "";
-    const finalInstruction = expContext + instruction;
 
     try {
-      const { jobId } = await enqueueWriteAssist(targetContent, finalInstruction, model);
+      let jobId: string;
+      if (actionKey) {
+        // 백엔드에서 프롬프트 조립
+        const experiences = selectedExperiences.map((e) => ({ title: e.title, content: e.content }));
+        ({ jobId } = await enqueueDocWriteAssist(actionKey, targetContent, model, experiences, instruction || undefined));
+      } else {
+        // 커스텀 프롬프트: FE에서 조립
+        const expContext =
+          selectedExperiences.length > 0
+            ? `## 참고할 나의 경험\n${selectedExperiences.map((e) => `### ${e.title}\n${e.content}`).join("\n\n")}\n\n---\n\n`
+            : "";
+        ({ jobId } = await enqueueWriteAssist(targetContent, expContext + instruction, model));
+      }
       await streamWriteAssist(jobId, (event) => {
         if (event.type === "chunk") {
           accumulated += event.text;

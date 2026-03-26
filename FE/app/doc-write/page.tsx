@@ -67,18 +67,19 @@ export default function DocWritePage() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [editor.content, docSave]);
 
-  const handleRunAssist = (instruction: string, userLabel?: string, skipCompanyCtx?: boolean) => {
+  const handleRunAssist = (instruction: string, userLabel?: string, skipCompanyCtx?: boolean, actionKey?: string) => {
     const companyCtx = skipCompanyCtx ? "" : companyProfile
       ? `## 지원 기업 정보\n기업명: ${companyName}\n\n### 인재상\n${companyProfile}\n\n이 기업의 인재상을 반드시 고려하여 작업해주세요.\n\n---\n\n`
       : companyName.trim()
         ? `## 지원 기업\n기업명: ${companyName}\n\n---\n\n`
         : "";
     ai.runAssist(
-      companyCtx + instruction,
+      actionKey ? companyCtx : companyCtx + instruction,
       editor.content,
       editor.selectedText,
       rag.selectedExperiences,
       userLabel,
+      actionKey,
     );
   };
 

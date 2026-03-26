@@ -113,4 +113,20 @@ export class DocumentsController {
   extractFromDoc(@Body() dto: { content: string; model: string }) {
     return this.service.extractFromDocument(dto.content, dto.model);
   }
+
+  // ── Write Assist ────────────────────────────────────────────────────────
+
+  @Post('write-assist')
+  enqueueWriteAssist(
+    @Body() body: {
+      action: string;
+      content: string;
+      model: string;
+      experiences?: { title: string; content: string }[];
+      companyCtx?: string;
+    },
+  ) {
+    if (!body.action || !body.content) throw new BadRequestException('action과 content가 필요합니다');
+    return this.service.enqueueWriteAssist(body.action, body.content, body.model, body.experiences, body.companyCtx);
+  }
 }

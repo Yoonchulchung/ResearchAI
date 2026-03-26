@@ -7,6 +7,7 @@ import { DocumentsService } from './application/documents.service';
 import { DocumentsController } from './presentation/documents.controller';
 import { AiModule } from '../ai/ai.module';
 import { VectorModule } from '../vector/vector.module';
+import { QueueModule } from '../queue/queue.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { VectorModule } from '../vector/vector.module';
     MulterModule.register(),
     AiModule,
     VectorModule,
+    QueueModule,
   ],
   controllers: [DocumentsController],
   providers: [DocumentsService],
