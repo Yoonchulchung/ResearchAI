@@ -2,6 +2,70 @@
 
 ---
 
+## 전체 시스템 구조
+
+```mermaid
+graph TB
+    subgraph FE["프론트엔드 (:3000)"]
+        main["/main<br/>리서치 홈"]
+        Deep["Deep 리서치"]
+        Light["Light 리서치"]
+        docwrite["/doc-write<br/>문서 에디터"]
+        docstore["/doc-store<br/>저장 문서·경험"]
+    end
+
+    subgraph BE["백엔드 (:3001)"]
+        Q[QueueModule<br/>작업 큐 + SSE]
+        LR[LightResearchModule<br/>파이프라인]
+        DR[DeepResearchModule<br/>파이프라인]
+        D[DocumentsModule<br/>문서·경험]
+        C[ChatModule<br/>RAG 채팅]
+        AI[AI Provider]
+        AIG[AI Agent]
+    end
+
+    subgraph Storage["저장소"]
+        SQLite["SQLite<br/>문서·경험·채용"]
+        Qdrant["Qdrant :6333<br/>벡터 DB"]
+    end
+
+    subgraph External["외부 서비스"]
+        AIP["Claude / GPT<br/>/ Gemini / Ollama"]
+        Search["Tavily / DuckDuckGo"]
+        Saramin["사람인<br/>크롤링"]
+    end
+
+    main --> | 뉴스 요약 요청 |Q
+    Deep --> | 리서치 요청 | Q
+    Deep --> | 채팅 요청 | C
+    Light --> | 리서치 요청 | Q
+    LR --> | Deep Research 계획 생성 요청 | AI
+    docwrite --> | 문서 검사 요청 |Q
+    docwrite --> | 문서 저장 | D
+    docstore --> | 문서 저장 | D
+    docstore --> |문서 카테고리 분류 요청| Q
+
+    Q --> | 리서치 요청 | LR
+    Q --> | 리서치 요청 | DR
+    Q --> | AI 요청 | AI
+    C --> | 채팅 응답 요청 | AI
+    C --> |인터넷 검색| Search
+    DR --> | 리서치 요청 | AIG
+    DR --> | 리서치 결과 저장| SQLite
+    DR --> | 결과 저장 | Qdrant
+    AI -->  | AI 요청 | AIP
+    AIG --> | AI 요청 | AI
+    AIG --> | 인터넷 검색 | Search
+    Search --> | 리서치 요약 요청 | AI
+    LR --> | 채용 공고 검색 | Saramin
+    LR --> | 인터넷 검색 | Search
+    LR --> | 결과 저장 | SQLite
+    C --> | RAG 요청 | Qdrant
+    D --> | 문서 저장 | SQLite
+```
+
+---
+
 ## 전체 디렉터리 구조
 
 ```
@@ -103,6 +167,18 @@ ResearchAI/
 
 모든 비동기 AI 작업은 큐를 통해 처리됩니다. **enqueue → SSE stream** 패턴을 사용합니다.
 
+```mermaid
+stateDiagram-v2
+    [*] --> pending: POST enqueue
+    pending --> running: 큐에서 꺼냄
+    running --> done: 완료
+    running --> error: 오류
+    running --> stopped: DELETE 취소
+    done --> [*]: 5분 후 메모리 정리
+    error --> [*]
+    stopped --> [*]
+```
+
 ```
 클라이언트
   1. POST /queue/{작업종류}   →  { jobId }
@@ -168,13 +244,23 @@ Task 구조:
   { id: number, title: string, icon: string, prompt: string }
 ```
 
-**내부 처리 흐름:**
+```mermaid
+flowchart TD
+    A([사용자 주제 입력]) --> B[POST /queue/research/light]
+    B --> C{SearchPlannerService\nAI가 source 결정}
 
-```
-1. SearchPlannerService  →  source / keyword / companyTypes / jobTypes 결정
-2. source = 'web'/'both'    → Tavily 웹 검색
-   source = 'recruit'/'both' → 사람인 크롤링 (emp_tp, career_cd, job_type 필터)
-3. AI → 5~7개 태스크 JSON 생성
+    C -->|source = web| D[Tavily / DuckDuckGo 웹 검색]
+    C -->|source = recruit| E[사람인 크롤링]
+    C -->|source = both| D
+    C -->|source = both| E
+
+    D --> F[webContext]
+    E --> G[recruitCtx]
+
+    F --> H[AI 태스크 생성<br/>5~7개 JSON 배열]
+    G --> H
+    
+    H --> J([FE: 세션 생성<br/>POST /sessions])
 ```
 
 ---
@@ -192,81 +278,85 @@ GET /queue/events  (전역 큐 SSE)
   → { type: 'sync', jobs: QueueJob[] }
 ```
 
-**내부 처리 흐름:**
+```mermaid
+flowchart TD
+    A([DeepResearch 요청]) --> B[POST /queue/research/:id/deep]
+    B --> C[QueueService\n순차 처리 1개씩]
+    C --> D{모델 종류}
 
-```
-Phase 1: 웹 검색 병렬 실행
-  Tavily + Serper + Naver + Brave → sources
-  SSE: { type: 'source', key: 'tavily', result: '...' }
+    D -->|Claude, ChatGPT, Ollama<br/>OpenAI 호환<br/>로컬 웹 엔진 사용| E
 
-Phase 1-1: Ollama 필터링 (백그라운드)
-  검색 결과 압축·정제 → sources.ollama
+    subgraph E["🤖 AI Agent 루프 (max 5회)"]
+        direction TB
+        E1[AI 호출<br/>web_search 툴 제공] --> E2{툴 호출}
+        E2 -->|Yes| E3[웹 검색 실행<br/>Tavily / DuckDuckGo]
+        E3 --> E4[웹 검색 결과 AI로 필터]
+        E4 --> E5[검색 결과를<br/>메시지에 추가]
+        E4 --> E1
+        E2 -->|No / end_turn| E5([루프 종료<br/>최종 답변 반환])
+    end
 
-Phase 2: AI 분석
-  Claude  → 내장 web_search 또는 Tavily 컨텍스트
-  GPT     → Tavily 컨텍스트
-  Gemini  → 내장 googleSearch 또는 Tavily 컨텍스트
-  Ollama  → Tavily 컨텍스트
-  → 마크다운 보고서 → session.json 저장 → Qdrant 인덱싱
-```
+    D -->|Gemini<br/>AI Agent 호환이 안되는 모델| F
 
-**AI 모델 디스패치 패턴:**
-```typescript
-if (model.startsWith('claude'))  → callAnthropic()
-if (model.startsWith('gemini'))  → callGoogle()
-if (model.startsWith('ollama:')) → callOllama(model.slice(7))
-else                             → callOpenAI()   // gpt-*, o3-* 등
+    subgraph F["고정 파이프라인"]
+        direction TB
+        F1[Step 1: 웹 검색<br/>Tavily / DuckDuckGo] --> F2[Step 2: AI 분석<br/>검색 결과 컨텍스트 주입]
+    end
+
+    D -->|내장 검색 엔진<br/>Claude built-in| G[AI 단독 처리<br/>builtinSearch=true]
+
+    E5 & F2 & G --> H[Step 3: 신뢰도 평가<br/>출처·교차검증 기반 0~100점]
+
+    H --> I[마크다운 보고서 생성]
+    I --> K[Qdrant 벡터 인덱싱<br/>600자 청크]
 ```
 
 ---
 
-## 핵심 파이프라인 3 — WriteAssist
+## 핵심 파이프라인 3 — WriteAssist & CompanyProfile
 
-문서 에디터의 AI 어시스턴트. enqueue → stream 패턴.
+enqueue → SSE stream 공통 패턴.
 
+```mermaid
+sequenceDiagram
+    participant FE as 프론트엔드
+    participant Q  as QueueController
+    participant E  as Executor
+    participant AI as AI 모델
+
+    FE->>Q: POST /queue/write-assist\n{ content, instruction, model }
+    Q-->>FE: { jobId }
+
+    FE->>Q: GET /queue/write-assist/{jobId}/stream (SSE 연결)
+
+    Q->>E: executeJob(job)
+    E->>AI: 스트리밍 호출
+
+    loop AI 스트리밍
+        AI-->>E: 텍스트 조각
+        E-->>FE: SSE: { type: "chunk", text: "..." }
+    end
+
+    E-->>FE: SSE: { type: "done" }
+
+    Note over FE,AI: CompanyProfile도 동일 패턴\nPOST /queue/company-profile
 ```
-POST /queue/write-assist
-  Body: { content: string, instruction: string, model: string }
-  Response: { jobId }
 
-SSE GET /queue/write-assist/{jobId}/stream
-  → { type: 'chunk', text: string }
-  → { type: 'done' }
-
-DELETE /queue/write-assist/{jobId}  (취소)
+**WriteAssist instruction 구성 (FE에서 조립):**
 ```
-
-**instruction 구성 예시 (FE에서 조립):**
-```
-{companyCtx}  ← 기업 인재상 (skipCompanyCtx=true면 생략)
+{companyCtx}        ← skipCompanyCtx=true면 생략
 ## 작성 중인 글
 {content}
 ## 요청사항
 {action prompt}
 ```
 
----
-
-## 핵심 파이프라인 4 — CompanyProfile
-
-기업명 → 인재상 웹 검색 후 AI 합성. enqueue → stream 패턴.
-
+**CompanyProfile 내부 처리:**
 ```
-POST /queue/company-profile
-  Body: { companyName: string, model: string }
-  Response: { jobId }
-
-SSE GET /queue/company-profile/{jobId}/stream
-  → { type: 'chunk', text: string }
-  → { type: 'done' }
-
-DELETE /queue/company-profile/{jobId}
+WebSearchService.runSearch("{companyName} 인재상 핵심가치 채용 공식")
+  → 결과 있음: AI로 합성 → 스트리밍
+  → 결과 없음: AI 학습 기반 응답 (경고 포함) → 스트리밍
 ```
-
-**내부 처리:**
-1. `WebSearchService.runSearch("{companyName} 인재상 핵심가치 채용 공식")` 실행
-2. 검색 결과 있으면 AI로 합성
-3. 검색 결과 없으면 AI 학습 기반 응답 (경고 포함)
 
 ---
 
@@ -282,16 +372,59 @@ POST /chat/{sessionId}
     { type: 'done' }
 ```
 
-**컨텍스트 구성 폴백 체인:**
-1. Qdrant 시맨틱 검색 → top-6 청크
-2. (없으면) Ollama 압축 컨텍스트
-3. (없으면) 원본 리서치 결과 전체
+```mermaid
+flowchart TD
+    A([사용자 질문]) --> B[POST /chat/:sessionId]
 
-**벡터 인덱싱:**
-- 600자 청크, 80자 오버랩
-- 임베딩: `nomic-embed-text` (768차원, Ollama)
-- 컬렉션: `research_rag`
-- 메타데이터: `sessionId`, `taskId`, `taskTitle`, `taskIcon`
+    B --> C{컨텍스트 구성\n폴백 체인}
+    C -->|①| D[Qdrant 시맨틱 검색\ntop-6 청크]
+    C -->|② 없으면| E[Ollama 압축 컨텍스트]
+    C -->|③ 없으면| F[원본 리서치 결과 전체]
+
+    D & E & F --> G[채팅 히스토리 로드\nchat.json → 메모리 캐시]
+    G --> H[AI 스트리밍 호출\nsystem: 리서치 분석가 + RAG]
+
+    H --> I[SSE: type=chunk 전송]
+    I --> J[히스토리 저장\n메모리 + chat.json]
+
+    subgraph 벡터 인덱싱
+        K[DeepResearch 완료] --> L[마크다운 600자 청크\n80자 오버랩]
+        L --> M[nomic-embed-text\n768차원 임베딩]
+        M --> N[Qdrant research_rag\n컬렉션 저장]
+    end
+```
+
+---
+
+## 문서·경험 관리 흐름
+
+```mermaid
+flowchart LR
+    subgraph DocWrite["/doc-write"]
+        A([문서 작성]) --> B[저장\nPATCH /documents/:id]
+        B --> C[DocumentEntity\nSQLite]
+    end
+
+    subgraph DocStore["/doc-store"]
+        C --> D[문서 카드 목록]
+        D --> E{경험 추출 클릭}
+        E --> F[POST /experiences/extract-from-doc\nAI가 번호별 단락 분리]
+        F --> G[ExtractExpModal\n항목 선택]
+        G --> H[POST /experiences\nsourceDocId 포함]
+        H --> I[ExperienceEntity\nSQLite + Qdrant]
+    end
+
+    subgraph Edit[경험 수정]
+        I --> J{수정 클릭\nsourceDocId 있음}
+        J --> K["/doc-write?docId=X\n&highlight=TEXT"]
+        K --> L[원문서 로드\n해당 단락 하이라이트]
+    end
+
+    subgraph RAG[RAG 검색]
+        I --> M[POST /experiences/search\n벡터 검색]
+        M --> N[관련 경험 → AI 프롬프트 추가]
+    end
+```
 
 ---
 
