@@ -102,26 +102,26 @@ export function EditorPanel({
 
       {/* Company name + Job title input */}
       <div className={`flex items-center gap-2 px-4 py-2 border-b shrink-0 ${isGlass ? "border-white/10" : "border-slate-100"}`}>
-        <span className={`text-xs shrink-0 ${isGlass ? "text-white/60" : "text-slate-400"}`}>지원 기업</span>
+        <span className={`text-sm shrink-0 ${isGlass ? "text-white/60" : "text-slate-400"}`}>지원 기업</span>
         <input
           value={companyName}
           onChange={(e) => setCompanyName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onFetchProfile(); }}
           placeholder="기업명 입력..."
-          className={`w-32 text-xs !bg-transparent !border-0 focus:outline-none min-w-0 ${isGlass ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-300"}`}
+          className={`w-36 text-sm !bg-transparent !border-0 focus:outline-none min-w-0 ${isGlass ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-300"}`}
         />
-        <span className={`text-xs ${isGlass ? "text-white/20" : "text-slate-200"}`}>|</span>
-        <span className={`text-xs shrink-0 ${isGlass ? "text-white/60" : "text-slate-400"}`}>직무</span>
+        <span className={`text-sm ${isGlass ? "text-white/20" : "text-slate-200"}`}>|</span>
+        <span className={`text-sm shrink-0 ${isGlass ? "text-white/60" : "text-slate-400"}`}>직무</span>
         <input
           value={jobTitle}
           onChange={(e) => setJobTitle(e.target.value)}
           placeholder="직무명 입력..."
-          className={`flex-1 text-xs !bg-transparent !border-0 focus:outline-none min-w-0 ${isGlass ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-300"}`}
+          className={`flex-1 text-sm !bg-transparent !border-0 focus:outline-none min-w-0 ${isGlass ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-300"}`}
         />
         <button
           onClick={onFetchProfile}
           disabled={!companyName.trim() || profileLoading}
-          className={`shrink-0 flex items-center gap-1 px-2.5 py-1 text-xs font-medium border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+          className={`shrink-0 flex items-center gap-1 px-3 py-1.5 text-sm font-medium border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
             isGlass 
               ? "text-indigo-100 bg-white/10 border-white/20 hover:bg-white/20"
               : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
@@ -140,7 +140,7 @@ export function EditorPanel({
 
       {/* Word/char count */}
       <div className="flex justify-end px-4 py-1.5 shrink-0">
-        <span suppressHydrationWarning className={`text-xs ${isGlass ? "text-white/40" : "text-slate-300"}`}>
+        <span suppressHydrationWarning className={`text-sm ${isGlass ? "text-white/40" : "text-slate-300"}`}>
           {words.toLocaleString()}단어 · {chars.toLocaleString()}자
         </span>
       </div>
@@ -149,7 +149,7 @@ export function EditorPanel({
       <div className={`flex-1 flex flex-col min-h-0 overflow-y-auto ${isGlass ? "text-white" : "text-slate-700"}`}>
         {mode === "edit" && diffTokens ? (
           // ── Inline diff view ──────────────────────────────────────────────
-          <div className="flex-1 px-8 py-6 text-base leading-relaxed whitespace-pre-wrap font-[inherit]">
+          <div className="flex-1 px-8 py-6 text-lg leading-relaxed whitespace-pre-wrap font-[inherit]">
             <span>{diffBefore}</span>
 
             {/* Original line: unchanged + removed */}
@@ -221,7 +221,7 @@ export function EditorPanel({
               onKeyUp={onTextareaSelect}
               onContextMenu={onContextMenu}
               placeholder="내용을 작성하세요..."
-              className={`flex-1 w-full px-8 py-6 text-base font-sans leading-loose !bg-transparent !border-0 focus:outline-none resize-none ${isGlass ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-300"}`}
+              className={`flex-1 w-full px-8 py-6 text-lg font-sans leading-loose !bg-transparent !border-0 focus:outline-none resize-none ${isGlass ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-300"}`}
             />
           </div>
         ) : (

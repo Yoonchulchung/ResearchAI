@@ -39,7 +39,7 @@ function KeyRow({
   };
 
   return (
-    <tr className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+    <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-100 transition-colors">
       <td className="px-6 py-4 text-slate-700 font-medium whitespace-nowrap">{entry.label}</td>
       <td className="px-4 py-4 font-mono text-slate-500 text-xs">
         {editing ? (

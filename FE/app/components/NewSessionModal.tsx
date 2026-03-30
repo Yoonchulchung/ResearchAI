@@ -69,6 +69,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
   } = useNewSession(models);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [autoStart, setAutoStart] = useState(false);
 
   // 태스크 생성 후 자동 스크롤
   useEffect(() => {
@@ -78,6 +79,14 @@ function ModalContent({ onClose }: { onClose: () => void }) {
       }, 100);
     }
   }, [tasks.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 엔터로 생성 시작 → 태스크 생성 완료되면 자동으로 리서치 시작
+  useEffect(() => {
+    if (autoStart && !generating && tasks.length > 0 && !generatingTitle) {
+      setAutoStart(false);
+      handleResearchStart().then(() => onClose());
+    }
+  }, [autoStart, generating, tasks.length, generatingTitle]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStart = async () => {
     await handleResearchStart();
@@ -109,25 +118,25 @@ function ModalContent({ onClose }: { onClose: () => void }) {
         <div>
           <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
             <IconSearch />
-            리서치 주제 <span className="text-red-400">*</span>
+            리서치 주제
           </label>
           <div className="relative">
             <textarea
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
-                  if (canGenerate) handleGenerate();
+                  if (canGenerate) {
+                    setAutoStart(true);
+                    handleGenerate();
+                  }
                 }
               }}
               placeholder="어떤 주제를 리서치하시겠어요? (예: 최근 AI 반도체 시장 동향과 주요 플레이어)"
               rows={3}
-              className="w-full text-sm text-slate-800 placeholder-slate-400 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-300/50 focus:border-indigo-300 resize-none leading-relaxed transition-all"
+              className="w-full text-sm text-slate-800 placeholder-slate-400 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 resize-none leading-relaxed transition-all focus:outline-none focus:ring-0 focus-visible:outline-none"
             />
-            <div className="absolute bottom-2.5 right-3 text-xs text-slate-300 pointer-events-none">
-              ⌘↵ 생성
-            </div>
           </div>
         </div>
 

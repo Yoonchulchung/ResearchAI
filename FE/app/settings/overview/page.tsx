@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { getTavilyOverview, getApiKeys, type ApiKeyEntry } from "@/lib/api";
 import { getModels } from "@/lib/api/research";
 import { ModelDefinition } from "@/types";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   type TavilyOverview,
   PageHeader,
@@ -63,7 +64,7 @@ function CloudModelConfigCard({
         <button
           onClick={handleSave}
           disabled={saving || cloudModels.length === 0}
-          className="px-5 py-2.5 bg-slate-800 text-white text-sm font-medium rounded-xl hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {saving ? "저장 중..." : saved ? "저장됨 ✓" : "저장"}
         </button>
@@ -120,7 +121,7 @@ function LocalModelConfigCard({
         <button
           onClick={handleSave}
           disabled={saving || ollamaModels.length === 0}
-          className="px-5 py-2.5 bg-slate-800 text-white text-sm font-medium rounded-xl hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {saving ? "저장 중..." : saved ? "저장됨 ✓" : "저장"}
         </button>
@@ -133,6 +134,9 @@ function LocalModelConfigCard({
 }
 
 export default function OverviewPage() {
+  const { uiStyle } = useTheme();
+  const isGlass = uiStyle === "glass";
+
   const [tavily, setTavily] = useState<TavilyOverview | null>(null);
   const [apiKeys, setApiKeys] = useState<ApiKeyEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,31 +193,33 @@ export default function OverviewPage() {
   };
 
   return (
-    <div className="min-h-full bg-slate-50">
-      <PageHeader loading={loading} />
+    <div className={`min-h-full flex flex-col transition-all ${isGlass ? "p-3 pr-4 pb-4 bg-transparent" : "bg-slate-50"}`}>
+      <div className={`flex-1 flex flex-col transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl overflow-hidden" : ""}`}>
+        <PageHeader loading={loading} isGlass={isGlass} />
 
-      <div className="px-8 py-8 space-y-6 max-w-4xl mx-auto">
-        <TavilyCard loading={loading} tavily={tavily} />
-        <TokenUsageCard loading={loading} analytics={analytics} />
-        <CloudModelConfigCard
-          cloudModels={cloudModels}
-          currentModel={defaultCloudModel}
-          onSave={handleSaveCloudModel}
-        />
-        <LocalModelConfigCard
-          ollamaModels={ollamaModels}
-          currentModel={defaultLocalModel}
-          onSave={handleSaveLocalModel}
-        />
-        <ApiKeysTable loading={loading} apiKeys={apiKeys} onRefresh={fetchAll} />
+        <div className="px-8 py-8 space-y-6 max-w-4xl mx-auto w-full">
+          <TavilyCard loading={loading} tavily={tavily} />
+          <TokenUsageCard loading={loading} analytics={analytics} />
+          <CloudModelConfigCard
+            cloudModels={cloudModels}
+            currentModel={defaultCloudModel}
+            onSave={handleSaveCloudModel}
+          />
+          <LocalModelConfigCard
+            ollamaModels={ollamaModels}
+            currentModel={defaultLocalModel}
+            onSave={handleSaveLocalModel}
+          />
+          <ApiKeysTable loading={loading} apiKeys={apiKeys} onRefresh={fetchAll} />
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-5 flex items-center justify-between">
-          <p className="text-sm text-slate-500">
-            Have any questions, feedback or need support? We&apos;d love to hear from you!
-          </p>
-          <button className="px-5 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-            Contact us
-          </button>
+          <div className={`rounded-2xl border px-6 py-5 flex items-center justify-between ${isGlass ? "border-white/20 bg-white/5" : "bg-white border-slate-200 shadow-sm"}`}>
+            <p className={`text-sm ${isGlass ? "text-white/60" : "text-slate-500"}`}>
+              Have any questions, feedback or need support? We&apos;d love to hear from you!
+            </p>
+            <button className={`px-5 py-2 border rounded-xl text-sm font-medium transition-colors ${isGlass ? "border-white/20 text-white/70 hover:bg-white/10" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
+              Contact us
+            </button>
+          </div>
         </div>
       </div>
     </div>

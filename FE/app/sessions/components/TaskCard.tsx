@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { Task, TaskStatus, WebModels, ModelDefinition } from "@/types";
 import { markdownComponents } from "@/lib/markdown";
 import { reEvaluateConfidence } from "@/lib/api/ai";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export type Phase = "searching" | "analyzing";
 
@@ -66,22 +67,22 @@ function BatteryGauge({ score, reason }: { score: number; reason?: string }) {
   );
 }
 
-const MARKDOWN_PROSE = `px-5 py-4 bg-white/20 max-h-[65vh] overflow-y-auto prose prose-slate max-w-none font-sans
+const getMarkdownProse = (isDark: boolean) => `px-5 py-4 ${isDark ? "bg-black/20" : "bg-white/20"} max-h-[65vh] overflow-y-auto prose ${isDark ? "prose-invert" : "prose-slate"} max-w-none font-sans
   [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
-  [&_th]:bg-slate-200 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
-  [&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:border-slate-200
-  [&_tr:nth-child(even)]:bg-white [&_tr:nth-child(odd)]:bg-slate-50/50
-  [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:text-slate-800
-  [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-slate-800
-  [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:text-slate-700
-  [&_strong]:font-bold [&_strong]:text-slate-800
+  [&_th]:${isDark ? "bg-white/10 border-white/20" : "bg-slate-200 border-slate-300"} [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border
+  [&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:${isDark ? "border-white/20" : "border-slate-200"}
+  [&_tr:nth-child(even)]:${isDark ? "bg-white/5" : "bg-white"} [&_tr:nth-child(odd)]:${isDark ? "bg-transparent" : "bg-slate-50/50"}
+  [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 ${isDark ? "[&_h1]:text-white" : "[&_h1]:text-slate-800"}
+  [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-2 ${isDark ? "[&_h2]:text-white/90" : "[&_h2]:text-slate-800"}
+  [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-3 [&_h3]:mb-1 ${isDark ? "[&_h3]:text-white/80" : "[&_h3]:text-slate-700"}
+  [&_strong]:font-bold ${isDark ? "[&_strong]:text-white" : "[&_strong]:text-slate-800"}
   [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2
   [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2
-  [&_li]:my-0.5 [&_li]:text-slate-700
-  [&_p]:my-2 [&_p]:leading-loose [&_p]:text-slate-700 [&_p]:text-base
-  [&_code]:bg-slate-200 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700
-  [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
-  [&_hr]:border-slate-200 [&_hr]:my-3`;
+  [&_li]:my-0.5 ${isDark ? "[&_li]:text-white/80" : "[&_li]:text-slate-700"}
+  [&_p]:my-2 [&_p]:leading-loose ${isDark ? "[&_p]:text-white/80" : "[&_p]:text-slate-700"} [&_p]:text-base
+  [&_code]:${isDark ? "bg-white/10 text-white/90" : "bg-slate-200 text-slate-700"} [&_code]:px-1 [&_code]:rounded [&_code]:text-xs
+  [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-400 [&_blockquote]:pl-3 ${isDark ? "[&_blockquote]:text-white/50" : "[&_blockquote]:text-slate-500"} [&_blockquote]:italic
+  [&_hr]:${isDark ? "border-white/20" : "border-slate-200"} [&_hr]:my-3`;
 
 export function TaskCard({
   task,
@@ -122,6 +123,9 @@ export function TaskCard({
   onConfidenceUpdate?: (confidence: { score: number; reason: string }) => void;
   onOpen?: (tab: "result" | "duckduckgo" | "detail") => void;
 }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const expandedKey = `task-expanded:${task.itemId}`;
   const [expanded, setExpandedRaw] = useState(() => {
     try { return sessionStorage.getItem(expandedKey) === "1"; } catch { return false; }
@@ -306,10 +310,10 @@ export function TaskCard({
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-slate-800 text-sm leading-snug truncate">
+          <div className={`font-medium text-sm leading-snug truncate ${isDark ? "text-white" : "text-slate-800"}`}>
             {task.title}
           </div>
-          {!expanded && <div className="text-xs text-slate-400 mt-0.5 truncate">{animatedText}</div>}
+          {!expanded && <div className={`text-xs mt-0.5 truncate ${isDark ? "text-white/50" : "text-slate-400"}`}>{animatedText}</div>}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -427,7 +431,7 @@ export function TaskCard({
           <div style={{ overflow: "hidden" }}>
             <div className="border-t border-slate-100">
               {/* Tab Bar */}
-              <div className="flex gap-0.5 px-4 pt-2.5 pb-0 bg-white/30 backdrop-blur-sm overflow-x-auto">
+              <div className={`flex gap-0.5 px-4 pt-2.5 pb-0 overflow-x-auto ${isDark ? "bg-black/30 backdrop-blur-md" : "bg-white/30 backdrop-blur-sm"}`}>
                 {[
                   { key: "result" as const, label: "AI 결과" },
                   ...availableSources.map(({ key, label }) => ({ key: key as "result" | "detail" | WebModelKey, label })),
@@ -438,8 +442,8 @@ export function TaskCard({
                     onClick={() => setActiveTab(key)}
                     className={`text-xs font-semibold px-3 py-1.5 rounded-t-md border-b-2 transition-all whitespace-nowrap ${
                       activeTab === key
-                        ? "border-indigo-500 text-indigo-700 bg-white shadow-sm"
-                        : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/60"
+                        ? isDark ? "border-indigo-400 text-indigo-200 bg-white/10 shadow-sm" : "border-indigo-500 text-indigo-700 bg-white shadow-sm"
+                        : isDark ? "border-transparent text-white/50 hover:text-white/80 hover:bg-white/5" : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/60"
                     }`}
                   >
                     {label}
@@ -625,17 +629,17 @@ export function TaskCard({
                 </div>
               ) : activeTab === "result" ? (
                 aiResult ? (
-                  <div className={MARKDOWN_PROSE}>
+                  <div className={getMarkdownProse(isDark)}>
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{aiResult}</ReactMarkdown>
                   </div>
                 ) : (
-                  <div className="px-5 py-10 bg-white/20 flex flex-col items-center gap-3 text-slate-400">
+                  <div className={`px-5 py-10 flex flex-col items-center gap-3 ${isDark ? "bg-black/20 text-white/50" : "bg-white/20 text-slate-400"}`}>
                     <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
                     <p className="text-xs">AI가 검색 결과를 분석하고 있습니다...</p>
                   </div>
                 )
               ) : (
-                <div className={MARKDOWN_PROSE}>
+                <div className={getMarkdownProse(isDark)}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {webModel?.[activeTab as WebModelKey] ?? ""}
                   </ReactMarkdown>

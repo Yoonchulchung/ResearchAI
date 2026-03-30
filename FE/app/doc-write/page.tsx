@@ -96,7 +96,7 @@ function DocWritePageInner() {
           value={docSave.savedDocTitle}
           onChange={(e) => docSave.setSavedDocTitle(e.target.value)}
           placeholder="제목 없음"
-          className={`text-sm font-semibold !bg-transparent !border-0 focus:outline-none min-w-0 w-64 ${isGlass ? "text-white placeholder-white/40" : "text-slate-800 placeholder-slate-300"}`}
+          className={`text-base font-semibold !bg-transparent !border-0 focus:outline-none min-w-0 w-72 ${isGlass ? "text-white placeholder-white/40" : "text-slate-800 placeholder-slate-300"}`}
         />
 
         <div className="flex-1" />
@@ -104,7 +104,7 @@ function DocWritePageInner() {
         <button
           onClick={() => docSave.handleSave(editor.content, companyName)}
           disabled={!editor.content.trim() || docSave.saving}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
             docSave.saveSuccess
               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
               : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
@@ -128,7 +128,7 @@ function DocWritePageInner() {
 
         <button
           onClick={editor.handleExport}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-lg transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-all ${
             isGlass
               ? "text-white/80 border-white/20 hover:bg-white/10 hover:text-white hover:border-white/30"
               : "text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"

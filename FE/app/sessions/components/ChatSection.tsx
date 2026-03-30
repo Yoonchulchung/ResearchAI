@@ -83,9 +83,9 @@ export function ChatSection({ chatMessages, chatBottomRef, onClearChat, onAbort,
                   {msg.content}
                 </div>
               ) : (
-                <div className="max-w-[85%] bg-white border border-slate-200/60 shadow-sm rounded-2xl rounded-tl-md px-4 py-3.5">
+                <div className="max-w-[85%] bg-white border border-slate-200/60 shadow-sm rounded-2xl rounded-tl-md px-4 py-3.5 break-words overflow-hidden">
                   {msg.content ? (
-                    <div className="prose prose-slate max-w-none font-sans
+                    <div className="prose prose-slate max-w-none font-sans [&_a]:break-all
                       [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
                       [&_th]:bg-slate-100 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-200
                       [&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:border-slate-200

@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { MediaType, MimeType, ModelDefinition } from "@/types";
+import { useTheme } from "@/contexts/ThemeContext";
 
 // ─── 허용 파일 타입 ────────────────────────────────────────────────────────────
 const ACCEPT_IMAGE = [MimeType.JPEG, MimeType.JPG, MimeType.PNG];
@@ -65,17 +66,15 @@ function DocChip({ af, onRemove }: { af: AttachedFile; onRemove: () => void }) {
 
   return (
     <div
-      className={`flex items-center gap-2 pl-2 pr-2.5 py-2 rounded-xl border max-w-48 ${
-        af.error
+      className={`flex items-center gap-2 pl-2 pr-2.5 py-2 rounded-xl border max-w-48 ${af.error
           ? "bg-red-50 border-red-200"
           : "bg-slate-50 border-slate-200"
-      }`}
+        }`}
     >
       {/* 아이콘 */}
       <div
-        className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-2xs font-bold text-white ${
-          isPdf ? "bg-red-500" : "bg-blue-500"
-        }`}
+        className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-2xs font-bold text-white ${isPdf ? "bg-red-500" : "bg-blue-500"
+          }`}
       >
         {isPdf ? "PDF" : "DOC"}
       </div>
@@ -186,7 +185,7 @@ function ModelSelect({
     <select
       value={isSelected ? selectedModel : ""}
       onChange={(e) => onChange(e.target.value)}
-      className="text-sm text-slate-500 bg-transparent focus:outline-none cursor-pointer max-w-36 truncate"
+      className="text-sm text-slate-500 !bg-transparent focus:outline-none cursor-pointer max-w-36 truncate"
     >
       {!isSelected && (
         <option value="" disabled>
@@ -244,6 +243,9 @@ export function TopicInput({
   onAttachedFilesChange?: (files: AttachedFile[]) => void;
   dropdownDirection?: "up" | "down";
 }) {
+  const { theme, uiStyle } = useTheme();
+  const isDark = theme === "dark" || uiStyle === "glass";
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -317,8 +319,23 @@ export function TopicInput({
     onAttachedFilesChange?.((attachedFiles ?? []).filter((f) => f.id !== id));
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData.items);
+    const files = items
+      .filter((item) => item.kind === "file" && ACCEPT_ALL.includes(item.type as MimeType))
+      .map((item) => item.getAsFile())
+      .filter((f): f is File => f !== null);
+    if (files.length > 0) {
+      e.preventDefault();
+      handleFilesSelected(files);
+    }
+  };
+
   return (
-    <div className="glass-panel rounded-2xl px-4 pt-4 pb-3 shadow-md focus-within:ring-2 focus-within:ring-brand-primary/40 transition-all">
+    <div
+      onPaste={handlePaste}
+      className={`rounded-2xl px-4 pt-4 pb-3 transition-colors border shadow-sm ${isDark ? "bg-[#0f172a] border-slate-700/50" : "bg-slate-50 border-slate-200"}`}
+    >
       {/* 첨부 파일 칩 목록 */}
       {attachedFiles && attachedFiles.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">
@@ -344,7 +361,7 @@ export function TopicInput({
         }}
         placeholder={placeholder}
         rows={1}
-        className="w-full resize-none text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none bg-transparent leading-relaxed mb-3 min-h-8"
+        className={`w-full border-none focus:ring-0 resize-none text-sm !outline-none !bg-transparent leading-relaxed mb-3 min-h-8 ${isDark ? "text-white placeholder:text-white/40" : "text-slate-800 placeholder:text-slate-300"}`}
       />
 
       <div className="flex items-center justify-between">
@@ -353,11 +370,10 @@ export function TopicInput({
           <button
             type="button"
             onClick={() => setShowDropdown((v) => !v)}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-xl leading-none ${
-              showDropdown
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-xl leading-none ${showDropdown
                 ? "bg-slate-100 text-slate-600"
                 : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-            }`}
+              }`}
           >
             +
           </button>
@@ -375,7 +391,7 @@ export function TopicInput({
           <ModelSelect
             models={cloudAiModels}
             selectedModel={selectedCloudAiModel}
-            onChange={onCloudAiModelChange ?? (() => {})}
+            onChange={onCloudAiModelChange ?? (() => { })}
             placeholder="API 모델"
           />
           {cloudAiModels.length > 0 && localAiModels.length > 0 && (
@@ -384,7 +400,7 @@ export function TopicInput({
           <ModelSelect
             models={localAiModels}
             selectedModel={selectedLocalAiModel}
-            onChange={onLocalAiModelChange ?? (() => {})}
+            onChange={onLocalAiModelChange ?? (() => { })}
             placeholder="로컬 모델"
           />
           {webEngines.length > 0 && (
@@ -393,7 +409,7 @@ export function TopicInput({
               <select
                 value={selectedWebModel}
                 onChange={(e) => onWebModelChange?.(e.target.value)}
-                className="text-sm text-slate-500 bg-transparent focus:outline-none cursor-pointer max-w-36 truncate"
+                className="text-sm text-slate-500 !bg-transparent focus:outline-none cursor-pointer max-w-36 truncate"
               >
                 {webEngines.map((e) => (
                   <option key={e.id} value={e.id}>{e.name}</option>
