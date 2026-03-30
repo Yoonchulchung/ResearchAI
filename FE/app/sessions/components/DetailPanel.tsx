@@ -132,8 +132,7 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
 
   return (
     <div className="flex flex-col h-full w-full" style={{ backgroundColor: activeColor }}>
-      {/* Header */}
-      <div className="px-6 py-3.5 border-b border-slate-200 flex items-center gap-3 shrink-0 bg-white">
+      <div className="px-6 py-3.5 flex items-center gap-3 shrink-0 glass-header">
         <h2 className="font-bold text-sm text-slate-800 truncate flex-1">{session.topic}</h2>
         <span className="text-xs text-slate-400 shrink-0">{doneTasks.length}건 완료</span>
 

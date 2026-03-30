@@ -26,19 +26,19 @@ export function SearchPromptCard() {
   };
 
   return (      
-      <div className="flex gap-2">
+      <div className="glass-panel p-4 rounded-2xl flex gap-3 items-center shadow-lg">
         <input
           type="text"
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="예: 2025년 AI 에이전트 기술 트렌드"
-          className="flex-1 px-4 py-2.5 text-sm rounded-xl bg-white border border-slate-300 placeholder-slate-400 text-slate-800 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400"
+          className="flex-1 px-4 py-3 text-sm rounded-xl bg-white/70 border border-slate-200 placeholder-slate-400 text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary focus:bg-white transition-all shadow-inner"
         />
         <button
           onClick={handleSearch}
           disabled={!topic.trim()}
-          className="bg-gray-400 text-white font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-gray-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+          className="bg-brand-primary text-white font-semibold px-6 py-3 rounded-xl text-sm hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md shadow-brand-primary/20 shrink-0"
         >
           검색
         </button>

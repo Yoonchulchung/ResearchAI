@@ -1,13 +1,7 @@
 import type { Metadata } from "next";
-import { Noto_Sans_KR, Geist_Mono } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "./components/AppShell";
-
-const notoSansKR = Noto_Sans_KR({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-});
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -25,9 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="ko">
       <body
-        className={`${notoSansKR.variable} ${geistMono.variable} antialiased`}
+        className={`${geistMono.variable} font-sans antialiased`}
       >
         <AppShell>{children}</AppShell>
       </body>

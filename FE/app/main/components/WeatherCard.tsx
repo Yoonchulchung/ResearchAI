@@ -214,7 +214,7 @@ export function WeatherCard() {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 px-5 py-4">
+      <div className="glass-panel rounded-2xl px-5 py-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-slate-100 rounded-xl animate-pulse" />
           <div className="space-y-1.5 flex-1">

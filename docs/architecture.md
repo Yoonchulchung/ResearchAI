@@ -247,7 +247,7 @@ Task 구조:
 ```mermaid
 flowchart TD
     A([사용자 주제 입력]) --> B[POST /queue/research/light]
-    B --> C{SearchPlannerService\nAI가 source 결정}
+    B --> C{SearchPlannerService<br/>AI가 source 결정}
 
     C -->|source = web| D[Tavily / DuckDuckGo 웹 검색]
     C -->|source = recruit| E[사람인 크롤링]

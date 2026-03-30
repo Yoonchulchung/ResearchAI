@@ -3,6 +3,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PROSE_CLASS } from "../_constants";
+import { useTheme } from "@/contexts/ThemeContext";
 
 // ─── Word-level diff ──────────────────────────────────────────────────────────
 
@@ -85,6 +86,9 @@ export function EditorPanel({
   profileLoading,
   highlightFlash,
 }: Props) {
+  const { uiStyle } = useTheme();
+  const isGlass = uiStyle === "glass";
+
   const diffTokens = pendingImprovement
     ? computeDiff(pendingImprovement.original, pendingImprovement.improved)
     : null;
@@ -94,30 +98,34 @@ export function EditorPanel({
     : "";
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-white border-r border-slate-200/60 overflow-hidden">
+    <div className={`flex-1 flex flex-col min-w-0 border-r overflow-hidden transition-colors ${isGlass ? "bg-transparent border-white/10" : "bg-white border-slate-200/60"}`}>
 
       {/* Company name + Job title input */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-100 shrink-0">
-        <span className="text-xs text-slate-400 shrink-0">지원 기업</span>
+      <div className={`flex items-center gap-2 px-4 py-2 border-b shrink-0 ${isGlass ? "border-white/10" : "border-slate-100"}`}>
+        <span className={`text-xs shrink-0 ${isGlass ? "text-white/60" : "text-slate-400"}`}>지원 기업</span>
         <input
           value={companyName}
           onChange={(e) => setCompanyName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onFetchProfile(); }}
           placeholder="기업명 입력..."
-          className="w-32 text-xs text-slate-700 bg-transparent border-0 focus:outline-none placeholder-slate-300 min-w-0"
+          className={`w-32 text-xs !bg-transparent !border-0 focus:outline-none min-w-0 ${isGlass ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-300"}`}
         />
-        <span className="text-slate-200 text-xs">|</span>
-        <span className="text-xs text-slate-400 shrink-0">직무</span>
+        <span className={`text-xs ${isGlass ? "text-white/20" : "text-slate-200"}`}>|</span>
+        <span className={`text-xs shrink-0 ${isGlass ? "text-white/60" : "text-slate-400"}`}>직무</span>
         <input
           value={jobTitle}
           onChange={(e) => setJobTitle(e.target.value)}
           placeholder="직무명 입력..."
-          className="flex-1 text-xs text-slate-700 bg-transparent border-0 focus:outline-none placeholder-slate-300 min-w-0"
+          className={`flex-1 text-xs !bg-transparent !border-0 focus:outline-none min-w-0 ${isGlass ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-300"}`}
         />
         <button
           onClick={onFetchProfile}
           disabled={!companyName.trim() || profileLoading}
-          className="shrink-0 flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className={`shrink-0 flex items-center gap-1 px-2.5 py-1 text-xs font-medium border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+            isGlass 
+              ? "text-indigo-100 bg-white/10 border-white/20 hover:bg-white/20"
+              : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
+          }`}
         >
           {profileLoading ? (
             <span className="w-2.5 h-2.5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
@@ -132,16 +140,16 @@ export function EditorPanel({
 
       {/* Word/char count */}
       <div className="flex justify-end px-4 py-1.5 shrink-0">
-        <span suppressHydrationWarning className="text-xs text-slate-300">
+        <span suppressHydrationWarning className={`text-xs ${isGlass ? "text-white/40" : "text-slate-300"}`}>
           {words.toLocaleString()}단어 · {chars.toLocaleString()}자
         </span>
       </div>
 
       {/* Content area */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+      <div className={`flex-1 flex flex-col min-h-0 overflow-y-auto ${isGlass ? "text-white" : "text-slate-700"}`}>
         {mode === "edit" && diffTokens ? (
           // ── Inline diff view ──────────────────────────────────────────────
-          <div className="flex-1 px-8 py-6 text-base text-slate-700 leading-relaxed whitespace-pre-wrap font-[inherit]">
+          <div className="flex-1 px-8 py-6 text-base leading-relaxed whitespace-pre-wrap font-[inherit]">
             <span>{diffBefore}</span>
 
             {/* Original line: unchanged + removed */}
@@ -213,16 +221,16 @@ export function EditorPanel({
               onKeyUp={onTextareaSelect}
               onContextMenu={onContextMenu}
               placeholder="내용을 작성하세요..."
-              className="flex-1 w-full px-8 py-6 text-base font-sans text-slate-700 leading-loose bg-transparent border-0 focus:outline-none resize-none placeholder-slate-300"
+              className={`flex-1 w-full px-8 py-6 text-base font-sans leading-loose !bg-transparent !border-0 focus:outline-none resize-none ${isGlass ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-300"}`}
             />
           </div>
         ) : (
           <div className="px-8 py-6">
-            <div className={PROSE_CLASS}>
+            <div className={`${PROSE_CLASS} ${isGlass ? "prose-invert text-white" : ""}`}>
               {content ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
               ) : (
-                <p className="text-slate-300 italic">내용이 없습니다</p>
+                <p className={`italic ${isGlass ? "text-white/40" : "text-slate-300"}`}>내용이 없습니다</p>
               )}
             </div>
           </div>

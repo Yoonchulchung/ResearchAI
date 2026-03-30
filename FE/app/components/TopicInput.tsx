@@ -318,7 +318,7 @@ export function TopicInput({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 px-4 pt-4 pb-3 shadow-sm">
+    <div className="glass-panel rounded-2xl px-4 pt-4 pb-3 shadow-md focus-within:ring-2 focus-within:ring-brand-primary/40 transition-all">
       {/* 첨부 파일 칩 목록 */}
       {attachedFiles && attachedFiles.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">
@@ -415,7 +415,7 @@ export function TopicInput({
             <button
               onClick={onGenerate}
               disabled={!value.trim() || generating}
-              className="w-9 h-9 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-colors"
+              className="w-9 h-9 bg-brand-primary hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-all shadow-md shadow-brand-primary/30"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path

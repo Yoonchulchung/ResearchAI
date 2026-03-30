@@ -236,7 +236,7 @@ export function MarketCard() {
     <>
       {selected && <ChartModal item={selected} onClose={() => setSelected(null)} />}
 
-      <div className="bg-white rounded-2xl border border-slate-200 px-5 py-4">
+      <div className="glass-panel rounded-2xl px-5 py-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-slate-700">주요 지표</h2>
           <div className="flex items-center gap-2">

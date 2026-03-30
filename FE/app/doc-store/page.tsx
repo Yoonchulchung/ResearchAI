@@ -15,6 +15,7 @@ import { DocsTab } from "./_components/DocsTab";
 import { ExperienceModal } from "./_components/ExperienceModal";
 import { ExperienceTab } from "./_components/ExperienceTab";
 import { ExtractExpModal } from "./_components/ExtractExpModal";
+import { SmartInsightsModal } from "./_components/SmartInsightsModal";
 import { IconPlus } from "./_components/icons";
 
 export default function DocStorePage() {
@@ -25,6 +26,7 @@ export default function DocStorePage() {
     doc: SavedDocument;
     items: { title: string; content: string }[];
   } | null>(null);
+  const [selectedInsightDoc, setSelectedInsightDoc] = useState<SavedDocument | null>(null);
 
   const docs = useDocuments();
   const exp = useExperiences();
@@ -142,9 +144,9 @@ export default function DocStorePage() {
           setDocSearch={docs.setDocSearch}
           activePopup={popup.activePopup}
           onDocOpen={(doc) => { window.location.href = `/doc-write?docId=${doc.id}`; }}
-          onDetailClick={(doc, el) => {
-            if (popup.activePopup?.data.id === doc.id) { popup.closePopup(); return; }
-            popup.openPopup("doc", doc, el);
+          onDetailClick={(doc) => {
+            if (popup.activePopup) popup.closePopup();
+            setSelectedInsightDoc(doc);
           }}
         />
       )}
@@ -198,6 +200,16 @@ export default function DocStorePage() {
           items={extractModal.items}
           onClose={() => setExtractModal(null)}
           onSaved={() => { exp.reload(); setTab("exp"); }}
+        />
+      )}
+
+      {selectedInsightDoc && (
+        <SmartInsightsModal
+          doc={selectedInsightDoc}
+          onClose={() => setSelectedInsightDoc(null)}
+          onSaved={() => { exp.reload(); setTab("exp"); setSelectedInsightDoc(null); }}
+          onDocOpen={(id) => { window.location.href = `/doc-write?docId=${id}`; }}
+          onDocDelete={handleDocDelete}
         />
       )}
 

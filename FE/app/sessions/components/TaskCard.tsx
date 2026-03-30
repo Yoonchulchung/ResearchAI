@@ -270,7 +270,7 @@ export function TaskCard({
   return (
     <div
       ref={cardRef}
-      className={`rounded-xl bg-white/75 backdrop-blur-sm shadow-sm border border-white/60 border-l-4 ${leftBorder} overflow-hidden transition-all`}
+      className={`glass-panel rounded-xl shadow-sm border-l-4 ${leftBorder} overflow-hidden transition-all`}
     >
       {/* Card Header */}
       <div
@@ -279,7 +279,7 @@ export function TaskCard({
           cursor: status === "idle" || hasContent ? "pointer" : "default",
         }}
         className={`flex items-center gap-3 px-4 transition-all duration-200 ${expanded ? "py-2" : "py-3"} ${
-          status === "running" ? "bg-indigo-50/30" : "hover:bg-white/40"
+          status === "running" ? "bg-indigo-50/30" : "hover:bg-slate-100/40"
         }`}
       >
         {/* Status Icon */}

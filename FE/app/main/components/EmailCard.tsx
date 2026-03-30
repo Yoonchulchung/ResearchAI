@@ -78,7 +78,7 @@ export function EmailCard() {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5">
+    <div className="glass-panel rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">

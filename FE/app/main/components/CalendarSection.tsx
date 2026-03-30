@@ -108,7 +108,7 @@ export function CalendarSection() {
   })();
 
   return (
-    <div ref={cardRef} className="bg-white rounded-2xl border border-slate-200 p-5 relative">
+    <div ref={cardRef} className="glass-panel rounded-2xl p-5 relative">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-m font-bold text-slate-700">캘린더</h2>

@@ -24,7 +24,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const bgStyle = bg !== DEFAULT_BG ? { background: bg } : undefined;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[--background]" style={bgStyle}>
+    <div className="flex h-screen overflow-hidden mesh-bg" style={bgStyle}>
       <Sidebar />
       <main className="flex-1 overflow-y-auto">{children}</main>
     </div>

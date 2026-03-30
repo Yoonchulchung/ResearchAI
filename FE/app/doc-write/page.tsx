@@ -9,11 +9,15 @@ import { useResize } from "./_hooks/useResize";
 import { AiPanel } from "./_components/AiPanel";
 import { EditorPanel } from "./_components/EditorPanel";
 import { ResizeDivider } from "./_components/ResizeDivider";
+import { useTheme } from "@/contexts/ThemeContext";
 import { enqueueCompanyProfile, streamCompanyProfile } from "@/lib/api/ai";
 
 import { IconDownload } from "./_components/icons";
 
 function DocWritePageInner() {
+  const { uiStyle } = useTheme();
+  const isGlass = uiStyle === "glass";
+
   const editor = useEditor();
   const [companyName, setCompanyName] = useState("");
   const docSave = useDocSave(editor.setContent, setCompanyName);
@@ -84,15 +88,15 @@ function DocWritePageInner() {
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-slate-100">
-
+    <div className={`h-full flex flex-col overflow-hidden ${isGlass ? "p-3 pr-4 pb-4 bg-transparent" : "bg-slate-100"}`}>
+      <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl border border-white/20" : ""}`}>
       {/* ── Topbar ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-5 py-2.5 bg-white border-b border-slate-200/60 shrink-0">
+      <div className={`flex items-center gap-3 px-5 py-2.5 shrink-0 transition-all ${isGlass ? "border-b border-white/20" : "bg-white border-b border-slate-200/60"}`}>
         <input
           value={docSave.savedDocTitle}
           onChange={(e) => docSave.setSavedDocTitle(e.target.value)}
           placeholder="제목 없음"
-          className="text-sm font-semibold text-slate-800 bg-transparent border-0 focus:outline-none placeholder-slate-300 min-w-0 w-64"
+          className={`text-sm font-semibold !bg-transparent !border-0 focus:outline-none min-w-0 w-64 ${isGlass ? "text-white placeholder-white/40" : "text-slate-800 placeholder-slate-300"}`}
         />
 
         <div className="flex-1" />
@@ -124,7 +128,11 @@ function DocWritePageInner() {
 
         <button
           onClick={editor.handleExport}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all"
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-lg transition-all ${
+            isGlass
+              ? "text-white/80 border-white/20 hover:bg-white/10 hover:text-white hover:border-white/30"
+              : "text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+          }`}
         >
           <IconDownload /> 내보내기
         </button>
@@ -177,7 +185,7 @@ function DocWritePageInner() {
       {/* ── Split View ─────────────────────────────────────────────────────── */}
       <div
         ref={containerRef}
-        className={`flex-1 flex min-h-0 overflow-hidden ${isDragging ? "select-none cursor-col-resize" : ""}`}
+        className={`flex-1 flex min-h-0 overflow-hidden ${isDragging ? "select-none cursor-col-resize" : ""} ${isGlass ? "" : "bg-white"}`}
       >
         <div style={{ width: `${splitRatio * 100}%` }} className="flex flex-col min-h-0 overflow-hidden">
           <EditorPanel
@@ -234,6 +242,7 @@ function DocWritePageInner() {
             profileLoading={profileLoading}
           />
         </div>
+      </div>
       </div>
     </div>
   );

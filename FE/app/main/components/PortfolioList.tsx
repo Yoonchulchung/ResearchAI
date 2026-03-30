@@ -36,7 +36,7 @@ export function PortfolioList() {
   }, []);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col h-full">
+    <div className="glass-panel rounded-2xl p-5 flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-bold text-slate-700">리서치 포트폴리오</h2>
         <span className="text-xs text-slate-400">{sessions.length}개</span>

@@ -1,22 +1,21 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const STORAGE_KEY = "doc-write:split-ratio";
 
-function loadRatio(defaultRatio: number): number {
-  try {
-    const v = sessionStorage.getItem(STORAGE_KEY);
-    if (v !== null) {
-      const n = parseFloat(v);
-      if (!isNaN(n) && n >= 0.2 && n <= 0.8) return n;
-    }
-  } catch {}
-  return defaultRatio;
-}
-
 export function useResize(defaultRatio = 0.5) {
-  const [splitRatio, setSplitRatio] = useState(() => loadRatio(defaultRatio));
+  const [splitRatio, setSplitRatio] = useState(defaultRatio);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const v = sessionStorage.getItem(STORAGE_KEY);
+      if (v !== null) {
+        const n = parseFloat(v);
+        if (!isNaN(n) && n >= 0.2 && n <= 0.8) setSplitRatio(n);
+      }
+    } catch {}
+  }, []);
 
   const startResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

@@ -1,6 +1,5 @@
-"use client";
-
 import { useState } from "react";
+import { useTheme } from "@/contexts/ThemeContext";
 import { ModelDefinition } from "@/types";
 
 interface Props {
@@ -62,12 +61,18 @@ export function SessionHeader({
   onReEvaluateAll,
 }: Props) {
   const [reEvalModel, setReEvalModel] = useState(model);
+  const { uiStyle } = useTheme();
+
   const isReEvaluating = !!reEvalProgress;
   const hasRunSelectors = (cloudAiModels && cloudAiModels.length > 0) || (webEngines && webEngines.length > 0);
   const isNonBuiltinWebEngine = !!webEngines?.find((e) => e.id === selectedWebModel && !e.builtin);
 
+  const containerClasses = uiStyle === "glass"
+    ? "m-3 rounded-2xl glass-panel shadow-sm sticky top-3 z-30 px-6 pt-4 pb-0"
+    : "px-6 pt-5 pb-0 bg-white/95 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-20";
+
   return (
-    <div className="px-6 pt-5 pb-0 bg-white/95 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-10">
+    <div className={containerClasses}>
       {/* Row 1: Title + Badges + Actions */}
       <div className="flex items-start gap-3 mb-3.5">
         <div className="flex-1 min-w-0">

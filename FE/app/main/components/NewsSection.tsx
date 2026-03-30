@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useTheme } from "@/contexts/ThemeContext";
 
 // ── Google News ──────────────────────────────────────────────
 interface GoogleNewsItem {
@@ -89,6 +90,9 @@ function Skeleton() {
 
 // ── News Modal ────────────────────────────────────────────────
 function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => void }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const [content, setContent] = useState("");
   const [image, setImage] = useState("");
   const [articleUrl, setArticleUrl] = useState(item.link);
@@ -123,14 +127,14 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl flex flex-col max-h-[95vh]">
+      <div className={`rounded-2xl shadow-xl w-full max-w-5xl flex flex-col max-h-[95vh] font-system ${isDark ? "bg-slate-900 border border-white/10" : "bg-white"}`}>
         {/* Modal header */}
-        <div className="flex items-start justify-between gap-3 p-5 border-b border-slate-100">
+        <div className={`flex items-start justify-between gap-3 p-5 border-b ${isDark ? "border-white/10" : "border-slate-100"}`}>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-blue-600 mb-1">{item.source}</p>
-            <h3 className="text-sm font-bold text-slate-800 leading-snug">{item.title}</h3>
+            <p className="text-sm font-semibold text-blue-500 mb-1">{item.source}</p>
+            <h3 className={`text-xl font-bold leading-snug ${isDark ? "text-white/90" : "text-slate-800"}`}>{item.title}</h3>
             {item.pubDate && (
-              <p className="text-2xs text-slate-400 mt-1">
+              <p className={`text-xs mt-1 ${isDark ? "text-white/40" : "text-slate-400"}`}>
                 {new Date(item.pubDate).toLocaleDateString("ko-KR", {
                   year: "numeric", month: "long", day: "numeric",
                   hour: "2-digit", minute: "2-digit",
@@ -140,7 +144,7 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 transition-colors shrink-0 text-lg leading-none"
+            className={`transition-colors shrink-0 text-lg leading-none ${isDark ? "text-white/40 hover:text-white" : "text-slate-400 hover:text-slate-600"}`}
           >
             ✕
           </button>
@@ -166,15 +170,15 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
                 </p>
               )}
               {content ? (
-                <div className="space-y-3">
+                <div className="space-y-5">
                   {content.split("\n\n").map((para, i) => (
-                    <p key={i} className="text-sm text-slate-600 leading-relaxed">{para}</p>
+                    <p key={i} className={`text-lg leading-relaxed ${isDark ? "text-white/70" : "text-slate-600"}`}>{para}</p>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-slate-400 text-center py-8">
+                <p className={`text-lg text-center py-8 ${isDark ? "text-white/40" : "text-slate-400"}`}>
                   본문을 가져올 수 없습니다.<br />
-                  <span className="text-xs">원문 보기에서 직접 확인해주세요.</span>
+                  <span className="text-base">원문 보기에서 직접 확인해주세요.</span>
                 </p>
               )}
             </>
@@ -182,7 +186,7 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
         </div>
 
         {/* Modal footer */}
-        <div className="p-4 border-t border-slate-100 flex justify-end">
+        <div className={`p-4 border-t flex justify-end ${isDark ? "border-white/10" : "border-slate-100"}`}>
           <a
             href={articleUrl}
             target="_blank"
@@ -199,6 +203,9 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
 
 // ── Google News panel ─────────────────────────────────────────
 function GoogleNewsPanel() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const [items, setItems] = useState<GoogleNewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -230,7 +237,7 @@ function GoogleNewsPanel() {
             className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
               category === c.value
                 ? "bg-blue-500 text-white"
-                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                : isDark ? "bg-white/10 text-white/50 hover:bg-white/20" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
             }`}
           >
             {c.label}
@@ -239,7 +246,7 @@ function GoogleNewsPanel() {
       </div>
 
       {loading ? <Skeleton /> : error ? (
-        <div className="flex flex-col items-center justify-center py-8 gap-2 text-slate-400">
+        <div className={`flex flex-col items-center justify-center py-8 gap-2 ${isDark ? "text-white/40" : "text-slate-400"}`}>
           <span className="text-2xl">📡</span>
           <p className="text-xs">뉴스를 불러올 수 없습니다</p>
         </div>
@@ -249,19 +256,19 @@ function GoogleNewsPanel() {
             <button
               key={item.link + i}
               onClick={() => setModalItem(item)}
-              className="group flex gap-2.5 p-2 rounded-lg hover:bg-blue-50 transition-colors w-full text-left"
+              className={`group flex gap-2.5 p-2 rounded-lg transition-colors w-full text-left ${isDark ? "hover:bg-white/5" : "hover:bg-blue-50"}`}
             >
-              <span className="text-xs text-slate-300 font-bold w-4 shrink-0 pt-0.5 text-right">{i + 1}</span>
+              <span className={`text-xs font-bold w-4 shrink-0 pt-0.5 text-right ${isDark ? "text-white/30" : "text-slate-300"}`}>{i + 1}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-xs2 font-medium text-slate-700 group-hover:text-blue-700 leading-snug line-clamp-2 transition-colors">
+                <p className={`text-xs2 font-medium leading-snug line-clamp-2 transition-colors ${isDark ? "text-white/80 group-hover:text-blue-400" : "text-slate-700 group-hover:text-blue-700"}`}>
                   {item.title}
                 </p>
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  {item.source && <span className="text-xs text-slate-400">{item.source}</span>}
+                  {item.source && <span className={`text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>{item.source}</span>}
                   {item.pubDate && (
                     <>
-                      <span className="text-xs text-slate-300">·</span>
-                      <span className="text-xs text-slate-400">
+                      <span className={`text-xs ${isDark ? "text-white/20" : "text-slate-300"}`}>·</span>
+                      <span className={`text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>
                         {new Date(item.pubDate).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </span>
                     </>
@@ -278,6 +285,9 @@ function GoogleNewsPanel() {
 
 // ── GitHub Trending panel ─────────────────────────────────────
 function GithubPanel() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const [repos, setRepos] = useState<GHRepo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -313,8 +323,8 @@ function GithubPanel() {
             onClick={() => setSince(o.value)}
             className={`text-xs2 font-semibold px-2.5 py-1 rounded-lg transition-colors ${
               since === o.value
-                ? "bg-slate-800 text-white"
-                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                ? isDark ? "bg-white/90 text-slate-900" : "bg-slate-800 text-white"
+                : isDark ? "bg-white/10 text-white/50 hover:bg-white/20" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
             }`}
           >
             {o.label}
@@ -323,7 +333,7 @@ function GithubPanel() {
       </div>
 
       {loading ? <Skeleton /> : error ? (
-        <div className="flex flex-col items-center justify-center py-8 gap-2 text-slate-400">
+        <div className={`flex flex-col items-center justify-center py-8 gap-2 ${isDark ? "text-white/40" : "text-slate-400"}`}>
           <span className="text-2xl">📡</span>
           <p className="text-xs">데이터를 불러올 수 없습니다</p>
         </div>
@@ -334,27 +344,27 @@ function GithubPanel() {
               key={repo.id}
               href={repo.html_url}
               target="_blank" rel="noopener noreferrer"
-              className="group flex gap-2.5 p-2 rounded-lg hover:bg-slate-50 transition-colors"
+              className={`group flex gap-2.5 p-2 rounded-lg transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
             >
-              <span className="text-2xs text-slate-300 font-bold w-4 shrink-0 pt-0.5 text-right">{i + 1}</span>
+              <span className={`text-2xs font-bold w-4 shrink-0 pt-0.5 text-right ${isDark ? "text-white/30" : "text-slate-300"}`}>{i + 1}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-xs2 font-semibold text-slate-700 group-hover:text-indigo-600 leading-snug truncate transition-colors">
+                <p className={`text-xs2 font-semibold leading-snug truncate transition-colors ${isDark ? "text-white/80 group-hover:text-indigo-400" : "text-slate-700 group-hover:text-indigo-600"}`}>
                   {repo.full_name}
                 </p>
                 {repo.description && (
-                  <p className="text-xs text-slate-500 leading-snug line-clamp-1 mt-0.5">
+                  <p className={`text-xs leading-snug line-clamp-1 mt-0.5 ${isDark ? "text-white/50" : "text-slate-500"}`}>
                     {repo.description}
                   </p>
                 )}
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   {repo.language && (
-                    <span className="flex items-center gap-1 text-xs text-slate-400">
+                    <span className={`flex items-center gap-1 text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>
                       <span className={`w-2 h-2 rounded-full ${langColor(repo.language)}`} />
                       {repo.language}
                     </span>
                   )}
-                  <span className="text-xs text-slate-400">⭐ {formatStars(repo.stargazers_count)}</span>
-                  <span className="text-xs text-slate-400">🍴 {formatStars(repo.forks_count)}</span>
+                  <span className={`text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>⭐ {formatStars(repo.stargazers_count)}</span>
+                  <span className={`text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>🍴 {formatStars(repo.forks_count)}</span>
                 </div>
               </div>
             </a>
@@ -367,6 +377,9 @@ function GithubPanel() {
 
 // ── Hugging Face panel ────────────────────────────────────────
 function HuggingFacePanel() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const [items, setItems] = useState<HFItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -404,7 +417,7 @@ function HuggingFacePanel() {
             className={`flex items-center gap-1 text-xs2 font-semibold px-2.5 py-1 rounded-lg transition-colors ${
               category === c.value
                 ? "bg-yellow-400 text-yellow-900"
-                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                : isDark ? "bg-white/10 text-white/50 hover:bg-white/20" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
             }`}
           >
             {c.label}
@@ -413,7 +426,7 @@ function HuggingFacePanel() {
       </div>
 
       {loading ? <Skeleton /> : error ? (
-        <div className="flex flex-col items-center justify-center py-8 gap-2 text-slate-400">
+        <div className={`flex flex-col items-center justify-center py-8 gap-2 ${isDark ? "text-white/40" : "text-slate-400"}`}>
           <span className="text-2xl">📡</span>
           <p className="text-xs">데이터를 불러올 수 없습니다</p>
         </div>
@@ -426,22 +439,22 @@ function HuggingFacePanel() {
                 key={name}
                 href={getUrl(item)}
                 target="_blank" rel="noopener noreferrer"
-                className="group flex gap-2.5 p-2 rounded-lg hover:bg-yellow-50 transition-colors"
+                className={`group flex gap-2.5 p-2 rounded-lg transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-yellow-50"}`}
               >
-                <span className="text-2xs text-slate-300 font-bold w-4 shrink-0 pt-0.5 text-right">{i + 1}</span>
+                <span className={`text-2xs font-bold w-4 shrink-0 pt-0.5 text-right ${isDark ? "text-white/30" : "text-slate-300"}`}>{i + 1}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-slate-700 group-hover:text-yellow-700 leading-snug truncate transition-colors">
+                  <p className={`text-xs font-semibold leading-snug truncate transition-colors ${isDark ? "text-white/80 group-hover:text-yellow-400" : "text-slate-700 group-hover:text-yellow-700"}`}>
                     {name}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     {item.pipeline_tag && (
-                      <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${isDark ? "text-white/60 bg-white/10" : "text-slate-400 bg-slate-100"}`}>
                         {item.pipeline_tag}
                       </span>
                     )}
-                    <span className="text-2xs text-slate-400">❤️ {formatStars(item.likes)}</span>
+                    <span className={`text-2xs ${isDark ? "text-white/40" : "text-slate-400"}`}>❤️ {formatStars(item.likes)}</span>
                     {item.downloads != null && (
-                      <span className="text-2xs text-slate-400">⬇️ {formatStars(item.downloads)}</span>
+                      <span className={`text-2xs ${isDark ? "text-white/40" : "text-slate-400"}`}>⬇️ {formatStars(item.downloads)}</span>
                     )}
                   </div>
                 </div>
@@ -456,16 +469,18 @@ function HuggingFacePanel() {
 
 // ── Main component ────────────────────────────────────────────
 export function NewsSection() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [tab, setTab] = useState<Tab>("naver");
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col">
+    <div className="glass-panel rounded-2xl p-5 flex flex-col">
       {/* Tab bar */}
       <div className="flex items-center gap-1 mb-4 flex-wrap">
         <button
           onClick={() => setTab("naver")}
           className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-            tab === "naver" ? "bg-blue-500 text-white" : "text-slate-400 hover:bg-slate-100"
+            tab === "naver" ? "bg-blue-500 text-white" : isDark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
           }`}
         >
           구글 뉴스
@@ -473,7 +488,7 @@ export function NewsSection() {
         <button
           onClick={() => setTab("github")}
           className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-            tab === "github" ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-100"
+            tab === "github" ? isDark ? "bg-white/90 text-slate-900" : "bg-slate-800 text-white" : isDark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
           }`}
         >
           GitHub
@@ -481,7 +496,7 @@ export function NewsSection() {
         <button
           onClick={() => setTab("hf")}
           className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-            tab === "hf" ? "bg-yellow-400 text-yellow-900" : "text-slate-400 hover:bg-slate-100"
+            tab === "hf" ? "bg-yellow-400 text-yellow-900" : isDark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
           }`}
         >
           Hugging Face

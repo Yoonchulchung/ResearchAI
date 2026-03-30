@@ -9,9 +9,10 @@ import { SessionHeader } from "@/sessions/components/SessionHeader";
 import { reEvaluateConfidence } from "@/lib/api/ai";
 import { SessionSkeleton } from "@/sessions/components/SessionSkeleton";
 import { ChatSection } from "@/sessions/components/ChatSection";
-import { DetailPanel } from "@/sessions/components/DetailPanel";
 import { TopicInput, AttachedFile } from "@/components/TopicInput";
+import { DetailPanel } from "@/sessions/components/DetailPanel";
 import { ModelDefinition } from "@/types";
+import { useTheme } from "@/contexts/ThemeContext";
 import { getSearchEngines, WebSearchEngine } from "@/lib/api/research";
 import { useSessionData } from "./hooks/useSessionData";
 import { useTaskRunner } from "./hooks/useTaskRunner";
@@ -80,6 +81,7 @@ const ChatInputArea = memo(function ChatInputArea({
 
 export default function SessionPage() {
   const { id } = useParams<{ id: string }>();
+  const { uiStyle } = useTheme();
 
   const { session, loading, models } = useSessionData(id);
   const { statuses, phases, aiResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
@@ -225,7 +227,7 @@ export default function SessionPage() {
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden relative">
+    <div className="h-full flex flex-col overflow-hidden relative font-system">
       <SessionHeader
         topic={session.topic}
         model={session.researchCloudAIModel}
@@ -320,7 +322,7 @@ export default function SessionPage() {
             />
           </div>
 
-          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 bg-linear-to-t from-white/95 to-transparent backdrop-blur-[2px] mask-[linear-gradient(to_top,white_40%,transparent)]" />
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black_40%,transparent)]" />
 
           <div className="px-8 relative z-10 pb-4">
             <ChatInputArea
@@ -338,8 +340,16 @@ export default function SessionPage() {
 
       </div>
 
-      {/* 오른쪽 패널 (전체 높이 오버레이) */}
-      <div className={`absolute inset-y-0 right-0 z-20 transition-[width] duration-300 ease-in-out overflow-hidden border-l border-slate-200 shadow-xl ${(showDetail || showTaskPanel) ? (expandedDetail ? "w-full" : "w-[52%]") : "w-0"}`}>
+      {/* 오른쪽 패널 (전체 높이 오버레이 또는 플로팅 아일랜드) */}
+      <div className={`absolute z-30 transition-all duration-300 ease-in-out overflow-hidden shadow-2xl ${
+        uiStyle === "glass"
+          ? "top-3 bottom-4 right-3 rounded-2xl border border-white/20"
+          : "inset-y-0 right-0 border-l border-slate-200"
+      } ${
+        (showDetail || showTaskPanel)
+          ? (expandedDetail ? "w-[calc(100%-1.5rem)] md:w-[calc(100%-1.5rem)]" : "w-[calc(52%-0.75rem)]")
+          : "w-0 !border-none"
+      }`}>
         {showTaskPanel && selectedTaskId != null ? (() => {
           const selectedTask = tasks.find((t) => t.id === selectedTaskId);
           if (!selectedTask) return null;

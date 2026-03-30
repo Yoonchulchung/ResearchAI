@@ -127,7 +127,7 @@ export function SummaryCard() {
   const active = tab === "news" ? news : tab === "github" ? github : hf;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-5">
+    <div className="glass-panel rounded-2xl p-5">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">

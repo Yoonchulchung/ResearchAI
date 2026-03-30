@@ -10,6 +10,7 @@ import { QueueWidget } from "./QueueWidget";
 import { useNewSessionModal } from "@/contexts/NewSessionModalContext";
 import { useDocStoreModal } from "@/contexts/DocStoreModalContext";
 import { useSidebar } from "@/contexts/SidebarContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
 
 function formatDate(iso: string) {
@@ -128,6 +129,7 @@ export function Sidebar() {
   const { openModal } = useNewSessionModal();
   const { openModal: openDocStore } = useDocStoreModal();
   const { setCollapsed: setSidebarCollapsed } = useSidebar();
+  const { uiStyle } = useTheme();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -221,9 +223,13 @@ export function Sidebar() {
     if (currentId === id) router.push("/");
   };
 
+  const containerClasses = uiStyle === "glass"
+    ? "m-3 mr-0 h-[calc(100vh-1.5rem)] rounded-2xl glass-panel shadow-lg"
+    : "h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800";
+
   if (collapsed) {
     return (
-      <aside className="w-13 shrink-0 flex flex-col h-screen bg-white border-r border-slate-200/80 overflow-hidden transition-all duration-200">
+      <aside className={`w-13 shrink-0 flex flex-col overflow-hidden transition-all duration-300 z-10 ${containerClasses}`}>
         <div className="flex flex-col items-center gap-1 pt-4 pb-2 px-2">
           <button
             onClick={() => router.push("/")}
@@ -249,10 +255,10 @@ export function Sidebar() {
           </button>
           <button
             onClick={() => router.push("/doc-parse")}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
               pathname === "/doc-parse"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                ? "bg-brand-primary text-white shadow-md shadow-brand-primary/30"
+                : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
             }`}
             title="문서 파싱"
           >
@@ -260,10 +266,10 @@ export function Sidebar() {
           </button>
           <button
             onClick={() => router.push("/doc-write")}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
               pathname === "/doc-write"
-                ? "bg-indigo-600 text-white"
-                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                ? "bg-brand-primary text-white shadow-md shadow-brand-primary/30"
+                : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
             }`}
             title="문서 작성"
           >
@@ -271,7 +277,7 @@ export function Sidebar() {
           </button>
           <button
             onClick={openDocStore}
-            className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
             title="문서 저장"
           >
             <IconBookmark />
@@ -303,7 +309,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-60 shrink-0 flex flex-col h-screen bg-white border-r border-slate-200/80 overflow-hidden transition-all duration-200">
+    <aside className={`w-60 shrink-0 flex flex-col overflow-hidden transition-all duration-300 z-10 ${containerClasses}`}>
       {/* Header */}
       <div className="px-4 pt-5 pb-3 flex items-center justify-between">
         <button
@@ -338,10 +344,10 @@ export function Sidebar() {
         </button>
         <button
           onClick={() => router.push("/doc-parse")}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
             pathname === "/doc-parse"
-              ? "bg-slate-800 text-white"
-              : "text-slate-600 hover:bg-slate-100"
+              ? "bg-brand-primary text-white shadow-md shadow-brand-primary/30"
+              : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
           }`}
         >
           <IconDocument />
@@ -349,10 +355,10 @@ export function Sidebar() {
         </button>
         <button
           onClick={() => router.push("/doc-write")}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
             pathname === "/doc-write"
-              ? "bg-slate-800 text-white"
-              : "text-slate-600 hover:bg-slate-100"
+              ? "bg-brand-primary text-white shadow-md shadow-brand-primary/30"
+              : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
           }`}
         >
           <IconPencil />
@@ -360,7 +366,7 @@ export function Sidebar() {
         </button>
         <button
           onClick={openDocStore}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 hover:bg-slate-100"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
         >
           <IconBookmark />
           문서 저장
@@ -420,7 +426,7 @@ export function Sidebar() {
                   onClick={() => router.push(`/sessions/${s.id}`)}
                   className={`group relative flex items-start gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-all ${
                     isActive
-                      ? "bg-indigo-50/80 border border-indigo-100"
+                      ? "bg-indigo-50 border border-indigo-100"
                       : "hover:bg-slate-50 border border-transparent"
                   }`}
                 >

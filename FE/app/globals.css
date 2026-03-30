@@ -1,28 +1,35 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css");
 @import "tailwindcss";
 
 /* ─── Brand palette ─────────────────────────────────────────────────────────
    여기에서 6개의 값만 수정하면 전체 앱 색상이 바뀝니다.
    ─────────────────────────────────────────────────────────────────────────── */
 :root {
-  --brand-dark:    #003366;   /* 짙은 네이비    */
-  --brand-primary: #0055A5;   /* 기본 파랑      */
-  --brand-accent:  #00A0DF;   /* 밝은 하늘색    */
-  --brand-bg:      #F5F7FA;   /* 페이지 배경    */
-  --brand-text:    #1A2B3D;   /* 기본 텍스트    */
-  --brand-muted:   #6B7A8F;   /* 보조 텍스트    */
+  --brand-dark: #1E1B4B;
+  /* 짙은 네이비/퍼플 (indigo-950) */
+  --brand-primary: #4F46E5;
+  /* 기본 인디고 (indigo-600) */
+  --brand-accent: #8B5CF6;
+  /* 매력적인 바이올렛 (violet-500) */
+  --brand-bg: #F8FAFC;
+  /* 페이지 배경 (slate-50) */
+  --brand-text: #0F172A;
+  /* 기본 텍스트 (slate-900) */
+  --brand-muted: #64748B;
+  /* 보조 텍스트 (slate-500) */
 
   /* ── Semantic tokens (팔레트에서 자동 참조) ── */
-  --background:         var(--brand-bg);
-  --sidebar:            #FFFFFF;
-  --foreground:         var(--brand-text);
-  --border:             #D0DBE8;
-  --border-subtle:      #E8EDF4;
-  --surface:            #FFFFFF;
-  --surface-raised:     #F0F4F9;
-  --primary:            var(--brand-primary);
-  --primary-hover:      var(--brand-dark);
-  --primary-subtle:     #E0EDF8;
-  --muted-foreground:   var(--brand-muted);
+  --background: var(--brand-bg);
+  --sidebar: #FFFFFF;
+  --foreground: var(--brand-text);
+  --border: #D0DBE8;
+  --border-subtle: #E8EDF4;
+  --surface: #FFFFFF;
+  --surface-raised: #F0F4F9;
+  --primary: var(--brand-primary);
+  --primary-hover: var(--brand-dark);
+  --primary-subtle: #E0EDF8;
+  --muted-foreground: var(--brand-muted);
 }
 
 /* ─── Font size scale ───────────────────────────────────────────────────────
@@ -42,44 +49,62 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  --font-system: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
   --font-mono: var(--font-geist-mono);
+
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-accent: var(--brand-accent);
 
   /* ── Indigo 스케일 → 브랜드 파랑으로 교체 ──
      bg-indigo-*, text-indigo-* 등 기존 클래스가 자동으로 새 색상을 사용합니다. */
-  --color-indigo-50:  #e0edf8;
-  --color-indigo-100: #c5ddf5;
-  --color-indigo-200: #8bbde9;
-  --color-indigo-300: #4d9ade;
-  --color-indigo-400: var(--brand-accent);   /* #00A0DF */
-  --color-indigo-500: #006dc5;
-  --color-indigo-600: var(--brand-primary);  /* #0055A5 */
-  --color-indigo-700: #004387;
-  --color-indigo-800: var(--brand-dark);     /* #003366 */
-  --color-indigo-900: #002655;
-  --color-indigo-950: #001833;
+  --color-indigo-50: #eef2ff;
+  --color-indigo-100: #e0e7ff;
+  --color-indigo-200: #c7d2fe;
+  --color-indigo-300: #a5b4fc;
+  --color-indigo-400: #818cf8;
+  --color-indigo-500: #6366f1;
+  --color-indigo-600: var(--brand-primary);
+  /* #4F46E5 */
+  --color-indigo-700: #4338ca;
+  --color-indigo-800: #3730a3;
+  --color-indigo-900: #312e81;
+  --color-indigo-950: var(--brand-dark);
+  /* #1E1B4B */
 
   /* 커스텀 사이즈 (기존 text-[Npx] 대체) */
-  --text-micro: 0.5625rem; /* 9px  */
-  --text-2xs:   0.625rem;  /* 10px */
+  --text-micro: 0.5625rem;
+  /* 9px  */
+  --text-2xs: 0.625rem;
+  /* 10px */
 
   /* Tailwind 기본 사이즈 오버라이드 */
-  --text-xs:   0.75rem;    /* 12px */
-  --text-xs2:  0.8125rem; /* 13px — text-xs2 */
-  --text-sm:   0.875rem;  /* 14px */
-  --text-base: 1rem;      /* 16px */
-  --text-lg:   1.125rem;  /* 18px */
-  --text-xl:   1.25rem;   /* 20px */
-  --text-2xl:  1.5rem;    /* 24px */
-  --text-3xl:  1.875rem;  /* 30px */
-  --text-4xl:  2.25rem;   /* 36px */
-  --text-5xl:  3rem;      /* 48px */
+  --text-xs: 0.75rem;
+  /* 12px */
+  --text-xs2: 0.8125rem;
+  /* 13px — text-xs2 */
+  --text-sm: 0.875rem;
+  /* 14px */
+  --text-base: 1rem;
+  /* 16px */
+  --text-lg: 1.125rem;
+  /* 18px */
+  --text-xl: 1.25rem;
+  /* 20px */
+  --text-2xl: 1.5rem;
+  /* 24px */
+  --text-3xl: 1.875rem;
+  /* 30px */
+  --text-4xl: 2.25rem;
+  /* 36px */
+  --text-5xl: 3rem;
+  /* 48px */
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -95,11 +120,19 @@ body {
 }
 
 @keyframes scroll-reveal {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0);    }
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   [data-scroll-hidden],
   [data-scroll-revealed] {
     opacity: 1 !important;
@@ -110,10 +143,95 @@ body {
 
 /* ─── Highlight pulse animation (doc-write 단락 포커스) ─────────────────── */
 @keyframes highlight-pulse {
-  0%   { box-shadow: inset 0 0 0 3px #818cf8; opacity: 1; }
-  40%  { box-shadow: inset 0 0 0 3px #818cf8; opacity: 0.9; }
-  70%  { box-shadow: inset 0 0 0 2px #a5b4fc; opacity: 0.5; }
-  100% { box-shadow: inset 0 0 0 0px #a5b4fc; opacity: 0; }
+  0% {
+    box-shadow: inset 0 0 0 3px #818cf8;
+    opacity: 1;
+  }
+
+  40% {
+    box-shadow: inset 0 0 0 3px #818cf8;
+    opacity: 0.9;
+  }
+
+  70% {
+    box-shadow: inset 0 0 0 2px #a5b4fc;
+    opacity: 0.5;
+  }
+
+  100% {
+    box-shadow: inset 0 0 0 0px #a5b4fc;
+    opacity: 0;
+  }
+}
+
+/* ─── Premium UI Utility classes ─────────────────────────────────────────── */
+
+/* Classic UI (기본) */
+.glass-panel {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mesh-bg {
+  background-color: var(--background);
+}
+
+/* Glass UI 활성화 시 */
+html[data-ui="glass"] .glass-panel {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+}
+
+html[data-ui="glass"] .glass-panel:hover {
+  box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.1);
+}
+
+html[data-theme="dark"][data-ui="glass"] .glass-panel {
+  background: rgba(30, 41, 59, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.3);
+}
+
+.glass-header {
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 20;
+}
+
+html[data-theme="dark"] .glass-header {
+  background-color: var(--surface);
+}
+
+html[data-ui="glass"] .glass-header {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+html[data-theme="dark"][data-ui="glass"] .glass-header {
+  background: rgba(30, 41, 59, 0.88);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+html[data-ui="glass"] .mesh-bg {
+  background-image:
+    radial-gradient(at 40% 20%, hsla(250, 100%, 74%, 0.15) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, hsla(189, 100%, 56%, 0.15) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, hsla(355, 100%, 93%, 0.1) 0px, transparent 50%);
+  background-attachment: fixed;
+}
+
+html[data-theme="dark"][data-ui="glass"] .mesh-bg {
+  background-image:
+    radial-gradient(at 40% 20%, hsla(250, 80%, 45%, 0.25) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, hsla(189, 80%, 40%, 0.25) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, hsla(355, 60%, 40%, 0.2) 0px, transparent 50%);
 }
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────── */
@@ -121,13 +239,16 @@ body {
   width: 5px;
   height: 5px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #CBD5E1;
   border-radius: 99px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
 }
@@ -153,74 +274,197 @@ html[data-theme="dark"] ::selection {
 /* ─── Dark mode ──────────────────────────────────────────────────────────── */
 html[data-theme="dark"] {
   color-scheme: dark;
-  --brand-bg:        #0f172a;
-  --brand-text:      #f1f5f9;
-  --brand-muted:     #94a3b8;
-  --background:      #0f172a;
-  --sidebar:         #1e293b;
-  --foreground:      #f1f5f9;
-  --border:          #334155;
-  --border-subtle:   #1e293b;
-  --surface:         #1e293b;
-  --surface-raised:  #334155;
-  --primary-subtle:  #1e3a5f;
-  --muted-foreground:#94a3b8;
+  --brand-bg: #0f172a;
+  --brand-text: #f1f5f9;
+  --brand-muted: #94a3b8;
+  --background: #0f172a;
+  --sidebar: #1e293b;
+  --foreground: #f1f5f9;
+  --border: #334155;
+  --border-subtle: #1e293b;
+  --surface: #1e293b;
+  --surface-raised: #334155;
+  --primary-subtle: #1e3a5f;
+  --muted-foreground: #94a3b8;
 }
 
 /* White surfaces */
-html[data-theme="dark"] .bg-white          { background-color: #1e293b; }
-html[data-theme="dark"] .bg-white\/95      { background-color: rgb(30 41 59 / 0.97); }
-html[data-theme="dark"] .bg-white\/90      { background-color: rgb(30 41 59 / 0.92); }
-html[data-theme="dark"] .bg-white\/75      { background-color: rgb(30 41 59 / 0.85); }
-html[data-theme="dark"] .bg-white\/60      { background-color: rgb(30 41 59 / 0.7); }
-html[data-theme="dark"] .bg-white\/40      { background-color: rgb(30 41 59 / 0.4); }
-html[data-theme="dark"] .bg-white\/30      { background-color: rgb(30 41 59 / 0.3); }
-html[data-theme="dark"] .bg-white\/20      { background-color: rgb(30 41 59 / 0.2); }
+html[data-theme="dark"] .bg-white {
+  background-color: #1e293b;
+}
+
+html[data-theme="dark"] .bg-white\/95 {
+  background-color: rgb(30 41 59 / 0.97);
+}
+
+html[data-theme="dark"] .bg-white\/90 {
+  background-color: rgb(30 41 59 / 0.92);
+}
+
+html[data-theme="dark"] .bg-white\/75 {
+  background-color: rgb(30 41 59 / 0.85);
+}
+
+html[data-theme="dark"] .bg-white\/60 {
+  background-color: rgb(30 41 59 / 0.7);
+}
+
+html[data-theme="dark"] .bg-white\/40 {
+  background-color: rgb(30 41 59 / 0.4);
+}
+
+html[data-theme="dark"] .bg-white\/30 {
+  background-color: rgb(30 41 59 / 0.3);
+}
+
+html[data-theme="dark"] .bg-white\/20 {
+  background-color: rgb(30 41 59 / 0.2);
+}
 
 /* Slate surfaces */
-html[data-theme="dark"] .bg-slate-50       { background-color: #0f172a; }
-html[data-theme="dark"] .bg-slate-100      { background-color: #1e293b; }
-html[data-theme="dark"] .bg-slate-200      { background-color: #334155; }
-html[data-theme="dark"] .bg-slate-50\/60   { background-color: rgb(15 23 42 / 0.6); }
-html[data-theme="dark"] .bg-slate-50\/80   { background-color: rgb(15 23 42 / 0.8); }
-html[data-theme="dark"] .bg-slate-100\/60  { background-color: rgb(30 41 59 / 0.6); }
-html[data-theme="dark"] .bg-\[\#FAFBFC\]  { background-color: #0f172a; }
-html[data-theme="dark"] .bg-\[\#F4F5F7\]  { background-color: #0f172a; }
+html[data-theme="dark"] .bg-slate-50 {
+  background-color: #0f172a;
+}
+
+html[data-theme="dark"] .bg-slate-100 {
+  background-color: #1e293b;
+}
+
+html[data-theme="dark"] .bg-slate-200 {
+  background-color: #334155;
+}
+
+html[data-theme="dark"] .bg-slate-50\/60 {
+  background-color: rgb(15 23 42 / 0.6);
+}
+
+html[data-theme="dark"] .bg-slate-50\/80 {
+  background-color: rgb(15 23 42 / 0.8);
+}
+
+html[data-theme="dark"] .bg-slate-100\/60 {
+  background-color: rgb(30 41 59 / 0.6);
+}
+
+html[data-theme="dark"] .bg-\[\#FAFBFC\] {
+  background-color: #0f172a;
+}
+
+html[data-theme="dark"] .bg-\[\#F4F5F7\] {
+  background-color: #0f172a;
+}
 
 /* Indigo surfaces */
-html[data-theme="dark"] .bg-indigo-50      { background-color: #1e3a5f; }
-html[data-theme="dark"] .bg-indigo-50\/60  { background-color: rgb(30 58 95 / 0.6); }
-html[data-theme="dark"] .bg-indigo-100     { background-color: #1e3a5f; }
-html[data-theme="dark"] .border-indigo-100 { border-color: #1e3a5f; }
-html[data-theme="dark"] .border-indigo-200 { border-color: #2d5a9e; }
-html[data-theme="dark"] .text-indigo-600   { color: #60a5fa; }
-html[data-theme="dark"] .text-indigo-700   { color: #93c5fd; }
+html[data-theme="dark"] .bg-indigo-50 {
+  background-color: #1e3a5f;
+}
+
+html[data-theme="dark"] .bg-indigo-50\/60 {
+  background-color: rgb(30 58 95 / 0.6);
+}
+
+html[data-theme="dark"] .bg-indigo-100 {
+  background-color: #1e3a5f;
+}
+
+html[data-theme="dark"] .border-indigo-100 {
+  border-color: #1e3a5f;
+}
+
+html[data-theme="dark"] .border-indigo-200 {
+  border-color: #2d5a9e;
+}
+
+html[data-theme="dark"] .text-indigo-600 {
+  color: #60a5fa;
+}
+
+html[data-theme="dark"] .text-indigo-700 {
+  color: #93c5fd;
+}
 
 /* Text */
-html[data-theme="dark"] .text-slate-900    { color: #f8fafc; }
-html[data-theme="dark"] .text-slate-800    { color: #f1f5f9; }
-html[data-theme="dark"] .text-slate-700    { color: #e2e8f0; }
-html[data-theme="dark"] .text-slate-600    { color: #cbd5e1; }
-html[data-theme="dark"] .text-slate-500    { color: #94a3b8; }
-html[data-theme="dark"] .text-slate-400    { color: #64748b; }
-html[data-theme="dark"] .text-slate-300    { color: #475569; }
+html[data-theme="dark"] .text-slate-900 {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .text-slate-800 {
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .text-slate-700 {
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .text-slate-600 {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .text-slate-500 {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .text-slate-400 {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .text-slate-300 {
+  color: #475569;
+}
 
 /* Borders */
-html[data-theme="dark"] .border-slate-200        { border-color: #334155; }
-html[data-theme="dark"] .border-slate-200\/60     { border-color: rgb(51 65 85 / 0.6); }
-html[data-theme="dark"] .border-slate-200\/80     { border-color: rgb(51 65 85 / 0.8); }
-html[data-theme="dark"] .border-slate-100         { border-color: #1e293b; }
-html[data-theme="dark"] .border-white\/60         { border-color: rgb(255 255 255 / 0.12); }
-html[data-theme="dark"] .border-white\/50         { border-color: rgb(255 255 255 / 0.1); }
+html[data-theme="dark"] .border-slate-200 {
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .border-slate-200\/60 {
+  border-color: rgb(51 65 85 / 0.6);
+}
+
+html[data-theme="dark"] .border-slate-200\/80 {
+  border-color: rgb(51 65 85 / 0.8);
+}
+
+html[data-theme="dark"] .border-slate-100 {
+  border-color: #1e293b;
+}
+
+html[data-theme="dark"] .border-white\/60 {
+  border-color: rgb(255 255 255 / 0.12);
+}
+
+html[data-theme="dark"] .border-white\/50 {
+  border-color: rgb(255 255 255 / 0.1);
+}
 
 /* Hover overrides */
-html[data-theme="dark"] .hover\:bg-slate-50:hover       { background-color: #1e293b; }
-html[data-theme="dark"] .hover\:bg-slate-100:hover      { background-color: #334155; }
-html[data-theme="dark"] .hover\:bg-slate-100\/60:hover  { background-color: rgb(51 65 85 / 0.6); }
-html[data-theme="dark"] .hover\:bg-white\/40:hover      { background-color: rgb(30 41 59 / 0.5); }
-html[data-theme="dark"] .hover\:bg-slate-50\/60:hover   { background-color: rgb(30 41 59 / 0.6); }
-html[data-theme="dark"] .hover\:bg-indigo-50:hover      { background-color: #1e3a5f; }
-html[data-theme="dark"] .hover\:bg-indigo-100:hover     { background-color: #2d4f8e; }
+html[data-theme="dark"] .hover\:bg-slate-50:hover {
+  background-color: #1e293b;
+}
+
+html[data-theme="dark"] .hover\:bg-slate-100:hover {
+  background-color: #334155;
+}
+
+html[data-theme="dark"] .hover\:bg-slate-100\/60:hover {
+  background-color: rgb(51 65 85 / 0.6);
+}
+
+html[data-theme="dark"] .hover\:bg-white\/40:hover {
+  background-color: rgb(30 41 59 / 0.5);
+}
+
+html[data-theme="dark"] .hover\:bg-slate-50\/60:hover {
+  background-color: rgb(30 41 59 / 0.6);
+}
+
+html[data-theme="dark"] .hover\:bg-indigo-50:hover {
+  background-color: #1e3a5f;
+}
+
+html[data-theme="dark"] .hover\:bg-indigo-100:hover {
+  background-color: #2d4f8e;
+}
 
 /* Inputs */
 html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
@@ -230,21 +474,51 @@ html[data-theme="dark"] textarea {
   color: #f1f5f9;
   border-color: #334155;
 }
+
 html[data-theme="dark"] input::placeholder,
-html[data-theme="dark"] textarea::placeholder { color: #475569; }
+html[data-theme="dark"] textarea::placeholder {
+  color: #475569;
+}
 
 /* Scrollbar */
-html[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #334155; }
-html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #475569; }
+html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
 
 /* Prose (chat bubbles, detail panel) */
 html[data-theme="dark"] .prose p,
 html[data-theme="dark"] .prose li,
 html[data-theme="dark"] .prose h1,
 html[data-theme="dark"] .prose h2,
-html[data-theme="dark"] .prose h3 { color: #e2e8f0; }
-html[data-theme="dark"] .prose strong { color: #f1f5f9; }
-html[data-theme="dark"] .prose th { background-color: #334155; color: #e2e8f0; border-color: #475569; }
-html[data-theme="dark"] .prose td { color: #e2e8f0; border-color: #334155; }
-html[data-theme="dark"] .prose code { background-color: #334155; color: #e2e8f0; }
-html[data-theme="dark"] .prose blockquote { color: #94a3b8; border-color: #4d9ade; }
+html[data-theme="dark"] .prose h3 {
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .prose strong {
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .prose th {
+  background-color: #334155;
+  color: #e2e8f0;
+  border-color: #475569;
+}
+
+html[data-theme="dark"] .prose td {
+  color: #e2e8f0;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .prose code {
+  background-color: #334155;
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .prose blockquote {
+  color: #94a3b8;
+  border-color: #4d9ade;
+}
