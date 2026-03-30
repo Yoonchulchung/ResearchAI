@@ -1,20 +1,19 @@
 "use client";
 
-import { TopicInput, AttachedFile } from "@/components/TopicInput";
+import { TopicInput } from "@/components/TopicInput";
 import { ModelSelector } from "@/components/ModelSelector";
 import { TaskList } from "@/sessions/components/TaskList";
 import { PipelineTerminal } from "@/sessions/components/PipelineTerminal";
-import { useState } from "react";
 import { useModels } from "./hooks/useModels";
 import { useNewSession } from "./hooks/useNewSession";
 import { JobPostingList } from "./components/JobPostingList";
 import { TaskChatBar } from "./components/TaskChatBar";
 
 export default function NewSession() {
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const { cloudAiModels, localAiModels, isLoading, models } = useModels();
   const {
     topic, setTopic,
+    attachedFiles, setAttachedFiles,
     sessionTitle, setSessionTitle,
     generatingTitle,
     selectedCloudAiModel, setSelectedCloudAiModel,

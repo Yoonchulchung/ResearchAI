@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { VlmMessage, ImageContentBlock } from './vlm.types';
 
 export interface ToolCallResult {
   id: string;
@@ -90,17 +91,29 @@ export async function callAnthropic(
 }
 
 
+function toAnthropicContent(content: VlmMessage['content']): Anthropic.ContentBlockParam[] {
+  if (typeof content === 'string') return [{ type: 'text', text: content }];
+  return content.map((c): Anthropic.ContentBlockParam => {
+    if (typeof c === 'string') return { type: 'text', text: c };
+    const img = c as ImageContentBlock;
+    return {
+      type: 'image',
+      source: { type: 'base64', media_type: img.mediaType, data: img.data },
+    };
+  });
+}
+
 export async function* streamAnthropic(
   client: Anthropic,
   model: string,
   system: string,
-  messages: { role: 'user' | 'assistant'; content: string }[],
+  messages: VlmMessage[],
 ): AsyncGenerator<string> {
   const stream = client.messages.stream({
     model,
     max_tokens: 4000,
     system,
-    messages,
+    messages: messages.map((m) => ({ role: m.role, content: toAnthropicContent(m.content) })),
   });
   for await (const chunk of stream) {
     if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {

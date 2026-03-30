@@ -20,7 +20,7 @@ export class QueueJobEntity {
   itemId: string;
 
   @Column({ type: 'text', nullable: true })
-  itemPrompt: string;
+  itemContent: string;
 
   @Column({ name: 'task_type' })
   taskType: string;

@@ -23,11 +23,21 @@ export enum SseEventType {
 
 export namespace QueueJob {
   export enum TaskType {
-    LIGHTRESEARCH = 'lightresearch',
-    DEEPRESEARCH = 'deepresearch',
-    SUMMARY = 'summary',
-    WRITEASSIST = 'writeassist',
-    COMPANYPROFILE = 'companyprofile',
+    LIGHTRESEARCH          = 'lightresearch',
+    DEEPRESEARCH           = 'deepresearch',
+    SUMMARY                = 'summary',
+    WRITEASSIST            = 'writeassist',           // 커스텀 자유 입력
+    WRITEASSIST_EVALUATE   = 'writeassist_evaluate',
+    WRITEASSIST_PLAGIARISM = 'writeassist_plagiarism',
+    WRITEASSIST_CONTINUE   = 'writeassist_continue',
+    WRITEASSIST_SECTION    = 'writeassist_section',
+    WRITEASSIST_IMPROVE    = 'writeassist_improve',
+    WRITEASSIST_SUMMARIZE  = 'writeassist_summarize',
+    COMPANYPROFILE         = 'companyprofile',
+  }
+
+  export function isWriteAssist(type: TaskType): boolean {
+    return type === TaskType.WRITEASSIST || type.startsWith('writeassist_');
   }
 }
 
@@ -35,7 +45,7 @@ export interface QueueJob {
   jobId: string;
   sessionId: string;
   itemId: string;
-  itemPrompt: string;
+  itemContent: string;
   taskType: QueueJob.TaskType;
   localAIModel: string;
   CloudAIModel: string;

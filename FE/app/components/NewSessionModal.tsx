@@ -9,6 +9,12 @@ import { TaskList } from "@/sessions/components/TaskList";
 import { PipelineTerminal } from "@/sessions/components/PipelineTerminal";
 import { JobPostingList } from "@/sessions/new/components/JobPostingList";
 import { TaskChatBar } from "@/sessions/new/components/TaskChatBar";
+import { AttachedFile } from "@/components/TopicInput";
+import { MediaType, MimeType } from "@/types";
+
+const ACCEPT_IMAGE = [MimeType.JPEG, MimeType.JPG, MimeType.PNG];
+const ACCEPT_DOC = [MimeType.PDF, MimeType.DOCX, MimeType.DOC];
+const ACCEPT_ALL = [...ACCEPT_IMAGE, ...ACCEPT_DOC];
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
@@ -44,6 +50,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
   const { cloudAiModels, localAiModels, isLoading, models } = useModels();
   const {
     topic, setTopic,
+    attachedFiles, setAttachedFiles,
     sessionTitle, setSessionTitle,
     generatingTitle,
     selectedCloudAiModel, setSelectedCloudAiModel,
@@ -69,7 +76,57 @@ function ModalContent({ onClose }: { onClose: () => void }) {
   } = useNewSession(models);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const filesRef = useRef<AttachedFile[]>([]);
   const [autoStart, setAutoStart] = useState(false);
+
+  useEffect(() => { filesRef.current = attachedFiles; }, [attachedFiles]);
+
+  const uploadToServer = async (file: File): Promise<AttachedFile["parsed"]> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("http://localhost:3001/api/media/upload", { method: "POST", body: form });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message ?? "업로드 실패");
+    }
+    const data = await res.json();
+    return { type: data.type, text: data.text, pageCount: data.pageCount, dataUrl: data.dataUrl, size: data.size };
+  };
+
+  const handleFilesSelected = async (files: File[]) => {
+    const newEntries: AttachedFile[] = files.map((f) => ({
+      id: `${Date.now()}-${Math.random()}`,
+      file: f,
+      mimetype: f.type,
+      uploading: true,
+    }));
+    setAttachedFiles([...(filesRef.current), ...newEntries]);
+    for (const entry of newEntries) {
+      try {
+        const parsed = await uploadToServer(entry.file);
+        setAttachedFiles(filesRef.current.map((e) => e.id === entry.id ? { ...e, parsed, uploading: false } : e));
+      } catch (err) {
+        setAttachedFiles(filesRef.current.map((e) => e.id === entry.id ? { ...e, uploading: false, error: (err as Error).message } : e));
+      }
+    }
+  };
+
+  const removeFile = (id: string) => setAttachedFiles(filesRef.current.filter((f) => f.id !== id));
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData.items)
+      .filter((item) => item.kind === "file" && ACCEPT_ALL.includes(item.type as MimeType))
+      .map((item) => item.getAsFile())
+      .filter((f): f is File => f !== null);
+    if (files.length > 0) { e.preventDefault(); handleFilesSelected(files); }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []).filter((f) => ACCEPT_ALL.includes(f.type as MimeType));
+    if (files.length > 0) handleFilesSelected(files);
+    e.target.value = "";
+  };
 
   // 태스크 생성 후 자동 스크롤
   useEffect(() => {
@@ -120,7 +177,35 @@ function ModalContent({ onClose }: { onClose: () => void }) {
             <IconSearch />
             리서치 주제
           </label>
-          <div className="relative">
+          <div
+            onPaste={handlePaste}
+            className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden"
+          >
+            {/* 첨부 파일 칩 */}
+            {attachedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2 px-3 pt-3">
+                {attachedFiles.map((af) => {
+                  const isImage = af.mimetype.startsWith("image/");
+                  const isPdf = af.mimetype === "application/pdf";
+                  return isImage ? (
+                    <div key={af.id} className="relative group w-14 h-14 shrink-0 rounded-lg overflow-hidden border border-slate-200">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={URL.createObjectURL(af.file)} alt={af.file.name} className="w-full h-full object-cover" />
+                      {af.uploading && <div className="absolute inset-0 bg-black/30 flex items-center justify-center"><span className="animate-spin text-white text-xs">◌</span></div>}
+                      <button onClick={() => removeFile(af.id)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/50 text-white rounded-full text-micro flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                    </div>
+                  ) : (
+                    <div key={af.id} className={`flex items-center gap-1.5 pl-2 pr-2 py-1.5 rounded-lg border text-xs max-w-36 ${af.error ? "bg-red-50 border-red-200" : "bg-white border-slate-200"}`}>
+                      <span className={`w-6 h-6 shrink-0 rounded flex items-center justify-center text-2xs font-bold text-white ${isPdf ? "bg-red-500" : "bg-blue-500"}`}>{isPdf ? "PDF" : "DOC"}</span>
+                      <span className="truncate text-slate-700 flex-1">{af.file.name.replace(/\.[^.]+$/, "")}</span>
+                      {af.uploading ? <span className="animate-spin text-slate-400">◌</span> : af.error ? <span className="text-red-400">⚠</span> : <span className="text-green-500">✓</span>}
+                      <button onClick={() => removeFile(af.id)} className="text-slate-300 hover:text-slate-500 shrink-0">✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <textarea
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
@@ -135,8 +220,30 @@ function ModalContent({ onClose }: { onClose: () => void }) {
               }}
               placeholder="어떤 주제를 리서치하시겠어요? (예: 최근 AI 반도체 시장 동향과 주요 플레이어)"
               rows={3}
-              className="w-full text-sm text-slate-800 placeholder-slate-400 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 resize-none leading-relaxed transition-all focus:outline-none focus:ring-0 focus-visible:outline-none"
+              className="w-full text-sm text-slate-800 placeholder-slate-400 bg-transparent px-4 py-3 resize-none leading-relaxed focus:outline-none focus:ring-0 focus-visible:outline-none"
             />
+
+            {/* 업로드 버튼 */}
+            <div className="flex items-center px-3 pb-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={ACCEPT_ALL.join(",")}
+                className="hidden"
+                onChange={handleFileInputChange}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors px-1.5 py-1 rounded-lg hover:bg-slate-200"
+              >
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                  <path d="M6.5 1v11M1 6.5h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                이미지 / PDF 첨부
+              </button>
+            </div>
           </div>
         </div>
 

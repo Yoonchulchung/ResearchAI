@@ -66,16 +66,37 @@ function checkOllamaMemoryError(errorText: string): void {
 
 const STREAM_LOAD_TIMEOUT_MS = 60_000; // 모델 로드 대기 최대 60초
 
+import { VlmMessage, ImageContentBlock } from './vlm.types';
+
+function toOllamaMessages(
+  system: string,
+  messages: VlmMessage[] | string,
+): { role: string; content: string; images?: string[] }[] {
+  const msgList: VlmMessage[] =
+    typeof messages === 'string'
+      ? [{ role: 'user', content: messages }]
+      : messages;
+
+  return [
+    { role: 'system', content: system },
+    ...msgList.map((m) => {
+      if (typeof m.content === 'string') return { role: m.role, content: m.content };
+      const texts = m.content.filter((c): c is string => typeof c === 'string');
+      const images = m.content
+        .filter((c): c is ImageContentBlock => typeof c !== 'string' && c.type === 'image')
+        .map((c) => c.data);
+      return { role: m.role, content: texts.join('\n'), ...(images.length ? { images } : {}) };
+    }),
+  ];
+}
+
 export async function* streamOllama(
   model: string,
   system: string,
-  messages: { role: 'user' | 'assistant'; content: string }[] | string,
+  messages: VlmMessage[] | string,
   opts?: { format?: 'json'; options?: OllamaOptions },
 ): AsyncGenerator<string> {
   const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-  const msgList = typeof messages === 'string'
-    ? [{ role: 'user' as const, content: messages }]
-    : messages;
 
   let res: Response;
   try {
@@ -86,7 +107,7 @@ export async function* streamOllama(
         model,
         stream: true,
         ...(opts?.format ? { format: opts.format } : {}),
-        messages: [{ role: 'system', content: system }, ...msgList],
+        messages: toOllamaMessages(system, messages),
         options: opts?.options,
       }),
       signal: AbortSignal.timeout(STREAM_LOAD_TIMEOUT_MS),

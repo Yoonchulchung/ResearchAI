@@ -111,7 +111,7 @@ export function useTaskRunner(session: Session | null, id: string) {
     try {
       await deepResearch(
         id,
-        tasks.map((t) => ({ itemId: t.itemId, prompt: t.webSearchPrompt })),
+        tasks.map((t) => ({ itemId: t.itemId, content: t.webSearchPrompt })),
         aiModel,
         webModel,
         filterModel,

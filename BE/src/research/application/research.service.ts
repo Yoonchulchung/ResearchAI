@@ -4,6 +4,7 @@ import { DeepResearchPipelineService, DeepResearchResult } from './pipeline/deep
 import { SearchModeInput } from './search-planner.service';
 import { SearchEngine, SearchPlan, PlannerMode } from '../domain/model/search-planner.model';
 import { LightResearchEventType } from '../domain/model/light-research.model';
+import { AttachedFilePayload } from '../../queue/presentation/dto/request/enqueue-light-research.dto';
 
 export interface LightResearchInput {
   type: 'light';
@@ -14,11 +15,12 @@ export interface LightResearchInput {
   searchMode: SearchModeInput;
   searchId: string;
   onEvent: (event: LightResearchEvent) => void;
+  attachedFiles?: AttachedFilePayload[];
 }
 
 export interface DeepResearchInput {
   type: 'deep';
-  itemPrompt: string;
+  itemContent: string;
   cloudAIModel: string;
   webModel: SearchEngine;
   signal?: AbortSignal;
@@ -44,9 +46,10 @@ export class ResearchService {
         input.searchMode,
         input.searchId,
         input.onEvent,
+        input.attachedFiles,
       );
     }
-    return this.deepPipeline.run(input.itemPrompt, input.cloudAIModel, input.webModel, undefined, input.signal, input.filterModel);
+    return this.deepPipeline.run(input.itemContent, input.cloudAIModel, input.webModel, undefined, input.signal, input.filterModel);
   }
 
   async testGenerateTasks(

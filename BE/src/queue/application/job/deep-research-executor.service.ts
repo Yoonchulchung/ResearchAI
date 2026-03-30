@@ -19,7 +19,7 @@ export class DeepResearchExecutorService {
   async execute(
     sessionId: string,
     itemId: string,
-    itemPrompt: string,
+    itemContent: string,
     cloudAIModel: string,
     webModel: SearchEngine,
     localAIModel?: string,
@@ -34,7 +34,7 @@ export class DeepResearchExecutorService {
     const aiModel = localAIModel || cloudAIModel;
 
     const { aiResult, webSources, confidence, inputTokens, outputTokens, estimatedFees, searchLog, usedWebModel } =
-      await this.researchService.research({ type: 'deep', itemPrompt, cloudAIModel: aiModel, webModel, signal, filterModel });
+      await this.researchService.research({ type: 'deep', itemContent, cloudAIModel: aiModel, webModel, signal, filterModel });
 
     const webResult = webSources.tavily ?? webSources.serper ?? webSources.naver ?? webSources.brave ?? webSources.duckduckgo ?? '';
     await this.sessionCommandService.updateSessionItem(

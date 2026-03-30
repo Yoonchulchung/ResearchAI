@@ -5,7 +5,7 @@ export enum DeepResearchAction {
 
 export class EnqueueDeepResearchItemDto {
   itemId: string;
-  prompt: string;
+  content: string;
 }
 
 export class EnqueueDeepResearchDto {

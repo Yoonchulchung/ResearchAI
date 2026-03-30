@@ -7,6 +7,7 @@ import { callAnthropic, streamAnthropic } from './provider/anthropic.ai';
 import { callOpenAI, streamOpenAI } from './provider/openai.ai';
 import { callGoogle, streamGoogle } from './provider/google.ai';
 import { callOllama, streamOllama, getOllamaLocalModels, getOllamaRunningModels, unloadOllamaModel, OllamaTool, OllamaInsufficientMemoryError } from './provider/ollama.ai';
+export type { VlmMessage, ImageContentBlock, VlmContent } from './provider/vlm.types';
 import { MODELS, AI_MODEL_PREFIX, getProvider, AIProvider } from '../domain/models';
 import { InvalidAiTypeException } from '../../shared/exceptions/invalid-ai-type.exception';
 import { TokenHistoryRepository } from '../../overview/domain/repository/token-history.repository';
@@ -111,10 +112,13 @@ export class AiProviderService {
   async *stream(
     aiModel: string,
     system: string,
-    messages: { role: 'user' | 'assistant'; content: string }[],
+    messages: import('./provider/vlm.types').VlmMessage[],
   ): AsyncGenerator<string> {
 
-    const streamPreview = messages.map((m) => `[${m.role}] ${m.content.slice(0, 60).replace(/\n/g, ' ')}`).join(' | ');
+    const streamPreview = messages.map((m) => {
+      const text = typeof m.content === 'string' ? m.content : m.content.filter((c): c is string => typeof c === 'string').join(' ');
+      return `[${m.role}] ${text.slice(0, 60).replace(/\n/g, ' ')}`;
+    }).join(' | ');
     this.logger.log(`model=${aiModel} | stream="${streamPreview}"`);
 
     // **** 로컬 **** //

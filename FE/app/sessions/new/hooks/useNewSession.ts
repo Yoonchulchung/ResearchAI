@@ -11,8 +11,10 @@ import {
   LightResearchEvent,
   WebSearchEngine,
 } from "@/lib/api";
+import { AttachedFilePayload } from "@/lib/api/research";
 import { generateSessionTitle } from "@/lib/api/ai";
-import { Task, ModelDefinition } from "@/types";
+import { Task, ModelDefinition, MediaType } from "@/types";
+import { AttachedFile } from "@/components/TopicInput";
 
 const STORAGE_KEY = "new-session-draft";
 
@@ -30,6 +32,7 @@ export function useNewSession(models: ModelDefinition[]) {
   const router = useRouter();
 
   const [topic, setTopic] = useState("");
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [selectedCloudAiModel, setSelectedCloudAiModel] = useState("claude-haiku-4-5");
   const [selectedLocalAiModel, setSelectedLocalAiModel] = useState("");
   const [selectedWebModel, setSelectedWebModel] = useState("anthropic-builtin");
@@ -187,11 +190,20 @@ export function useNewSession(models: ModelDefinition[]) {
     setJobPostings([]);
     setError("");
     try {
+      const filePayloads: AttachedFilePayload[] = attachedFiles
+        .filter((f) => f.parsed && !f.uploading && !f.error)
+        .map((f) => ({
+          type: f.parsed!.type,
+          mediaType: f.parsed!.type === MediaType.IMAGE ? f.mimetype : undefined,
+          dataUrl: f.parsed!.type === MediaType.IMAGE ? f.parsed!.dataUrl : undefined,
+          text: f.parsed!.text,
+        }));
       const { searchId } = await enqueueLightResearch({
         topic: topic.trim(),
         cloudAIModel: selectedCloudAiModel,
         localAIModel: selectedLocalAiModel,
         webModel: selectedWebModel,
+        attachedFiles: filePayloads.length > 0 ? filePayloads : undefined,
       });
       searchIdRef.current = searchId;
       await subscribeLightResearch(searchId, handleSearchEvent, controller.signal);
@@ -251,6 +263,7 @@ export function useNewSession(models: ModelDefinition[]) {
 
   return {
     topic, setTopic,
+    attachedFiles, setAttachedFiles,
     sessionTitle, setSessionTitle,
     generatingTitle,
     selectedCloudAiModel, setSelectedCloudAiModel,

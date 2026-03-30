@@ -10,9 +10,11 @@ import { SearchPlan, SearchMode, PlannerMode, SearchEngine, isBuiltinSearchEngin
 import { AIProvider, AI_MODEL_PREFIX, getProvider } from '../../../ai/domain/models';
 import { RecruitContextService } from '../../../recruit/application/recruit-context.service';
 import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
+import { VlmMessage, ImageContentBlock } from '../../../ai/infrastructure/ai-provider.service';
 import { SearchListRepository } from '../../domain/repository/search-list.repository';
 import { ResearchRecruitRepository } from '../../domain/repository/research-recruit.repository';
 import { LightResearchEventType } from '../../domain/model/light-research.model';
+import { AttachedFilePayload } from '../../../queue/presentation/dto/request/enqueue-light-research.dto';
 
 export type JobItem = { title: string; company: string; location?: string | null; description?: string | null; skills: string[]; url: string };
 
@@ -112,8 +114,9 @@ export class LightResearchPipelineService {
     searchMode: SearchModeInput = PlannerMode.AUTO,
     searchId?: string,
     onEvent?: (event: LightResearchEvent) => void,
+    attachedFiles?: AttachedFilePayload[],
   ): Promise<{ tasks: any[]; searchPlan: SearchPlan }> {
-    for await (const event of this.runStream(topic, localAIModel, cloudAIModel, webModel, searchMode, searchId)) {
+    for await (const event of this.runStream(topic, localAIModel, cloudAIModel, webModel, searchMode, searchId, attachedFiles)) {
 
       if (event.type === LightResearchEventType.SAVEDB) {
         if (event.action === 'recruit') {
@@ -168,6 +171,7 @@ export class LightResearchPipelineService {
     webModel: SearchEngine,
     searchMode: SearchModeInput = PlannerMode.AUTO,
     searchId?: string,
+    attachedFiles?: AttachedFilePayload[],
   ): AsyncGenerator<LightResearchEvent> {
     const model = cloudAIModel || localAIModel;
     const searchPlan = yield* this.step0Plan(topic, localAIModel, searchMode);
@@ -184,7 +188,7 @@ export class LightResearchPipelineService {
       recruitCtx = yield* this.step1bRecruitSearch(searchPlan.companyTypes, searchPlan.jobTypes, searchPlan.keyword, searchId);
     }
 
-    yield* this.step2GenerateTasks(topic, model, searchPlan, webContext, recruitCtx, searchId, useBuiltin);
+    yield* this.step2GenerateTasks(topic, model, searchPlan, webContext, recruitCtx, searchId, useBuiltin, attachedFiles);
   }
 
   // ── Step 0: 검색 소스 결정 ──
@@ -267,6 +271,7 @@ export class LightResearchPipelineService {
     recruitCtx: string | undefined,
     searchId?: string,
     useBuiltinSearch?: boolean,
+    attachedFiles?: AttachedFilePayload[],
   ): AsyncGenerator<LightResearchEvent> {
     yield* this.printFront(`AI 검색 실행을 시작하겠습니다. 잠시만 기다려주세요.`);
     yield* this.printFront(`사용된 모델: ${model}`);
@@ -274,9 +279,17 @@ export class LightResearchPipelineService {
     const parts = [webContext, recruitCtx].filter(Boolean) as string[];
     const searchContext = parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
 
-    const fullPrompt = PROMPTS.taskList(topic, searchContext);
-    
-      const promptChars = fullPrompt.length;
+    let fullPrompt = PROMPTS.taskList(topic, searchContext);
+
+    // 첨부 문서(PDF/DOCX) 텍스트를 프롬프트에 추가
+    const docTexts = (attachedFiles ?? [])
+      .filter((f) => (f.type === 'pdf' || f.type === 'docx') && f.text)
+      .map((f) => f.text!);
+    if (docTexts.length > 0) {
+      fullPrompt += `\n\n## 첨부 문서 내용\n${docTexts.join('\n\n---\n\n')}`;
+    }
+
+    const promptChars = fullPrompt.length;
     const approxTokens = Math.round(promptChars / 4);
     const inputCostPer1M = this.aiProvier.getInputCostPer1M(model);
     const estimatedCost = inputCostPer1M != null
@@ -284,7 +297,12 @@ export class LightResearchPipelineService {
       : '';
     yield* this.printFront(`프롬프트 크기: ${promptChars.toLocaleString()}자 / 약 ${approxTokens.toLocaleString()} 토큰${estimatedCost}`);
 
-    const raw = await this.callAI(model, fullPrompt, undefined, useBuiltinSearch);
+    const imageFiles = (attachedFiles ?? []).filter((f) => f.type === 'image' && f.dataUrl && f.mediaType);
+    if (imageFiles.length > 0) {
+      yield* this.printFront(`첨부 이미지 ${imageFiles.length}개 포함`);
+    }
+
+    const raw = await this.callAI(model, fullPrompt, undefined, useBuiltinSearch, attachedFiles);
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
     const tasks = JSON.parse(jsonMatch[0]);
@@ -327,13 +345,40 @@ export class LightResearchPipelineService {
     }
   }
 
-  private async callAI(model: string, prompt: string, systemOverride?: string, useBuiltinSearch?: boolean): Promise<string> {
+  private async callAI(
+    model: string,
+    prompt: string,
+    systemOverride?: string,
+    useBuiltinSearch?: boolean,
+    attachedFiles?: AttachedFilePayload[],
+  ): Promise<string> {
     const system = systemOverride ?? PROMPTS.system;
     const providerType = getProvider(model);
     const provider = providerType === AIProvider.OLLAMA
       ? `${AIProvider.OLLAMA} (${model.slice(AI_MODEL_PREFIX.OLLAMA.length)})`
       : providerType;
     this.logger.log(`[태스크 생성] ${provider} — model=${model}`);
+
+    const imageBlocks: ImageContentBlock[] = (attachedFiles ?? [])
+      .filter((f) => f.type === 'image' && f.dataUrl && f.mediaType)
+      .map((f) => {
+        const base64 = f.dataUrl!.includes(',') ? f.dataUrl!.split(',')[1] : f.dataUrl!;
+        return {
+          type: 'image' as const,
+          mediaType: f.mediaType as ImageContentBlock['mediaType'],
+          data: base64,
+        };
+      });
+
+    if (imageBlocks.length > 0) {
+      const messages: VlmMessage[] = [{ role: 'user', content: [prompt, ...imageBlocks] }];
+      let result = '';
+      for await (const chunk of this.aiProvier.stream(model, system, messages)) {
+        result += chunk;
+      }
+      return result;
+    }
+
     return (await this.aiProvier.call(model, system, prompt, { useBuiltinSearch })).text;
   }
 }

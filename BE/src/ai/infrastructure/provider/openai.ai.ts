@@ -1,5 +1,15 @@
 import OpenAI from 'openai';
 import { AiCallResult } from './anthropic.ai';
+import { VlmMessage, ImageContentBlock } from './vlm.types';
+
+function toOpenAIContent(content: VlmMessage['content']): OpenAI.ChatCompletionContentPart[] {
+  if (typeof content === 'string') return [{ type: 'text', text: content }];
+  return content.map((c): OpenAI.ChatCompletionContentPart => {
+    if (typeof c === 'string') return { type: 'text', text: c };
+    const img = c as ImageContentBlock;
+    return { type: 'image_url', image_url: { url: `data:${img.mediaType};base64,${img.data}` } };
+  });
+}
 
 export async function callOpenAI(
   client: OpenAI,
@@ -38,12 +48,15 @@ export async function* streamOpenAI(
   client: OpenAI,
   model: string,
   system: string,
-  messages: { role: 'user' | 'assistant'; content: string }[],
+  messages: VlmMessage[],
 ): AsyncGenerator<string> {
   const completion = await client.chat.completions.create({
     model,
     max_tokens: 4000,
-    messages: [{ role: 'system', content: system }, ...messages],
+    messages: [
+      { role: 'system', content: system },
+      ...messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: toOpenAIContent(m.content) } as OpenAI.ChatCompletionMessageParam)),
+    ],
     stream: true,
   });
   for await (const chunk of completion) {

@@ -13,7 +13,7 @@ export function enqueueDocWriteAssist(
   experiences?: { title: string; content: string }[],
   companyCtx?: string,
 ): Promise<{ jobId: string }> {
-  return apiFetch<{ jobId: string }>("/documents/write-assist", {
+  return apiFetch<{ jobId: string }>("/write-assist", {
     method: "POST",
     body: JSON.stringify({ action, content, model, experiences, companyCtx }),
   });

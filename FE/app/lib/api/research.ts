@@ -33,12 +33,20 @@ export type LightResearchEvent =
   | { type: "generating"; model: string }
   | { type: "done"; tasks: Task[]; searchPlan: { source: "web" | "recruit" | "both"; reason: string } };
 
+export interface AttachedFilePayload {
+  type: string;       // 'image' | 'pdf' | 'docx'
+  mediaType?: string; // 'image/jpeg' | 'image/png' etc.
+  dataUrl?: string;   // base64 data URL for images
+  text?: string;      // extracted text for PDFs/docs
+}
+
 export async function enqueueLightResearch(params: {
   topic: string;
   localAIModel: string;
   cloudAIModel: string;
   webModel: string;
   searchMode?: "web" | "recruit" | "both" | "auto";
+  attachedFiles?: AttachedFilePayload[];
 }): Promise<{ searchId: string; status: string }> {
   const result = await apiFetch<{ searchId: string; status: string }>("/queue/research/light", {
     method: "POST",
@@ -69,7 +77,7 @@ export async function cancelLightResearch(searchId: string): Promise<void> {
 
 export async function deepResearch(
   sessionId: string,
-  items: { itemId: string; prompt: string }[],
+  items: { itemId: string; content: string }[],
   aiModel?: string,
   webModel?: string,
   filterModel?: string,

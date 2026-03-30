@@ -10,7 +10,7 @@ import { SessionGateway } from '../../sessions/presentation/session.gateway';
 import { ResearchState, SummaryState } from '../../sessions/domain/entity/session.entity';
 import { QueueStatusDto } from '../presentation/dto/response/queue-status.dto';
 import { EnqueueDeepResearchDto, DeepResearchAction } from '../presentation/dto/request/enqueue-deep-research.dto';
-import { EnqueueLightResearchDto } from '../presentation/dto/request/enqueue-light-research.dto';
+import { EnqueueLightResearchDto, AttachedFilePayload } from '../presentation/dto/request/enqueue-light-research.dto';
 import { LightResearchEvent } from '../../research/application/pipeline/light-research-pipeline.service';
 import { SearchModeInput } from '../../research/application/search-planner.service';
 import { PlannerMode, SearchEngine } from 'src/research/domain/model/search-planner.model';
@@ -18,7 +18,7 @@ import { LightResearchRepository } from '../../research/domain/repository/light-
 import { DeepResearchExecutorService } from './job/deep-research-executor.service';
 import { LightResearchExecutorService } from './job/light-research-executor.service';
 import { SummaryExecutorService } from './job/summary-executor.service';
-import { WriteAssistExecutorService } from './job/write-assist-executor.service';
+import { WriteAssistExecutorService, WriteAssistExtras } from './job/write-assist-executor.service';
 import { CompanyProfileExecutorService } from './job/company-profile-executor.service';
 import { QueueJobRepository } from '../domain/repository/queue-job.repository';
 import { QueueJobDbStatus } from '../domain/entity/queue-job.entity';
@@ -92,7 +92,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
           jobId: entity.jobId,
           sessionId: entity.sessionId,
           itemId: entity.itemId ?? '',
-          itemPrompt: entity.itemPrompt ?? '',
+          itemContent: entity.itemContent ?? '',
           taskType: QueueJob.TaskType.DEEPRESEARCH,
           localAIModel: entity.localAIModel ?? '',
           CloudAIModel: entity.cloudAIModel ?? '',
@@ -221,7 +221,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       jobId: `light-${searchId}`,
       sessionId: searchId,
       itemId: '',
-      itemPrompt: requestBody.topic,
+      itemContent: JSON.stringify({ topic: requestBody.topic, attachedFiles: requestBody.attachedFiles ?? [] }),
       taskType: QueueJob.TaskType.LIGHTRESEARCH,
       localAIModel: requestBody.localAIModel,
       CloudAIModel: requestBody.cloudAIModel,
@@ -279,7 +279,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         jobId: `${sessionId}-${item.itemId}-${Date.now()}`,
         sessionId,
         itemId: item.itemId,
-        itemPrompt: item.prompt,
+        itemContent: item.content,
         taskType: QueueJob.TaskType.DEEPRESEARCH,
         localAIModel,
         CloudAIModel: cloudAIModel,
@@ -310,7 +310,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       jobId: `${sessionId}-summary-${Date.now()}`,
       sessionId,
       itemId: '',
-      itemPrompt: '',
+      itemContent: '',
       taskType: QueueJob.TaskType.SUMMARY,
       localAIModel,
       CloudAIModel: '',
@@ -318,6 +318,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  // 커스텀 자유 입력 (FE에서 instruction 직접 전달)
   async enqueueWriteAssist(
     content: string,
     instruction: string,
@@ -330,8 +331,44 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       jobId,
       sessionId: jobId,
       itemId: '',
-      itemPrompt: JSON.stringify({ content, instruction }),
+      itemContent: JSON.stringify({ content, instruction } satisfies WriteAssistExtras & { content: string }),
       taskType: QueueJob.TaskType.WRITEASSIST,
+      localAIModel: '',
+      CloudAIModel: model,
+      status: QueueJobStatus.PENDING,
+    });
+    return { jobId };
+  }
+
+  // 액션 기반 (evaluate, plagiarism 등) — instruction은 BE에서 관리
+  async enqueueDocWriteAssist(
+    action: string,
+    content: string,
+    model: string,
+    experiences?: WriteAssistExtras['experiences'],
+    companyCtx?: string,
+  ): Promise<{ jobId: string }> {
+    const ACTION_TO_TASK_TYPE: Record<string, QueueJob.TaskType> = {
+      evaluate:  QueueJob.TaskType.WRITEASSIST_EVALUATE,
+      plagiarism: QueueJob.TaskType.WRITEASSIST_PLAGIARISM,
+      continue:  QueueJob.TaskType.WRITEASSIST_CONTINUE,
+      section:   QueueJob.TaskType.WRITEASSIST_SECTION,
+      improve:   QueueJob.TaskType.WRITEASSIST_IMPROVE,
+      summarize: QueueJob.TaskType.WRITEASSIST_SUMMARIZE,
+    };
+    const taskType = ACTION_TO_TASK_TYPE[action];
+    if (!taskType) throw new Error(`알 수 없는 액션: ${action}`);
+
+    const jobId = randomUUID();
+    this.writeAssistSubjects.set(jobId, new Subject<MessageEvent>());
+    this.writeAssistAccumulated.set(jobId, '');
+    const extras: WriteAssistExtras = { experiences, companyCtx };
+    await this.pushJob({
+      jobId,
+      sessionId: jobId,
+      itemId: '',
+      itemContent: JSON.stringify({ content, ...extras }),
+      taskType,
       localAIModel: '',
       CloudAIModel: model,
       status: QueueJobStatus.PENDING,
@@ -353,7 +390,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   cancelWriteAssist(jobId: string): void {
-    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.WRITEASSIST);
+    const job = this.jobs.find((j) => j.jobId === jobId && QueueJob.isWriteAssist(j.taskType));
     if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
       this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
       this.abortControllers.get(job.jobId)?.abort();
@@ -376,7 +413,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       jobId,
       sessionId: jobId,
       itemId: '',
-      itemPrompt: JSON.stringify({ companyName }),
+      itemContent: JSON.stringify({ companyName }),
       taskType: QueueJob.TaskType.COMPANYPROFILE,
       localAIModel: '',
       CloudAIModel: model,
@@ -493,7 +530,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       jobId: job.jobId,
       sessionId: job.sessionId,
       itemId: job.itemId,
-      itemPrompt: job.itemPrompt,
+      itemContent: job.itemContent,
       taskType: job.taskType,
       localAIModel: job.localAIModel,
       cloudAIModel: job.CloudAIModel,
@@ -564,7 +601,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         const { aiResult, webSources } = await this.deepResearchExecutor.execute(
           job.sessionId,
           job.itemId,
-          job.itemPrompt,
+          job.itemContent,
           job.CloudAIModel,
           job.webModel ?? SearchEngine.TAVILY,
           job.localAIModel || undefined,
@@ -576,9 +613,16 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       } else if (job.taskType === QueueJob.TaskType.LIGHTRESEARCH) {
 
         const subject = this.lightResearchSubjects.get(job.sessionId);
+        let lightTopic = job.itemContent;
+        let lightAttachedFiles: AttachedFilePayload[] = [];
+        try {
+          const parsed = JSON.parse(job.itemContent) as { topic: string; attachedFiles?: AttachedFilePayload[] };
+          lightTopic = parsed.topic;
+          lightAttachedFiles = parsed.attachedFiles ?? [];
+        } catch { /* 구형 포맷: itemContent가 plain 문자열 */ }
         const { tasks } = await this.lightResearchExecutor.execute(
           job.sessionId,
-          job.itemPrompt,
+          lightTopic,
           job.localAIModel,
           job.CloudAIModel,
           job.webModel ?? SearchEngine.TAVILY,
@@ -589,6 +633,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
             this.lightResearchAccumulated.set(job.sessionId, accumulated);
             subject?.next({ data: event });
           },
+          lightAttachedFiles,
         );
 
         subject?.complete();
@@ -599,7 +644,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       } else if (job.taskType === QueueJob.TaskType.COMPANYPROFILE) {
 
         const subject = this.companyProfileSubjects.get(job.jobId);
-        const { companyName } = JSON.parse(job.itemPrompt) as { companyName: string };
+        const { companyName } = JSON.parse(job.itemContent) as { companyName: string };
         const fullText = await this.companyProfileExecutor.execute(
           companyName,
           job.CloudAIModel,
@@ -616,19 +661,20 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.companyProfileAccumulated.delete(job.jobId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
 
-      } else if (job.taskType === QueueJob.TaskType.WRITEASSIST) {
+      } else if (QueueJob.isWriteAssist(job.taskType)) {
 
         const subject = this.writeAssistSubjects.get(job.jobId);
-        const { content, instruction } = JSON.parse(job.itemPrompt) as { content: string; instruction: string };
+        const { content, ...extras } = JSON.parse(job.itemContent) as { content: string } & WriteAssistExtras;
         const fullText = await this.writeAssistExecutor.execute(
+          job.taskType,
           content,
-          instruction,
           job.CloudAIModel,
           (chunk) => {
             this.writeAssistAccumulated.set(job.jobId, (this.writeAssistAccumulated.get(job.jobId) ?? '') + chunk);
             subject?.next({ data: { type: SseEventType.CHUNK, text: chunk } });
           },
           controller.signal,
+          extras,
         );
 
         subject?.next({ data: { type: SseEventType.DONE } });
