@@ -41,5 +41,7 @@ export class SessionsService {
   removeItem(itemId: string)                                  { return this.command.removeItem(itemId); }
   remove(id: string)                                          { return this.command.remove(id); }
   saveSummary(id: string, summary: string)                    { return this.command.saveSummary(id, summary); }
+  setAttachedFileIds(sessionId: string, fileIds: string[])    { return this.command.setAttachedFileIds(sessionId, fileIds); }
+  getAttachedFileIds(sessionId: string)                       { return this.query.getAttachedFileIds(sessionId); }
 
 }

@@ -45,6 +45,15 @@ export class SessionRepository {
     await this.repo.update(id, { summaryState: state });
   }
 
+  async updateAttachedFileIds(id: string, fileIds: string[]): Promise<void> {
+    await this.repo.update(id, { attachedFileIds: fileIds });
+  }
+
+  async getAttachedFileIds(id: string): Promise<string[]> {
+    const row = await this.repo.findOne({ where: { id }, select: ['attachedFileIds'] });
+    return row?.attachedFileIds ?? [];
+  }
+
   async delete(id: string): Promise<void> {
     const exists = await this.repo.findOne({ where: { id } });
     if (!exists) throw new NotFoundException('Session not found');

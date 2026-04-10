@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef, memo } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { Task } from "@/types";
 import { TaskCard } from "@/sessions/components/TaskCard";
@@ -9,9 +9,8 @@ import { SessionHeader } from "@/sessions/components/SessionHeader";
 import { reEvaluateConfidence } from "@/lib/api/ai";
 import { SessionSkeleton } from "@/sessions/components/SessionSkeleton";
 import { ChatSection } from "@/sessions/components/ChatSection";
-import { TopicInput, AttachedFile } from "@/components/TopicInput";
+import { ChatInputArea } from "@/sessions/components/ChatInputArea";
 import { DetailPanel } from "@/sessions/components/DetailPanel";
-import { ModelDefinition } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getSearchEngines, WebSearchEngine } from "@/lib/api/research";
 import { useSessionData } from "./hooks/useSessionData";
@@ -19,65 +18,6 @@ import { useTaskRunner } from "./hooks/useTaskRunner";
 import { useChatHandler } from "./hooks/useChatHandler";
 import { useCompaction } from "./hooks/useCompaction";
 import { TaskPanel, TaskPanelTab } from "@/sessions/components/TaskPanel";
-
-const ChatInputArea = memo(function ChatInputArea({
-  onSend,
-  onAbort,
-  generating,
-  cloudAiModels,
-  localAiModels,
-  webEngines,
-  defaultModel,
-  defaultWebModel,
-}: {
-  onSend: (message: string, model: string) => void;
-  onAbort: () => void;
-  generating: boolean;
-  cloudAiModels: ModelDefinition[];
-  localAiModels: ModelDefinition[];
-  webEngines: WebSearchEngine[];
-  defaultModel: string;
-  defaultWebModel: string;
-}) {
-  const [value, setValue] = useState("");
-  const [selectedModel, setSelectedModel] = useState(defaultModel);
-  const [selectedWebModel, setSelectedWebModel] = useState(defaultWebModel);
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-
-  useEffect(() => { setSelectedModel(defaultModel); }, [defaultModel]);
-  useEffect(() => { setSelectedWebModel(defaultWebModel); }, [defaultWebModel]);
-
-  const handleSend = useCallback(() => {
-    const msg = value.trim();
-    if (!msg || generating) return;
-    setValue("");
-    onSend(msg, selectedModel);
-  }, [value, generating, selectedModel, onSend]);
-
-  return (
-    <TopicInput
-      value={value}
-      onChange={setValue}
-      onGenerate={handleSend}
-      onAbort={onAbort}
-      generating={generating}
-      placeholder="리서치 내용에 대해 질문하세요..."
-      generatingLabel="AI가 답변을 생성하고 있습니다..."
-      cloudAiModels={cloudAiModels}
-      localAiModels={localAiModels}
-      webEngines={webEngines}
-      selectedCloudAiModel={selectedModel}
-      selectedLocalAiModel={selectedModel}
-      selectedWebModel={selectedWebModel}
-      onCloudAiModelChange={setSelectedModel}
-      onLocalAiModelChange={setSelectedModel}
-      onWebModelChange={setSelectedWebModel}
-      dropdownDirection="up"
-      attachedFiles={attachedFiles}
-      onAttachedFilesChange={setAttachedFiles}
-    />
-  );
-});
 
 export default function SessionPage() {
   const { id } = useParams<{ id: string }>();
@@ -326,7 +266,7 @@ export default function SessionPage() {
 
           <div className="px-8 relative z-10 pb-4">
             <ChatInputArea
-              onSend={handleChatSend}
+              onSend={(msg, model, attachedTexts) => handleChatSend(msg, model, attachedTexts)}
               onAbort={handleChatAbort}
               generating={chatLoading}
               cloudAiModels={cloudAiModels}

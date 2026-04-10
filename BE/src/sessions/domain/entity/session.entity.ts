@@ -46,6 +46,9 @@ export class SessionEntity {
   @OneToMany(() => SessionItemEntity, (item) => item.session)
   items: SessionItemEntity[];
 
+  @Column({ name: 'attached_file_ids', type: 'simple-json', nullable: true, default: null })
+  attachedFileIds: string[] | null;
+
   @Column({ name: 'summary', nullable: true })
   summary: string;
 

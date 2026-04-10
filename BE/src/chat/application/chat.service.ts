@@ -9,6 +9,7 @@ import { WhoSent } from '../domain/entity/chat.entity';
 import { getProvider, AIProvider } from '../../ai/domain/models';
 import { WebSearchService } from '../../research/application/web-search.service';
 import { SearchEngine } from '../../research/domain/model/search-planner.model';
+import { AttachedTextDto } from '../presentation/dto/request/chat-message.dto';
 
 export interface ChatStreamEvent {
   type: 'chunk' | 'status';
@@ -68,13 +69,14 @@ export class ChatService {
     sessionId: string,
     message: string,
     aiModel: string,
+    attachedTexts?: AttachedTextDto[],
   ): AsyncGenerator<ChatStreamEvent> {
     const session = await this.sessionsService.findOne(sessionId);
 
     // 현재 메시지는 아직 저장하지 않음 — 검색 결과 포함 후 저장
     const rawHistory = await this.getHistoryForAI(sessionId);
 
-    // RAG 컨텍스트 구성
+    // 리서치 RAG 컨텍스트 구성
     let ragContext: string;
     const vectorResults = await this.vectorService.search(sessionId, message, 6);
 
@@ -87,6 +89,15 @@ export class ChatService {
       ragContext = items.length > 0
         ? items.map((item) => `### ${item.topic}\n${item.aiResult}`).join('\n\n---\n\n')
         : '아직 완료된 리서치 결과가 없습니다.';
+    }
+
+    // 첨부 문서: RAG 대신 전체 텍스트 직접 주입
+    const hasDocumentContext = attachedTexts && attachedTexts.length > 0;
+    if (hasDocumentContext) {
+      const docContext = attachedTexts
+        .map((d) => `### [첨부문서: ${d.filename}]\n${d.text}`)
+        .join('\n\n---\n\n');
+      ragContext = docContext + '\n\n---\n\n' + ragContext;
     }
 
     // *** 에이전트 검색 ***
@@ -157,12 +168,23 @@ ${ragContext}`;
       };
       const tools = provider === AIProvider.ANTHROPIC ? [anthropicTool] : [openaiTool];
 
+      const docNote = hasDocumentContext
+        ? isLocal
+          ? 'Attached documents are available and relevant content has already been retrieved. Do NOT call web_search — answer using the document content.'
+          : '첨부된 문서가 있고 관련 내용이 이미 검색되었습니다. web_search를 호출하지 말고 문서 내용을 바탕으로 답변하세요.'
+        : '';
+
       const decisionPrompt = isLocal
         ? `Topic: "${session.topic}".
-Call web_search ONLY IF the user is explicitly asking for recent news, specific data, or facts not commonly known.
-Do NOT call web_search for: greetings, simple questions, opinions, follow-up conversation, or anything answerable from general knowledge.
+${docNote}
+Call web_search ONLY IF: no attached documents exist, AND the user is explicitly asking for recent news, specific data, or facts not commonly known.
+Do NOT call web_search for: greetings, simple questions, opinions, follow-up conversation, anything answerable from general knowledge, or questions about uploaded documents.
 If unsure, do NOT search.`
-        : `주제: "${session.topic}". 사용자 질문에 답변하기 위해 최신 뉴스·구체적 수치·리서치에 없는 사실이 필요할 때만 web_search를 호출하세요. 인사말, 간단한 질문, 일반 상식으로 답할 수 있는 경우에는 호출하지 마세요.`;
+        : `주제: "${session.topic}".
+${docNote}
+web_search 호출 조건: 첨부 문서가 없고, 최신 뉴스·구체적 수치·리서치에 없는 사실이 필요한 경우에만 호출하세요.
+web_search를 호출하지 말아야 하는 경우: 인사말, 간단한 질문, 일반 상식으로 답할 수 있는 경우, 업로드된 문서에 대한 질문.
+확실하지 않으면 호출하지 마세요.`;
 
       const decision = await this.aiProvider.call(
         aiModel,

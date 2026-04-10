@@ -32,6 +32,7 @@ export class ChatController {
         sessionId,
         body.message,
         body.model,
+        body.attachedTexts,
       )) {
         if (res.writableEnded) break;
         res.write(`data: ${JSON.stringify(event)}\n\n`);

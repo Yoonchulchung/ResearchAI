@@ -103,4 +103,8 @@ export class SessionCommandService {
     await this.sessionRepository.updateSummary(id, summary);
   }
 
+  async setAttachedFileIds(sessionId: string, fileIds: string[]): Promise<void> {
+    await this.sessionRepository.updateAttachedFileIds(sessionId, fileIds);
+  }
+
 }

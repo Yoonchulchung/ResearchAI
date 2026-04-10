@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { VectorService } from '../vector/vector.service';
 
 export enum MediaType {
   IMAGE = 'image',
@@ -16,6 +18,7 @@ export enum MimeType {
 }
 
 export interface ParsedMedia {
+  fileId: string;
   filename: string;
   mimetype: string;
   size: number;
@@ -32,25 +35,38 @@ export interface ParsedMedia {
 export class MediaService {
   private readonly logger = new Logger(MediaService.name);
 
+  constructor(private readonly vectorService: VectorService) {}
+
   async parse(file: Express.Multer.File): Promise<ParsedMedia> {
     const { originalname, mimetype, buffer, size } = file;
+    const fileId = randomUUID();
 
-    this.logger.log(`Parsing media: ${originalname} (${mimetype}, ${size}B)`);
+    this.logger.log(`Parsing media: ${originalname} (${mimetype}, ${size}B) → fileId=${fileId}`);
+
+    let result: ParsedMedia;
 
     if (mimetype.startsWith('image/')) {
-      return this.parseImage(originalname, mimetype, size, buffer);
-    }
-    if (mimetype === MimeType.PDF) {
-      return this.parsePdf(originalname, mimetype, size, buffer);
-    }
-    if (mimetype === MimeType.DOCX || mimetype === MimeType.DOC) {
-      return this.parseDocx(originalname, mimetype, size, buffer);
+      result = this.parseImage(fileId, originalname, mimetype, size, buffer);
+    } else if (mimetype === MimeType.PDF) {
+      result = await this.parsePdf(fileId, originalname, mimetype, size, buffer);
+    } else if (mimetype === MimeType.DOCX || mimetype === MimeType.DOC) {
+      result = await this.parseDocx(fileId, originalname, mimetype, size, buffer);
+    } else {
+      throw new Error(`Unsupported mimetype: ${mimetype}`);
     }
 
-    throw new Error(`Unsupported mimetype: ${mimetype}`);
+    // PDF / DOCX 텍스트를 Qdrant에 비동기 인덱싱
+    if (result.text && result.text.trim().length > 0) {
+      this.vectorService
+        .indexDocument(fileId, originalname, result.type, result.text)
+        .catch((e) => this.logger.error(`문서 인덱싱 실패: ${e.message}`));
+    }
+
+    return result;
   }
 
   private parseImage(
+    fileId: string,
     filename: string,
     mimetype: string,
     size: number,
@@ -58,10 +74,11 @@ export class MediaService {
   ): ParsedMedia {
     const base64 = buffer.toString('base64');
     const dataUrl = `data:${mimetype};base64,${base64}`;
-    return { filename, mimetype, size, type: MediaType.IMAGE, dataUrl };
+    return { fileId, filename, mimetype, size, type: MediaType.IMAGE, dataUrl };
   }
 
   private async parsePdf(
+    fileId: string,
     filename: string,
     mimetype: string,
     size: number,
@@ -73,6 +90,7 @@ export class MediaService {
     const result = await parser.getText();
     await parser.destroy();
     return {
+      fileId,
       filename,
       mimetype,
       size,
@@ -83,6 +101,7 @@ export class MediaService {
   }
 
   private async parseDocx(
+    fileId: string,
     filename: string,
     mimetype: string,
     size: number,
@@ -92,6 +111,7 @@ export class MediaService {
     const mammoth = require('mammoth');
     const result = await mammoth.extractRawText({ buffer });
     return {
+      fileId,
       filename,
       mimetype,
       size,

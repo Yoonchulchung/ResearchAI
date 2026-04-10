@@ -48,6 +48,19 @@ export class SessionsController {
     return this.sessionsService.updateSession(id, body.status as ResearchState);
   }
   
+  // ***************** //
+  // 첨부 파일 ID 관리    //
+  // ***************** //
+  @Put(':id/attached-files')
+  setAttachedFileIds(@Param('id') id: string, @Body() body: { fileIds: string[] }) {
+    return this.sessionsService.setAttachedFileIds(id, body.fileIds);
+  }
+
+  @Get(':id/attached-files')
+  getAttachedFileIds(@Param('id') id: string) {
+    return this.sessionsService.getAttachedFileIds(id);
+  }
+
   // ************ //
   // 새션 서머리 요청 //
   // ************ //

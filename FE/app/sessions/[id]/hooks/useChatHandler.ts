@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getChatHistory, clearChatHistory, chatStream } from "@/lib/api";
+import { AttachedText } from "@/lib/api/sessions";
 import { Session, ChatMessage } from "@/types";
 
 export function useChatHandler(session: Session | null, id: string) {
@@ -45,7 +46,7 @@ export function useChatHandler(session: Session | null, id: string) {
     }
   }, [chatMessages, getScrollContainer]);
 
-  const handleChatSend = useCallback(async (message: string, model: string) => {
+  const handleChatSend = useCallback(async (message: string, model: string, attachedTexts?: AttachedText[]) => {
     if (!session || chatLoading) return;
     setChatLoading(true);
     setChatMessages((prev) => [
@@ -88,7 +89,7 @@ export function useChatHandler(session: Session | null, id: string) {
       await chatStream(id, message, model || session.researchCloudAIModel, (chunk) => {
         accumulated += chunk;
         if (rafId === null) rafId = requestAnimationFrame(flush);
-      }, controller.signal, handleStatus);
+      }, controller.signal, handleStatus, attachedTexts);
       if (rafId !== null) cancelAnimationFrame(rafId);
       flush();
     } catch (e) {

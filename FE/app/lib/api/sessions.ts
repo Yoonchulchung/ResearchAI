@@ -15,6 +15,12 @@ export const createSession = (topic: string, researchCloudAIModel: string, resea
 export const deleteSession = (id: string) =>
   apiFetch<{ ok: boolean }>(`/sessions/${id}`, { method: "DELETE" });
 
+export const setAttachedFileIds = (sessionId: string, fileIds: string[]) =>
+  apiFetch<{ ok: boolean }>(`/sessions/${sessionId}/attached-files`, {
+    method: "PUT",
+    body: JSON.stringify({ fileIds }),
+  });
+
 export const deleteSessionItem = (sessionId: string, itemId: string) =>
   apiFetch<{ ok: boolean }>(`/sessions/${sessionId}/items/${itemId}`, { method: "DELETE" });
 
@@ -81,6 +87,11 @@ export const getCompactionStatus = (sessionId: string) =>
     `/chat/${sessionId}/compaction`,
   );
 
+export interface AttachedText {
+  filename: string;
+  text: string;
+}
+
 export async function chatStream(
   sessionId: string,
   message: string,
@@ -88,11 +99,12 @@ export async function chatStream(
   onChunk: (text: string) => void,
   signal?: AbortSignal,
   onStatus?: (text: string) => void,
+  attachedTexts?: AttachedText[],
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/chat/${sessionId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, model }),
+    body: JSON.stringify({ message, model, attachedTexts: attachedTexts?.length ? attachedTexts : undefined }),
     signal,
   });
   if (!res.ok || !res.body) throw new Error("Chat stream failed");

@@ -6,6 +6,7 @@ import {
   cancelLightResearch,
   getQueueStatus,
   createSession,
+  setAttachedFileIds,
   getSearchEngines,
   JobItem,
   LightResearchEvent,
@@ -206,6 +207,7 @@ export function useNewSession(models: ModelDefinition[]) {
         attachedFiles: filePayloads.length > 0 ? filePayloads : undefined,
       });
       searchIdRef.current = searchId;
+      setAttachedFiles([]);
       await subscribeLightResearch(searchId, handleSearchEvent, controller.signal);
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") {
@@ -237,6 +239,12 @@ export function useNewSession(models: ModelDefinition[]) {
     try {
       const title = sessionTitle.trim() || topic.trim();
       const session = await createSession(title, selectedCloudAiModel, selectedLocalAiModel, selectedWebModel, tasks);
+      const fileIds = attachedFiles
+        .filter((f) => f.parsed?.fileId)
+        .map((f) => f.parsed!.fileId!);
+      if (fileIds.length > 0) {
+        await setAttachedFileIds(session.id, fileIds).catch(() => {});
+      }
       router.push(`/sessions/${session.id}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "세션 생성 실패");

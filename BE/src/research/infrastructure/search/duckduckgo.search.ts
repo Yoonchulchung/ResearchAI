@@ -84,6 +84,9 @@ function parseResults(html: string): SearchResult[] {
 /** 각 결과 URL의 실제 페이지 본문 크롤링 */
 async function fetchPageContent(url: string): Promise<string> {
   try {
+    // PDF URL은 바이너리가 그대로 들어오므로 스킵
+    if (/\.pdf(\?.*)?$/i.test(url)) return '';
+
     const res = await fetch(url, {
       headers: {
         'User-Agent': randomUA(),
@@ -92,6 +95,13 @@ async function fetchPageContent(url: string): Promise<string> {
       signal: AbortSignal.timeout(PAGE_CONTENT_TIMEOUT_MS),
     });
     if (!res.ok) return '';
+
+    // Content-Type이 PDF면 스킵
+    const contentType = res.headers.get('content-type') ?? '';
+    if (contentType.includes('application/pdf') || contentType.includes('application/octet-stream')) {
+      return '';
+    }
+
     const $ = cheerio.load(await res.text());
     $('script, style, nav, footer, header, aside, [class*="ad"], [id*="ad"]').remove();
     const text = ($('article, main, [class*="content"], [id*="content"]').first().text() || $('body').text())

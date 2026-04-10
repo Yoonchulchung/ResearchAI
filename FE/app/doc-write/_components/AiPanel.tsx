@@ -78,8 +78,9 @@ export function AiPanel({
   companyProfile,
   profileLoading,
 }: Props) {
-  const { uiStyle } = useTheme();
+  const { theme, uiStyle } = useTheme();
   const isGlass = uiStyle === "glass";
+  const isDark = theme === "dark";
   const actions = FALLBACK_ACTIONS;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -95,13 +96,13 @@ export function AiPanel({
   return (
     <div className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-colors ${isGlass ? "bg-transparent" : "bg-slate-50"}`}>
       {/* Header */}
-      <div className={`shrink-0 flex items-center gap-2 px-4 py-2 border-b transition-colors ${isGlass ? "bg-transparent border-white/10" : "bg-white border-slate-200/60"}`}>
-        <span className={`text-sm font-semibold uppercase tracking-wider ${isGlass ? "text-white/60" : "text-slate-400"}`}>AI 어시스턴트</span>
+      <div className={`shrink-0 flex items-center gap-2 px-4 py-2 border-b transition-colors ${isGlass ? (isDark ? "bg-transparent border-white/10" : "bg-transparent border-black/10") : "bg-white border-slate-200/60"}`}>
+        <span className={`text-sm font-semibold uppercase tracking-wider ${isDark ? "text-white/60" : "text-slate-500"}`}>AI 어시스턴트</span>
         <div className="flex-1" />
         {messages.length > 0 && (
           <button
             onClick={onClearMessages}
-            className={`text-sm transition-colors ${isGlass ? "text-white/40 hover:text-white" : "text-slate-400 hover:text-slate-600"}`}
+            className={`text-sm transition-colors ${isDark ? "text-white/40 hover:text-white" : "text-slate-400 hover:text-slate-600"}`}
           >
             대화 초기화
           </button>
@@ -109,7 +110,7 @@ export function AiPanel({
         <select
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          className={`text-sm border rounded-lg px-2 py-1 focus:outline-none cursor-pointer ${isGlass
+          className={`text-sm border rounded-lg px-2 py-1 focus:outline-none cursor-pointer disabled:opacity-50 ${isGlass && isDark
               ? "!bg-white/10 !text-white !border-white/20 focus:ring-1 focus:ring-white/40"
               : "text-slate-600 bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-200"
             }`}
@@ -143,11 +144,11 @@ export function AiPanel({
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-4">
         {messages.length === 0 && !streamingContent && !aiError && (
-          <div className={`flex flex-col items-center justify-center h-full gap-3 pb-16 ${isGlass ? "text-white/30" : "text-slate-300"}`}>
+          <div className={`flex flex-col items-center justify-center h-full gap-3 pb-16 ${isDark ? "text-white/30" : "text-slate-300"}`}>
             <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
               <path d="M18 3L21.5 13.5L32 18L21.5 22.5L18 33L14.5 22.5L4 18L14.5 13.5L18 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
             </svg>
-            <p className={`text-sm text-center leading-relaxed ${isGlass ? "text-white/50" : "text-slate-400"}`}>
+            <p className={`text-sm text-center leading-relaxed ${isDark ? "text-white/50" : "text-slate-400"}`}>
               아래 버튼이나 직접 입력으로<br />AI에게 요청해보세요
             </p>
           </div>
@@ -161,28 +162,33 @@ export function AiPanel({
               </div>
             ) : (
               <div className="w-full">
-                <div className={`${PROSE_CLASS} border rounded-2xl rounded-tl-sm px-4 py-3 text-sm ${isGlass ? "bg-white/10 border-white/20 text-white/95 shadow-lg prose-invert backdrop-blur-md" : "bg-white border-slate-200/80 shadow-sm"}`}>
+                <div className={`${PROSE_CLASS} border rounded-2xl rounded-tl-sm px-4 py-3 text-sm ${isGlass 
+                  ? (isDark ? "bg-white/10 border-white/20 text-white/95 shadow-lg prose-invert backdrop-blur-md" : "bg-white/60 border-black/10 text-slate-800 shadow-sm backdrop-blur-md") 
+                  : "bg-white border-slate-200/80 shadow-sm"}`}>
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                 </div>
                 <div className="flex items-center gap-1.5 mt-1.5 px-1">
                   <button
                     onClick={() => onApplyResult(msg.content, "append")}
-                    className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${isGlass ? "text-indigo-200 bg-white/10 border-white/20 hover:bg-white/20" : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
-                      }`}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${
+                      isGlass && isDark ? "text-indigo-200 bg-white/10 border-white/20 hover:bg-white/20" : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
+                    }`}
                   >
                     <IconAppend /> 추가
                   </button>
                   <button
                     onClick={() => onApplyResult(msg.content, "replace")}
-                    className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${isGlass ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10" : "text-slate-600 bg-slate-50 hover:bg-slate-100 border-slate-200"
-                      }`}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${
+                      isGlass && isDark ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10" : "text-slate-600 bg-white hover:bg-slate-50 border-slate-200/60 shadow-sm"
+                    }`}
                   >
                     <IconInsert /> 교체
                   </button>
                   <button
                     onClick={() => onCopyText(msg.content, msg.id)}
-                    className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${isGlass ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10" : "text-slate-600 bg-slate-50 hover:bg-slate-100 border-slate-200"
-                      }`}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${
+                      isGlass && isDark ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10" : "text-slate-600 bg-white hover:bg-slate-50 border-slate-200/60 shadow-sm"
+                    }`}
                   >
                     <IconCopy /> {copiedId === msg.id ? "복사됨" : "복사"}
                   </button>
@@ -224,7 +230,7 @@ export function AiPanel({
       </div>
 
       {/* Bottom input area */}
-      <div className={`shrink-0 border-t px-4 pt-3 pb-4 space-y-2.5 transition-colors ${isGlass ? "bg-transparent border-white/10" : "bg-white border-slate-200/60"}`}>
+      <div className={`shrink-0 border-t px-4 pt-3 pb-4 space-y-2.5 transition-colors ${isGlass ? (isDark ? "bg-transparent border-white/10" : "bg-transparent border-black/10") : "bg-white border-slate-200/60"}`}>
         {/* Quick actions */}
         <div className="space-y-1.5">
           <div className="grid grid-cols-4 gap-1.5">
@@ -233,9 +239,10 @@ export function AiPanel({
                 key={action.key}
                 onClick={() => onRunAssist("", action.label, false, action.key)}
                 disabled={aiLoading}
-                className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-sm font-medium border disabled:opacity-40 disabled:cursor-not-allowed transition-all ${isGlass
+                className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-sm font-medium border disabled:opacity-40 disabled:cursor-not-allowed transition-all ${
+                    isGlass && isDark
                     ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10 hover:text-white hover:border-white/30"
-                    : "text-slate-600 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 border-slate-100 hover:border-indigo-200"
+                    : "text-slate-600 bg-white shadow-sm hover:bg-indigo-50 hover:text-indigo-700 border-slate-200 hover:border-indigo-200"
                   }`}
               >
                 {KEY_TO_ICON[action.key]}
@@ -249,7 +256,11 @@ export function AiPanel({
                 key={action.key}
                 onClick={() => onRunAssist("", action.label, action.skipCompanyCtx, action.key)}
                 disabled={aiLoading}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 hover:border-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm ${
+                  isGlass && isDark 
+                    ? "text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30" 
+                    : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200"
+                }`}
               >
                 {KEY_TO_ICON[action.key]}
                 <span>{action.label}</span>
@@ -273,15 +284,16 @@ export function AiPanel({
             placeholder="직접 요청 입력... (↵ 실행, ⇧↵ 줄바꿈)"
             rows={1}
             style={{ maxHeight: "120px" }}
-            className={`flex-1 text-sm border rounded-lg px-3 py-2 focus:outline-none resize-none overflow-hidden transition-colors ${isGlass
+            className={`flex-1 text-sm border rounded-lg px-3 py-2 focus:outline-none resize-none overflow-hidden transition-colors ${
+                isGlass && isDark
                 ? "!bg-black/20 !text-white !border-white/20 placeholder-white/40 focus:border-white/50"
-                : "bg-slate-50 text-slate-700 border-slate-200 placeholder-slate-300 focus:bg-white focus:border-indigo-300"
+                : "bg-white text-slate-700 border-slate-200 shadow-sm placeholder-slate-400 focus:bg-white focus:border-indigo-300"
               }`}
           />
           <button
             onClick={() => { if (customPrompt.trim()) onRunAssist(customPrompt); }}
             disabled={!customPrompt.trim() || aiLoading}
-            className={`shrink-0 px-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all ${isGlass ? "bg-white/10 border border-white/20 text-white hover:bg-white/20" : "bg-indigo-600 text-white hover:bg-indigo-700"
+            className={`shrink-0 px-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all ${isGlass && isDark ? "bg-white/10 border border-white/20 text-white hover:bg-white/20" : "bg-indigo-600 text-white shadow-sm hover:bg-indigo-700"
               }`}
           >
             {aiLoading ? (

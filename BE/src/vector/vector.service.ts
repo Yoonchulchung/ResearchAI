@@ -14,12 +14,22 @@ export interface ExperienceSearchResult {
   score: number;
 }
 
+export interface DocumentChunkResult {
+  fileId: string;
+  filename: string;
+  fileType: string;   // 'pdf' | 'docx' | 'image'
+  text: string;
+  chunkIndex: number;
+  score: number;
+}
+
 @Injectable()
 export class VectorService implements OnModuleInit {
   private readonly logger = new Logger(VectorService.name);
   private readonly qdrantUrl = process.env.QDRANT_URL ?? 'http://localhost:6333';
   private readonly collectionName = 'research_rag';
   private readonly experienceCollectionName = 'experience_rag';
+  private readonly documentCollectionName = 'document_rag';
   private readonly embedModel =
     process.env.OLLAMA_EMBED_MODEL ?? 'nomic-embed-text';
   private readonly ollamaUrl =
@@ -40,6 +50,7 @@ export class VectorService implements OnModuleInit {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await this.ensureCollection();
       await this.ensureExperienceCollection();
+      await this.ensureDocumentCollection();
       this.available = true;
       this.logger.log('✅ Qdrant 연결 성공 — 벡터 검색 활성화');
     } catch (e: any) {
@@ -92,6 +103,22 @@ export class VectorService implements OnModuleInit {
       );
       if (!createRes.ok) throw new Error('경험 컬렉션 생성 실패');
       this.logger.log(`컬렉션 '${this.experienceCollectionName}' 생성됨`);
+    }
+  }
+
+  private async ensureDocumentCollection(): Promise<void> {
+    const res = await fetch(`${this.qdrantUrl}/collections/${this.documentCollectionName}`);
+    if (res.status === 404) {
+      const createRes = await fetch(
+        `${this.qdrantUrl}/collections/${this.documentCollectionName}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vectors: { size: this.vectorSize, distance: 'Cosine' } }),
+        },
+      );
+      if (!createRes.ok) throw new Error('문서 컬렉션 생성 실패');
+      this.logger.log(`컬렉션 '${this.documentCollectionName}' 생성됨`);
     }
   }
 
@@ -300,6 +327,114 @@ export class VectorService implements OnModuleInit {
     } catch {
       return [];
     }
+  }
+
+  // ── 문서 인덱싱 (PDF / DOCX) ─────────────────────────────────────────────────
+
+  async indexDocument(
+    fileId: string,
+    filename: string,
+    fileType: string,
+    text: string,
+  ): Promise<void> {
+    if (!this.available) return;
+    try {
+      await this.deleteDocumentFromIndex(fileId);
+      const chunks = this.chunkText(text);
+      const points: any[] = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const vector = await this.embed(chunks[i]);
+        points.push({
+          id: this.toUUID(`doc_${fileId}_${i}`),
+          vector,
+          payload: { fileId, filename, fileType, chunkIndex: i, text: chunks[i] },
+        });
+      }
+      if (points.length === 0) return;
+      await fetch(
+        `${this.qdrantUrl}/collections/${this.documentCollectionName}/points`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ points }),
+        },
+      );
+      this.logger.log(`문서 인덱싱 완료: ${filename} (${chunks.length}청크)`);
+    } catch (e: any) {
+      this.logger.error(`문서 인덱싱 오류 [${filename}]: ${e.message}`);
+    }
+  }
+
+  async searchDocuments(
+    query: string,
+    fileIds?: string[],
+    topK = 4,
+  ): Promise<DocumentChunkResult[]> {
+    if (!this.available) return [];
+    try {
+      const queryVector = await this.embed(query);
+      const filter = fileIds?.length
+        ? { must: [{ key: 'fileId', match: { any: fileIds } }] }
+        : undefined;
+      const res = await fetch(
+        `${this.qdrantUrl}/collections/${this.documentCollectionName}/points/search`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vector: queryVector,
+            limit: topK,
+            score_threshold: 0.3,
+            ...(filter ? { filter } : {}),
+            with_payload: true,
+          }),
+        },
+      );
+      if (!res.ok) return [];
+      const data = (await res.json()) as any;
+      return (data.result ?? []).map((r: any) => ({
+        fileId: r.payload.fileId,
+        filename: r.payload.filename,
+        fileType: r.payload.fileType,
+        text: r.payload.text,
+        chunkIndex: r.payload.chunkIndex,
+        score: r.score,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async deleteDocument(fileId: string): Promise<void> {
+    if (!this.available) return;
+    await this.deleteDocumentFromIndex(fileId).catch(() => {});
+  }
+
+  private async deleteDocumentFromIndex(fileId: string): Promise<void> {
+    await fetch(
+      `${this.qdrantUrl}/collections/${this.documentCollectionName}/points/delete`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filter: { must: [{ key: 'fileId', match: { value: fileId } }] },
+        }),
+      },
+    );
+  }
+
+  async deleteDocuments(fileIds: string[]): Promise<void> {
+    if (!this.available || fileIds.length === 0) return;
+    await fetch(
+      `${this.qdrantUrl}/collections/${this.documentCollectionName}/points/delete`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filter: { must: [{ key: 'fileId', match: { any: fileIds } }] },
+        }),
+      },
+    ).catch(() => {});
   }
 
   async deleteExperience(experienceId: string): Promise<void> {

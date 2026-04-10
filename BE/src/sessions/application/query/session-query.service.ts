@@ -49,4 +49,8 @@ export class SessionQueryService {
 
     return { model, system, prompt };
   }
+
+  async getAttachedFileIds(sessionId: string): Promise<string[]> {
+    return this.sessionRepository.getAttachedFileIds(sessionId);
+  }
 }

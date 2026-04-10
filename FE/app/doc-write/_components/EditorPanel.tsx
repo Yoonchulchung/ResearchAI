@@ -86,8 +86,9 @@ export function EditorPanel({
   profileLoading,
   highlightFlash,
 }: Props) {
-  const { uiStyle } = useTheme();
+  const { theme, uiStyle } = useTheme();
   const isGlass = uiStyle === "glass";
+  const isDark = theme === "dark";
 
   const diffTokens = pendingImprovement
     ? computeDiff(pendingImprovement.original, pendingImprovement.improved)
@@ -98,31 +99,31 @@ export function EditorPanel({
     : "";
 
   return (
-    <div className={`flex-1 flex flex-col min-w-0 border-r overflow-hidden transition-colors ${isGlass ? "bg-transparent border-white/10" : "bg-white border-slate-200/60"}`}>
+    <div className={`flex-1 flex flex-col min-w-0 border-r overflow-hidden transition-colors ${isGlass ? `bg-transparent ${isDark ? "border-white/10" : "border-black/10"}` : `bg-white ${isDark ? "border-slate-700/50" : "border-slate-200/60"}`}`}>
 
       {/* Company name + Job title input */}
-      <div className={`flex items-center gap-2 px-4 py-2 border-b shrink-0 ${isGlass ? "border-white/10" : "border-slate-100"}`}>
-        <span className={`text-sm shrink-0 ${isGlass ? "text-white/60" : "text-slate-400"}`}>지원 기업</span>
+      <div className={`flex items-center gap-2 px-4 py-2 border-b shrink-0 ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-100"}`}>
+        <span className={`text-sm shrink-0 ${isDark ? "text-white/60" : "text-slate-500"}`}>지원 기업</span>
         <input
           value={companyName}
           onChange={(e) => setCompanyName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onFetchProfile(); }}
           placeholder="기업명 입력..."
-          className={`w-36 text-sm !bg-transparent !border-0 focus:outline-none min-w-0 ${isGlass ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-300"}`}
+          className={`w-36 text-sm !bg-transparent !border-0 focus:outline-none min-w-0 ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
         />
-        <span className={`text-sm ${isGlass ? "text-white/20" : "text-slate-200"}`}>|</span>
-        <span className={`text-sm shrink-0 ${isGlass ? "text-white/60" : "text-slate-400"}`}>직무</span>
+        <span className={`text-sm ${isDark ? "text-white/20" : "text-slate-300"}`}>|</span>
+        <span className={`text-sm shrink-0 ${isDark ? "text-white/60" : "text-slate-500"}`}>직무</span>
         <input
           value={jobTitle}
           onChange={(e) => setJobTitle(e.target.value)}
           placeholder="직무명 입력..."
-          className={`flex-1 text-sm !bg-transparent !border-0 focus:outline-none min-w-0 ${isGlass ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-300"}`}
+          className={`flex-1 text-sm !bg-transparent !border-0 focus:outline-none min-w-0 ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
         />
         <button
           onClick={onFetchProfile}
           disabled={!companyName.trim() || profileLoading}
           className={`shrink-0 flex items-center gap-1 px-3 py-1.5 text-sm font-medium border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
-            isGlass 
+            isGlass && isDark
               ? "text-indigo-100 bg-white/10 border-white/20 hover:bg-white/20"
               : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
           }`}
@@ -140,13 +141,13 @@ export function EditorPanel({
 
       {/* Word/char count */}
       <div className="flex justify-end px-4 py-1.5 shrink-0">
-        <span suppressHydrationWarning className={`text-sm ${isGlass ? "text-white/40" : "text-slate-300"}`}>
+        <span suppressHydrationWarning className={`text-sm ${isDark ? "text-white/40" : "text-slate-400"}`}>
           {words.toLocaleString()}단어 · {chars.toLocaleString()}자
         </span>
       </div>
 
       {/* Content area */}
-      <div className={`flex-1 flex flex-col min-h-0 overflow-y-auto ${isGlass ? "text-white" : "text-slate-700"}`}>
+      <div className={`flex-1 flex flex-col min-h-0 overflow-y-auto ${isDark ? "text-white" : "text-slate-700"}`}>
         {mode === "edit" && diffTokens ? (
           // ── Inline diff view ──────────────────────────────────────────────
           <div className="flex-1 px-8 py-6 text-lg leading-relaxed whitespace-pre-wrap font-[inherit]">
@@ -221,16 +222,16 @@ export function EditorPanel({
               onKeyUp={onTextareaSelect}
               onContextMenu={onContextMenu}
               placeholder="내용을 작성하세요..."
-              className={`flex-1 w-full px-8 py-6 text-lg font-sans leading-loose !bg-transparent !border-0 focus:outline-none resize-none ${isGlass ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-300"}`}
+              className={`flex-1 w-full px-8 py-6 text-lg font-sans leading-loose !bg-transparent !border-0 focus:outline-none resize-none ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
             />
           </div>
         ) : (
           <div className="px-8 py-6">
-            <div className={`${PROSE_CLASS} ${isGlass ? "prose-invert text-white" : ""}`}>
+            <div className={`${PROSE_CLASS} ${isDark ? "prose-invert text-white" : ""}`}>
               {content ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
               ) : (
-                <p className={`italic ${isGlass ? "text-white/40" : "text-slate-300"}`}>내용이 없습니다</p>
+                <p className={`italic ${isDark ? "text-white/40" : "text-slate-400"}`}>내용이 없습니다</p>
               )}
             </div>
           </div>
