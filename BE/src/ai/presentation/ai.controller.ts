@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Param, Body, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, HttpCode, Query } from '@nestjs/common';
 import * as os from 'os';
 import { execSync } from 'child_process';
 import { AiProviderService } from '../infrastructure/ai-provider.service';
 import { AiService } from '../application/ai.service';
+import { AiCallLogRepository } from '../domain/repository/ai-call-log.repository';
 import { SessionItemQueryService } from '../../sessions/application/query/session-item-query.service';
 import { SessionItemCommandService } from '../../sessions/application/command/session-item-command.service';
 
@@ -11,6 +12,7 @@ export class AiController {
   constructor(
     private readonly aiProviderService: AiProviderService,
     private readonly aiService: AiService,
+    private readonly aiCallLogRepository: AiCallLogRepository,
     private readonly sessionItemQueryService: SessionItemQueryService,
     private readonly sessionItemCommandService: SessionItemCommandService,
   ) {}
@@ -82,6 +84,26 @@ export class AiController {
     @Body() body: { content: string; instruction: string; model: string },
   ) {
     return this.aiService.writeAssist(body.content, body.instruction, body.model);
+  }
+
+  @Get('call-logs')
+  async getCallLogs(
+    @Query('page') page = '1',
+    @Query('limit') limit = '20',
+    @Query('model') model?: string,
+  ) {
+    return this.aiCallLogRepository.findPaginated(
+      parseInt(page, 10),
+      parseInt(limit, 10),
+      model || undefined,
+    );
+  }
+
+  @Delete('call-logs')
+  @HttpCode(200)
+  async deleteCallLogs() {
+    await this.aiCallLogRepository.deleteAll();
+    return { deleted: true };
   }
 
   @Post('generate-title')

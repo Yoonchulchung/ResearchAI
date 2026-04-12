@@ -11,6 +11,7 @@ export type { VlmMessage, ImageContentBlock, VlmContent } from './provider/vlm.t
 import { MODELS, AI_MODEL_PREFIX, getProvider, AIProvider } from '../domain/models';
 import { InvalidAiTypeException } from '../../shared/exceptions/invalid-ai-type.exception';
 import { TokenHistoryRepository } from '../../overview/domain/repository/token-history.repository';
+import { AiCallLogRepository } from '../domain/repository/ai-call-log.repository';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -21,13 +22,16 @@ export class AiProviderService {
   readonly openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   private readonly google = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
 
-  constructor(private readonly tokenHistoryRepository: TokenHistoryRepository) {}
+  constructor(
+    private readonly tokenHistoryRepository: TokenHistoryRepository,
+    private readonly aiCallLogRepository: AiCallLogRepository,
+  ) {}
 
   async call(
     aiModel: string,
     system: string,
     prompt: string | any[],
-    opts?: { useBuiltinSearch?: boolean; tools?: any[]; signal?: AbortSignal },
+    opts?: { useBuiltinSearch?: boolean; tools?: any[]; signal?: AbortSignal; caller?: string },
   ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number; toolCalls?: ToolCallResult[]; stopReason?: string; searchLog?: { query: string; result: string }[] }> {
     const promptPreview = typeof prompt === 'string'
       ? prompt.slice(0, 100).replace(/\n/g, ' ')
@@ -47,7 +51,11 @@ export class AiProviderService {
     const messages = typeof prompt === 'string' ? [{ role: 'user' as const, content: prompt }] : prompt;
 
     const signal = opts?.signal;
+    const caller = opts?.caller ?? null;
+    const startMs = Date.now();
+    const logId = randomUUID();
 
+    // Ollama
     if (aiModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) {
       const ollamaModel = aiModel.slice(AI_MODEL_PREFIX.OLLAMA.length);
       try {
@@ -58,6 +66,14 @@ export class AiProviderService {
             name: tc.function.name,
             input: tc.function.arguments as Record<string, unknown>,
           }));
+          this.aiCallLogRepository.save({
+            id: logId, aiModel, caller,
+            systemPrompt: system.slice(0, 2000),
+            userPrompt: promptText.slice(0, 2000),
+            response: result.content.slice(0, 2000),
+            inputTokens: 0, outputTokens: 0, estimatedFees: 0,
+            durationMs: Date.now() - startMs,
+          }).catch(() => {});
           return {
             text: result.content,
             inputTokens: 0, outputTokens: 0, estimatedFees: 0,
@@ -66,6 +82,14 @@ export class AiProviderService {
           };
         }
         const text = await callOllama(ollamaModel, system, promptText, undefined, undefined, undefined, undefined, signal);
+        this.aiCallLogRepository.save({
+          id: logId, aiModel, caller,
+          systemPrompt: system.slice(0, 2000),
+          userPrompt: promptText.slice(0, 2000),
+          response: text.slice(0, 2000),
+          inputTokens: 0, outputTokens: 0, estimatedFees: 0,
+          durationMs: Date.now() - startMs,
+        }).catch(() => {});
         return { text, inputTokens: 0, outputTokens: 0, estimatedFees: 0 };
       } catch (err) {
         if (err instanceof OllamaInsufficientMemoryError) {
@@ -73,6 +97,14 @@ export class AiProviderService {
         } else {
           this.logger.error(`[Ollama 호출 오류] model=${ollamaModel} | ${(err as Error).message}`);
         }
+        this.aiCallLogRepository.save({
+          id: logId, aiModel, caller,
+          systemPrompt: system.slice(0, 2000),
+          userPrompt: promptText.slice(0, 2000),
+          error: (err as Error).message,
+          inputTokens: 0, outputTokens: 0, estimatedFees: 0,
+          durationMs: Date.now() - startMs,
+        }).catch(() => {});
         throw err;
       }
     }
@@ -85,15 +117,27 @@ export class AiProviderService {
     let searchLog: { query: string; result: string }[] | undefined;
 
     const provider = getProvider(aiModel);
-    if (provider === AIProvider.ANTHROPIC) {
-      const result = await callAnthropic(this.anthropic, aiModel, system, messages as Anthropic.MessageParam[], useSearch, opts?.tools as Anthropic.Tool[] | undefined, signal);
-      ({ text, inputTokens, outputTokens, toolCalls, stopReason, searchLog } = result);
-    } else if (provider === AIProvider.GOOGLE) {
-      const result = await callGoogle(this.google, aiModel, system + '\n\n' + promptText, useSearch);
-      ({ text, inputTokens, outputTokens } = result);
-    } else {
-      const result = await callOpenAI(this.openai, aiModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
-      ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
+    try {
+      if (provider === AIProvider.ANTHROPIC) {
+        const result = await callAnthropic(this.anthropic, aiModel, system, messages as Anthropic.MessageParam[], useSearch, opts?.tools as Anthropic.Tool[] | undefined, signal);
+        ({ text, inputTokens, outputTokens, toolCalls, stopReason, searchLog } = result);
+      } else if (provider === AIProvider.GOOGLE) {
+        const result = await callGoogle(this.google, aiModel, system + '\n\n' + promptText, useSearch);
+        ({ text, inputTokens, outputTokens } = result);
+      } else {
+        const result = await callOpenAI(this.openai, aiModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
+        ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
+      }
+    } catch (err) {
+      this.aiCallLogRepository.save({
+        id: logId, aiModel, caller,
+        systemPrompt: system.slice(0, 2000),
+        userPrompt: promptText.slice(0, 2000),
+        error: (err as Error).message,
+        inputTokens: 0, outputTokens: 0, estimatedFees: 0,
+        durationMs: Date.now() - startMs,
+      }).catch(() => {});
+      throw err;
     }
 
     const modelInfo = MODELS.find((m) => aiModel.startsWith(m.id));
@@ -105,6 +149,15 @@ export class AiProviderService {
     this.tokenHistoryRepository
       .save({ id: randomUUID(), aiModel, usedTokens: `input:${inputTokens}/output:${outputTokens}`, estimatedFees })
       .catch(() => {});
+
+    this.aiCallLogRepository.save({
+      id: logId, aiModel, caller,
+      systemPrompt: system.slice(0, 2000),
+      userPrompt: promptText.slice(0, 2000),
+      response: text.slice(0, 2000),
+      inputTokens, outputTokens, estimatedFees,
+      durationMs: Date.now() - startMs,
+    }).catch(() => {});
 
     return { text, inputTokens, outputTokens, estimatedFees, toolCalls, stopReason, searchLog };
   }

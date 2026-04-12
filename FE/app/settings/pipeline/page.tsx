@@ -8,9 +8,10 @@ import { PipelineDiagram } from "@/settings/pipeline/PipelineDiagram/PipelineDia
 import { RecruitTestPanel } from "@/settings/pipeline/RecruitTestPanel/RecruitTestPanel";
 import { RagDebugPanel } from "@/settings/pipeline/RagDebugPanel/RagDebugPanel";
 import { DocParsePanel } from "@/settings/pipeline/DocParsePanel/DocParsePanel";
+import { AiCallLogPanel } from "@/settings/pipeline/AiCallLogPanel/AiCallLogPanel";
 import { useTheme } from "@/contexts/ThemeContext";
 
-type Tab = "pipeline" | "api" | "local" | "recruit" | "rag" | "docparse";
+type Tab = "pipeline" | "api" | "local" | "recruit" | "rag" | "docparse" | "calllog";
 
 export default function PipelinePage() {
   const { theme, uiStyle } = useTheme();
@@ -34,6 +35,7 @@ export default function PipelinePage() {
     { id: "local", label: "로컬 모델 (Ollama)" },
     { id: "docparse", label: "문서 파싱" },
     { id: "rag", label: "RAG 디버그" },
+    { id: "calllog", label: "AI 호출 이력" },
   ];
 
   return (
@@ -121,6 +123,18 @@ export default function PipelinePage() {
                 </p>
               </div>
               <RagDebugPanel />
+            </div>
+          )}
+
+          {activeTab === "calllog" && (
+            <div className="max-w-5xl">
+              <div className="mb-6">
+                <h1 className={`text-xl font-bold ${isDark ? "text-white" : "text-slate-800"}`}>AI 호출 이력</h1>
+                <p className={`text-sm mt-1 ${isDark ? "text-white/50" : "text-slate-500"}`}>
+                  AI 모델로 보낸 요청과 응답 이력을 확인합니다. 행을 클릭하면 상세 내용을 볼 수 있습니다.
+                </p>
+              </div>
+              <AiCallLogPanel />
             </div>
           )}
 
