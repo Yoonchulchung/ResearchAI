@@ -11,28 +11,25 @@ const FE_PORT = 3000;
 // ── 경로 헬퍼 ────────────────────────────────────────────────────────────────
 const isPacked = app.isPackaged;
 
-/** 패키징 여부에 따라 resources 하위 경로 반환 */
 function resourcePath(...segments: string[]): string {
   return isPacked
     ? path.join(process.resourcesPath, ...segments)
     : path.join(__dirname, '..', ...segments);
 }
 
-// ── child process 참조 ───────────────────────────────────────────────────────
+// ── 상태 ──────────────────────────────────────────────────────────────────────
 let beProcess: ChildProcess | null = null;
 let feProcess: ChildProcess | null = null;
 let mainWindow: BrowserWindow | null = null;
+/** BE/FE가 모두 기동 완료된 뒤 true로 설정 — 그 전까지 activate 무시 */
+let serversReady = false;
 
 // ── userData 초기화 ──────────────────────────────────────────────────────────
-function initUserData() {
+function initUserData(): string {
   const userData = app.getPath('userData');
-
-  // 필요한 디렉터리 생성
   for (const dir of ['data', 'media/data/backgrounds']) {
     fs.mkdirSync(path.join(userData, dir), { recursive: true });
   }
-
-  // 처음 실행 시 .env가 없으면 빈 파일 생성 (사용자가 API 키 직접 입력 가능)
   const envPath = path.join(userData, '.env');
   if (!fs.existsSync(envPath)) {
     fs.writeFileSync(
@@ -54,11 +51,9 @@ function initUserData() {
       ].join('\n'),
     );
   }
-
   return userData;
 }
 
-/** .env 파일을 파싱해 key=value 객체로 반환 */
 function parseEnvFile(envPath: string): Record<string, string> {
   if (!fs.existsSync(envPath)) return {};
   const result: Record<string, string> = {};
@@ -78,76 +73,65 @@ function parseEnvFile(envPath: string): Record<string, string> {
 function waitForPort(port: number, timeout = 60_000): Promise<void> {
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeout;
-    const check = () => {
+    const attempt = () => {
       const req = http.get(`http://127.0.0.1:${port}`, (res) => {
         res.resume();
         resolve();
       });
       req.on('error', () => {
         if (Date.now() > deadline) {
-          reject(new Error(`Port ${port} did not open within ${timeout}ms`));
+          reject(new Error(`Port ${port} did not open within ${timeout / 1000}s`));
         } else {
-          setTimeout(check, 600);
+          setTimeout(attempt, 800);
         }
       });
-      req.setTimeout(500, () => req.destroy());
+      // req.destroy()가 error 이벤트를 다시 발생시키지 않도록 타임아웃 후 destroy
+      const t = setTimeout(() => req.destroy(), 500);
+      req.on('close', () => clearTimeout(t));
     };
-    check();
+    attempt();
   });
 }
 
-// ── NestJS BE 시작 ────────────────────────────────────────────────────────────
+// ── BE/FE 프로세스 시작 ───────────────────────────────────────────────────────
 function startBackend(userData: string): void {
   const beEntry = resourcePath('BE', 'dist', 'main.js');
   const envVars = parseEnvFile(path.join(userData, '.env'));
-
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    ...envVars,
-    NODE_ENV: 'production',
-    PORT: String(BE_PORT),
-    DATABASE_PATH: path.join(userData, 'data', 'sessions.db'),
-    MEDIA_PATH: path.join(userData, 'media'),
-  };
-
-  console.log(`[BE] Starting: node ${beEntry}`);
   beProcess = spawn(process.execPath, [beEntry], {
-    env,
+    env: {
+      ...process.env,
+      ...envVars,
+      NODE_ENV: 'production',
+      PORT: String(BE_PORT),
+      DATABASE_PATH: path.join(userData, 'data', 'sessions.db'),
+      MEDIA_PATH: path.join(userData, 'media'),
+    },
     cwd: resourcePath('BE'),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-
   beProcess.stdout?.on('data', (d) => console.log('[BE]', d.toString().trim()));
   beProcess.stderr?.on('data', (d) => console.error('[BE]', d.toString().trim()));
-  beProcess.on('exit', (code) => console.log(`[BE] exited with code ${code}`));
+  beProcess.on('exit', (code) => console.log(`[BE] exited: ${code}`));
 }
 
-// ── Next.js FE 시작 ───────────────────────────────────────────────────────────
 function startFrontend(): void {
   const feEntry = resourcePath('FE', '.next', 'standalone', 'server.js');
-
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    NODE_ENV: 'production',
-    PORT: String(FE_PORT),
-    HOSTNAME: '127.0.0.1',
-    // Next.js standalone이 static assets을 찾는 경로
-    NEXT_SHARP_PATH: resourcePath('FE', '.next', 'standalone', 'node_modules', 'sharp'),
-  };
-
-  console.log(`[FE] Starting: node ${feEntry}`);
   feProcess = spawn(process.execPath, [feEntry], {
-    env,
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      PORT: String(FE_PORT),
+      HOSTNAME: '127.0.0.1',
+    },
     cwd: resourcePath('FE', '.next', 'standalone'),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-
   feProcess.stdout?.on('data', (d) => console.log('[FE]', d.toString().trim()));
   feProcess.stderr?.on('data', (d) => console.error('[FE]', d.toString().trim()));
-  feProcess.on('exit', (code) => console.log(`[FE] exited with code ${code}`));
+  feProcess.on('exit', (code) => console.log(`[FE] exited: ${code}`));
 }
 
-// ── 스플래시 / 로딩 창 ────────────────────────────────────────────────────────
+// ── 스플래시 ──────────────────────────────────────────────────────────────────
 function createSplash(): BrowserWindow {
   const splash = new BrowserWindow({
     width: 420,
@@ -159,117 +143,110 @@ function createSplash(): BrowserWindow {
     center: true,
     webPreferences: { nodeIntegration: false, contextIsolation: true },
   });
-
-  // 인라인 HTML로 로딩 화면 표시 (별도 파일 불필요)
   splash.loadURL(
     `data:text/html;charset=utf-8,${encodeURIComponent(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            background: rgba(15,15,20,0.92);
-            backdrop-filter: blur(20px);
-            border-radius: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            font-family: -apple-system, sans-serif;
-            color: #fff;
-            overflow: hidden;
-          }
-          .logo { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; }
-          .sub  { font-size: 13px; color: rgba(255,255,255,0.45); margin-bottom: 32px; }
-          .bar  { width: 200px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
-          .fill { height: 100%; background: linear-gradient(90deg,#6366f1,#8b5cf6); border-radius: 3px;
-                  animation: slide 1.6s ease-in-out infinite; }
-          @keyframes slide {
-            0%   { width: 0%; margin-left: 0; }
-            50%  { width: 60%; margin-left: 20%; }
-            100% { width: 0%; margin-left: 100%; }
-          }
-          .status { margin-top: 16px; font-size: 12px; color: rgba(255,255,255,0.3); }
-        </style>
-      </head>
-      <body>
+      <!DOCTYPE html><html><head><style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{background:rgba(15,15,20,0.92);backdrop-filter:blur(20px);
+             border-radius:20px;display:flex;flex-direction:column;
+             align-items:center;justify-content:center;height:100vh;
+             font-family:-apple-system,sans-serif;color:#fff}
+        .logo{font-size:28px;font-weight:700;letter-spacing:-.5px;margin-bottom:8px}
+        .sub{font-size:13px;color:rgba(255,255,255,.45);margin-bottom:32px}
+        .bar{width:200px;height:3px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden}
+        .fill{height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:3px;
+              animation:slide 1.6s ease-in-out infinite}
+        @keyframes slide{0%{width:0%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0%;margin-left:100%}}
+        .status{margin-top:16px;font-size:12px;color:rgba(255,255,255,.3)}
+      </style></head><body>
         <div class="logo">ResearchAI</div>
         <div class="sub">서비스를 시작하는 중...</div>
         <div class="bar"><div class="fill"></div></div>
         <div class="status">잠시만 기다려 주세요</div>
-      </body>
-      </html>
+      </body></html>
     `)}`,
   );
-
   return splash;
 }
 
 // ── 메인 창 생성 ──────────────────────────────────────────────────────────────
 function createMainWindow(): BrowserWindow {
+  const preloadPath = isPacked
+    ? path.join(process.resourcesPath, 'app', 'electron', 'dist', 'preload.js')
+    : path.join(__dirname, 'preload.js');
+
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 900,
     minHeight: 600,
     show: false,
-    titleBarStyle: 'hiddenInset',  // macOS 신호등 버튼 유지, 타이틀바 숨김
+    titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: '#0f0f14',
     webPreferences: {
-      preload: isPacked
-        ? path.join(process.resourcesPath, 'app', 'electron', 'dist', 'preload.js')
-        : path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: true,
     },
   });
 
-  // 외부 링크는 기본 브라우저로 열기
+  // 외부 링크는 기본 브라우저로
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http://localhost')) return { action: 'allow' };
+    if (url.startsWith('http://127.0.0.1') || url.startsWith('http://localhost')) {
+      return { action: 'allow' };
+    }
     shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  // maximize 상태 변경을 FE로 전달
-  win.on('maximize', () => win.webContents.send('window:maximizeChange', true));
-  win.on('unmaximize', () => win.webContents.send('window:maximizeChange', false));
+  // maximize 상태 → FE로 전달 (isDestroyed 방어)
+  win.on('maximize', () => {
+    if (!win.isDestroyed()) win.webContents.send('window:maximizeChange', true);
+  });
+  win.on('unmaximize', () => {
+    if (!win.isDestroyed()) win.webContents.send('window:maximizeChange', false);
+  });
+
+  // 창이 닫히면 반드시 null로 초기화
+  win.on('closed', () => {
+    mainWindow = null;
+  });
 
   return win;
 }
 
-// ── IPC 핸들러 ────────────────────────────────────────────────────────────────
-function registerIPC(win: BrowserWindow) {
-  ipcMain.handle('window:minimize', () => win.minimize());
+// ── IPC 핸들러 (앱 전체에서 1회만 등록) ─────────────────────────────────────
+function setupIPC(): void {
+  ipcMain.handle('window:minimize', () => mainWindow?.minimize());
   ipcMain.handle('window:maximize', () => {
-    win.isMaximized() ? win.unmaximize() : win.maximize();
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
   });
-  ipcMain.handle('window:close', () => win.close());
-  ipcMain.handle('window:isMaximized', () => win.isMaximized());
+  ipcMain.handle('window:close', () => mainWindow?.close());
+  ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false);
 }
 
 // ── 앱 진입점 ─────────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
   const userData = initUserData();
 
-  // 스플래시 화면 먼저 표시
+  // IPC 핸들러는 앱 전체에서 단 1회 등록
+  setupIPC();
+
   const splash = createSplash();
 
-  // BE / FE 동시에 시작
   startBackend(userData);
   startFrontend();
 
-  // 두 서비스가 모두 준비될 때까지 대기
   try {
     await Promise.all([
       waitForPort(BE_PORT, 60_000),
       waitForPort(FE_PORT, 60_000),
     ]);
   } catch (err) {
+    if (!splash.isDestroyed()) splash.destroy();
     dialog.showErrorBox(
       'ResearchAI 시작 실패',
       `서버를 시작하지 못했습니다.\n\n${(err as Error).message}\n\n앱을 다시 실행해 주세요.`,
@@ -278,42 +255,36 @@ app.whenReady().then(async () => {
     return;
   }
 
-  // 메인 창 생성 & 표시
-  mainWindow = createMainWindow();
-  registerIPC(mainWindow);
+  // 서버 준비 완료 — 이 시점부터 activate 핸들러 동작 허용
+  serversReady = true;
 
+  mainWindow = createMainWindow();
   mainWindow.loadURL(`http://127.0.0.1:${FE_PORT}`);
   mainWindow.once('ready-to-show', () => {
-    splash.destroy();
-    mainWindow!.show();
-    mainWindow!.focus();
+    if (!splash.isDestroyed()) splash.destroy();
+    mainWindow?.show();
+    mainWindow?.focus();
   });
+});
+
+// ── macOS: Dock 아이콘 클릭 시 기존 창만 앞으로 ─────────────────────────────
+app.on('activate', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
 });
 
 // ── 앱 종료 처리 ──────────────────────────────────────────────────────────────
 app.on('window-all-closed', () => {
   killChildren();
-  if (process.platform !== 'darwin') app.quit();
+  app.quit();
 });
 
+// 앱 완전 종료 시(Cmd+Q) 프로세스 정리
 app.on('before-quit', killChildren);
 
-app.on('activate', () => {
-  // macOS: Dock 아이콘 클릭 시 창 복원
-  if (BrowserWindow.getAllWindows().length === 0 && mainWindow === null) {
-    // 이미 서버가 실행 중이므로 바로 창만 새로 생성
-    mainWindow = createMainWindow();
-    if (mainWindow) registerIPC(mainWindow);
-    mainWindow.loadURL(`http://127.0.0.1:${FE_PORT}`);
-    mainWindow.once('ready-to-show', () => {
-      mainWindow!.show();
-    });
-  } else {
-    mainWindow?.show();
-  }
-});
-
-function killChildren() {
+function killChildren(): void {
   if (beProcess && !beProcess.killed) {
     beProcess.kill('SIGTERM');
     beProcess = null;

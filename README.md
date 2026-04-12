@@ -71,7 +71,13 @@ cp BE/.env.example BE/.env
 
 ```bash
 ./run.sh
+
+./run.sh dev // 개발 환경
+
+npm run dist:mac // mac 애플리케이션 빌드
 ```
+
+__mac 애플리케이션 실행하면 무한 생성 버그가 있습니다.__
 
 `run.sh`가 자동으로: Qdrant 시작 → 의존성 설치 → 백엔드(3001) + 프론트엔드(3000) 동시 실행
 → **http://localhost:3000** 접속
