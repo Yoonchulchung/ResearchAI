@@ -1,3 +1,8 @@
 data/
 
 ToDo.md
+
+# Electron 빌드 산출물
+electron/dist/
+dist-electron/
+node_modules/

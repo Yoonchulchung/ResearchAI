@@ -18,7 +18,7 @@ import { DocumentEntity } from '../documents/domain/entity/document.entity';
   imports: [
     TypeOrmModule.forRoot({
       type: 'better-sqlite3',
-      database: 'data/sessions.db',
+      database: process.env.DATABASE_PATH ?? 'data/sessions.db',
       entities: [SessionEntity, SessionItemEntity,
                  ChatEntity, ResearchRecruitEntity,
                  LightResearchEntity, SearchListEntity,

@@ -1,0 +1,82 @@
+appId: com.researchai.desktop
+productName: ResearchAI
+copyright: Copyright © 2025 ResearchAI
+
+# Electron 메인 프로세스 진입점
+directories:
+  output: dist-electron
+  buildResources: electron/assets
+
+# 앱에 포함할 파일 (최소화: 메인 프로세스 코드만)
+files:
+  - electron/dist/**
+  - package.json
+
+# BE / FE 빌드 산출물은 asar 밖 resources에 배치
+extraResources:
+  # NestJS 컴파일 결과
+  - from: BE/dist
+    to: BE/dist
+    filter: ["**/*"]
+
+  # NestJS node_modules (better-sqlite3 등 네이티브 모듈 포함)
+  - from: BE/node_modules
+    to: BE/node_modules
+    filter: ["**/*"]
+
+  # Next.js standalone 서버
+  - from: FE/.next/standalone
+    to: FE/.next/standalone
+    filter: ["**/*"]
+
+  # Next.js 정적 assets (standalone 서버가 참조)
+  - from: FE/.next/static
+    to: FE/.next/standalone/.next/static
+    filter: ["**/*"]
+
+  # public 폴더 (이미지 등 정적 파일)
+  - from: FE/public
+    to: FE/.next/standalone/public
+    filter: ["**/*"]
+
+# 네이티브 모듈은 asar에서 제외 (압축 불가)
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**"
+  - "**/node_modules/bufferutil/**"
+  - "**/node_modules/utf-8-validate/**"
+  - "**/node_modules/puppeteer-core/.local-chromium/**"
+
+# macOS 설정
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+  icon: electron/assets/icon.icns
+  category: public.app-category.productivity
+  # 개발 중 서명 없이 빌드 (배포 시 Apple Developer ID 필요)
+  identity: null
+
+# DMG 설치 화면 설정
+dmg:
+  title: ResearchAI
+  background: electron/assets/dmg-background.png
+  window:
+    width: 540
+    height: 380
+  contents:
+    - x: 150
+      y: 195
+      type: file
+    - x: 390
+      y: 195
+      type: link
+      path: /Applications
+
+# .gitignore 스타일 무시 목록
+artifactName: ResearchAI-${version}-${arch}.${ext}

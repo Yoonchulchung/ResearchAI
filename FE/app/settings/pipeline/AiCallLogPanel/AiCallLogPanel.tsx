@@ -25,7 +25,7 @@ interface PageResult {
 
 const LIMIT = 20;
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 async function fetchLogs(page: number, model?: string): Promise<PageResult> {
   const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });

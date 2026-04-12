@@ -14,11 +14,15 @@ async function bootstrap() {
   app.useWebSocketAdapter(new WsAdapter(app));
   app.useGlobalPipes(new ValidationPipe());
   app.useGlobalFilters(new GlobalExceptionFilter());
-  // media/data/backgrounds 폴더를 /backgrounds URL로 정적 서빙
-  app.useStaticAssets(join(process.cwd(), 'media', 'data', 'backgrounds'), {
+
+  // Electron 패키징 시 MEDIA_PATH 환경변수로 경로 주입, 없으면 CWD 기준
+  const mediaBase = process.env.MEDIA_PATH ?? join(process.cwd(), 'media');
+  app.useStaticAssets(join(mediaBase, 'data', 'backgrounds'), {
     prefix: '/backgrounds',
   });
-  await app.listen(3001);
-  console.log('🚀 BE running on http://localhost:3001/api');
+
+  const port = process.env.PORT ?? 3001;
+  await app.listen(port);
+  console.log(`🚀 BE running on http://localhost:${port}/api`);
 }
 bootstrap();
