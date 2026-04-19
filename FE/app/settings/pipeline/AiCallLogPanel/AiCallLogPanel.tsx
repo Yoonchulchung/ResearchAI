@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 
 interface AiCallLog {
@@ -25,19 +25,16 @@ interface PageResult {
 
 const LIMIT = 20;
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { apiFetch } from "@/lib/api/base";
 
 async function fetchLogs(page: number, model?: string): Promise<PageResult> {
   const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
   if (model) params.set("model", model);
-  const res = await fetch(`${API_BASE}/ai/call-logs?${params}`);
-  if (!res.ok) throw new Error("Failed to fetch call logs");
-  return res.json();
+  return apiFetch<PageResult>(`/ai/call-logs?${params}`);
 }
 
 async function deleteLogs(): Promise<void> {
-  const res = await fetch(`${API_BASE}/ai/call-logs`, { method: "DELETE" });
-  if (!res.ok) throw new Error("Failed to delete call logs");
+  await apiFetch(`/ai/call-logs`, { method: "DELETE" });
 }
 
 export function AiCallLogPanel() {
@@ -176,9 +173,8 @@ export function AiCallLogPanel() {
               </thead>
               <tbody>
                 {logs.map((log) => (
-                  <>
+                  <Fragment key={log.id}>
                     <tr
-                      key={log.id}
                       className={`border-b ${divider} cursor-pointer hover:${isDark ? "bg-white/5" : "bg-slate-50"} transition-colors`}
                       onClick={() => setExpanded(expanded === log.id ? null : log.id)}
                     >
@@ -196,7 +192,7 @@ export function AiCallLogPanel() {
                       </td>
                     </tr>
                     {expanded === log.id && (
-                      <tr key={`${log.id}-detail`} className={`border-b ${divider}`}>
+                      <tr className={`border-b ${divider}`}>
                         <td colSpan={8} className="px-4 py-4">
                           <div className="space-y-3">
                             {log.error && (
@@ -227,7 +223,7 @@ export function AiCallLogPanel() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

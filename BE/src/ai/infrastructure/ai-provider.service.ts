@@ -55,69 +55,45 @@ export class AiProviderService {
     const startMs = Date.now();
     const logId = randomUUID();
 
-    // Ollama
-    if (aiModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) {
-      const ollamaModel = aiModel.slice(AI_MODEL_PREFIX.OLLAMA.length);
-      try {
-        if (opts?.tools?.length) {
-          const result = await callOllama(ollamaModel, system, messages, undefined, undefined, opts.tools as OllamaTool[], undefined, signal);
-          const toolCalls = result.toolCalls.map((tc) => ({
-            id: randomUUID(),
-            name: tc.function.name,
-            input: tc.function.arguments as Record<string, unknown>,
-          }));
-          this.aiCallLogRepository.save({
-            id: logId, aiModel, caller,
-            systemPrompt: system.slice(0, 2000),
-            userPrompt: promptText.slice(0, 2000),
-            response: result.content.slice(0, 2000),
-            inputTokens: 0, outputTokens: 0, estimatedFees: 0,
-            durationMs: Date.now() - startMs,
-          }).catch(() => {});
-          return {
-            text: result.content,
-            inputTokens: 0, outputTokens: 0, estimatedFees: 0,
-            toolCalls: toolCalls.length ? toolCalls : undefined,
-            stopReason: toolCalls.length ? 'tool_use' : 'end_turn',
-          };
-        }
-        const text = await callOllama(ollamaModel, system, promptText, undefined, undefined, undefined, undefined, signal);
-        this.aiCallLogRepository.save({
-          id: logId, aiModel, caller,
-          systemPrompt: system.slice(0, 2000),
-          userPrompt: promptText.slice(0, 2000),
-          response: text.slice(0, 2000),
-          inputTokens: 0, outputTokens: 0, estimatedFees: 0,
-          durationMs: Date.now() - startMs,
-        }).catch(() => {});
-        return { text, inputTokens: 0, outputTokens: 0, estimatedFees: 0 };
-      } catch (err) {
-        if (err instanceof OllamaInsufficientMemoryError) {
-          this.logger.error(`[메모리 부족] model=${ollamaModel} | ${err.message}`);
-        } else {
-          this.logger.error(`[Ollama 호출 오류] model=${ollamaModel} | ${(err as Error).message}`);
-        }
-        this.aiCallLogRepository.save({
-          id: logId, aiModel, caller,
-          systemPrompt: system.slice(0, 2000),
-          userPrompt: promptText.slice(0, 2000),
-          error: (err as Error).message,
-          inputTokens: 0, outputTokens: 0, estimatedFees: 0,
-          durationMs: Date.now() - startMs,
-        }).catch(() => {});
-        throw err;
-      }
-    }
-
     let inputTokens = 0;
     let outputTokens = 0;
+    let estimatedFees = 0;
     let text = '';
     let toolCalls: ToolCallResult[] | undefined;
     let stopReason: string | undefined;
     let searchLog: { query: string; result: string }[] | undefined;
+    let errorMsg: string | undefined;
 
-    const provider = getProvider(aiModel);
     try {
+      // Ollama
+      if (aiModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) {
+        const ollamaModel = aiModel.slice(AI_MODEL_PREFIX.OLLAMA.length);
+        try {
+          if (opts?.tools?.length) {
+            const result = await callOllama(ollamaModel, system, messages, undefined, undefined, opts.tools as OllamaTool[], undefined, signal);
+            toolCalls = result.toolCalls.map((tc) => ({
+              id: randomUUID(),
+              name: tc.function.name,
+              input: tc.function.arguments as Record<string, unknown>,
+            }));
+            text = result.content;
+            stopReason = toolCalls.length ? 'tool_use' : 'end_turn';
+          } else {
+            text = await callOllama(ollamaModel, system, promptText, undefined, undefined, undefined, undefined, signal) as string;
+          }
+        } catch (err) {
+          if (err instanceof OllamaInsufficientMemoryError) {
+            this.logger.error(`[메모리 부족] model=${ollamaModel} | ${err.message}`);
+          } else {
+            this.logger.error(`[Ollama 호출 오류] model=${ollamaModel} | ${(err as Error).message}`);
+          }
+          throw err;
+        }
+        return { text, inputTokens: 0, outputTokens: 0, estimatedFees: 0, toolCalls, stopReason };
+      }
+
+      // Cloud providers
+      const provider = getProvider(aiModel);
       if (provider === AIProvider.ANTHROPIC) {
         const result = await callAnthropic(this.anthropic, aiModel, system, messages as Anthropic.MessageParam[], useSearch, opts?.tools as Anthropic.Tool[] | undefined, signal);
         ({ text, inputTokens, outputTokens, toolCalls, stopReason, searchLog } = result);
@@ -128,38 +104,32 @@ export class AiProviderService {
         const result = await callOpenAI(this.openai, aiModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
         ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
       }
+
+      const modelInfo = MODELS.find((m) => aiModel.startsWith(m.id));
+      estimatedFees = modelInfo
+        ? (inputTokens / 1_000_000) * modelInfo.inputPricePer1M +
+          (outputTokens / 1_000_000) * modelInfo.outputPricePer1M
+        : 0;
+
+      this.tokenHistoryRepository
+        .save({ id: randomUUID(), aiModel, usedTokens: `input:${inputTokens}/output:${outputTokens}`, estimatedFees })
+        .catch(() => {});
+
+      return { text, inputTokens, outputTokens, estimatedFees, toolCalls, stopReason, searchLog };
     } catch (err) {
+      errorMsg = (err as Error).message;
+      throw err;
+    } finally {
       this.aiCallLogRepository.save({
         id: logId, aiModel, caller,
         systemPrompt: system.slice(0, 2000),
         userPrompt: promptText.slice(0, 2000),
-        error: (err as Error).message,
-        inputTokens: 0, outputTokens: 0, estimatedFees: 0,
+        response: text ? text.slice(0, 2000) : null,
+        error: errorMsg ?? null,
+        inputTokens, outputTokens, estimatedFees,
         durationMs: Date.now() - startMs,
       }).catch(() => {});
-      throw err;
     }
-
-    const modelInfo = MODELS.find((m) => aiModel.startsWith(m.id));
-    const estimatedFees = modelInfo
-      ? (inputTokens / 1_000_000) * modelInfo.inputPricePer1M +
-        (outputTokens / 1_000_000) * modelInfo.outputPricePer1M
-      : 0;
-
-    this.tokenHistoryRepository
-      .save({ id: randomUUID(), aiModel, usedTokens: `input:${inputTokens}/output:${outputTokens}`, estimatedFees })
-      .catch(() => {});
-
-    this.aiCallLogRepository.save({
-      id: logId, aiModel, caller,
-      systemPrompt: system.slice(0, 2000),
-      userPrompt: promptText.slice(0, 2000),
-      response: text.slice(0, 2000),
-      inputTokens, outputTokens, estimatedFees,
-      durationMs: Date.now() - startMs,
-    }).catch(() => {});
-
-    return { text, inputTokens, outputTokens, estimatedFees, toolCalls, stopReason, searchLog };
   }
 
   async *stream(

@@ -13,6 +13,7 @@ import { AppConfigEntity } from '../config/domain/entity/app-config.entity';
 import { GmailTokenEntity } from '../gmail/domain/entity/gmail-token.entity';
 import { ExperienceEntity } from '../documents/domain/entity/experience.entity';
 import { DocumentEntity } from '../documents/domain/entity/document.entity';
+import { AiCallLogEntity } from '../ai/domain/entity/ai-call-log.entity';
 
 @Module({
   imports: [
@@ -24,7 +25,8 @@ import { DocumentEntity } from '../documents/domain/entity/document.entity';
                  LightResearchEntity, SearchListEntity,
                  TokenHistoryEntity, QueueJobEntity,
                  NewsBriefingEntity, AppConfigEntity,
-                 GmailTokenEntity, ExperienceEntity, DocumentEntity],
+                 GmailTokenEntity, ExperienceEntity, DocumentEntity,
+                 AiCallLogEntity],
       synchronize: true,
     }),
   ],

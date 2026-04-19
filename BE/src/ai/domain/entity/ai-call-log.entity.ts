@@ -8,7 +8,7 @@ export class AiCallLogEntity {
   @Column({ name: 'ai_model' })
   aiModel: string;
 
-  @Column({ name: 'caller', nullable: true })
+  @Column({ name: 'caller', type: 'text', nullable: true })
   caller: string | null;
 
   @Column({ name: 'system_prompt', type: 'text', nullable: true })
