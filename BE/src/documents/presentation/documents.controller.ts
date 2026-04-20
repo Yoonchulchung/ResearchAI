@@ -106,7 +106,8 @@ export class DocumentsController {
 
   @Post('experiences/search')
   searchExperiences(@Body() dto: { query: string; topK?: number }) {
-    return this.service.searchExperiences(dto.query, dto.topK ?? 5);
+    const userId = requestContext.getStore()?.id ?? null;
+    return this.service.searchExperiences(dto.query, dto.topK ?? 5, userId);
   }
 
   @Post('experiences/:id/suggest-categories')

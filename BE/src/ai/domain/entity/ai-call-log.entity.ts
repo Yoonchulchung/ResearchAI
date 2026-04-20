@@ -5,6 +5,9 @@ export class AiCallLogEntity {
   @PrimaryColumn()
   id: string;
 
+  @Column({ name: 'user_id', type: 'text', nullable: true })
+  userId: string | null;
+
   @Column({ name: 'ai_model' })
   aiModel: string;
 

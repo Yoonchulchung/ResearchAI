@@ -6,6 +6,7 @@ import { AiService } from '../application/ai.service';
 import { AiCallLogRepository } from '../domain/repository/ai-call-log.repository';
 import { SessionItemQueryService } from '../../sessions/application/query/session-item-query.service';
 import { SessionItemCommandService } from '../../sessions/application/command/session-item-command.service';
+import { requestContext } from '../../shared/request-context';
 
 @Controller('ai')
 export class AiController {
@@ -97,17 +98,20 @@ export class AiController {
     @Query('limit') limit = '20',
     @Query('model') model?: string,
   ) {
+    const userId = requestContext.getStore()?.id ?? null;
     return this.aiCallLogRepository.findPaginated(
       parseInt(page, 10),
       parseInt(limit, 10),
       model || undefined,
+      userId,
     );
   }
 
   @Delete('call-logs')
   @HttpCode(200)
   async deleteCallLogs() {
-    await this.aiCallLogRepository.deleteAll();
+    const userId = requestContext.getStore()?.id ?? null;
+    await this.aiCallLogRepository.deleteAll(userId);
     return { deleted: true };
   }
 

@@ -4,25 +4,43 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { BackgroundsService, BACKGROUNDS_DIR } from './backgrounds.service';
+import { BackgroundsService } from './backgrounds.service';
 import type { BgImageInfo } from './backgrounds.service';
+import { requestContext } from '../shared/request-context';
 
 @Controller('backgrounds')
 export class BackgroundsController {
   constructor(private readonly svc: BackgroundsService) {}
 
+  private getUserId(): string | null {
+    return requestContext.getStore()?.id ?? null;
+  }
+
   @Get()
   list(): BgImageInfo[] {
-    return this.svc.list();
+    const userId = this.getUserId();
+    if (!userId) return [];
+    return this.svc.list(userId);
   }
 
   @Post()
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: BACKGROUNDS_DIR,
+        destination: (_req, _file, cb) => {
+          const userId = requestContext.getStore()?.id;
+          if (!userId) return cb(new BadRequestException('로그인이 필요합니다.'), '');
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { existsSync, mkdirSync } = require('fs');
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { join } = require('path');
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { BACKGROUNDS_BASE_DIR } = require('./backgrounds.service');
+          const dir = join(BACKGROUNDS_BASE_DIR, userId);
+          if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
         filename: (_req, file, cb) => {
-          // service로 접근할 수 없으므로 inline으로 생성
           const id = crypto.randomUUID();
           const ext = file.originalname.match(/\.[^.]+$/)?.[0]?.toLowerCase() ?? '.jpg';
           cb(null, `${id}${ext}`);
@@ -37,14 +55,18 @@ export class BackgroundsController {
   )
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   upload(@UploadedFile() file: any): BgImageInfo {
+    const userId = this.getUserId();
+    if (!userId) throw new BadRequestException('로그인이 필요합니다.');
     if (!file) throw new BadRequestException('파일이 없습니다.');
     const id = file.filename.replace(/\.[^.]+$/, '');
-    return { id, filename: file.filename, url: `/backgrounds/${file.filename}` };
+    return { id, filename: file.filename, url: `/backgrounds/${userId}/${file.filename}` };
   }
 
   @Delete(':id')
   delete(@Param('id') id: string): { deleted: boolean } {
-    this.svc.delete(id);
+    const userId = this.getUserId();
+    if (!userId) throw new BadRequestException('로그인이 필요합니다.');
+    this.svc.delete(id, userId);
     return { deleted: true };
   }
 }

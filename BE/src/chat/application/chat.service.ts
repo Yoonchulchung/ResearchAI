@@ -10,6 +10,7 @@ import { getProvider, AIProvider } from '../../ai/domain/models';
 import { WebSearchService } from '../../research/application/web-search.service';
 import { SearchEngine } from '../../research/domain/model/search-planner.model';
 import { AttachedTextDto } from '../presentation/dto/request/chat-message.dto';
+import { requestContext } from '../../shared/request-context';
 
 export interface ChatStreamEvent {
   type: 'chunk' | 'status';
@@ -77,8 +78,9 @@ export class ChatService {
     const rawHistory = await this.getHistoryForAI(sessionId);
 
     // 리서치 RAG 컨텍스트 구성
+    const userId = requestContext.getStore()?.id ?? session.userId ?? null;
     let ragContext: string;
-    const vectorResults = await this.vectorService.search(sessionId, message, 6);
+    const vectorResults = await this.vectorService.search(sessionId, message, 6, userId);
 
     if (vectorResults.length > 0) {
       ragContext = vectorResults

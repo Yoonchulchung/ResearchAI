@@ -120,7 +120,7 @@ ${question}`;
   async createExperience(title: string, content: string, userId: string | null, category?: string, sourceDocId?: string | null): Promise<ExperienceEntity> {
     const entity = this.experienceRepo.create({ id: randomUUID(), userId, title, content, category, sourceDocId: sourceDocId ?? null });
     const saved = await this.experienceRepo.save(entity);
-    await this.vectorService.indexExperience(saved.id, saved.title, saved.content);
+    await this.vectorService.indexExperience(saved.id, saved.title, saved.content, userId);
     return saved;
   }
 
@@ -138,7 +138,7 @@ ${question}`;
     if (category !== undefined) entity.category = category;
     if (aiCategories !== undefined) entity.aiCategories = aiCategories;
     const saved = await this.experienceRepo.save(entity);
-    await this.vectorService.indexExperience(saved.id, saved.title, saved.content);
+    await this.vectorService.indexExperience(saved.id, saved.title, saved.content, saved.userId ?? null);
     return saved;
   }
 
@@ -215,8 +215,8 @@ ${content}
     }
   }
 
-  async searchExperiences(query: string, topK = 5): Promise<ExperienceSearchItem[]> {
-    const vectorResults = await this.vectorService.searchExperiences(query, topK);
+  async searchExperiences(query: string, topK = 5, userId?: string | null): Promise<ExperienceSearchItem[]> {
+    const vectorResults = await this.vectorService.searchExperiences(query, topK, userId);
 
     if (vectorResults.length > 0) {
       const items = await Promise.all(

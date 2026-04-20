@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useBackground, DEFAULT_BG, BgSection } from "@/contexts/BackgroundContext";
 import { listBgImages, uploadBgImage, deleteBgImage, bgImageCss, BgImage } from "@/lib/api/backgrounds";
 import { useTheme, Theme, UiStyle } from "@/contexts/ThemeContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
@@ -74,11 +75,12 @@ function Preview({ bg }: { bg: string }) {
 
 // ─── Section Editor ───────────────────────────────────────────────────────────
 
-function SectionEditor({ section, images, onUpload, onDelete }: {
+function SectionEditor({ section, images, onUpload, onDelete, isLoggedIn }: {
   section: BgSection;
   images: BgImage[];
   onUpload: (file: File) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  isLoggedIn: boolean;
 }) {
   const { backgrounds, setBackground } = useBackground();
   const bg = backgrounds[section];
@@ -130,6 +132,11 @@ function SectionEditor({ section, images, onUpload, onDelete }: {
       {/* User Photos */}
       <div className="space-y-3">
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">사용자 사진</span>
+        {!isLoggedIn ? (
+          <p className="text-xs text-slate-400 bg-slate-50 rounded-xl px-4 py-3 border border-slate-200">
+            로그인 후 사진을 업로드할 수 있습니다.
+          </p>
+        ) : (
         <div className="grid grid-cols-4 gap-3">
           <div className="space-y-1.5">
             <button
@@ -167,7 +174,8 @@ function SectionEditor({ section, images, onUpload, onDelete }: {
             );
           })}
         </div>
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+        )}
+        {isLoggedIn && <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />}
       </div>
 
       {bg !== DEFAULT_BG && (
@@ -194,10 +202,16 @@ const THEMES: { key: Theme; label: string; icon: string }[] = [
 export default function BackgroundPage() {
   const { setBackground } = useBackground();
   const { theme, setTheme, uiStyle, setUiStyle } = useTheme();
-  const [activeSection, setActiveSection] = useState<BgSection>(() => {
-    try { return (localStorage.getItem("bg-active-section") as BgSection) ?? "main"; }
-    catch { return "main"; }
-  });
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+  const [activeSection, setActiveSection] = useState<BgSection>("main");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("bg-active-section") as BgSection;
+      if (saved) setActiveSection(saved);
+    } catch {}
+  }, []);
 
   const handleSectionChange = (section: BgSection) => {
     setActiveSection(section);
@@ -206,8 +220,9 @@ export default function BackgroundPage() {
   const [images, setImages] = useState<BgImage[]>([]);
 
   useEffect(() => {
+    if (!isLoggedIn) { setImages([]); return; }
     listBgImages().then(setImages).catch(() => {});
-  }, []);
+  }, [isLoggedIn]);
 
   const handleUpload = async (file: File) => {
     const img = await uploadBgImage(file);
@@ -296,6 +311,7 @@ export default function BackgroundPage() {
         images={images}
         onUpload={handleUpload}
         onDelete={handleDelete}
+        isLoggedIn={isLoggedIn}
       />
     </div>
   );

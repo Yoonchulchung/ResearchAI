@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
+import { useAuth } from "./AuthContext";
 
 export type BgSection = "main" | "sessions";
 export const DEFAULT_BG = "#F5F7FA";
@@ -12,27 +13,41 @@ interface BackgroundContextValue {
 }
 
 const defaultBgMap: BgMap = { main: DEFAULT_BG, sessions: DEFAULT_BG };
-const STORAGE_KEY = "app-backgrounds-v3";
 
 const BackgroundContext = createContext<BackgroundContextValue>({
   backgrounds: defaultBgMap,
   setBackground: () => {},
 });
 
+function storageKey(userId: string) {
+  return `app-backgrounds-v3-${userId}`;
+}
+
 export function BackgroundProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [backgrounds, setBackgrounds] = useState<BgMap>(defaultBgMap);
 
+  // 유저 변경 시 해당 유저의 배경 로드 (비로그인이면 DEFAULT_BG)
   useEffect(() => {
+    if (!user) {
+      setBackgrounds(defaultBgMap);
+      return;
+    }
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(storageKey(user.id));
       if (saved) setBackgrounds({ ...defaultBgMap, ...JSON.parse(saved) });
-    } catch {}
-  }, []);
+      else setBackgrounds(defaultBgMap);
+    } catch {
+      setBackgrounds(defaultBgMap);
+    }
+  }, [user?.id]);
 
   const setBackground = (section: BgSection, value: string) => {
     setBackgrounds((prev) => {
       const next = { ...prev, [section]: value };
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+      if (user) {
+        try { localStorage.setItem(storageKey(user.id), JSON.stringify(next)); } catch {}
+      }
       return next;
     });
   };

@@ -63,8 +63,9 @@ export class SessionCommandService {
     await this.sessionItemRepository.updateResult(itemId, aiResult, webResult, status, confidence, tokenUsage, extra);
     if (status === ResearchState.DONE) {
       const item = await this.sessionItemRepository.findById(itemId);
+      const session = await this.sessionRepository.findById(sessionId).catch(() => null);
       this.vectorService
-        .indexTaskResult(sessionId, itemId, item.topic, aiResult)
+        .indexTaskResult(sessionId, itemId, item.topic, aiResult, session?.userId ?? null)
         .catch(() => {});
     }
   }

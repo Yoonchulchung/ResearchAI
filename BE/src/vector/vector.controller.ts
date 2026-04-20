@@ -1,5 +1,6 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { VectorService } from './vector.service';
+import { requestContext } from '../shared/request-context';
 
 @Controller('vector')
 export class VectorController {
@@ -11,13 +12,14 @@ export class VectorController {
     @Body() body: { query: string; sessionId?: string; topK?: number },
   ) {
     const { query, sessionId, topK = 5 } = body;
+    const userId = requestContext.getStore()?.id ?? null;
 
     const [research, experiences, documents] = await Promise.all([
       sessionId
-        ? this.vectorService.search(sessionId, query, topK)
+        ? this.vectorService.search(sessionId, query, topK, userId)
         : Promise.resolve([]),
-      this.vectorService.searchExperiences(query, topK),
-      this.vectorService.searchDocuments(query, undefined, topK),
+      this.vectorService.searchExperiences(query, topK, userId),
+      this.vectorService.searchDocuments(query, undefined, topK, userId),
     ]);
 
     return {

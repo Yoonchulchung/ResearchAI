@@ -143,6 +143,7 @@ export class AiProviderService {
     } finally {
       this.aiCallLogRepository.save({
         id: logId, aiModel, caller,
+        userId: requestContext.getStore()?.id ?? null,
         systemPrompt: system.slice(0, 2000),
         userPrompt: promptText.slice(0, 2000),
         response: text ? text.slice(0, 2000) : null,

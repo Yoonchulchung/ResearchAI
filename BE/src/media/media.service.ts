@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { VectorService } from '../vector/vector.service';
+import { requestContext } from '../shared/request-context';
 
 export enum MediaType {
   IMAGE = 'image',
@@ -57,8 +58,9 @@ export class MediaService {
 
     // PDF / DOCX 텍스트를 Qdrant에 비동기 인덱싱
     if (result.text && result.text.trim().length > 0) {
+      const userId = requestContext.getStore()?.id ?? null;
       this.vectorService
-        .indexDocument(fileId, originalname, result.type, result.text)
+        .indexDocument(fileId, originalname, result.type, result.text, userId)
         .catch((e) => this.logger.error(`문서 인덱싱 실패: ${e.message}`));
     }
 

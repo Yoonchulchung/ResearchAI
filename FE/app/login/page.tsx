@@ -153,7 +153,7 @@ export default function LoginPage() {
                   required
                   autoFocus
                   autoComplete="username"
-                  inputMode="latin"
+                  inputMode="text"
                   lang="en"
                   style={{ imeMode: "disabled" } as React.CSSProperties}
                   className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white placeholder:text-slate-500 text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 transition-colors"

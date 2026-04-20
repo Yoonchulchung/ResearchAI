@@ -36,7 +36,6 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
-    headers,
     ...options,
     headers: { ...headers, ...(options?.headers as Record<string, string> | undefined) },
   });

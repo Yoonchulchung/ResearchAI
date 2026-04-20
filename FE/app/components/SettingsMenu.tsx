@@ -47,7 +47,7 @@ export function SettingsMenu() {
   const handleLogout = () => {
     logout();
     setShowMenu(false);
-    router.push("/login");
+    router.push("/main");
   };
 
   const menuItems = [
