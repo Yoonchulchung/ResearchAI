@@ -22,6 +22,7 @@ export interface ItemWithResult extends Task {
 
 export interface Session {
   id: string;
+  userId?: string | null;
   topic: string;
   researchCloudAIModel: string;
   researchLocalAIModel: string;

@@ -8,6 +8,7 @@ import { Session } from "@/types";
 import { SettingsMenu } from "./SettingsMenu";
 import { QueueWidget } from "./QueueWidget";
 import { useNewSessionModal } from "@/contexts/NewSessionModalContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useDocStoreModal } from "@/contexts/DocStoreModalContext";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -130,6 +131,7 @@ export function Sidebar() {
   const { openModal: openDocStore } = useDocStoreModal();
   const { setCollapsed: setSidebarCollapsed } = useSidebar();
   const { uiStyle } = useTheme();
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -283,6 +285,7 @@ export function Sidebar() {
         </div>
         {/* Session dots */}
         <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1 py-2 px-2 min-h-0">
+
           {sessions.map((s) => {
             const isRunning = s.researchState === "running" || s.researchState === "pending";
             const done = s.doneCount ?? 0;
@@ -300,6 +303,16 @@ export function Sidebar() {
               </button>
             );
           })}
+        </div>
+        {/* User avatar at bottom */}
+        <div className="flex flex-col items-center pb-3 pt-1">
+          <button
+            onClick={() => router.push("/settings/overview")}
+            className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-white text-sm font-semibold hover:bg-slate-600 transition-colors"
+            title={user ? user.username : "설정"}
+          >
+            {user ? user.username.charAt(0).toUpperCase() : "⚙"}
+          </button>
         </div>
       </aside>
     );

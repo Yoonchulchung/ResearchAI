@@ -22,9 +22,11 @@ export class SessionCommandService {
     researchLocalAIModel: string,
     researchWebModel: string,
     tasks: Task[],
+    userId?: string | null,
   ): Promise<SessionResponseDto> {
     const session: Session = {
       id: randomUUID(),
+      userId: userId ?? null,
       topic,
       researchCloudAIModel,
       researchLocalAIModel,

@@ -1,11 +1,15 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('gmail_token')
+@Index(['userId'], { unique: true })
 export class GmailTokenEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column({ name: 'user_id', type: 'text' })
+  userId: string;
+
+  @Column()
   email: string;
 
   @Column()

@@ -37,7 +37,7 @@ export class GmailService {
     return process.env.GMAIL_REDIRECT_URI ?? 'http://localhost:3001/api/gmail/callback';
   }
 
-  getAuthUrl(): string {
+  getAuthUrl(userId: string): string {
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
@@ -45,11 +45,12 @@ export class GmailService {
       scope: GMAIL_SCOPES,
       access_type: 'offline',
       prompt: 'consent',
+      state: userId,
     });
     return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
   }
 
-  async handleCallback(code: string): Promise<string> {
+  async handleCallback(code: string, userId: string): Promise<string> {
     // 1. code → tokens
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -76,17 +77,19 @@ export class GmailService {
     if (!userRes.ok) throw new Error(`Userinfo fetch failed: ${userRes.status}`);
     const userInfo = await userRes.json() as { email: string };
 
-    // 3. DB 저장 (upsert)
-    const existing = await this.tokenRepo.findOne({ where: { email: userInfo.email } });
+    // 3. DB upsert (userId 기준)
+    const existing = await this.tokenRepo.findOne({ where: { userId } });
     const expiresAt = Date.now() + (tokens.expires_in - 60) * 1000;
 
     if (existing) {
+      existing.email = userInfo.email;
       existing.refreshToken = tokens.refresh_token ?? existing.refreshToken;
       existing.accessToken = tokens.access_token;
       existing.accessTokenExpiresAt = expiresAt;
       await this.tokenRepo.save(existing);
     } else {
       await this.tokenRepo.save(this.tokenRepo.create({
+        userId,
         email: userInfo.email,
         refreshToken: tokens.refresh_token ?? '',
         accessToken: tokens.access_token,
@@ -94,28 +97,27 @@ export class GmailService {
       }));
     }
 
-    this.logger.log(`Gmail 연동 완료: ${userInfo.email}`);
+    this.logger.log(`Gmail 연동 완료: ${userInfo.email} (userId: ${userId})`);
     return userInfo.email;
   }
 
-  async getStatus(): Promise<GmailStatus> {
-    const token = await this.tokenRepo.findOne({ where: {} });
+  async getStatus(userId: string): Promise<GmailStatus> {
+    const token = await this.tokenRepo.findOne({ where: { userId } });
     if (!token) return { connected: false };
     return { connected: true, email: token.email };
   }
 
-  async disconnect(): Promise<void> {
-    await this.tokenRepo.clear();
-    this.logger.log('Gmail 연동 해제');
+  async disconnect(userId: string): Promise<void> {
+    await this.tokenRepo.delete({ userId });
+    this.logger.log(`Gmail 연동 해제 (userId: ${userId})`);
   }
 
-  async getMessages(maxResults = 10): Promise<GmailMessage[]> {
-    const token = await this.tokenRepo.findOne({ where: {} });
+  async getMessages(userId: string, maxResults = 10): Promise<GmailMessage[]> {
+    const token = await this.tokenRepo.findOne({ where: { userId } });
     if (!token) throw new Error('Gmail이 연동되지 않았습니다.');
 
     const accessToken = await this.ensureAccessToken(token);
 
-    // 메시지 ID 목록 조회
     const listRes = await fetch(
       `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&labelIds=INBOX`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
@@ -124,7 +126,6 @@ export class GmailService {
     const listData = await listRes.json() as { messages?: { id: string }[] };
     const ids = listData.messages ?? [];
 
-    // 각 메시지 상세 조회 (병렬)
     const messages = await Promise.all(
       ids.map((m) => this.fetchMessage(m.id, accessToken)),
     );
@@ -162,14 +163,12 @@ export class GmailService {
     }
   }
 
-  /** "Name <email>" 형식에서 이름만 추출 */
   private parseFrom(from: string): string {
     const match = from.match(/^"?([^"<]+)"?\s*<.+>$/);
     return match ? match[1].trim() : from;
   }
 
   private async ensureAccessToken(token: GmailTokenEntity): Promise<string> {
-    // 만료 1분 전이면 refresh
     if (token.accessToken && token.accessTokenExpiresAt && token.accessTokenExpiresAt > Date.now()) {
       return token.accessToken;
     }

@@ -1,6 +1,7 @@
 export const API_BASE = "http://localhost:3001/api";
 
 const TOKEN_KEY = "auth_token";
+const ANON_ID_KEY = "anon_id";
 
 export const tokenStore = {
   get: (): string | null =>
@@ -16,10 +17,23 @@ export const tokenStore = {
   },
 };
 
+function getAnonId(): string {
+  let id = localStorage.getItem(ANON_ID_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(ANON_ID_KEY, id);
+  }
+  return id;
+}
+
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = tokenStore.get();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else {
+    headers["X-Anon-Id"] = getAnonId();
+  }
 
   const res = await fetch(`${API_BASE}${path}`, {
     headers,

@@ -1,5 +1,6 @@
-import { Column, CreateDateColumn, Entity, OneToMany, PrimaryColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, ManyToOne, JoinColumn, OneToMany, PrimaryColumn } from 'typeorm';
 import { SessionItemEntity } from './session-item.entity';
+import { UserEntity } from '../../../auth/domain/entity/user.entity';
 
 export enum ResearchState {
   IDLE = 'idle',
@@ -26,6 +27,13 @@ export enum SummaryState {
 export class SessionEntity {
   @PrimaryColumn()
   id: string;
+
+  @Column({ name: 'user_id', type: 'text', nullable: true })
+  userId: string | null;
+
+  @ManyToOne(() => UserEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'user_id' })
+  user: UserEntity;
 
   @Column()
   topic: string;

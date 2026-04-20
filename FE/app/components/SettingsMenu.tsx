@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
 function IconSettings() {
   return (
@@ -12,8 +13,28 @@ function IconSettings() {
   );
 }
 
+function IconLogout() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M5 2H2.5C2.22 2 2 2.22 2 2.5V10.5C2 10.78 2.22 11 2.5 11H5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+      <path d="M8.5 4.5L11 6.5L8.5 8.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5 6.5H11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function UserAvatar({ username }: { username: string }) {
+  const initial = username.charAt(0).toUpperCase();
+  return (
+    <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0 text-white text-sm font-semibold">
+      {initial}
+    </div>
+  );
+}
+
 export function SettingsMenu() {
   const router = useRouter();
+  const { user, logout } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
 
   useEffect(() => {
@@ -22,6 +43,12 @@ export function SettingsMenu() {
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [showMenu]);
+
+  const handleLogout = () => {
+    logout();
+    setShowMenu(false);
+    router.push("/login");
+  };
 
   const menuItems = [
     { label: "Overview", path: "/settings/overview", shortcut: "⌘," },
@@ -40,18 +67,28 @@ export function SettingsMenu() {
         >
           {/* Header */}
           <div className="px-3.5 py-3 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
-                <svg width="14" height="14" viewBox="0 0 28 28" fill="none">
-                  <path d="M8 20V9H13.5C15.433 9 17 10.567 17 12.5C17 14.433 15.433 16 13.5 16H8" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M14 16L18 20" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
-                </svg>
+            {user ? (
+              <div className="flex items-center gap-2.5">
+                <UserAvatar username={user.username} />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-slate-800 leading-tight truncate">{user.username}</div>
+                  <div className="text-2xs text-slate-400">Pro 요금제</div>
+                </div>
               </div>
-              <div>
-                <div className="text-xs font-semibold text-slate-800 leading-tight">ResearchAI</div>
-                <div className="text-2xs text-slate-400">AI Research Platform</div>
+            ) : (
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+                  <svg width="14" height="14" viewBox="0 0 28 28" fill="none">
+                    <path d="M8 20V9H13.5C15.433 9 17 10.567 17 12.5C17 14.433 15.433 16 13.5 16H8" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M14 16L18 20" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-slate-800 leading-tight">ResearchAI</div>
+                  <div className="text-2xs text-slate-400">AI Research Platform</div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Menu Items */}
@@ -73,10 +110,23 @@ export function SettingsMenu() {
           <div className="h-px bg-slate-100 mx-2" />
 
           <div className="py-1">
-            <button className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
-              <span className="text-slate-400">↗</span>
-              피드백 보내기
-            </button>
+            {user ? (
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors"
+              >
+                <IconLogout />
+                로그아웃
+              </button>
+            ) : (
+              <button
+                onClick={() => { setShowMenu(false); router.push("/login"); }}
+                className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <span className="text-slate-400">→</span>
+                로그인
+              </button>
+            )}
             <button className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
               <span className="text-slate-400">?</span>
               자세히 알아보기
@@ -87,14 +137,26 @@ export function SettingsMenu() {
 
       <button
         onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
-        className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-medium transition-all ${
+        className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-all ${
           showMenu
-            ? "bg-slate-100 text-slate-800"
-            : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+            ? "bg-slate-100"
+            : "hover:bg-slate-50"
         }`}
       >
-        <IconSettings />
-        설정
+        {user ? (
+          <>
+            <UserAvatar username={user.username} />
+            <div className="min-w-0 text-left">
+              <div className="text-xs font-semibold text-slate-800 truncate leading-tight">{user.username}</div>
+              <div className="text-2xs text-slate-400 leading-tight">Pro 요금제</div>
+            </div>
+          </>
+        ) : (
+          <>
+            <IconSettings />
+            <span className="text-xs font-medium text-slate-500">설정</span>
+          </>
+        )}
       </button>
     </div>
   );

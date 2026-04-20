@@ -10,8 +10,8 @@ export class SessionQueryService {
     private readonly sessionItemRepository: SessionItemRepository,
   ) {}
 
-  async findAll(): Promise<SessionResponseDto[]> {
-    const sessions = await this.sessionRepository.findAll();
+  async findAll(userId: string | null): Promise<SessionResponseDto[]> {
+    const sessions = await this.sessionRepository.findAll(userId);
     return sessions.map(SessionResponseDto.from);
   }
 

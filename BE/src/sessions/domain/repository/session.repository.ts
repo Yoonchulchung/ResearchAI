@@ -17,14 +17,16 @@ export class SessionRepository {
     return this.toModel(row, true);
   }
 
-  async findAll(): Promise<Session[]> {
-    const rows = await this.repo.find({ order: { createdAt: 'DESC' }, relations: { items: true } });
+  async findAll(userId: string | null): Promise<Session[]> {
+    if (!userId) return [];
+    const rows = await this.repo.find({ where: { userId }, order: { createdAt: 'DESC' }, relations: { items: true } });
     return rows.map((r) => this.toModel(r, false));
   }
 
   async save(session: Session, state?: ResearchState): Promise<void> {
     await this.repo.save({
       id: session.id,
+      userId: session.userId ?? null,
       topic: session.topic,
       researchCloudAIModel: session.researchCloudAIModel,
       researchLocalAIModel: session.researchLocalAIModel,
@@ -88,6 +90,7 @@ export class SessionRepository {
 
     return {
       id: row.id,
+      userId: row.userId ?? null,
       topic: row.topic,
       researchCloudAIModel: row.researchCloudAIModel,
       researchLocalAIModel: row.researchLocalAIModel,

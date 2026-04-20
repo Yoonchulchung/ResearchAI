@@ -47,6 +47,7 @@ export class ItemResponseDto {
 
 export class SessionResponseDto {
   id: string;
+  userId: string | null;
   topic: string;
   researchCloudAIModel: string;
   researchLocalAIModel: string;
@@ -61,6 +62,7 @@ export class SessionResponseDto {
   static from(session: Session): SessionResponseDto {
     const dto = new SessionResponseDto();
     dto.id = session.id;
+    dto.userId = session.userId ?? null;
     dto.topic = session.topic;
     dto.researchCloudAIModel = session.researchCloudAIModel;
     dto.researchLocalAIModel = session.researchLocalAIModel;

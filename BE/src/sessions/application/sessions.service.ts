@@ -19,7 +19,7 @@ export class SessionsService {
   // *********** //
   // DB 조회용 로직 //
   // *********** //
-  findAll(): Promise<SessionResponseDto[]>   { return this.query.findAll(); }
+  findAll(userId: string | null): Promise<SessionResponseDto[]> { return this.query.findAll(userId); }
   findOne(id: string)                        { return this.query.findOne(id); }
   findItemsWithResults(sessionId: string)    { return this.query.findItemsWithResults(sessionId); }
   getSummary(id: string)                     { return this.query.getSummary(id); }
@@ -28,8 +28,8 @@ export class SessionsService {
   // *********** //
   // DB 작성용 로직 //
   // *********** //
-  createSession(topic: string, researchCloudAIModel: string, researchLocalAIModel: string, researchWebModel: string, tasks: Task[]) {
-    return this.command.createSession(topic, researchCloudAIModel, researchLocalAIModel, researchWebModel, tasks);
+  createSession(topic: string, researchCloudAIModel: string, researchLocalAIModel: string, researchWebModel: string, tasks: Task[], userId?: string | null) {
+    return this.command.createSession(topic, researchCloudAIModel, researchLocalAIModel, researchWebModel, tasks, userId);
   }
   updateSessionItem(sessionId: string, itemId: string, aiResult: string, webResult: string, status: ResearchState) {
     return this.command.updateSessionItem(sessionId, itemId, aiResult, webResult, status);

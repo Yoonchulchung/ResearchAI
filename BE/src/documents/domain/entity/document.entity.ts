@@ -6,6 +6,9 @@ export class DocumentEntity {
   @PrimaryColumn()
   id: string;
 
+  @Column({ name: 'user_id', type: 'text', nullable: true })
+  userId: string | null;
+
   @Column()
   title: string;
 

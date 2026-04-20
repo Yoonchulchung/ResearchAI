@@ -1,4 +1,5 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { SessionEntity } from '../../../sessions/domain/entity/session.entity';
 
 @Entity('users')
 export class UserEntity {
@@ -34,6 +35,9 @@ export class UserEntity {
 
   @Column({ name: 'brave_api_key', type: 'text', nullable: true })
   braveApiKey: string | null;
+
+  @OneToMany(() => SessionEntity, (session) => session.user)
+  sessions: SessionEntity[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -1,6 +1,7 @@
-import { Controller, Delete, Get, Query, Res } from '@nestjs/common';
+import { Controller, Delete, Get, Query, Res, BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
 import { GmailService } from '../application/gmail.service';
+import { requestContext } from '../../shared/request-context';
 
 const FE_BASE = process.env.FE_BASE_URL ?? 'http://localhost:3000';
 
@@ -8,39 +9,45 @@ const FE_BASE = process.env.FE_BASE_URL ?? 'http://localhost:3000';
 export class GmailController {
   constructor(private readonly gmail: GmailService) {}
 
-  /** Gmail OAuth URL 반환 */
-  @Get('auth-url')
-  getAuthUrl() {
-    return { url: this.gmail.getAuthUrl() };
+  private getUserId(): string {
+    const userId = requestContext.getStore()?.id;
+    if (!userId) throw new BadRequestException('인증이 필요합니다.');
+    return userId;
   }
 
-  /** Google OAuth 콜백 — 토큰 저장 후 FE로 리다이렉트 */
+  @Get('auth-url')
+  getAuthUrl() {
+    const userId = this.getUserId();
+    return { url: this.gmail.getAuthUrl(userId) };
+  }
+
   @Get('callback')
-  async callback(@Query('code') code: string, @Res() res: Response) {
+  async callback(@Query('code') code: string, @Query('state') state: string, @Res() res: Response) {
     try {
-      await this.gmail.handleCallback(code);
+      if (!state) throw new Error('state 파라미터가 없습니다.');
+      await this.gmail.handleCallback(code, state);
       res.redirect(`${FE_BASE}/main?gmail=connected`);
     } catch (err: any) {
       res.redirect(`${FE_BASE}/main?gmail=error&message=${encodeURIComponent(err.message)}`);
     }
   }
 
-  /** 연동 상태 조회 */
   @Get('status')
   getStatus() {
-    return this.gmail.getStatus();
+    const userId = this.getUserId();
+    return this.gmail.getStatus(userId);
   }
 
-  /** 최근 메일 목록 */
   @Get('messages')
   getMessages(@Query('maxResults') maxResults?: string) {
-    return this.gmail.getMessages(maxResults ? parseInt(maxResults, 10) : 10);
+    const userId = this.getUserId();
+    return this.gmail.getMessages(userId, maxResults ? parseInt(maxResults, 10) : 10);
   }
 
-  /** 연동 해제 */
   @Delete('disconnect')
   async disconnect() {
-    await this.gmail.disconnect();
+    const userId = this.getUserId();
+    await this.gmail.disconnect(userId);
     return { success: true };
   }
 }

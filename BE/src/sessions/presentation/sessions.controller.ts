@@ -3,6 +3,8 @@ import { SessionsService } from '../application/sessions.service';
 import { ResearchState } from '../domain/entity/session.entity';
 import { CreateSessionDto } from './dto/request/create-session.dto';
 import { UpdateTaskDto } from './dto/request/update-task.dto';
+import { requestContext } from '../../shared/request-context';
+
 @Controller('sessions')
 export class SessionsController {
   constructor(private readonly sessionsService: SessionsService) {}
@@ -12,7 +14,8 @@ export class SessionsController {
   // ******* //
   @Get()
   findAll() {
-    return this.sessionsService.findAll();
+    const userId = requestContext.getStore()?.id ?? null;
+    return this.sessionsService.findAll(userId);
   }
 
   @Get(':id')
@@ -25,7 +28,8 @@ export class SessionsController {
   // ******* //
   @Post()
   create(@Body() body: CreateSessionDto) {
-    return this.sessionsService.createSession(body.topic, body.researchCloudAIModel, body.researchLocalAIModel, body.researchWebModel, body.tasks);
+    const userId = requestContext.getStore()?.id ?? null;
+    return this.sessionsService.createSession(body.topic, body.researchCloudAIModel, body.researchLocalAIModel, body.researchWebModel, body.tasks, userId);
   }
 
   @Delete(':id')

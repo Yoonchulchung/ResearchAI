@@ -36,16 +36,17 @@ export class DocumentsService {
 
   // ── Documents ────────────────────────────────────────────────────────────
 
-  findAll(): Promise<DocumentEntity[]> {
-    return this.repo.find({ order: { updatedAt: 'DESC' } });
+  findAll(userId: string | null): Promise<DocumentEntity[]> {
+    if (!userId) return Promise.resolve([]);
+    return this.repo.find({ where: { userId }, order: { updatedAt: 'DESC' } });
   }
 
   findOne(id: string): Promise<DocumentEntity | null> {
     return this.repo.findOne({ where: { id } });
   }
 
-  async create(title: string, content: string, companyName?: string): Promise<DocumentEntity> {
-    const entity = this.repo.create({ id: randomUUID(), title, content, companyName: companyName ?? null });
+  async create(title: string, content: string, userId: string | null, companyName?: string): Promise<DocumentEntity> {
+    const entity = this.repo.create({ id: randomUUID(), userId, title, content, companyName: companyName ?? null });
     return this.repo.save(entity);
   }
 
@@ -107,16 +108,17 @@ ${question}`;
 
   // ── Experiences ──────────────────────────────────────────────────────────
 
-  findAllExperiences(): Promise<ExperienceEntity[]> {
-    return this.experienceRepo.find({ order: { createdAt: 'DESC' } });
+  findAllExperiences(userId: string | null): Promise<ExperienceEntity[]> {
+    if (!userId) return Promise.resolve([]);
+    return this.experienceRepo.find({ where: { userId }, order: { createdAt: 'DESC' } });
   }
 
   findOneExperience(id: string): Promise<ExperienceEntity | null> {
     return this.experienceRepo.findOne({ where: { id } });
   }
 
-  async createExperience(title: string, content: string, category?: string, sourceDocId?: string | null): Promise<ExperienceEntity> {
-    const entity = this.experienceRepo.create({ id: randomUUID(), title, content, category, sourceDocId: sourceDocId ?? null });
+  async createExperience(title: string, content: string, userId: string | null, category?: string, sourceDocId?: string | null): Promise<ExperienceEntity> {
+    const entity = this.experienceRepo.create({ id: randomUUID(), userId, title, content, category, sourceDocId: sourceDocId ?? null });
     const saved = await this.experienceRepo.save(entity);
     await this.vectorService.indexExperience(saved.id, saved.title, saved.content);
     return saved;

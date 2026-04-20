@@ -5,6 +5,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { DocumentsService } from '../application/documents.service';
+import { requestContext } from '../../shared/request-context';
 
 // ── Experience DTOs ───────────────────────────────────────────────────────
 
@@ -32,7 +33,8 @@ export class DocumentsController {
 
   @Get('documents')
   findAll() {
-    return this.service.findAll();
+    const userId = requestContext.getStore()?.id ?? null;
+    return this.service.findAll(userId);
   }
 
   @Get('documents/:id')
@@ -42,7 +44,8 @@ export class DocumentsController {
 
   @Post('documents')
   create(@Body() body: { title: string; content: string; companyName?: string }) {
-    return this.service.create(body.title, body.content, body.companyName);
+    const userId = requestContext.getStore()?.id ?? null;
+    return this.service.create(body.title, body.content, userId, body.companyName);
   }
 
   @Patch('documents/:id')
@@ -81,12 +84,14 @@ export class DocumentsController {
 
   @Get('experiences')
   findAllExperiences() {
-    return this.service.findAllExperiences();
+    const userId = requestContext.getStore()?.id ?? null;
+    return this.service.findAllExperiences(userId);
   }
 
   @Post('experiences')
   createExperience(@Body() dto: CreateExperienceDto) {
-    return this.service.createExperience(dto.title, dto.content, dto.category, dto.sourceDocId);
+    const userId = requestContext.getStore()?.id ?? null;
+    return this.service.createExperience(dto.title, dto.content, userId, dto.category, dto.sourceDocId);
   }
 
   @Patch('experiences/:id')
