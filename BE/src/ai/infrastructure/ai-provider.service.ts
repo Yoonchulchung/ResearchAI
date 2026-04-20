@@ -13,6 +13,7 @@ import { MODELS, AI_MODEL_PREFIX, getProvider, AIProvider } from '../domain/mode
 import { InvalidAiTypeException } from '../../shared/exceptions/invalid-ai-type.exception';
 import { TokenHistoryRepository } from '../../overview/domain/repository/token-history.repository';
 import { AiCallLogRepository } from '../domain/repository/ai-call-log.repository';
+import { requestContext, resolveApiKey } from '../../shared/request-context';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -22,6 +23,21 @@ export class AiProviderService {
   readonly anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   readonly openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   private readonly google = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
+
+  private getAnthropicClient(): Anthropic {
+    const key = resolveApiKey(requestContext.getStore()?.apiKeys.anthropicApiKey, process.env.ANTHROPIC_API_KEY);
+    return key === process.env.ANTHROPIC_API_KEY ? this.anthropic : new Anthropic({ apiKey: key });
+  }
+
+  private getOpenAIClient(): OpenAI {
+    const key = resolveApiKey(requestContext.getStore()?.apiKeys.openaiApiKey, process.env.OPENAI_API_KEY);
+    return key === process.env.OPENAI_API_KEY ? this.openai : new OpenAI({ apiKey: key });
+  }
+
+  private getGoogleClient(): GoogleGenAI {
+    const key = resolveApiKey(requestContext.getStore()?.apiKeys.googleApiKey, process.env.GOOGLE_API_KEY);
+    return key === process.env.GOOGLE_API_KEY ? this.google : new GoogleGenAI({ apiKey: key });
+  }
 
   constructor(
     private readonly tokenHistoryRepository: TokenHistoryRepository,
@@ -96,17 +112,17 @@ export class AiProviderService {
       // Cloud + llama.cpp providers
       const provider = getProvider(aiModel);
       if (provider === AIProvider.ANTHROPIC) {
-        const result = await callAnthropic(this.anthropic, aiModel, system, messages as Anthropic.MessageParam[], useSearch, opts?.tools as Anthropic.Tool[] | undefined, signal);
+        const result = await callAnthropic(this.getAnthropicClient(), aiModel, system, messages as Anthropic.MessageParam[], useSearch, opts?.tools as Anthropic.Tool[] | undefined, signal);
         ({ text, inputTokens, outputTokens, toolCalls, stopReason, searchLog } = result);
       } else if (provider === AIProvider.GOOGLE) {
-        const result = await callGoogle(this.google, aiModel, system + '\n\n' + promptText, useSearch);
+        const result = await callGoogle(this.getGoogleClient(), aiModel, system + '\n\n' + promptText, useSearch);
         ({ text, inputTokens, outputTokens } = result);
       } else if (provider === AIProvider.LLAMA_CPP) {
         const llamaModel = aiModel.slice(AI_MODEL_PREFIX.LLAMA_CPP.length);
         const result = await callOpenAI(getLlamaCppClient(), llamaModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
         ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
       } else {
-        const result = await callOpenAI(this.openai, aiModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
+        const result = await callOpenAI(this.getOpenAIClient(), aiModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
         ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
       }
 
@@ -169,17 +185,17 @@ export class AiProviderService {
 
     // **** 클라우드 **** //
     if (provider === AIProvider.ANTHROPIC) {
-      yield* streamAnthropic(this.anthropic, aiModel, system, messages);
+      yield* streamAnthropic(this.getAnthropicClient(), aiModel, system, messages);
 
     } else if (provider === AIProvider.GOOGLE) {
-      yield* streamGoogle(this.google, aiModel, system, messages);
+      yield* streamGoogle(this.getGoogleClient(), aiModel, system, messages);
 
     } else if (provider === AIProvider.LLAMA_CPP) {
       const llamaModel = aiModel.slice(AI_MODEL_PREFIX.LLAMA_CPP.length);
       yield* streamOpenAI(getLlamaCppClient(), llamaModel, system, messages);
 
     } else if (provider === AIProvider.OPENAI) {
-      yield* streamOpenAI(this.openai, aiModel, system, messages);
+      yield* streamOpenAI(this.getOpenAIClient(), aiModel, system, messages);
 
     } else {
       throw new InvalidAiTypeException(aiModel);

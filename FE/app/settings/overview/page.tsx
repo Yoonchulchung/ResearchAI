@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getTavilyOverview, getApiKeys, type ApiKeyEntry } from "@/lib/api";
+import { getTavilyOverview, type ApiKeyEntry } from "@/lib/api";
 import { getModels } from "@/lib/api/research";
+import { useAuth } from "@/contexts/AuthContext";
+import { updateApiKeyApi } from "@/lib/api/auth";
 import { ModelDefinition } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
@@ -136,6 +138,7 @@ function LocalModelConfigCard({
 export default function OverviewPage() {
   const { uiStyle } = useTheme();
   const isGlass = uiStyle === "glass";
+  const { user, refreshUser } = useAuth();
 
   const [tavily, setTavily] = useState<TavilyOverview | null>(null);
   const [apiKeys, setApiKeys] = useState<ApiKeyEntry[]>([]);
@@ -146,17 +149,29 @@ export default function OverviewPage() {
   const [defaultLocalModel, setDefaultLocalModel] = useState("");
   const [defaultCloudModel, setDefaultCloudModel] = useState("");
 
+  const buildApiKeys = useCallback((u: typeof user): ApiKeyEntry[] => {
+    if (!u) return [];
+    return [
+      { key: "ANTHROPIC_API_KEY", label: "Anthropic", masked: u.anthropicApiKey ? `sk-ant-...${u.anthropicApiKey.slice(-4)}` : null, configured: !!u.anthropicApiKey },
+      { key: "OPENAI_API_KEY", label: "OpenAI", masked: u.openaiApiKey ? `sk-...${u.openaiApiKey.slice(-4)}` : null, configured: !!u.openaiApiKey },
+      { key: "GOOGLE_API_KEY", label: "Google", masked: u.googleApiKey ? `AIza...${u.googleApiKey.slice(-4)}` : null, configured: !!u.googleApiKey },
+      { key: "TAVILY_API_KEY", label: "Tavily", masked: u.tavilyApiKey ? `tvly-...${u.tavilyApiKey.slice(-4)}` : null, configured: !!u.tavilyApiKey },
+      { key: "SERPER_API_KEY", label: "Serper", masked: u.serperApiKey ? `...${u.serperApiKey.slice(-4)}` : null, configured: !!u.serperApiKey },
+      { key: "NAVER_CLIENT_ID", label: "Naver Client ID", masked: u.naverClientId ? `...${u.naverClientId.slice(-4)}` : null, configured: !!u.naverClientId },
+      { key: "NAVER_CLIENT_SECRET", label: "Naver Client Secret", masked: u.naverClientSecret ? `...${u.naverClientSecret.slice(-4)}` : null, configured: !!u.naverClientSecret },
+      { key: "BRAVE_API_KEY", label: "Brave", masked: u.braveApiKey ? `...${u.braveApiKey.slice(-4)}` : null, configured: !!u.braveApiKey },
+    ];
+  }, []);
+
   const fetchAll = useCallback(() => {
     setLoading(true);
     Promise.allSettled([
       getTavilyOverview(),
-      getApiKeys(),
       fetch("http://localhost:3001/api/overview/analytics?range=30d").then((r) => r.json()),
       getModels(),
       fetch("http://localhost:3001/api/config").then((r) => r.json()),
-    ]).then(([tavilyRes, apiKeysRes, analyticsRes, modelsRes, configRes]) => {
+    ]).then(([tavilyRes, analyticsRes, modelsRes, configRes]) => {
       if (tavilyRes.status === "fulfilled") setTavily(tavilyRes.value);
-      if (apiKeysRes.status === "fulfilled") setApiKeys(apiKeysRes.value);
       if (analyticsRes.status === "fulfilled") setAnalytics(analyticsRes.value);
       if (modelsRes.status === "fulfilled") {
         const all = modelsRes.value as ModelDefinition[];
@@ -173,6 +188,7 @@ export default function OverviewPage() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => { setApiKeys(buildApiKeys(user)); }, [user, buildApiKeys]);
 
   const handleSaveLocalModel = async (model: string) => {
     await fetch("http://localhost:3001/api/config/default_local_model", {
@@ -210,7 +226,7 @@ export default function OverviewPage() {
             currentModel={defaultLocalModel}
             onSave={handleSaveLocalModel}
           />
-          <ApiKeysTable loading={loading} apiKeys={apiKeys} onRefresh={fetchAll} />
+          <ApiKeysTable loading={loading} apiKeys={apiKeys} onRefresh={refreshUser} />
 
           <div className={`rounded-2xl border px-6 py-5 flex items-center justify-between ${isGlass ? "border-white/20 bg-white/5" : "bg-white border-slate-200 shadow-sm"}`}>
             <p className={`text-sm ${isGlass ? "text-white/60" : "text-slate-500"}`}>

@@ -218,7 +218,7 @@ function GoogleNewsPanel() {
 
     fetch(`http://localhost:3001/api/news/google?category=${category}`, { signal: ctrl.signal })
       .then((r) => r.json())
-      .then((data: GoogleNewsItem[]) => { if (!ctrl.signal.aborted) setItems(data ?? []); })
+      .then((data: GoogleNewsItem[]) => { if (!ctrl.signal.aborted) setItems(Array.isArray(data) ? data : []); })
       .catch(() => { if (!ctrl.signal.aborted) setError(true); })
       .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
 

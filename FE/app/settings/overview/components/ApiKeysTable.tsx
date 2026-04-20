@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { updateApiKey, type ApiKeyEntry } from "@/lib/api";
+import { type ApiKeyEntry } from "@/lib/api";
+import { updateApiKeyApi } from "@/lib/api/auth";
 import { StatusBadge } from "./StatusBadge";
 
 function KeyRow({
@@ -21,7 +22,7 @@ function KeyRow({
     setSaving(true);
     setError("");
     try {
-      await updateApiKey(entry.key, inputValue.trim());
+      await updateApiKeyApi(entry.key, inputValue.trim());
       setEditing(false);
       setInputValue("");
       onUpdated();
@@ -109,7 +110,7 @@ export function ApiKeysTable({
             {["Service", "Key", "Status"].map((h) => (
               <th
                 key={h}
-                className="text-left px-6 py-3 text-xs font-semibold tracking-widest text-slate-400 uppercase first:px-6 [&:not(:first-child)]:px-4"
+                className="text-left px-6 py-3 text-xs font-semibold tracking-widest text-slate-400 uppercase first:px-6 not-first:px-4"
               >
                 {h}
               </th>

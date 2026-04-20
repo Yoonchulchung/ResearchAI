@@ -14,6 +14,7 @@ import { GmailTokenEntity } from '../gmail/domain/entity/gmail-token.entity';
 import { ExperienceEntity } from '../documents/domain/entity/experience.entity';
 import { DocumentEntity } from '../documents/domain/entity/document.entity';
 import { AiCallLogEntity } from '../ai/domain/entity/ai-call-log.entity';
+import { UserEntity } from '../auth/domain/entity/user.entity';
 
 @Module({
   imports: [
@@ -26,7 +27,7 @@ import { AiCallLogEntity } from '../ai/domain/entity/ai-call-log.entity';
                  TokenHistoryEntity, QueueJobEntity,
                  NewsBriefingEntity, AppConfigEntity,
                  GmailTokenEntity, ExperienceEntity, DocumentEntity,
-                 AiCallLogEntity],
+                 AiCallLogEntity, UserEntity],
       synchronize: true,
     }),
   ],

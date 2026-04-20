@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './database/database.module';
 import { AiModule } from './ai/ai.module';
+import { AuthModule } from './auth/auth.module';
 import { ResearchModule } from './research/research.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { OverviewModule } from './overview/overview.module';
@@ -19,6 +20,7 @@ import { BackgroundsModule } from './backgrounds/backgrounds.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
+    AuthModule,
     AiModule,
     ResearchModule,
     SessionsModule,

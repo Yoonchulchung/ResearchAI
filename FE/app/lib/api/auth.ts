@@ -1,0 +1,43 @@
+import { apiFetch } from "./base";
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  anthropicApiKey: string | null;
+  openaiApiKey: string | null;
+  googleApiKey: string | null;
+  tavilyApiKey: string | null;
+  serperApiKey: string | null;
+  naverClientId: string | null;
+  naverClientSecret: string | null;
+  braveApiKey: string | null;
+}
+
+export async function checkUsernameApi(username: string): Promise<{ available: boolean }> {
+  return apiFetch(`/auth/check-username/${encodeURIComponent(username)}`);
+}
+
+export async function loginApi(username: string, password: string): Promise<{ accessToken: string }> {
+  return apiFetch("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+  });
+}
+
+export async function registerApi(username: string, password: string): Promise<{ accessToken: string }> {
+  return apiFetch("/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ username, password }),
+  });
+}
+
+export async function getMeApi(): Promise<AuthUser> {
+  return apiFetch("/auth/me");
+}
+
+export async function updateApiKeyApi(key: string, value: string): Promise<{ ok: boolean }> {
+  return apiFetch("/auth/api-keys", {
+    method: "PATCH",
+    body: JSON.stringify({ key, value }),
+  });
+}

@@ -15,12 +15,15 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const { backgrounds } = useBackground();
   const pathname = usePathname();
 
+  if (pathname === "/login") {
+    return <>{children}</>;
+  }
+
   const bg =
     pathname.startsWith("/sessions") ? backgrounds.sessions :
     pathname.startsWith("/main")     ? backgrounds.main :
     DEFAULT_BG;
 
-  // DEFAULT_BG일 때는 인라인 스타일을 쓰지 않아 CSS --background 변수(다크 모드 포함)가 적용됨
   const bgStyle = bg !== DEFAULT_BG ? { background: bg } : undefined;
 
   return (
