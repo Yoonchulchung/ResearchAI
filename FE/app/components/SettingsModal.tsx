@@ -29,8 +29,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const cloudAiModels = models.filter((m) => m.provider !== "ollama");
-  const localAiModels = models.filter((m) => m.provider === "ollama");
+  const cloudAiModels = models.filter((m) => m.provider !== "ollama" && m.provider !== "llama-cpp");
+  const localAiModels = models.filter((m) => m.provider === "llama-cpp");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
@@ -155,7 +155,7 @@ function AITestSection({
           ) : (
             <div className="bg-white border border-slate-200 rounded-2xl px-5 py-8 text-center">
               <p className="text-sm text-slate-400">Ollama가 실행 중이지 않거나 설치된 모델이 없습니다.</p>
-              <p className="text-xs text-slate-300 mt-1">ollama serve 후 새로고침하세요.</p>
+              <p className="text-xs text-slate-300 mt-1">llama-server 실행 후 새로고침하세요.</p>
             </div>
           )}
         </section>

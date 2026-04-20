@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  getRunningOllamaModels, unloadOllamaModel, getSystemMemory,
+  getRunningOllamaModels, unloadOllamaModel, getSystemMemory, getLlamaCppModels,
   OllamaRunningModel, SystemMemory,
 } from "@/lib/api/ai";
 
@@ -30,6 +30,7 @@ function MemoryBar({ used, total, label }: { used: number; total: number; label:
 
 export default function SystemPage() {
   const [models, setModels] = useState<OllamaRunningModel[]>([]);
+  const [llamaModels, setLlamaModels] = useState<{ name: string }[]>([]);
   const [memory, setMemory] = useState<SystemMemory | null>(null);
   const [loading, setLoading] = useState(true);
   const [unloading, setUnloading] = useState<string | null>(null);
@@ -37,12 +38,14 @@ export default function SystemPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [modelData, memData] = await Promise.all([
+      const [modelData, memData, llamaData] = await Promise.all([
         getRunningOllamaModels(),
         getSystemMemory(),
+        getLlamaCppModels().catch(() => []),
       ]);
       setModels(modelData);
       setMemory(memData);
+      setLlamaModels(llamaData);
       setError(null);
     } catch {
       setError("데이터를 불러올 수 없습니다.");
@@ -101,6 +104,33 @@ export default function SystemPage() {
             </div>
           </>
         ) : null}
+      </div>
+
+      {/* llama.cpp 모델 */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            llama.cpp 모델 {!loading && `(${llamaModels.length})`}
+          </span>
+          <button onClick={fetchData} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">새로고침</button>
+        </div>
+        {loading ? (
+          <div className="px-5 py-8 text-center text-xs text-slate-400">불러오는 중...</div>
+        ) : llamaModels.length === 0 ? (
+          <div className="px-5 py-8 text-center text-xs text-slate-400">
+            llama.cpp 서버에 로드된 모델이 없습니다.<br />
+            <span className="text-slate-300">LLAMA_CPP_BASE_URL (기본: http://localhost:8080)</span>
+          </div>
+        ) : (
+          <ul>
+            {llamaModels.map((m) => (
+              <li key={m.name} className="flex items-center px-5 py-3.5 border-b border-slate-50 last:border-0">
+                <div className="text-sm font-medium text-slate-800">{m.name}</div>
+                <span className="ml-2 text-xs text-slate-400">llama.cpp</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* 로드된 모델 */}

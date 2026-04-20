@@ -48,6 +48,11 @@ export class AiController {
     return this.aiProviderService.getRunningOllamaModels();
   }
 
+  @Get('llama-cpp/models')
+  async getLlamaCppModels() {
+    return this.aiProviderService.getLlamaCppModels();
+  }
+
   @Post('ollama/unload/:model')
   @HttpCode(200)
   async unloadModel(@Param('model') model: string) {

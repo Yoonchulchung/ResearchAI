@@ -17,6 +17,10 @@ export async function getRunningOllamaModels(): Promise<OllamaRunningModel[]> {
   return apiFetch<OllamaRunningModel[]>("/ai/ollama/running");
 }
 
+export async function getLlamaCppModels(): Promise<{ name: string }[]> {
+  return apiFetch<{ name: string }[]>("/ai/llama-cpp/models");
+}
+
 export async function getSystemMemory(): Promise<SystemMemory> {
   return apiFetch<SystemMemory>("/ai/system/memory");
 }

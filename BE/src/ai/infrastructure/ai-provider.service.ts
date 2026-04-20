@@ -7,6 +7,7 @@ import { callAnthropic, streamAnthropic } from './provider/anthropic.ai';
 import { callOpenAI, streamOpenAI } from './provider/openai.ai';
 import { callGoogle, streamGoogle } from './provider/google.ai';
 import { callOllama, streamOllama, getOllamaLocalModels, getOllamaRunningModels, unloadOllamaModel, OllamaTool, OllamaInsufficientMemoryError } from './provider/ollama.ai';
+import { getLlamaCppClient, getLlamaCppModels } from './provider/llama-cpp.ai';
 export type { VlmMessage, ImageContentBlock, VlmContent } from './provider/vlm.types';
 import { MODELS, AI_MODEL_PREFIX, getProvider, AIProvider } from '../domain/models';
 import { InvalidAiTypeException } from '../../shared/exceptions/invalid-ai-type.exception';
@@ -92,7 +93,7 @@ export class AiProviderService {
         return { text, inputTokens: 0, outputTokens: 0, estimatedFees: 0, toolCalls, stopReason };
       }
 
-      // Cloud providers
+      // Cloud + llama.cpp providers
       const provider = getProvider(aiModel);
       if (provider === AIProvider.ANTHROPIC) {
         const result = await callAnthropic(this.anthropic, aiModel, system, messages as Anthropic.MessageParam[], useSearch, opts?.tools as Anthropic.Tool[] | undefined, signal);
@@ -100,6 +101,10 @@ export class AiProviderService {
       } else if (provider === AIProvider.GOOGLE) {
         const result = await callGoogle(this.google, aiModel, system + '\n\n' + promptText, useSearch);
         ({ text, inputTokens, outputTokens } = result);
+      } else if (provider === AIProvider.LLAMA_CPP) {
+        const llamaModel = aiModel.slice(AI_MODEL_PREFIX.LLAMA_CPP.length);
+        const result = await callOpenAI(getLlamaCppClient(), llamaModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
+        ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
       } else {
         const result = await callOpenAI(this.openai, aiModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
         ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
@@ -169,9 +174,13 @@ export class AiProviderService {
     } else if (provider === AIProvider.GOOGLE) {
       yield* streamGoogle(this.google, aiModel, system, messages);
 
+    } else if (provider === AIProvider.LLAMA_CPP) {
+      const llamaModel = aiModel.slice(AI_MODEL_PREFIX.LLAMA_CPP.length);
+      yield* streamOpenAI(getLlamaCppClient(), llamaModel, system, messages);
+
     } else if (provider === AIProvider.OPENAI) {
       yield* streamOpenAI(this.openai, aiModel, system, messages);
-      
+
     } else {
       throw new InvalidAiTypeException(aiModel);
     }
@@ -191,7 +200,23 @@ export class AiProviderService {
         webSearch: false,
       });
     }
+    for (const m of await getLlamaCppModels()) {
+      models.push({
+        id: `llama:${m.name}`,
+        name: m.name,
+        provider: 'llama-cpp',
+        description: '로컬 llama.cpp 모델',
+        inputPricePer1M: 0,
+        outputPricePer1M: 0,
+        contextWindow: 8192,
+        webSearch: false,
+      });
+    }
     return models;
+  }
+
+  async getLlamaCppModels(): Promise<{ name: string }[]> {
+    return getLlamaCppModels();
   }
 
   async getRunningOllamaModels(): Promise<{ name: string; size: number; size_vram: number }[]> {

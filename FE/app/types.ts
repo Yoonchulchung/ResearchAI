@@ -51,7 +51,7 @@ export enum TaskStatus {
   ABORTED = "aborted",
 }
 
-export type Provider = "anthropic" | "openai" | "google" | "ollama";
+export type Provider = "anthropic" | "openai" | "google" | "ollama" | "llama-cpp";
 
 export interface ModelDefinition {
   id: string;
