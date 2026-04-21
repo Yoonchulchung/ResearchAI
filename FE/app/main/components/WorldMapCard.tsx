@@ -96,8 +96,8 @@ interface SelectedCountry {
   warNote?: string;
 }
 
-// 결정론적 별 위치 (SSR 안전)
-const STARS: { cx: number; cy: number; r: number; o: number }[] = Array.from({ length: 80 }, (_, i) => {
+// 결정론적 별 위치 (SSR 안전) — 개수를 줄여 DOM 노드 부담 감소
+const STARS: { cx: number; cy: number; r: number; o: number }[] = Array.from({ length: 40 }, (_, i) => {
   const seed = (i * 9301 + 49297) % 233280;
   const r2 = (i * 48271 + 11) % 233280;
   return {
@@ -247,21 +247,21 @@ export function WorldMapCard() {
   const [rotation, setRotation] = useState<[number, number, number]>([30, -10, 0]);
   const [scale, setScale] = useState(260);
   const [autoRotate, setAutoRotate] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // SSR/CSR 경로 계산 차이로 인한 hydration mismatch 방지 — 마운트 후 렌더
+  useEffect(() => { setMounted(true); }, []);
   const interactingRef = useRef(false);
   const dragRef = useRef<{ startX: number; startY: number; startRot: [number, number, number] } | null>(null);
 
-  // Auto-rotation
+  // Auto-rotation — setInterval로 스로틀링(6fps ≈ 160ms). rAF 60fps는 SVG 재계산 비용이 커서 이탈이 지연됨.
   useEffect(() => {
     if (!autoRotate) return;
-    let frame: number;
-    const tick = () => {
-      if (!interactingRef.current) {
-        setRotation(([lon, lat, g]) => [(lon + 0.12) % 360, lat, g]);
-      }
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    const id = setInterval(() => {
+      if (interactingRef.current || typeof document !== "undefined" && document.hidden) return;
+      setRotation(([lon, lat, g]) => [(lon + 0.8) % 360, lat, g]);
+    }, 160);
+    return () => clearInterval(id);
   }, [autoRotate]);
 
   // Scroll-to-zoom (native listener for passive:false)
@@ -280,7 +280,8 @@ export function WorldMapCard() {
   }, []);
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/news/conflict-zones")
+    const ctrl = new AbortController();
+    fetch("http://localhost:3001/api/news/conflict-zones", { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data: ConflictZone[]) => {
         const map = new Map<string, ConflictZone>();
@@ -289,16 +290,25 @@ export function WorldMapCard() {
       })
       .catch(() => {})
       .finally(() => setConflictLoading(false));
+    return () => ctrl.abort();
   }, []);
 
+  const newsAbortRef = useRef<AbortController | null>(null);
   const fetchCountryNews = useCallback((query: string) => {
+    newsAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    newsAbortRef.current = ctrl;
     setNewsLoading(true);
     setNews([]);
-    fetch(`http://localhost:3001/api/news/country?name=${encodeURIComponent(query)}&limit=6`)
+    fetch(`http://localhost:3001/api/news/country?name=${encodeURIComponent(query)}&limit=6`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data: CountryNewsItem[]) => setNews(data ?? []))
       .catch(() => setNews([]))
       .finally(() => setNewsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    return () => newsAbortRef.current?.abort();
   }, []);
 
   useEffect(() => {
@@ -460,6 +470,7 @@ export function WorldMapCard() {
             style={{ background: C.atmosphere }}
           />
 
+          {mounted && (
           <ComposableMap
             projection="geoOrthographic"
             projectionConfig={{ scale, rotate: rotation, center: [0, 0] }}
@@ -493,7 +504,8 @@ export function WorldMapCard() {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     centroid: geoCentroid(g as any) as [number, number],
                   }));
-                  setGeoData(centroids);
+                  // render 단계 setState 방지 — 다음 마이크로태스크로 지연
+                  queueMicrotask(() => setGeoData(centroids));
                 }
                 return geographies.map((geo) => {
                   const id = String(geo.id);
@@ -561,6 +573,7 @@ export function WorldMapCard() {
                 );
               })}
           </ComposableMap>
+          )}
 
           {/* HUD corner markers */}
           <div className={`absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2 ${C.hudCorner}`} />
