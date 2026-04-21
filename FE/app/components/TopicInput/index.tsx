@@ -138,8 +138,8 @@ export function TopicInput({
         }`}
       />
 
-      <div className="flex items-center justify-between">
-        <div className="relative">
+      <div className="flex items-end gap-2">
+        <div className="relative shrink-0">
           <button
             type="button"
             onClick={() => setShowDropdown((v) => !v)}
@@ -161,66 +161,71 @@ export function TopicInput({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <ModelSelect
-            models={cloudAiModels}
-            selectedModel={selectedCloudAiModel}
-            onChange={onCloudAiModelChange ?? (() => {})}
-            placeholder="API 모델"
-          />
+        {/* 모델 셀렉트들 — 좁은 화면에서 자동 줄바꿈 */}
+        <div className="flex items-center gap-x-2 gap-y-1 flex-wrap justify-end flex-1 min-w-0">
+          {cloudAiModels.length > 0 && (
+            <ModelSelect
+              models={cloudAiModels}
+              selectedModel={selectedCloudAiModel}
+              onChange={onCloudAiModelChange ?? (() => {})}
+              placeholder="API 모델"
+            />
+          )}
           {cloudAiModels.length > 0 && localAiModels.length > 0 && (
-            <span className="text-slate-200 text-xs select-none">|</span>
+            <span className="text-slate-200 text-xs select-none shrink-0">|</span>
           )}
-          <ModelSelect
-            models={localAiModels}
-            selectedModel={selectedLocalAiModel}
-            onChange={onLocalAiModelChange ?? (() => {})}
-            placeholder="로컬 모델"
-          />
+          {localAiModels.length > 0 && (
+            <ModelSelect
+              models={localAiModels}
+              selectedModel={selectedLocalAiModel}
+              onChange={onLocalAiModelChange ?? (() => {})}
+              placeholder="로컬 모델"
+            />
+          )}
+          {webEngines.length > 0 && (cloudAiModels.length > 0 || localAiModels.length > 0) && (
+            <span className="text-slate-200 text-xs select-none shrink-0">|</span>
+          )}
           {webEngines.length > 0 && (
-            <>
-              <span className="text-slate-200 text-xs select-none">|</span>
-              <select
-                value={selectedWebModel}
-                onChange={(e) => onWebModelChange?.(e.target.value)}
-                className="text-sm text-slate-500 !bg-transparent focus:outline-none cursor-pointer max-w-36 truncate"
-              >
-                {webEngines.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-
-          {generating && onAbort ? (
-            <button
-              onClick={onAbort}
-              className="w-9 h-9 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-colors"
+            <select
+              value={selectedWebModel}
+              onChange={(e) => onWebModelChange?.(e.target.value)}
+              className="text-sm text-slate-500 !bg-transparent focus:outline-none cursor-pointer max-w-36 truncate min-w-0"
             >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                <rect x="2" y="2" width="8" height="8" rx="1.5" />
-              </svg>
-            </button>
-          ) : (
-            <button
-              onClick={onGenerate}
-              disabled={!value.trim() || generating}
-              className="w-9 h-9 bg-brand-primary hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-all shadow-md shadow-brand-primary/30"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path
-                  d="M8 12V4M4 8l4-4 4 4"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
+              {webEngines.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
+              ))}
+            </select>
           )}
         </div>
+
+        {generating && onAbort ? (
+          <button
+            onClick={onAbort}
+            className="w-9 h-9 shrink-0 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+              <rect x="2" y="2" width="8" height="8" rx="1.5" />
+            </svg>
+          </button>
+        ) : (
+          <button
+            onClick={onGenerate}
+            disabled={!value.trim() || generating}
+            className="w-9 h-9 shrink-0 bg-brand-primary hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-all shadow-md shadow-brand-primary/30"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path
+                d="M8 12V4M4 8l4-4 4 4"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   );

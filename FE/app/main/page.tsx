@@ -16,14 +16,14 @@ export default function MainPage() {
         <MarketCard />
         <SummaryCard />
 
-        <div className="grid grid-cols-3 gap-4 items-start">
-          <div className="col-span-2 flex flex-col gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+          <div className="md:col-span-2 flex flex-col gap-4">
             <WorldMapCard />
             <Suspense>
               <EmailCard />
             </Suspense>
           </div>
-          <div className="col-span-1 flex flex-col gap-4">
+          <div className="md:col-span-1 flex flex-col gap-4">
             <WeatherCard />
             <CalendarSection />
             <NewsSection />

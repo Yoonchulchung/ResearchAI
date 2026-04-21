@@ -77,35 +77,47 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
     return () => clearTimeout(timer);
   }, [selectedTaskId, instantScroll]);
 
-  // 스크롤 위치 저장/복원
+  // 스크롤 위치를 비율(ratio)로 저장/복원 — 폭이 달라져 reflow돼도 같은 지점을 가리킴
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const saved = sessionStorage.getItem(`detail-scroll:${sessionId}`);
 
-    let isRestoring = false;
-    let rAFId: number;
+    let lastRatio = 0;
+    let ignoreScrollUntil = 0;
 
-    const handleScroll = () => {
-      if (isRestoring) return;
-      sessionStorage.setItem(`detail-scroll:${sessionId}`, String(el.scrollTop));
+    const saveRatio = () => {
+      if (performance.now() < ignoreScrollUntil) return;
+      const max = el.scrollHeight - el.clientHeight;
+      if (max > 0) {
+        lastRatio = el.scrollTop / max;
+        sessionStorage.setItem(`detail-scroll-ratio:${sessionId}`, String(lastRatio));
+      }
     };
-    el.addEventListener("scroll", handleScroll, { passive: true });
 
+    const restoreToRatio = () => {
+      ignoreScrollUntil = performance.now() + 200;
+      const max = el.scrollHeight - el.clientHeight;
+      el.scrollTop = lastRatio * max;
+    };
+
+    el.addEventListener("scroll", saveRatio, { passive: true });
+
+    // 초기 복원 — 콘텐츠(ReactMarkdown) 렌더 완료 후
+    const saved = sessionStorage.getItem(`detail-scroll-ratio:${sessionId}`);
     if (saved) {
-      isRestoring = true;
-      // 이중 rAF: 콘텐츠(ReactMarkdown) 렌더 완료 후 복원
-      rAFId = requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          el.scrollTop = Number(saved);
-          requestAnimationFrame(() => { isRestoring = false; });
-        });
-      });
+      lastRatio = Number(saved);
+      requestAnimationFrame(() => { requestAnimationFrame(restoreToRatio); });
     }
 
+    // 폭 변화(데스크탑 ↔ 모바일) 시 동일 비율로 재복원
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(restoreToRatio);
+    });
+    ro.observe(el);
+
     return () => {
-      el.removeEventListener("scroll", handleScroll);
-      cancelAnimationFrame(rAFId);
+      el.removeEventListener("scroll", saveRatio);
+      ro.disconnect();
     };
   }, [sessionId]);
 

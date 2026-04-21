@@ -27,18 +27,46 @@ export default function SessionPage() {
   const { statuses, phases, aiResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 세션별 스크롤 위치 복원
+  // 세션별 스크롤 위치 — 비율 기반으로 저장/복원 (데스크탑↔모바일 reflow 대응)
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const saved = sessionStorage.getItem(`scroll:${id}`);
-    if (saved) el.scrollTop = Number(saved);
 
-    const handleScroll = () => {
-      sessionStorage.setItem(`scroll:${id}`, String(el.scrollTop));
+    let lastRatio = 0;
+    let ignoreScrollUntil = 0;
+
+    const saveRatio = () => {
+      if (performance.now() < ignoreScrollUntil) return;
+      const max = el.scrollHeight - el.clientHeight;
+      if (max > 0) {
+        lastRatio = el.scrollTop / max;
+        sessionStorage.setItem(`scroll-ratio:${id}`, String(lastRatio));
+      }
     };
-    el.addEventListener("scroll", handleScroll, { passive: true });
-    return () => el.removeEventListener("scroll", handleScroll);
+
+    const restoreToRatio = () => {
+      ignoreScrollUntil = performance.now() + 200;
+      const max = el.scrollHeight - el.clientHeight;
+      el.scrollTop = lastRatio * max;
+    };
+
+    el.addEventListener("scroll", saveRatio, { passive: true });
+
+    const saved = sessionStorage.getItem(`scroll-ratio:${id}`);
+    if (saved) {
+      lastRatio = Number(saved);
+      requestAnimationFrame(() => { requestAnimationFrame(restoreToRatio); });
+    }
+
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(restoreToRatio);
+    });
+    ro.observe(el);
+
+    return () => {
+      el.removeEventListener("scroll", saveRatio);
+      ro.disconnect();
+    };
   }, [id]);
 
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
@@ -199,7 +227,7 @@ export default function SessionPage() {
 
       <div className="flex flex-1 min-h-0">
         {/* 왼쪽: 태스크 목록 + 채팅 */}
-        <div className={`flex flex-col flex-1 min-w-0 overflow-hidden relative transition-[padding-right] duration-300 ease-in-out ${expandedDetail ? "hidden" : (showDetail || showTaskPanel) ? "pr-[52%]" : "pr-0"}`}>
+        <div className={`flex flex-col flex-1 min-w-0 overflow-hidden relative transition-[padding-right] duration-300 ease-in-out ${expandedDetail ? "hidden" : (showDetail || showTaskPanel) ? "md:pr-[52%]" : "pr-0"}`}>
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6">
             <div className="space-y-3 px-6">
               {tasks.map((task) => {
@@ -280,14 +308,15 @@ export default function SessionPage() {
 
       </div>
 
-      {/* 오른쪽 패널 (전체 높이 오버레이 또는 플로팅 아일랜드) */}
+      {/* 오른쪽 패널 (전체 높이 오버레이 또는 플로팅 아일랜드)
+          모바일(<768px): 오른쪽에서 슬라이드-인하는 전체 화면 오버레이 */}
       <div className={`absolute z-30 transition-all duration-300 ease-in-out overflow-hidden shadow-2xl ${
         uiStyle === "glass"
-          ? "top-3 bottom-4 right-3 rounded-2xl border border-white/20"
-          : "inset-y-0 right-0 border-l border-slate-200"
+          ? "top-0 bottom-0 right-0 md:top-3 md:bottom-4 md:right-3 md:rounded-2xl md:border md:border-white/20"
+          : "top-0 bottom-0 right-0 md:inset-y-0 md:border-l md:border-slate-200"
       } ${
         (showDetail || showTaskPanel)
-          ? (expandedDetail ? "w-[calc(100%-1.5rem)] md:w-[calc(100%-1.5rem)]" : "w-[calc(52%-0.75rem)]")
+          ? (expandedDetail ? "w-full md:w-[calc(100%-1.5rem)]" : "w-full md:w-[calc(52%-0.75rem)]")
           : "w-0 !border-none"
       }`}>
         {showTaskPanel && selectedTaskId != null ? (() => {

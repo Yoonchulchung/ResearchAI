@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getModels } from "@/lib/api";
 import { ModelDefinition } from "@/types";
 import { PromptTestPanel } from "@/settings/pipeline/PromptTestPanel/PromptTestPanel";
@@ -30,6 +30,27 @@ export default function PipelinePage() {
   const cloudAiModels = models.filter((m) => m.provider !== "ollama");
   const localAiModels = models.filter((m) => m.provider === "ollama");
 
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      setCollapsed(el.scrollWidth > el.clientWidth + 2);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const close = () => setDropdownOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [dropdownOpen]);
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "pipeline", label: "파이프라인 테스트" },
     { id: "recruit", label: "채용 공고" },
@@ -57,25 +78,71 @@ export default function PipelinePage() {
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl" : ""}`}>
         {/* Tab bar */}
         <div className={`px-8 pt-6 pb-0 shrink-0 ${isGlass ? `border-b ${isDark ? "border-white/20" : "border-black/10"}` : "border-b border-slate-200 bg-white"}`}>
-          <div className="flex gap-1">
+          {/* 너비 측정용 숨김 행 (항상 렌더, 스크롤 감지) */}
+          <div ref={tabBarRef} className="flex gap-1 overflow-hidden pointer-events-none opacity-0 absolute">
             {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2.5 text-sm font-medium rounded-t-xl transition-colors border-b-2 -mb-px ${
-                  activeTab === tab.id
-                    ? (isGlass && isDark)
-                      ? "border-white/70 text-white"
-                      : "border-indigo-500 text-indigo-600 bg-white"
-                    : (isGlass && isDark)
-                      ? "border-transparent text-white/50 hover:text-white/80"
-                      : "border-transparent text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                {tab.label}
-              </button>
+              <span key={tab.id} className="px-4 py-2.5 text-sm font-medium whitespace-nowrap">{tab.label}</span>
             ))}
           </div>
+
+          {collapsed ? (
+            /* 드롭다운 모드 */
+            <div className="relative pb-3">
+              <button
+                onClick={() => setDropdownOpen((v) => !v)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
+                  isGlass && isDark
+                    ? "border-white/20 text-white bg-white/10 hover:bg-white/15"
+                    : "border-slate-200 text-slate-700 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <span>{tabs.find((t) => t.id === activeTab)?.label}</span>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={`transition-transform ${dropdownOpen ? "rotate-180" : ""}`}>
+                  <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              {dropdownOpen && (
+                <div className={`absolute top-full left-0 mt-1 z-30 min-w-44 rounded-xl border shadow-lg overflow-hidden ${
+                  isGlass && isDark ? "bg-slate-800 border-white/20" : "bg-white border-slate-200"
+                }`}>
+                  {tabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => { setActiveTab(tab.id); setDropdownOpen(false); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                        activeTab === tab.id
+                          ? isGlass && isDark ? "bg-white/15 text-white font-medium" : "bg-indigo-50 text-indigo-600 font-medium"
+                          : isGlass && isDark ? "text-white/70 hover:bg-white/10" : "text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* 일반 탭 모드 */
+            <div className="flex gap-1">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2.5 text-sm font-medium rounded-t-xl transition-colors border-b-2 -mb-px whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? (isGlass && isDark)
+                        ? "border-white/70 text-white"
+                        : "border-indigo-500 text-indigo-600 bg-white"
+                      : (isGlass && isDark)
+                        ? "border-transparent text-white/50 hover:text-white/80"
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Tab content */}
