@@ -51,10 +51,12 @@ export function SettingsMenu() {
   };
 
   const menuItems = [
-    { label: "Overview", path: "/settings/overview", shortcut: "⌘," },
-    { label: "Analytics", path: "/settings/analytics" },
-    { label: "파이프라인 테스트", path: "/settings/pipeline" },
-    { label: "시스템", path: "/settings/system" },
+    ...(user ? [
+      { label: "Overview", path: "/settings/overview", shortcut: "⌘," },
+      { label: "Analytics", path: "/settings/analytics" },
+      { label: "시스템", path: "/settings/system" },
+    ] : []),
+    ...(user?.role === "admin" ? [{ label: "파이프라인 테스트", path: "/settings/pipeline" }] : []),
     { label: "배경화면", path: "/settings/background" },
   ];
 
@@ -127,7 +129,10 @@ export function SettingsMenu() {
                 로그인
               </button>
             )}
-            <button className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
+            <button
+              onClick={() => { setShowMenu(false); router.push("/landing"); }}
+              className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-600 hover:bg-slate-50 transition-colors"
+            >
               <span className="text-slate-400">?</span>
               자세히 알아보기
             </button>

@@ -3,6 +3,7 @@
 import { useState, FormEvent, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { checkUsernameApi } from "@/lib/api/auth";
 
 const USERNAME_RE = /^[a-z0-9_]{1,30}$/;
@@ -23,6 +24,8 @@ type CheckState = "idle" | "checking" | "available" | "taken";
 
 export default function LoginPage() {
   const { login, register } = useAuth();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const router = useRouter();
 
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -111,25 +114,37 @@ export default function LoginPage() {
     return null;
   };
 
+  const inputCls = isDark
+    ? "bg-white/10 border-white/15 text-white placeholder:text-slate-500 focus:border-indigo-400 focus:ring-indigo-400"
+    : "bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:ring-indigo-400";
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-900 via-indigo-950 to-slate-900">
+    <div className={`min-h-screen flex items-center justify-center transition-colors ${
+      isDark
+        ? "bg-linear-to-br from-slate-900 via-indigo-950 to-slate-900"
+        : "bg-linear-to-br from-slate-100 via-indigo-50 to-slate-100"
+    }`}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-600 mb-4 shadow-lg shadow-indigo-500/30">
             <span className="text-2xl">◈</span>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">ResearchAI</h1>
+          <h1 className={`text-2xl font-bold tracking-tight ${isDark ? "text-white" : "text-slate-800"}`}>ResearchAI</h1>
           <p className="text-slate-400 text-sm mt-1">AI 기반 리서치 시스템</p>
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-8 backdrop-blur-sm shadow-xl">
-          <div className="flex rounded-xl bg-white/5 p-1 mb-6">
+        <div className={`rounded-2xl p-8 shadow-xl backdrop-blur-sm ${
+          isDark ? "bg-white/5 border border-white/10" : "bg-white border border-slate-200"
+        }`}>
+          <div className={`flex rounded-xl p-1 mb-6 ${isDark ? "bg-white/5" : "bg-slate-100"}`}>
             {(["login", "register"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(""); setCheckState("idle"); }}
                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                  mode === m ? "bg-indigo-600 text-white shadow" : "text-slate-400 hover:text-white"
+                  mode === m
+                    ? "bg-indigo-600 text-white shadow"
+                    : isDark ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-800"
                 }`}
               >
                 {m === "login" ? "로그인" : "회원가입"}
@@ -140,8 +155,8 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* 사용자명 */}
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                사용자명 <span className="text-slate-500">(소문자·숫자·_ 허용)</span>
+              <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                사용자명 <span className="text-slate-400">(소문자·숫자·_ 허용)</span>
               </label>
               <div className="flex gap-2">
                 <input
@@ -156,14 +171,18 @@ export default function LoginPage() {
                   inputMode="text"
                   lang="en"
                   style={{ imeMode: "disabled" } as React.CSSProperties}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white placeholder:text-slate-500 text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 transition-colors"
+                  className={`flex-1 px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-1 transition-colors ${inputCls}`}
                 />
                 {mode === "register" && (
                   <button
                     type="button"
                     onClick={handleCheckUsername}
                     disabled={!username || checkState === "checking"}
-                    className="px-3 py-2 text-xs font-medium rounded-xl bg-white/10 border border-white/15 text-slate-300 hover:bg-white/20 disabled:opacity-40 transition-colors whitespace-nowrap"
+                    className={`px-3 py-2 text-xs font-medium rounded-xl border disabled:opacity-40 transition-colors whitespace-nowrap ${
+                      isDark
+                        ? "bg-white/10 border-white/15 text-slate-300 hover:bg-white/20"
+                        : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200"
+                    }`}
                   >
                     중복확인
                   </button>
@@ -176,8 +195,8 @@ export default function LoginPage() {
 
             {/* 비밀번호 */}
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                비밀번호{mode === "register" && <span className="text-slate-500"> (8자 이상, 영문/숫자/@!_-. 허용)</span>}
+              <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                비밀번호{mode === "register" && <span className="text-slate-400"> (8자 이상, 영문/숫자/@!_-. 허용)</span>}
               </label>
               <div className="relative">
                 <input
@@ -190,7 +209,7 @@ export default function LoginPage() {
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
                   lang="en"
                   style={{ imeMode: "disabled" } as React.CSSProperties}
-                  className="w-full pl-4 pr-10 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white placeholder:text-slate-500 text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 transition-colors"
+                  className={`w-full pl-4 pr-10 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-1 transition-colors ${inputCls}`}
                 />
                 <button
                   type="button"
@@ -199,7 +218,7 @@ export default function LoginPage() {
                   onMouseLeave={() => setShowPassword(false)}
                   onTouchStart={() => setShowPassword(true)}
                   onTouchEnd={() => setShowPassword(false)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-400 hover:text-slate-600"}`}
                   tabIndex={-1}
                 >
                   {showPassword ? (
@@ -219,7 +238,7 @@ export default function LoginPage() {
             {/* 비밀번호 확인 (register) */}
             {mode === "register" && (
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">비밀번호 확인</label>
+                <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-400" : "text-slate-600"}`}>비밀번호 확인</label>
                 <div className="relative">
                   <input
                     type={showConfirm ? "text" : "password"}
@@ -231,7 +250,7 @@ export default function LoginPage() {
                     autoComplete="new-password"
                     lang="en"
                     style={{ imeMode: "disabled" } as React.CSSProperties}
-                    className="w-full pl-4 pr-10 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white placeholder:text-slate-500 text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 transition-colors"
+                    className={`w-full pl-4 pr-10 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-1 transition-colors ${inputCls}`}
                   />
                   <button
                     type="button"
@@ -240,7 +259,7 @@ export default function LoginPage() {
                     onMouseLeave={() => setShowConfirm(false)}
                     onTouchStart={() => setShowConfirm(true)}
                     onTouchEnd={() => setShowConfirm(false)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-400 hover:text-slate-600"}`}
                     tabIndex={-1}
                   >
                     {showConfirm ? (

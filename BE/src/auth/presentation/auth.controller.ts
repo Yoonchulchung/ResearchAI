@@ -33,6 +33,17 @@ export class AuthController {
     return safe;
   }
 
+  @Patch('default-models')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async updateDefaultModels(
+    @Req() req: { user: UserEntity },
+    @Body() body: { cloudModel?: string; localModel?: string },
+  ) {
+    await this.authService.updateDefaultModels(req.user.id, body.cloudModel, body.localModel);
+    return { ok: true };
+  }
+
   @Patch('api-keys')
   @UseGuards(JwtAuthGuard)
   @HttpCode(200)

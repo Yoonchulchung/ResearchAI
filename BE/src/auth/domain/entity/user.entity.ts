@@ -36,6 +36,15 @@ export class UserEntity {
   @Column({ name: 'brave_api_key', type: 'text', nullable: true })
   braveApiKey: string | null;
 
+  @Column({ name: 'default_cloud_model', type: 'text', nullable: true })
+  defaultCloudModel: string | null;
+
+  @Column({ name: 'default_local_model', type: 'text', nullable: true })
+  defaultLocalModel: string | null;
+
+  @Column({ type: 'text', default: 'visitor' })
+  role: 'visitor' | 'admin';
+
   @OneToMany(() => SessionEntity, (session) => session.user)
   sessions: SessionEntity[];
 

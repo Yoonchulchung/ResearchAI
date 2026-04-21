@@ -10,11 +10,13 @@ import { RagDebugPanel } from "@/settings/pipeline/RagDebugPanel/RagDebugPanel";
 import { DocParsePanel } from "@/settings/pipeline/DocParsePanel/DocParsePanel";
 import { AiCallLogPanel } from "@/settings/pipeline/AiCallLogPanel/AiCallLogPanel";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Tab = "pipeline" | "api" | "local" | "recruit" | "rag" | "docparse" | "calllog";
 
 export default function PipelinePage() {
   const { theme, uiStyle } = useTheme();
+  const { user } = useAuth();
   const isGlass = uiStyle === "glass";
   const isDark = theme === "dark";
 
@@ -37,6 +39,18 @@ export default function PipelinePage() {
     { id: "rag", label: "RAG 디버그" },
     { id: "calllog", label: "AI 호출 이력" },
   ];
+
+  if (user?.role !== "admin") {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className={`text-center px-8 py-12 rounded-2xl border ${isDark ? "bg-white/5 border-white/10 text-white/60" : "bg-white border-slate-200 text-slate-500"}`}>
+          <div className="text-3xl mb-3">🔒</div>
+          <p className="text-sm font-medium">관리자 전용 페이지입니다.</p>
+          <p className={`text-xs mt-1 ${isDark ? "text-white/30" : "text-slate-400"}`}>접근 권한이 없습니다.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`h-full flex flex-col overflow-hidden transition-all ${isGlass ? "p-3 pr-4 pb-4 bg-transparent" : ""}`}>

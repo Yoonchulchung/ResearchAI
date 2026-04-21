@@ -3,6 +3,9 @@ import { apiFetch } from "./base";
 export interface AuthUser {
   id: string;
   username: string;
+  role: "visitor" | "admin";
+  defaultCloudModel: string | null;
+  defaultLocalModel: string | null;
   anthropicApiKey: string | null;
   openaiApiKey: string | null;
   googleApiKey: string | null;
@@ -39,5 +42,15 @@ export async function updateApiKeyApi(key: string, value: string): Promise<{ ok:
   return apiFetch("/auth/api-keys", {
     method: "PATCH",
     body: JSON.stringify({ key, value }),
+  });
+}
+
+export async function updateDefaultModelsApi(
+  cloudModel?: string,
+  localModel?: string,
+): Promise<{ ok: boolean }> {
+  return apiFetch("/auth/default-models", {
+    method: "PATCH",
+    body: JSON.stringify({ cloudModel, localModel }),
   });
 }

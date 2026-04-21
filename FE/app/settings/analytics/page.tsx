@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { LoginRequired } from "@/components/LoginRequired";
 import {
   BarChart,
   Bar,
@@ -44,6 +46,7 @@ interface AnalyticsData {
 }
 
 export default function AnalyticsPage() {
+  const { user } = useAuth();
   const [range, setRange] = useState<AnalyticsRange>("30d");
   const [granularity, setGranularity] = useState<Granularity>("1d");
 
@@ -68,6 +71,8 @@ export default function AnalyticsPage() {
       .catch(() => setError("데이터를 불러오지 못했습니다."))
       .finally(() => setLoading(false));
   }, [range, granularity]);
+
+  if (!user) return <LoginRequired />;
 
   return (
     <div className="space-y-6">

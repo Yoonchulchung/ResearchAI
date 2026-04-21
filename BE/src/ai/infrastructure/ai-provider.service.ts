@@ -13,30 +13,58 @@ import { MODELS, AI_MODEL_PREFIX, getProvider, AIProvider } from '../domain/mode
 import { InvalidAiTypeException } from '../../shared/exceptions/invalid-ai-type.exception';
 import { TokenHistoryRepository } from '../../overview/domain/repository/token-history.repository';
 import { AiCallLogRepository } from '../domain/repository/ai-call-log.repository';
-import { requestContext, resolveApiKey } from '../../shared/request-context';
+import { requestContext, DEFAULT_AI_MODEL, DEFAULT_GOOGLE_API_KEY } from '../../shared/request-context';
 import { randomUUID } from 'crypto';
 
 @Injectable()
 export class AiProviderService {
   private readonly logger = new Logger(AiProviderService.name);
 
-  readonly anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  readonly openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  private readonly google = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
+  private readonly defaultGoogle = new GoogleGenAI({ apiKey: DEFAULT_GOOGLE_API_KEY() });
+
+  /**
+   * 요청된 모델을 실제로 사용 가능한 모델로 확정합니다.
+   * - 로컬 모델(ollama/llama)은 그대로 반환
+   * - Cloud 모델은 해당 프로바이더 키가 없으면 DEFAULT_AI_MODEL 로 폴백
+   */
+  resolveEffectiveModel(requestedModel: string): string {
+    if (!requestedModel) {
+      const store = requestContext.getStore();
+      return store?.defaultCloudModel || DEFAULT_AI_MODEL();
+    }
+    if (requestedModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) return requestedModel;
+    if (requestedModel.startsWith(AI_MODEL_PREFIX.LLAMA_CPP)) return requestedModel;
+
+    const store = requestContext.getStore();
+    const keys = store?.apiKeys;
+    const provider = getProvider(requestedModel);
+
+    const hasKey =
+      (provider === AIProvider.ANTHROPIC && keys?.anthropicApiKey) ||
+      (provider === AIProvider.OPENAI && keys?.openaiApiKey) ||
+      (provider === AIProvider.GOOGLE && (keys?.googleApiKey || DEFAULT_GOOGLE_API_KEY()));
+
+    return hasKey ? requestedModel : DEFAULT_AI_MODEL();
+  }
 
   private getAnthropicClient(): Anthropic {
-    const key = resolveApiKey(requestContext.getStore()?.apiKeys.anthropicApiKey, process.env.ANTHROPIC_API_KEY);
-    return key === process.env.ANTHROPIC_API_KEY ? this.anthropic : new Anthropic({ apiKey: key });
+    const key = requestContext.getStore()?.apiKeys.anthropicApiKey;
+    if (key) return new Anthropic({ apiKey: key });
+    // 사용자 키 없음 — resolveEffectiveModel 이 이미 Gemini 로 전환했어야 하지만 안전망
+    throw new Error('Anthropic API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.');
   }
 
   private getOpenAIClient(): OpenAI {
-    const key = resolveApiKey(requestContext.getStore()?.apiKeys.openaiApiKey, process.env.OPENAI_API_KEY);
-    return key === process.env.OPENAI_API_KEY ? this.openai : new OpenAI({ apiKey: key });
+    const key = requestContext.getStore()?.apiKeys.openaiApiKey;
+    if (key) return new OpenAI({ apiKey: key });
+    throw new Error('OpenAI API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.');
   }
 
   private getGoogleClient(): GoogleGenAI {
-    const key = resolveApiKey(requestContext.getStore()?.apiKeys.googleApiKey, process.env.GOOGLE_API_KEY);
-    return key === process.env.GOOGLE_API_KEY ? this.google : new GoogleGenAI({ apiKey: key });
+    const key = requestContext.getStore()?.apiKeys.googleApiKey;
+    if (key) return new GoogleGenAI({ apiKey: key });
+    // 사용자 키 없으면 기본 키 사용
+    return this.defaultGoogle;
   }
 
   constructor(
@@ -50,6 +78,7 @@ export class AiProviderService {
     prompt: string | any[],
     opts?: { useBuiltinSearch?: boolean; tools?: any[]; signal?: AbortSignal; caller?: string },
   ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number; toolCalls?: ToolCallResult[]; stopReason?: string; searchLog?: { query: string; result: string }[] }> {
+    aiModel = this.resolveEffectiveModel(aiModel);
     const promptPreview = typeof prompt === 'string'
       ? prompt.slice(0, 100).replace(/\n/g, ' ')
       : prompt.map((m: any) => {
@@ -159,6 +188,7 @@ export class AiProviderService {
     system: string,
     messages: import('./provider/vlm.types').VlmMessage[],
   ): AsyncGenerator<string> {
+    aiModel = this.resolveEffectiveModel(aiModel);
 
     const streamPreview = messages.map((m) => {
       const text = typeof m.content === 'string' ? m.content : m.content.filter((c): c is string => typeof c === 'string').join(' ');

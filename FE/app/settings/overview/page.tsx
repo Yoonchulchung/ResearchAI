@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { getTavilyOverview, type ApiKeyEntry } from "@/lib/api";
 import { getModels } from "@/lib/api/research";
 import { useAuth } from "@/contexts/AuthContext";
+import { LoginRequired } from "@/components/LoginRequired";
 import { updateApiKeyApi } from "@/lib/api/auth";
 import { ModelDefinition } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -208,6 +209,8 @@ export default function OverviewPage() {
     setDefaultCloudModel(model);
   };
 
+  if (!user) return <LoginRequired />;
+
   return (
     <div className={`min-h-full flex flex-col transition-all ${isGlass ? "p-3 pr-4 pb-4 bg-transparent" : "bg-slate-50"}`}>
       <div className={`flex-1 flex flex-col transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl overflow-hidden" : ""}`}>
@@ -232,9 +235,12 @@ export default function OverviewPage() {
             <p className={`text-sm ${isGlass ? "text-white/60" : "text-slate-500"}`}>
               Have any questions, feedback or need support? We&apos;d love to hear from you!
             </p>
-            <button className={`px-5 py-2 border rounded-xl text-sm font-medium transition-colors ${isGlass ? "border-white/20 text-white/70 hover:bg-white/10" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
+            <a
+              href="mailto:yoonchul005@gmail.com"
+              className={`inline-block px-5 py-2 border rounded-xl text-sm font-medium transition-colors ${isGlass ? "border-white/20 text-white/70 hover:bg-white/10" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}
+            >
               Contact us
-            </button>
+            </a>
           </div>
         </div>
       </div>

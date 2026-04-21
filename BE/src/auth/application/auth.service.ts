@@ -62,6 +62,13 @@ export class AuthService {
     });
   }
 
+  async updateDefaultModels(userId: string, cloudModel?: string | null, localModel?: string | null): Promise<void> {
+    const update: Partial<UserEntity> = {};
+    if (cloudModel !== undefined) update.defaultCloudModel = cloudModel || null;
+    if (localModel !== undefined) update.defaultLocalModel = localModel || null;
+    if (Object.keys(update).length) await this.userRepo.update(userId, update);
+  }
+
   async updateSingleApiKey(userId: string, key: string, value: string): Promise<void> {
     const allowed: Record<string, keyof UserEntity> = {
       ANTHROPIC_API_KEY: 'anthropicApiKey',

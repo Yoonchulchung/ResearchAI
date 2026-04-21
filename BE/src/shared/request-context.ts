@@ -14,11 +14,13 @@ export interface UserApiKeys {
 export interface RequestUser {
   id: string;
   username: string;
+  role: 'visitor' | 'admin';
+  defaultCloudModel: string | null;
+  defaultLocalModel: string | null;
   apiKeys: UserApiKeys;
 }
 
-export const requestContext = new AsyncLocalStorage<RequestUser>();
+export const DEFAULT_AI_MODEL = () => process.env.DEFAULT_AI_MODEL ?? 'gemini-1.5-flash';
+export const DEFAULT_GOOGLE_API_KEY = () => process.env.DEFAULT_GOOGLE_API_KEY ?? '';
 
-export function resolveApiKey(userKey: string | null | undefined, envKey: string | undefined): string | undefined {
-  return userKey || envKey;
-}
+export const requestContext = new AsyncLocalStorage<RequestUser>();

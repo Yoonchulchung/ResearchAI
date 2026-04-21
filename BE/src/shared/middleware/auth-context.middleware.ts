@@ -26,6 +26,9 @@ export class AuthContextMiddleware implements NestMiddleware {
             {
               id: user.id,
               username: user.username,
+              role: user.role ?? 'visitor',
+              defaultCloudModel: user.defaultCloudModel ?? null,
+              defaultLocalModel: user.defaultLocalModel ?? null,
               apiKeys: {
                 anthropicApiKey: user.anthropicApiKey,
                 openaiApiKey: user.openaiApiKey,
@@ -50,7 +53,7 @@ export class AuthContextMiddleware implements NestMiddleware {
     const anonId = req.headers['x-anon-id'];
     if (anonId && typeof anonId === 'string') {
       requestContext.run(
-        { id: anonId, username: 'anonymous', apiKeys: {} },
+        { id: anonId, username: 'anonymous', role: 'visitor', defaultCloudModel: null, defaultLocalModel: null, apiKeys: {} },
         () => next(),
       );
       return;

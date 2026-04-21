@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { LoginRequired } from "@/components/LoginRequired";
 import {
   getRunningOllamaModels, unloadOllamaModel, getSystemMemory, getLlamaCppModels,
   OllamaRunningModel, SystemMemory,
@@ -29,6 +31,7 @@ function MemoryBar({ used, total, label }: { used: number; total: number; label:
 }
 
 export default function SystemPage() {
+  const { user } = useAuth();
   const [models, setModels] = useState<OllamaRunningModel[]>([]);
   const [llamaModels, setLlamaModels] = useState<{ name: string }[]>([]);
   const [memory, setMemory] = useState<SystemMemory | null>(null);
@@ -70,6 +73,8 @@ export default function SystemPage() {
 
   const modelRamTotal = models.reduce((sum, m) => sum + (m.size ?? 0), 0);
   const modelVramTotal = models.reduce((sum, m) => sum + (m.size_vram ?? 0), 0);
+
+  if (!user) return <LoginRequired />;
 
   return (
     <div className="max-w-2xl mx-auto px-8 py-8 space-y-6">
