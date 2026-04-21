@@ -13,9 +13,7 @@ import { isEnvKeySet } from '../../shared/env/env.utils';
 import { MODELS } from '../../ai/domain/models';
 
 const ALLOWED_KEYS = [
-  'ANTHROPIC_API_KEY',
   'ANTHROPIC_ADMIN_API_KEY',
-  'OPENAI_API_KEY',
   'GOOGLE_API_KEY',
   'TAVILY_API_KEY',
   'SERPER_API_KEY',
@@ -26,10 +24,8 @@ const ALLOWED_KEYS = [
 type AllowedKey = (typeof ALLOWED_KEYS)[number];
 
 const KEY_LABELS: Record<AllowedKey, string> = {
-  ANTHROPIC_API_KEY: 'Anthropic',
   ANTHROPIC_ADMIN_API_KEY: 'Anthropic Admin',
-  OPENAI_API_KEY: 'OpenAI',
-  GOOGLE_API_KEY: 'Google',
+  GOOGLE_API_KEY: 'Google (Default)',
   TAVILY_API_KEY: 'Tavily',
   SERPER_API_KEY: 'Serper',
   NAVER_CLIENT_ID: 'Naver',

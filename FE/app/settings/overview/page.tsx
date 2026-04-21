@@ -5,7 +5,7 @@ import { getTavilyOverview, type ApiKeyEntry } from "@/lib/api";
 import { getModels } from "@/lib/api/research";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoginRequired } from "@/components/LoginRequired";
-import { updateApiKeyApi } from "@/lib/api/auth";
+import { updateDefaultModelsApi } from "@/lib/api/auth";
 import { ModelDefinition } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
@@ -170,8 +170,7 @@ export default function OverviewPage() {
       getTavilyOverview(),
       fetch("http://localhost:3001/api/overview/analytics?range=30d").then((r) => r.json()),
       getModels(),
-      fetch("http://localhost:3001/api/config").then((r) => r.json()),
-    ]).then(([tavilyRes, analyticsRes, modelsRes, configRes]) => {
+    ]).then(([tavilyRes, analyticsRes, modelsRes]) => {
       if (tavilyRes.status === "fulfilled") setTavily(tavilyRes.value);
       if (analyticsRes.status === "fulfilled") setAnalytics(analyticsRes.value);
       if (modelsRes.status === "fulfilled") {
@@ -179,34 +178,27 @@ export default function OverviewPage() {
         setOllamaModels(all.filter((m) => m.provider === "ollama"));
         setCloudModels(all.filter((m) => m.provider !== "ollama"));
       }
-      if (configRes.status === "fulfilled") {
-        const cfg = configRes.value as Record<string, string>;
-        setDefaultLocalModel(cfg.default_local_model ?? "");
-        setDefaultCloudModel(cfg.default_cloud_model ?? "");
-      }
       setLoading(false);
     });
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
-  useEffect(() => { setApiKeys(buildApiKeys(user)); }, [user, buildApiKeys]);
+  useEffect(() => {
+    setApiKeys(buildApiKeys(user));
+    if (user?.defaultCloudModel) setDefaultCloudModel(user.defaultCloudModel);
+    if (user?.defaultLocalModel) setDefaultLocalModel(user.defaultLocalModel);
+  }, [user, buildApiKeys]);
 
   const handleSaveLocalModel = async (model: string) => {
-    await fetch("http://localhost:3001/api/config/default_local_model", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value: model }),
-    });
+    await updateDefaultModelsApi(undefined, model);
     setDefaultLocalModel(model);
+    refreshUser();
   };
 
   const handleSaveCloudModel = async (model: string) => {
-    await fetch("http://localhost:3001/api/config/default_cloud_model", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value: model }),
-    });
+    await updateDefaultModelsApi(model, undefined);
     setDefaultCloudModel(model);
+    refreshUser();
   };
 
   if (!user) return <LoginRequired />;
