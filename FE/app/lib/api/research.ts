@@ -13,6 +13,26 @@ export interface WebSearchEngine {
 export const getSearchEngines = () =>
   apiFetch<WebSearchEngine[]>("/research/search-engines");
 
+// ── Intent Classifier ─────────────────────────────────────────────────────────
+
+export type Intent = "chat" | "research" | "clarify";
+
+export interface IntentResult {
+  intent: Intent;
+  message: string;
+  refinedTopic?: string;
+}
+
+export const classifyIntent = (
+  topic: string,
+  history?: { role: "user" | "assistant"; content: string }[],
+  localAIModel?: string,
+) =>
+  apiFetch<IntentResult>("/research/intent", {
+    method: "POST",
+    body: JSON.stringify({ topic, history, localAIModel }),
+  });
+
 // ── Light Research ────────────────────────────────────────────────────────────
 
 export interface JobItem {

@@ -8,6 +8,7 @@ import { useModels } from "./hooks/useModels";
 import { useNewSession } from "./hooks/useNewSession";
 import { JobPostingList } from "./components/JobPostingList";
 import { TaskChatBar } from "./components/TaskChatBar";
+import { IntentConversation } from "./components/IntentConversation";
 
 export default function NewSession() {
   const { cloudAiModels, localAiModels, isLoading, models } = useModels();
@@ -32,6 +33,10 @@ export default function NewSession() {
     handleGenerate,
     handleCancel,
     handleResearchStart,
+    handleForceResearch,
+    resetConversation,
+    conversation,
+    classifyingIntent,
     updateTask,
     removeTask,
     addTask,
@@ -64,12 +69,22 @@ export default function NewSession() {
             defaultOpen={false}
           />
 
+          {/* AI 의도 분류 대화 */}
+          <IntentConversation
+            messages={conversation}
+            classifying={classifyingIntent}
+            onReset={resetConversation}
+            onForceResearch={handleForceResearch}
+            researchRunning={generating}
+          />
+
           {/* Topic input */}
           <TopicInput
             value={topic}
             onChange={setTopic}
             onGenerate={handleGenerate}
-            generating={generating}
+            generating={generating || classifyingIntent}
+            placeholder={conversation.length > 0 ? "추가 설명이나 답변을 입력하세요..." : "리서치 주제를 입력하세요 (애매하면 AI가 질문으로 안내합니다)"}
             cloudAiModels={cloudAiModels}
             localAiModels={localAiModels}
             webEngines={webEngines}

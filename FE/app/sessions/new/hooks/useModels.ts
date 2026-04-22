@@ -12,7 +12,7 @@ export function useModels() {
   return {
     models,
     cloudAiModels: models.filter((m) => m.provider !== "ollama" && m.provider !== "llama-cpp"),
-    localAiModels: models.filter((m) => m.provider === "llama-cpp"),
+    localAiModels: models.filter((m) => m.provider === "ollama" || m.provider === "llama-cpp"),
     isLoading: models.length === 0,
   };
 }

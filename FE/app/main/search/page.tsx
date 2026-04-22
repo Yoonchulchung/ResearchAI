@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface SearchResult {
   title: string;
@@ -16,34 +18,88 @@ function SearchPageContent() {
   const initialQuery = searchParams.get("q") ?? "";
 
   const [query, setQuery] = useState(initialQuery);
+
+  // 인터넷 검색 상태
   const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [webLoading, setWebLoading] = useState(false);
+  const [webError, setWebError] = useState("");
+
+  // AI 검색 상태
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiDone, setAiDone] = useState(false);
+
   const [searched, setSearched] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const doSearch = async (q: string) => {
     if (!q.trim()) return;
-    setLoading(true);
-    setError("");
     setSearched(true);
-    try {
-      const res = await fetch(`http://localhost:3001/api/news/search?q=${encodeURIComponent(q)}&limit=10`);
-      if (!res.ok) throw new Error("검색 실패");
-      const data: SearchResult[] = await res.json();
-      setResults(data);
-    } catch {
-      setError("검색 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
+
+    // 이전 요청 취소
+    abortRef.current?.abort();
+    const abort = new AbortController();
+    abortRef.current = abort;
+
+    // 초기화
+    setResults([]);
+    setWebLoading(true);
+    setWebError("");
+    setAiText("");
+    setAiLoading(true);
+    setAiError("");
+    setAiDone(false);
+
+    // 인터넷 검색과 AI 검색 동시 시작
+    const webPromise = fetch(
+      `http://localhost:3001/api/news/search?q=${encodeURIComponent(q)}&limit=10`,
+      { signal: abort.signal },
+    )
+      .then((r) => { if (!r.ok) throw new Error("검색 실패"); return r.json() as Promise<SearchResult[]>; })
+      .then((data) => { setResults(data); })
+      .catch((e) => { if (e.name !== "AbortError") setWebError("검색 중 오류가 발생했습니다."); })
+      .finally(() => setWebLoading(false));
+
+    const aiPromise = (async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:3001/api/news/ai-answer?q=${encodeURIComponent(q)}`,
+          { signal: abort.signal },
+        );
+        if (!res.ok || !res.body) throw new Error("AI 검색 실패");
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const ev = JSON.parse(line.slice(6));
+              if (ev.type === "chunk") setAiText((prev) => prev + ev.text);
+              if (ev.type === "done") setAiDone(true);
+              if (ev.type === "error") setAiError(ev.message);
+            } catch {}
+          }
+        }
+      } catch (e: unknown) {
+        if ((e as Error).name !== "AbortError") setAiError("AI 검색 중 오류가 발생했습니다.");
+      } finally {
+        setAiLoading(false);
+      }
+    })();
+
+    await Promise.allSettled([webPromise, aiPromise]);
   };
 
   useEffect(() => {
-    if (initialQuery) {
-      doSearch(initialQuery);
-    }
+    if (initialQuery) doSearch(initialQuery);
+    return () => abortRef.current?.abort();
   }, []);
 
   const handleSearch = () => {
@@ -53,26 +109,19 @@ function SearchPageContent() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSearch();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSearch(); }
   };
 
   const handleDeepResearch = () => {
-    if (query.trim()) {
-      sessionStorage.setItem("dashboard-topic", query.trim());
-    }
+    if (query.trim()) sessionStorage.setItem("dashboard-topic", query.trim());
     router.push("/sessions/new");
   };
 
   const getDomain = (url: string) => {
-    try {
-      return new URL(url).hostname.replace(/^www\./, "");
-    } catch {
-      return url;
-    }
+    try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
   };
+
+  const loading = webLoading || aiLoading;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -87,7 +136,6 @@ function SearchPageContent() {
           </button>
           <div className="flex-1 flex gap-2">
             <input
-              ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -106,77 +154,117 @@ function SearchPageContent() {
         </div>
       </div>
 
-      {/* 결과 영역 */}
-      <div className="max-w-3xl mx-auto px-4 py-6">
-        {/* 딥리서치 유도 배너 */}
-        {searched && !loading && (
-          <div className="mb-5 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-            <p className="text-sm text-indigo-700">
-              더 깊이 분석하려면 AI 딥리서치를 사용해보세요
-            </p>
-            <button
-              onClick={handleDeepResearch}
-              className="bg-indigo-600 text-white text-xs font-semibold px-4 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shrink-0"
-            >
-              딥리서치로 분석
-            </button>
-          </div>
-        )}
+      <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
-        {/* 로딩 스켈레톤 */}
-        {loading && (
-          <div className="space-y-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-xl p-4 border border-gray-200 animate-pulse">
-                <div className="h-3 bg-gray-200 rounded w-1/4 mb-2" />
-                <div className="h-5 bg-gray-200 rounded w-3/4 mb-2" />
-                <div className="h-3 bg-gray-200 rounded w-full mb-1" />
-                <div className="h-3 bg-gray-200 rounded w-5/6" />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* 에러 */}
-        {error && !loading && (
-          <div className="text-center py-16 text-red-500 text-sm">{error}</div>
-        )}
-
-        {/* 결과 없음 */}
-        {searched && !loading && !error && results.length === 0 && (
-          <div className="text-center py-16 text-gray-400 text-sm">
-            검색 결과가 없습니다.
-          </div>
-        )}
-
-        {/* 결과 목록 */}
-        {!loading && results.length > 0 && (
-          <>
-            <p className="text-xs text-gray-400 mb-3">
-              &ldquo;{initialQuery}&rdquo; 검색 결과 {results.length}건
-            </p>
-            <div className="space-y-3">
-              {results.map((r, i) => (
-                <a
-                  key={i}
-                  href={r.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block bg-white rounded-xl p-4 border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all group"
-                >
-                  <p className="text-xs text-green-700 mb-1">{getDomain(r.url)}</p>
-                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors leading-snug mb-1.5 line-clamp-2">
-                    {r.title}
-                  </h3>
-                  {r.snippet && (
-                    <p className="text-xs text-gray-500 leading-relaxed line-clamp-3">
-                      {r.snippet}
-                    </p>
-                  )}
-                </a>
-              ))}
+        {/* ── AI 검색 결과 ── */}
+        {searched && (aiLoading || aiText || aiError) && (
+          <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-indigo-50 bg-linear-to-r from-indigo-50 to-white">
+              <span className="text-base">✦</span>
+              <span className="text-sm font-semibold text-indigo-700">AI 검색 결과</span>
+              {aiLoading && !aiDone && (
+                <span className="ml-auto flex items-center gap-1.5 text-xs text-indigo-400">
+                  <span className="inline-block w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="inline-block w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="inline-block w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                </span>
+              )}
+              {aiDone && (
+                <span className="ml-auto text-xs text-indigo-300">완료</span>
+              )}
             </div>
-          </>
+            <div className="px-5 py-4">
+              {aiError ? (
+                <p className="text-sm text-red-500">{aiError}</p>
+              ) : aiText ? (
+                <div className="prose prose-sm prose-slate max-w-none
+                  [&_p]:my-1.5 [&_p]:leading-relaxed [&_p]:text-slate-700
+                  [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2
+                  [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2
+                  [&_li]:my-0.5 [&_li]:text-slate-700
+                  [&_strong]:font-semibold [&_strong]:text-slate-800
+                  [&_h1]:font-bold [&_h1]:text-slate-800 [&_h1]:mt-3 [&_h1]:mb-1
+                  [&_h2]:font-bold [&_h2]:text-slate-800 [&_h2]:mt-3 [&_h2]:mb-1
+                  [&_h3]:font-semibold [&_h3]:text-slate-700 [&_h3]:mt-2 [&_h3]:mb-1
+                  [&_code]:bg-slate-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs
+                  [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-200 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiText}</ReactMarkdown>
+                </div>
+              ) : (
+                <div className="h-4 bg-gray-100 rounded animate-pulse w-3/4" />
+              )}
+            </div>
+            {/* 딥리서치 유도 */}
+            {aiDone && (
+              <div className="px-5 pb-4">
+                <button
+                  onClick={handleDeepResearch}
+                  className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
+                >
+                  더 깊이 분석 → 딥리서치로 이동
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 인터넷 검색 결과 ── */}
+        {searched && (
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
+              인터넷 검색
+            </p>
+
+            {webLoading && (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-xl p-4 border border-gray-200 animate-pulse">
+                    <div className="h-3 bg-gray-200 rounded w-1/4 mb-2" />
+                    <div className="h-5 bg-gray-200 rounded w-3/4 mb-2" />
+                    <div className="h-3 bg-gray-200 rounded w-full mb-1" />
+                    <div className="h-3 bg-gray-200 rounded w-5/6" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {webError && !webLoading && (
+              <p className="text-center py-10 text-red-500 text-sm">{webError}</p>
+            )}
+
+            {!webLoading && !webError && results.length === 0 && searched && (
+              <p className="text-center py-10 text-gray-400 text-sm">검색 결과가 없습니다.</p>
+            )}
+
+            {!webLoading && results.length > 0 && (
+              <div className="space-y-3">
+                {results.map((r, i) => (
+                  <a
+                    key={i}
+                    href={r.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block bg-white rounded-xl p-4 border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all group"
+                  >
+                    <p className="text-xs text-green-700 mb-1">{getDomain(r.url)}</p>
+                    <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors leading-snug mb-1.5 line-clamp-2">
+                      {r.title}
+                    </h3>
+                    {r.snippet && (
+                      <p className="text-xs text-gray-500 leading-relaxed line-clamp-3">
+                        {r.snippet}
+                      </p>
+                    )}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 초기 상태 */}
+        {!searched && (
+          <p className="text-center py-20 text-gray-400 text-sm">검색어를 입력하고 Enter를 누르세요</p>
         )}
       </div>
     </div>
@@ -185,7 +273,11 @@ function SearchPageContent() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400 text-sm">로딩 중...</div>}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400 text-sm">
+        로딩 중...
+      </div>
+    }>
       <SearchPageContent />
     </Suspense>
   );

@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body } from '@nestjs/common';
 import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 import { WebSearchService } from '../application/web-search.service';
 import { ResearchService } from '../application/research.service';
+import { IntentClassifierService, IntentResult } from '../application/intent-classifier.service';
 import { TestLightSearchDto } from './dto/request/test-light-search.dto';
 import { TestSearchDto } from './dto/request/test-search.dto';
 
@@ -14,6 +15,7 @@ export class ResearchController {
     private readonly aiProvider: AiProviderService,
     private readonly searchService: WebSearchService,
     private readonly aiService: ResearchService,
+    private readonly intentClassifier: IntentClassifierService,
   ) {}
 
   @Get('models')
@@ -24,6 +26,24 @@ export class ResearchController {
   @Get('search-engines')
   getSearchEngines() {
     return this.searchService.getAvailableEngines();
+  }
+
+  // ********************** //
+  // 사용자 의도 분류 (대화/리서치/명확화) //
+  // ********************** //
+  @Post('intent')
+  async classifyIntent(
+    @Body() body: {
+      topic: string;
+      history?: { role: 'user' | 'assistant'; content: string }[];
+      localAIModel?: string;
+    },
+  ): Promise<IntentResult> {
+    return this.intentClassifier.classify({
+      topic: body.topic,
+      history: body.history,
+      localAIModel: body.localAIModel,
+    });
   }
 
   // *************** //

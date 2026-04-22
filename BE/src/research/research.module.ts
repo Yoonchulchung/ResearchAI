@@ -13,6 +13,7 @@ import { ResearchRecruitEntity } from './domain/entity/researchrecruit.entity';
 import { LightResearchEntity } from './domain/entity/lightsearch.entity';
 import { SearchListEntity } from './domain/entity/searchlist.entity';
 import { WebSearchProvider } from './infrastructure/web-search.provider';
+import { IntentClassifierService } from './application/intent-classifier.service';
 import { RecruitModule } from '../recruit/recruit.module';
 import { AiModule } from '../ai/ai.module';
 import { SessionsModule } from '../sessions/sessions.module';
@@ -28,6 +29,7 @@ import { QueueModule } from '../queue/queue.module';
     LightResearchPipelineService,
     DeepResearchPipelineService,
     ResearchService,
+    IntentClassifierService,
     ResearchRecruitRepository,
     LightResearchRepository,
     SearchListRepository,

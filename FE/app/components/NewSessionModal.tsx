@@ -9,6 +9,8 @@ import { TaskList } from "@/sessions/components/TaskList";
 import { PipelineTerminal } from "@/sessions/components/PipelineTerminal";
 import { JobPostingList } from "@/sessions/new/components/JobPostingList";
 import { TaskChatBar } from "@/sessions/new/components/TaskChatBar";
+import { IntentConversation } from "@/sessions/new/components/IntentConversation";
+import { DEFAULT_FREE_MODEL_ID } from "@/sessions/new/hooks/useNewSession";
 import { AttachedFile } from "@/components/TopicInput";
 import { MediaType, MimeType } from "@/types";
 
@@ -69,6 +71,10 @@ function ModalContent({ onClose }: { onClose: () => void }) {
     handleGenerate,
     handleCancel,
     handleResearchStart,
+    handleForceResearch,
+    resetConversation,
+    conversation,
+    classifyingIntent,
     updateTask,
     removeTask,
     addTask,
@@ -145,12 +151,20 @@ function ModalContent({ onClose }: { onClose: () => void }) {
     }
   }, [autoStart, generating, tasks.length, generatingTitle]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 대화(chat/clarify)가 생기면 autoStart 취소 — 리서치가 아니면 자동 시작하지 않음
+  const lastAssistant = [...conversation].reverse().find((m) => m.role === "assistant");
+  useEffect(() => {
+    if (lastAssistant && (lastAssistant.intent === "chat" || lastAssistant.intent === "clarify")) {
+      setAutoStart(false);
+    }
+  }, [lastAssistant]);
+
   const handleStart = async () => {
     await handleResearchStart();
     onClose();
   };
 
-  const canGenerate = !!topic.trim() && !generating;
+  const canGenerate = !!topic.trim() && !generating && !classifyingIntent;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -292,27 +306,42 @@ function ModalContent({ onClose }: { onClose: () => void }) {
           {/* Local AI Model */}
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
-              로컬 모델 (요약)
+              요약/대화 AI
             </label>
             {isLoading ? (
               <div className="h-9 bg-slate-100 rounded-lg animate-pulse" />
-            ) : localAiModels.length === 0 ? (
-              <div className="h-9 flex items-center px-3 text-xs text-slate-400 bg-slate-50 border border-slate-100 rounded-lg">
-                Ollama 모델 없음
-              </div>
             ) : (
               <select
                 value={selectedLocalAiModel}
                 onChange={(e) => setSelectedLocalAiModel(e.target.value)}
                 className="w-full text-sm text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 cursor-pointer"
               >
-                {localAiModels.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
+                <option value={DEFAULT_FREE_MODEL_ID}>☁️ Gemini (기본 무료)</option>
+                {localAiModels.length > 0 && (
+                  <optgroup label="로컬 모델">
+                    {localAiModels.map((m) => {
+                      const tag = m.provider === "llama-cpp" ? "llama.cpp" : "Ollama";
+                      return (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({tag})
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                )}
               </select>
             )}
           </div>
         </div>
+
+        {/* AI 의도 분류 대화 */}
+        <IntentConversation
+          messages={conversation}
+          classifying={classifyingIntent}
+          onReset={resetConversation}
+          onForceResearch={handleForceResearch}
+          researchRunning={generating}
+        />
 
         {/* Generate Button */}
         <button
@@ -320,7 +349,12 @@ function ModalContent({ onClose }: { onClose: () => void }) {
           disabled={!canGenerate}
           className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm shadow-indigo-200"
         >
-          {generating ? (
+          {classifyingIntent ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              의도 분석 중...
+            </>
+          ) : generating ? (
             <>
               <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
               조사 항목 생성 중...

@@ -16,13 +16,27 @@ export class SearchPlannerService {
   constructor(private readonly aiProvider: AiProviderService) {}
 
   async plan(topic: string, localAIModel?: string): Promise<SearchPlan> {
-    const rawModel = localAIModel
-      ?? process.env.OLLAMA_PLANNER_MODEL
-      ?? process.env.OLLAMA_MODEL
-      ?? 'llama3.1';
-    const aiModel = rawModel.startsWith(AI_MODEL_PREFIX.OLLAMA)
-      ? rawModel
-      : `${AI_MODEL_PREFIX.OLLAMA}${rawModel}`;
+    // 사용자가 로컬 모델을 지정했으면 그대로 사용 (ollama: 또는 llama: 접두사 포함)
+    // 빈 문자열("")은 "기본 AI 사용" 의도이므로 env fallback도 건너뛰고 빈 문자열 전달 → DEFAULT_AI_MODEL
+    let aiModel: string;
+    if (localAIModel !== undefined) {
+      const trimmed = localAIModel.trim();
+      if (trimmed === '') {
+        aiModel = ''; // DEFAULT_AI_MODEL (Gemini 무료) 로 폴백
+      } else if (
+        trimmed.startsWith(AI_MODEL_PREFIX.OLLAMA) ||
+        trimmed.startsWith(AI_MODEL_PREFIX.LLAMA_CPP)
+      ) {
+        aiModel = trimmed; // 그대로 사용
+      } else {
+        aiModel = `${AI_MODEL_PREFIX.OLLAMA}${trimmed}`; // 접두사 없으면 Ollama로 간주
+      }
+    } else {
+      const envModel = process.env.OLLAMA_PLANNER_MODEL ?? process.env.OLLAMA_MODEL ?? 'llama3.1';
+      aiModel = envModel.startsWith(AI_MODEL_PREFIX.OLLAMA)
+        ? envModel
+        : `${AI_MODEL_PREFIX.OLLAMA}${envModel}`;
+    }
 
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -66,7 +80,7 @@ jobTypes 판단 기준.
       const { text } = await this.aiProvider.call(aiModel, SYSTEM, prompt);
 
       const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return this.fallback(rawModel, topic, 'JSON 파싱 실패');
+      if (!jsonMatch) return this.fallback(aiModel, topic, 'JSON 파싱 실패');
 
       const parsed = JSON.parse(jsonMatch[0]) as {
         source?: string;
@@ -75,7 +89,7 @@ jobTypes 판단 기준.
         jobTypes?: unknown;
       };
       if (!(Object.values(SearchMode) as string[]).includes(parsed.source ?? '')) {
-        return this.fallback(rawModel, topic, '유효하지 않은 source 값');
+        return this.fallback(aiModel, topic, '유효하지 않은 source 값');
       }
 
       const searchMode = parsed.source as SearchMode;
@@ -91,10 +105,10 @@ jobTypes 판단 기준.
         ? (parsed.jobTypes as string[]).filter((v) => typeof v === 'string')
         : undefined;
 
-      const plan: SearchPlan = { searchMode, reason: '', keyword, companyTypes, jobTypes, model: rawModel };
+      const plan: SearchPlan = { searchMode, reason: '', keyword, companyTypes, jobTypes, model: aiModel };
       return plan;
     } catch {
-      return this.fallback(rawModel, topic, 'Ollama 호출 실패 (미설치 또는 타임아웃)');
+      return this.fallback(aiModel, topic, 'Ollama 호출 실패 (미설치 또는 타임아웃)');
     }
   }
 

@@ -8,6 +8,7 @@ import {
   createSession,
   setAttachedFileIds,
   getSearchEngines,
+  classifyIntent,
   JobItem,
   LightResearchEvent,
   WebSearchEngine,
@@ -19,6 +20,15 @@ import { AttachedFile } from "@/components/TopicInput";
 
 const STORAGE_KEY = "new-session-draft";
 
+/** 시스템 기본 AI (Gemini 무료 + Groq 폴백). 로컬 모델 대안으로 사용 가능 */
+export const DEFAULT_FREE_MODEL_ID = "__default_free__";
+
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+  intent?: "chat" | "research" | "clarify";
+}
+
 interface DraftState {
   topic: string;
   tasks: Task[];
@@ -27,6 +37,7 @@ interface DraftState {
   jobPostings: JobItem[];
   selectedCloudAiModel: string;
   selectedLocalAiModel: string;
+  conversation: ConversationMessage[];
 }
 
 export function useNewSession(models: ModelDefinition[]) {
@@ -50,6 +61,8 @@ export function useNewSession(models: ModelDefinition[]) {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [initialized, setInitialized] = useState(false);
+  const [conversation, setConversation] = useState<ConversationMessage[]>([]);
+  const [classifyingIntent, setClassifyingIntent] = useState(false);
 
   const taskListRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -60,10 +73,11 @@ export function useNewSession(models: ModelDefinition[]) {
   useEffect(() => { cloudAiModelRef.current = selectedCloudAiModel; }, [selectedCloudAiModel]);
 
   // 모델 목록이 로드되면 기본 로컬 모델 설정 (draft 복원값이 없을 때만)
+  // 로컬 모델이 하나도 없으면 "기본 무료 AI" 로 설정
   useEffect(() => {
     if (selectedLocalAiModel) return;
-    const firstLocal = models.find((m) => m.provider === "ollama");
-    if (firstLocal) setSelectedLocalAiModel(firstLocal.id);
+    const firstLocal = models.find((m) => m.provider === "ollama" || m.provider === "llama-cpp");
+    setSelectedLocalAiModel(firstLocal?.id ?? DEFAULT_FREE_MODEL_ID);
   }, [models]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 검색 엔진 목록 로드
@@ -84,6 +98,13 @@ export function useNewSession(models: ModelDefinition[]) {
         if (draft.jobPostings?.length) setJobPostings(draft.jobPostings);
         if (draft.selectedCloudAiModel) setSelectedCloudAiModel(draft.selectedCloudAiModel);
         if (draft.selectedLocalAiModel) setSelectedLocalAiModel(draft.selectedLocalAiModel);
+        if (draft.conversation?.length) {
+          // 과거 에러 메시지는 복원 시 제거 (AI 히스토리 오염 방지)
+          const cleaned = draft.conversation.filter(
+            (m) => !(m.role === "assistant" && m.content.startsWith("오류")),
+          );
+          setConversation(cleaned);
+        }
       }
     } catch {}
 
@@ -141,10 +162,10 @@ export function useNewSession(models: ModelDefinition[]) {
   useEffect(() => {
     if (!initialized) return;
     try {
-      const draft: DraftState = { topic, tasks, searchSource, terminalLogs, jobPostings, selectedCloudAiModel, selectedLocalAiModel };
+      const draft: DraftState = { topic, tasks, searchSource, terminalLogs, jobPostings, selectedCloudAiModel, selectedLocalAiModel, conversation };
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
     } catch {}
-  }, [initialized, topic, tasks, searchSource, terminalLogs, jobPostings, selectedCloudAiModel, selectedLocalAiModel]);
+  }, [initialized, topic, tasks, searchSource, terminalLogs, jobPostings, selectedCloudAiModel, selectedLocalAiModel, conversation]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -179,8 +200,8 @@ export function useNewSession(models: ModelDefinition[]) {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleGenerate = async () => {
-    if (!topic.trim()) return;
+  /** Light Research 파이프라인 실행 (의도 분류 없이 바로) */
+  const runLightResearch = async (researchTopic: string) => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setGenerating(true);
@@ -199,10 +220,13 @@ export function useNewSession(models: ModelDefinition[]) {
           dataUrl: f.parsed!.type === MediaType.IMAGE ? f.parsed!.dataUrl : undefined,
           text: f.parsed!.text,
         }));
+      // "기본 무료 AI" 선택 시 BE에 빈 문자열 전달
+      const localModelForApi =
+        selectedLocalAiModel === DEFAULT_FREE_MODEL_ID ? "" : selectedLocalAiModel;
       const { searchId } = await enqueueLightResearch({
-        topic: topic.trim(),
+        topic: researchTopic,
         cloudAIModel: selectedCloudAiModel,
-        localAIModel: selectedLocalAiModel,
+        localAIModel: localModelForApi,
         webModel: selectedWebModel,
         attachedFiles: filePayloads.length > 0 ? filePayloads : undefined,
       });
@@ -223,6 +247,72 @@ export function useNewSession(models: ModelDefinition[]) {
       abortControllerRef.current = null;
       setGenerating(false);
     }
+  };
+
+  /** 기본 엔트리포인트 — 먼저 AI로 의도 분류, 결과에 따라 분기 */
+  const handleGenerate = async () => {
+    const userInput = topic.trim();
+    if (!userInput || generating || classifyingIntent) return;
+
+    setError("");
+    // 사용자 메시지를 대화에 추가
+    const userMessage: ConversationMessage = { role: "user", content: userInput };
+    const newConversation = [...conversation, userMessage];
+    setConversation(newConversation);
+    setTopic("");
+    setClassifyingIntent(true);
+
+    try {
+      // 현재 메시지는 topic으로 별도 전달하므로 히스토리에서 제외
+      // 또한 과거 에러 메시지는 AI를 혼란시키므로 제외
+      const historyForAi = conversation
+        .filter((m) => !(m.role === "assistant" && m.content.startsWith("⚠️")))
+        .map(({ role, content }) => ({ role, content }));
+      // "기본 무료 AI" 선택 시 BE에 빈 값 전달 → DEFAULT_AI_MODEL(Gemini) 사용
+      const modelForClassifier =
+        selectedLocalAiModel && selectedLocalAiModel !== DEFAULT_FREE_MODEL_ID
+          ? selectedLocalAiModel
+          : undefined;
+      const result = await classifyIntent(userInput, historyForAi, modelForClassifier);
+
+      const assistantMessage: ConversationMessage = {
+        role: "assistant",
+        content: result.message || "(응답 없음)",
+        intent: result.intent,
+      };
+      setConversation([...newConversation, assistantMessage]);
+
+      if (result.intent === "research") {
+        const researchTopic = result.refinedTopic?.trim() || userInput;
+        setTopic(researchTopic);
+        setClassifyingIntent(false);
+        await runLightResearch(researchTopic);
+        return;
+      }
+      // chat / clarify → 대화 계속
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "의도 분류 실패";
+      // 에러는 대화 히스토리 대신 error 상태로 표시 (AI 히스토리 오염 방지)
+      setError(`의도 분류 오류: ${msg}`);
+    } finally {
+      setClassifyingIntent(false);
+    }
+  };
+
+  /** 사용자가 "그냥 리서치 진행"을 강제로 누른 경우 */
+  const handleForceResearch = async () => {
+    // 가장 최근 사용자 메시지를 주제로 사용
+    const lastUserMsg = [...conversation].reverse().find((m) => m.role === "user");
+    const researchTopic = lastUserMsg?.content.trim() || topic.trim();
+    if (!researchTopic) return;
+    setTopic(researchTopic);
+    await runLightResearch(researchTopic);
+  };
+
+  /** 대화 초기화 */
+  const resetConversation = () => {
+    setConversation([]);
+    setTopic("");
   };
 
   const handleCancel = () => {
@@ -291,6 +381,10 @@ export function useNewSession(models: ModelDefinition[]) {
     handleGenerate,
     handleCancel,
     handleResearchStart,
+    handleForceResearch,
+    resetConversation,
+    conversation,
+    classifyingIntent,
     updateTask,
     removeTask,
     addTask,
