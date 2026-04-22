@@ -1,3 +1,5 @@
+> ⚠️ 이 파일은 더 이상 유지되지 않습니다. [architecture/frontend.md](architecture/frontend.md)를 참고하세요.
+
 # 프론트엔드 구조
 
 Next.js 14 App Router + Tailwind CSS v4. 포트 `:3000`.
