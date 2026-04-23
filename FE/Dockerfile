@@ -7,7 +7,8 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci
+# react-simple-maps 가 react 19 peer dep 을 선언하지 않아 --legacy-peer-deps 필요
+RUN npm ci --legacy-peer-deps
 
 COPY . .
 

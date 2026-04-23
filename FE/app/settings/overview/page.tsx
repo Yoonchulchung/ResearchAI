@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { API_BASE } from "@/lib/api/base";
 import { getTavilyOverview, type ApiKeyEntry } from "@/lib/api";
 import { getModels } from "@/lib/api/research";
 import { useAuth } from "@/contexts/AuthContext";
