@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from "react";
+import { API_BASE } from "@/lib/api/base";
 import { MimeType } from "@/types";
 import { AttachedFile, ACCEPT_ALL } from "./types";
 
@@ -18,7 +19,7 @@ export function useFileUpload(
   const uploadToServer = async (file: File): Promise<AttachedFile["parsed"]> => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch("http://localhost:3001/api/media/upload", {
+    const res = await fetch(`${API_BASE}/media/upload`, {
       method: "POST",
       body: form,
     });

@@ -168,7 +168,7 @@ export default function OverviewPage() {
     setLoading(true);
     Promise.allSettled([
       getTavilyOverview(),
-      fetch("http://localhost:3001/api/overview/analytics?range=30d").then((r) => r.json()),
+      fetch(`${API_BASE}/overview/analytics?range=30d`).then((r) => r.json()),
       getModels(),
     ]).then(([tavilyRes, analyticsRes, modelsRes]) => {
       if (tavilyRes.status === "fulfilled") setTavily(tavilyRes.value);

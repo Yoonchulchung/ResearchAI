@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { API_BASE } from "@/lib/api/base";
 
 interface LogEntry {
   id: string;
@@ -36,7 +37,7 @@ export default function LogsPage() {
 
   const fetchLogs = useCallback(() => {
     setLoading(true);
-    fetch(`http://localhost:3001/api/overview/logs?page=${page}&limit=${limit}`)
+    fetch(`${API_BASE}/overview/logs?page=${page}&limit=${limit}`)
       .then((r) => r.json())
       .then((res) => {
         if (res && typeof res.total === "number") {

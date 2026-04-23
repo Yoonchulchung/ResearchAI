@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { API_BASE } from "@/lib/api/base";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
@@ -65,7 +66,7 @@ function ChartModal({ item, onClose }: { item: MarketItem; onClose: () => void }
   useEffect(() => {
     setLoading(true);
     fetch(
-      `http://localhost:3001/api/news/market-chart?symbol=${encodeURIComponent(item.symbol)}&range=${range}`,
+      `${API_BASE}/news/market-chart?symbol=${encodeURIComponent(item.symbol)}&range=${range}`,
     )
       .then((r) => r.json())
       .then((data: unknown) => setPoints(Array.isArray(data) ? (data as ChartPoint[]) : []))
@@ -216,7 +217,7 @@ export function MarketCard() {
   const fetchData = useCallback(() => {
     setLoading(true);
     setError(false);
-    fetch("http://localhost:3001/api/news/market")
+    fetch(`${API_BASE}/news/market`)
       .then((r) => r.json())
       .then((data: unknown) => {
         setItems(Array.isArray(data) ? (data as MarketItem[]) : []);

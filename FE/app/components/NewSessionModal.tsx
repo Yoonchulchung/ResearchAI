@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { API_BASE } from "@/lib/api/base";
 import { useNewSessionModal } from "@/contexts/NewSessionModalContext";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { useModels } from "@/sessions/new/hooks/useModels";
@@ -91,7 +92,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
   const uploadToServer = async (file: File): Promise<AttachedFile["parsed"]> => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch("http://localhost:3001/api/media/upload", { method: "POST", body: form });
+    const res = await fetch(`${API_BASE}/media/upload`, { method: "POST", body: form });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message ?? "업로드 실패");

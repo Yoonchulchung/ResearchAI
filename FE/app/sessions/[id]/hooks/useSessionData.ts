@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+import { WS_BASE } from "@/lib/api/base";
 import { useRouter } from "next/navigation";
 import { getSession, getModels } from "@/lib/api";
 import { Session, ModelDefinition } from "@/types";
 
-const WS_URL = "ws://localhost:3001/ws";
+const WS_URL = WS_BASE;
 
 export function useSessionData(id: string) {
   const router = useRouter();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { API_BASE } from "@/lib/api/base";
 
 type Tab = "news" | "github" | "hf";
 
@@ -101,9 +102,9 @@ export function SummaryCard() {
   const [githubSince, setGithubSince] = useState<GithubSince>("daily");
   const [hfCategory, setHfCategory] = useState<HFCategory>("models");
 
-  const news = useSummary("http://localhost:3001/api/news/summary");
-  const github = useSummary(`http://localhost:3001/api/news/github-summary?since=${githubSince}`);
-  const hf = useSummary(`http://localhost:3001/api/news/hf-summary?category=${hfCategory}`);
+  const news = useSummary(`${API_BASE}/news/summary`);
+  const github = useSummary(`${API_BASE}/news/github-summary?since=${githubSince}`);
+  const hf = useSummary(`${API_BASE}/news/hf-summary?category=${hfCategory}`);
 
   // 첫 탭(뉴스)은 마운트 시 자동 로드
   useEffect(() => { news.refresh(); }, []);  // eslint-disable-line react-hooks/exhaustive-deps

@@ -1,4 +1,21 @@
-export const API_BASE = "http://localhost:3001/api";
+// 런타임 환경에 따라 API/BE/WS 베이스 결정
+// - NEXT_PUBLIC_API_BASE 설정 시 그대로 사용
+// - 브라우저: 현재 origin 기반 (ingress를 통해 BE로 라우팅)
+// - 서버 사이드 렌더링: http://localhost:3001 (컨테이너 내부 기본값)
+function getBeBase(): string {
+  if (process.env.NEXT_PUBLIC_API_BASE) {
+    return process.env.NEXT_PUBLIC_API_BASE.replace(/\/api\/?$/, "");
+  }
+  if (typeof window !== "undefined") return window.location.origin;
+  return "http://localhost:3001";
+}
+
+export const BE_BASE = getBeBase();
+export const API_BASE = `${BE_BASE}/api`;
+export const WS_BASE =
+  typeof window !== "undefined"
+    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`
+    : "ws://localhost:3001/ws";
 
 const TOKEN_KEY = "auth_token";
 const ANON_ID_KEY = "anon_id";

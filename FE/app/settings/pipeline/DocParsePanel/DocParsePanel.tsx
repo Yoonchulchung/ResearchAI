@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { API_BASE } from "@/lib/api/base";
 import { useTheme } from "@/contexts/ThemeContext";
 
 interface ParseResult {
@@ -43,7 +44,7 @@ export function DocParsePanel() {
     const form = new FormData();
     form.append("file", file);
     try {
-      const res = await fetch("http://localhost:3001/api/media/upload", {
+      const res = await fetch(`${API_BASE}/media/upload`, {
         method: "POST",
         body: form,
       });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { API_BASE } from "@/lib/api/base";
 import { useRouter } from "next/navigation";
 import {
   ComposableMap,
@@ -281,7 +282,7 @@ export function WorldMapCard() {
 
   useEffect(() => {
     const ctrl = new AbortController();
-    fetch("http://localhost:3001/api/news/conflict-zones", { signal: ctrl.signal })
+    fetch(`${API_BASE}/news/conflict-zones`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data: ConflictZone[]) => {
         const map = new Map<string, ConflictZone>();
@@ -300,7 +301,7 @@ export function WorldMapCard() {
     newsAbortRef.current = ctrl;
     setNewsLoading(true);
     setNews([]);
-    fetch(`http://localhost:3001/api/news/country?name=${encodeURIComponent(query)}&limit=6`, { signal: ctrl.signal })
+    fetch(`${API_BASE}/news/country?name=${encodeURIComponent(query)}&limit=6`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data: CountryNewsItem[]) => setNews(data ?? []))
       .catch(() => setNews([]))

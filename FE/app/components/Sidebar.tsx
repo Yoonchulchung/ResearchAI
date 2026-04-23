@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { WS_BASE } from "@/lib/api/base";
 import { useRouter, usePathname } from "next/navigation";
 import { getSessions, deleteSession } from "@/lib/api";
 import { Session } from "@/types";
@@ -168,7 +169,7 @@ export function Sidebar() {
 
     function connect() {
       if (destroyed) return;
-      ws = new WebSocket("ws://localhost:3001/ws");
+      ws = new WebSocket(WS_BASE);
 
       ws.onopen = () => {
         ws!.send(JSON.stringify({ event: "subscribe:sessions" }));

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { API_BASE } from "@/lib/api/base";
 
-const API = "http://localhost:3001/api/doc-parse";
+const API = `${API_BASE}/doc-parse`;
 
 interface Message {
   id: string;

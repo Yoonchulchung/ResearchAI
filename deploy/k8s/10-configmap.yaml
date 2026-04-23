@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: research-ai-config
+  namespace: research-ai
+data:
+  # ── 일반 설정 ───────────────────────────────────────────────
+  NODE_ENV: "production"
+  PORT: "3001"
+  HOST: "0.0.0.0"
+  DATABASE_URL: "file:/app/data/sessions.db"
+  MEDIA_PATH: "/app/media"
+
+  # ── 벡터 DB (같은 네임스페이스 내부 서비스 이름) ─────────────
+  QDRANT_URL: "http://qdrant:6333"
+
+  # ── Ollama / llama.cpp (클러스터 외부 호스트 — 필요 시 변경) ─
+  # 클러스터 노드의 호스트 네트워크를 사용하려면 node IP 또는 host.docker.internal 대체
+  OLLAMA_BASE_URL: "http://ollama:11434"
+  OLLAMA_MODEL: "phi4"
+  OLLAMA_EMBED_MODEL: "nomic-embed-text"
+  LLAMA_CPP_BASE_URL: "http://llama-cpp:8080"
+
+  # ── 기본 AI (Gemini + Groq 폴백) — Secret 에서 주입 ──────────
+  DEFAULT_AI_MODEL: "gemini-2.0-flash"
+  DEFAULT_GROQ_MODEL: "llama-3.3-70b-versatile"
+
+  # ── Tavily (선택) ───────────────────────────────────────────
+  TAVILY_SEARCH_DEPTH: "basic"

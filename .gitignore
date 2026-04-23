@@ -6,3 +6,7 @@ ToDo.md
 electron/dist/
 dist-electron/
 node_modules/
+
+# 배포 시크릿
+deploy/k8s/secret.yaml
+

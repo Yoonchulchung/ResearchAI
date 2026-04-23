@@ -1,7 +1,4 @@
-import { tokenStore } from "./base";
-
-const BE_BASE = "http://localhost:3001";
-const API_BASE = `${BE_BASE}/api`;
+import { tokenStore, API_BASE, BE_BASE } from "./base";
 
 export interface BgImage {
   id: string;

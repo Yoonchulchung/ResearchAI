@@ -1,0 +1,53 @@
+# k3s 기본 ingress controller: Traefik
+# 외부에서 http://<node-ip>/ 로 접근 → FE/BE 로 라우팅
+#
+# 호스트 이름을 쓰려면 아래 host: 를 설정하고 DNS/hosts 에 등록.
+# 호스트 이름 없이 IP 로만 접근하려면 host: 를 지우거나 빈 문자열로.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: research-ai
+  namespace: research-ai
+  annotations:
+    # Traefik: WebSocket 지원 기본, 대용량 응답 버퍼링 off
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    # SSE/WebSocket 타임아웃 늘리기
+    traefik.ingress.kubernetes.io/service.serversscheme: http
+spec:
+  ingressClassName: traefik
+  rules:
+    # ⬇️ 도메인이 있으면 여기에 입력 (없으면 이 블록 제거하고 아래 defaultBackend 사용)
+    - http:
+        paths:
+          # BE REST API
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: be
+                port:
+                  number: 3001
+          # BE WebSocket
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: be
+                port:
+                  number: 3001
+          # BE 배경 이미지 정적 파일
+          - path: /backgrounds
+            pathType: Prefix
+            backend:
+              service:
+                name: be
+                port:
+                  number: 3001
+          # FE (루트, 그 외 모든 경로)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fe
+                port:
+                  number: 3000

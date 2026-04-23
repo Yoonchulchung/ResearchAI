@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { API_BASE } from "@/lib/api/base";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import ReactMarkdown from "react-markdown";
@@ -53,7 +54,7 @@ function SearchPageContent() {
 
     // 인터넷 검색과 AI 검색 동시 시작
     const webPromise = fetch(
-      `http://localhost:3001/api/news/search?q=${encodeURIComponent(q)}&limit=10`,
+      `${API_BASE}/news/search?q=${encodeURIComponent(q)}&limit=10`,
       { signal: abort.signal },
     )
       .then((r) => { if (!r.ok) throw new Error("검색 실패"); return r.json() as Promise<SearchResult[]>; })
@@ -64,7 +65,7 @@ function SearchPageContent() {
     const aiPromise = (async () => {
       try {
         const res = await fetch(
-          `http://localhost:3001/api/news/ai-answer?q=${encodeURIComponent(q)}`,
+          `${API_BASE}/news/ai-answer?q=${encodeURIComponent(q)}`,
           { signal: abort.signal },
         );
         if (!res.ok || !res.body) throw new Error("AI 검색 실패");

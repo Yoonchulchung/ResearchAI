@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { WS_BASE } from "@/lib/api/base";
 import { useSummaryProgress } from "@/contexts/SummaryProgressContext";
 import { getQueueStatus, cancelSummary, QueueStatus } from "@/lib/api/queue";
 import { stopResearchItem, cancelLightResearch } from "@/lib/api/research";
 
-const WS_URL = "ws://localhost:3001/ws";
+const WS_URL = WS_BASE;
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "대기",

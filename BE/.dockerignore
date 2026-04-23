@@ -1,0 +1,16 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+data
+media
+*.log
+.git
+.DS_Store
+.vscode
+.idea
+coverage
+test
+*.test.ts
+*.spec.ts

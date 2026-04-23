@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { API_BASE } from "@/lib/api/base";
 import { useTheme } from "@/contexts/ThemeContext";
 
 // ── Google News ──────────────────────────────────────────────
@@ -108,7 +109,7 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
   useEffect(() => {
     setFetchLoading(true);
     setFetchFailed(false);
-    fetch(`http://localhost:3001/api/news/article?url=${encodeURIComponent(item.link)}`)
+    fetch(`${API_BASE}/news/article?url=${encodeURIComponent(item.link)}`)
       .then((r) => r.json())
       .then((data: { title: string; content: string; image?: string; finalUrl?: string }) => {
         setContent(data.content || item.description || "");
@@ -216,7 +217,7 @@ function GoogleNewsPanel() {
     const ctrl = new AbortController();
     setLoading(true); setError(false); setItems([]);
 
-    fetch(`http://localhost:3001/api/news/google?category=${category}`, { signal: ctrl.signal })
+    fetch(`${API_BASE}/news/google?category=${category}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data: GoogleNewsItem[]) => { if (!ctrl.signal.aborted) setItems(Array.isArray(data) ? data : []); })
       .catch(() => { if (!ctrl.signal.aborted) setError(true); })

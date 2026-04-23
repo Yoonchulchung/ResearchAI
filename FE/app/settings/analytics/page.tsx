@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api/base";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoginRequired } from "@/components/LoginRequired";
 import {
@@ -65,7 +66,7 @@ export default function AnalyticsPage() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`http://localhost:3001/api/overview/analytics?range=${range}&granularity=${granularity}`)
+    fetch(`${API_BASE}/overview/analytics?range=${range}&granularity=${granularity}`)
       .then((r) => r.json())
       .then(setData)
       .catch(() => setError("데이터를 불러오지 못했습니다."))
