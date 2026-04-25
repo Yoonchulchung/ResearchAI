@@ -1,19 +1,44 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { API_BASE } from "@/lib/api/base";
+import { useState, useRef, useCallback, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { API_BASE, tokenStore } from "@/lib/api/base";
+import { useModels } from "@/sessions/new/hooks/useModels";
+import { DEFAULT_FREE_MODEL_ID } from "@/sessions/new/hooks/useNewSession";
 
 const API = `${API_BASE}/doc-parse`;
+
+/** 인증 헤더(JWT 또는 익명 ID) 자동 추가 — apiFetch 와 동일 정책 */
+function authHeaders(includeJsonContentType = true): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (includeJsonContentType) headers["Content-Type"] = "application/json";
+  const token = tokenStore.get();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else if (typeof window !== "undefined") {
+    let anonId = localStorage.getItem("anon_id");
+    if (!anonId) {
+      anonId = crypto.randomUUID();
+      localStorage.setItem("anon_id", anonId);
+    }
+    headers["X-Anon-Id"] = anonId;
+  }
+  return headers;
+}
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** 마크다운 렌더 여부 — 평가 결과 등 표·구조가 있는 응답용 */
+  markdown?: boolean;
 }
 
-type QuickAction = "translate" | "summarize" | "explain" | "keywords";
+type QuickAction = "translate" | "summarize" | "explain" | "keywords" | "evaluate";
 
 const QUICK_ACTIONS: { value: QuickAction; label: string; icon: string }[] = [
+  { value: "evaluate", label: "평가", icon: "📊" },
   { value: "translate", label: "번역", icon: "🌐" },
   { value: "summarize", label: "요약", icon: "📋" },
   { value: "explain", label: "설명", icon: "💡" },
@@ -35,11 +60,24 @@ function TypingDot() {
 }
 
 export default function DocParsePage() {
+  const { cloudAiModels, localAiModels, isLoading: modelsLoading } = useModels();
+  const [selectedModel, setSelectedModel] = useState<string>("");
   const [docText, setDocText] = useState("");
+  const [docPages, setDocPages] = useState<string[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [filename, setFilename] = useState("");
   const [pageCount, setPageCount] = useState(0);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+
+  // 모델 목록 로드 후 기본값 설정 (claude-sonnet-4-6 → 첫 클라우드 → 무료)
+  useEffect(() => {
+    if (selectedModel || modelsLoading) return;
+    const sonnet = cloudAiModels.find((m) => m.id === "claude-sonnet-4-6");
+    setSelectedModel(sonnet?.id ?? cloudAiModels[0]?.id ?? DEFAULT_FREE_MODEL_ID);
+  }, [cloudAiModels, modelsLoading, selectedModel]);
+
+  // BE 호출 시 사용할 모델 — DEFAULT_FREE_MODEL_ID 는 빈 문자열로 변환 (BE 기본 폴백)
+  const apiModel = selectedModel === DEFAULT_FREE_MODEL_ID ? "" : selectedModel;
   const [uploading, setUploading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -68,10 +106,16 @@ export default function DocParsePage() {
     formData.append("file", file);
 
     try {
-      const res = await fetch(`${API}/upload`, { method: "POST", body: formData });
+      // multipart 업로드 — Content-Type 은 브라우저가 자동 설정하므로 제외
+      const res = await fetch(`${API}/upload`, {
+        method: "POST",
+        headers: authHeaders(false),
+        body: formData,
+      });
       const data = await res.json();
       const text = data.text ?? "";
       setDocText(text);
+      setDocPages(Array.isArray(data.pages) ? data.pages : []);
       setPageCount(data.pageCount ?? 1);
       setIsReady(true);
       const charCount = Math.ceil(text.length / 1000);
@@ -108,8 +152,8 @@ export default function DocParsePage() {
     try {
       const res = await fetch(`${API}/ask`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ docText, question }),
+        headers: authHeaders(),
+        body: JSON.stringify({ docText, question, aiModel: apiModel }),
       });
       const data = await res.json();
       setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content: data.answer ?? "답변을 가져오지 못했습니다." }]);
@@ -130,13 +174,24 @@ export default function DocParsePage() {
     scrollToBottom();
 
     try {
-      const res = await fetch(`${API}/quick-action`, {
+      const isEvaluate = action === "evaluate";
+      const endpoint = isEvaluate ? `${API}/evaluate` : `${API}/quick-action`;
+      const body = isEvaluate
+        ? { pages: docPages.length > 0 ? docPages : [docText], aiModel: apiModel }
+        : { docText, action, aiModel: apiModel };
+
+      const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ docText, action }),
+        headers: authHeaders(),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
-      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content: data.answer ?? "결과를 가져오지 못했습니다." }]);
+      setMessages((m) => [...m, {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: data.answer ?? "결과를 가져오지 못했습니다.",
+        markdown: isEvaluate, // 평가 결과는 마크다운 렌더 (표·구조)
+      }]);
     } catch {
       setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", content: "⚠️ 오류가 발생했습니다." }]);
     } finally {
@@ -226,15 +281,46 @@ export default function DocParsePage() {
       </div>
 
       {/* ── Right: AI Chat Panel ───────────────────────────── */}
-      <div className="w-[400px] shrink-0 flex flex-col bg-white">
+      <div className="w-120 shrink-0 flex flex-col bg-white">
         {/* Header */}
         <div className="px-4 py-3 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-slate-700">AI 문서 분석</span>
             <span className="text-2xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-semibold">AI</span>
           </div>
+          {/* 모델 선택 */}
+          <div className="mt-2">
+            {modelsLoading ? (
+              <div className="h-7 bg-slate-100 rounded-lg animate-pulse" />
+            ) : (
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 cursor-pointer"
+              >
+                <option value={DEFAULT_FREE_MODEL_ID}>☁️ Gemini (기본 무료)</option>
+                {cloudAiModels.length > 0 && (
+                  <optgroup label="클라우드 AI">
+                    {cloudAiModels.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {localAiModels.length > 0 && (
+                  <optgroup label="로컬 모델">
+                    {localAiModels.map((m) => {
+                      const tag = m.provider === "llama-cpp" ? "llama.cpp" : "Ollama";
+                      return (
+                        <option key={m.id} value={m.id}>{m.name} ({tag})</option>
+                      );
+                    })}
+                  </optgroup>
+                )}
+              </select>
+            )}
+          </div>
           {!isReady && (
-            <p className="text-xs text-slate-400 mt-1">문서를 먼저 업로드하세요</p>
+            <p className="text-xs text-slate-400 mt-1.5">문서를 먼저 업로드하세요</p>
           )}
         </div>
 
@@ -242,18 +328,25 @@ export default function DocParsePage() {
         {isReady && (
           <div className="px-3 py-2.5 border-b border-slate-100 shrink-0">
             <p className="text-2xs text-slate-400 font-semibold mb-1.5 uppercase tracking-wider">빠른 실행</p>
-            <div className="grid grid-cols-4 gap-1.5">
-              {QUICK_ACTIONS.map((a) => (
-                <button
-                  key={a.value}
-                  onClick={() => runQuickAction(a.value)}
-                  disabled={loading}
-                  className="flex flex-col items-center gap-1 py-2 px-1 rounded-xl bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 transition-colors disabled:opacity-40"
-                >
-                  <span className="text-lg">{a.icon}</span>
-                  <span className="text-2xs font-semibold">{a.label}</span>
-                </button>
-              ))}
+            <div className="grid grid-cols-5 gap-1.5">
+              {QUICK_ACTIONS.map((a) => {
+                const isEvaluate = a.value === "evaluate";
+                return (
+                  <button
+                    key={a.value}
+                    onClick={() => runQuickAction(a.value)}
+                    disabled={loading}
+                    className={`flex flex-col items-center gap-1 py-2 px-1 rounded-xl transition-colors disabled:opacity-40 ${
+                      isEvaluate
+                        ? "bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 font-semibold"
+                        : "bg-slate-50 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"
+                    }`}
+                  >
+                    <span className="text-lg">{a.icon}</span>
+                    <span className="text-2xs font-semibold">{a.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -274,13 +367,34 @@ export default function DocParsePage() {
                   </div>
                 )}
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed space-y-1 ${
+                  className={`rounded-2xl px-4 py-2.5 text-xs leading-relaxed ${
                     msg.role === "user"
-                      ? "bg-indigo-600 text-white rounded-br-sm"
-                      : "bg-slate-50 text-slate-700 rounded-bl-sm"
+                      ? "bg-indigo-600 text-white rounded-br-sm max-w-[85%] space-y-1"
+                      : msg.markdown
+                      ? "bg-white border border-slate-200 text-slate-700 rounded-bl-sm w-[95%] shadow-sm"
+                      : "bg-slate-50 text-slate-700 rounded-bl-sm max-w-[85%] space-y-1"
                   }`}
                 >
-                  {formatContent(msg.content)}
+                  {msg.role === "assistant" && msg.markdown ? (
+                    <div className="prose prose-sm prose-slate max-w-none
+                      [&_table]:w-full [&_table]:border-collapse [&_table]:text-2xs [&_table]:my-2
+                      [&_th]:bg-slate-100 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
+                      [&_td]:px-2 [&_td]:py-1 [&_td]:border [&_td]:border-slate-200
+                      [&_h1]:text-sm [&_h1]:font-bold [&_h1]:mt-2 [&_h1]:mb-1
+                      [&_h2]:text-xs [&_h2]:font-bold [&_h2]:mt-2 [&_h2]:mb-1
+                      [&_h3]:text-2xs [&_h3]:font-semibold [&_h3]:mt-1.5 [&_h3]:mb-0.5
+                      [&_p]:my-1 [&_p]:leading-relaxed
+                      [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:my-1
+                      [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:my-1
+                      [&_li]:my-0.5
+                      [&_strong]:font-semibold [&_strong]:text-slate-900
+                      [&_blockquote]:border-l-2 [&_blockquote]:border-slate-300 [&_blockquote]:pl-2 [&_blockquote]:text-slate-500 [&_blockquote]:italic
+                      [&_code]:bg-slate-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-2xs">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    formatContent(msg.content)
+                  )}
                 </div>
               </div>
             ))

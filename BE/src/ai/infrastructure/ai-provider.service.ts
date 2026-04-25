@@ -62,8 +62,9 @@ export class AiProviderService {
 
   /**
    * 요청된 모델을 실제로 사용 가능한 모델로 확정합니다.
-   * - 로컬 모델(ollama/llama)은 그대로 반환
-   * - Cloud 모델은 해당 프로바이더 키가 없으면 DEFAULT_AI_MODEL 로 폴백
+   * - 빈 문자열: 사용자 기본값 또는 시스템 기본 AI(Gemini)로 폴백
+   * - 로컬 모델(ollama/llama): 그대로 반환
+   * - 명시적 클라우드 모델: 해당 프로바이더 키가 없으면 **명확한 오류** (조용한 폴백 제거)
    */
   resolveEffectiveModel(requestedModel: string): string {
     if (!requestedModel) {
@@ -77,12 +78,32 @@ export class AiProviderService {
     const keys = store?.apiKeys;
     const provider = getProvider(requestedModel);
 
-    const hasKey =
-      (provider === AIProvider.ANTHROPIC && keys?.anthropicApiKey) ||
-      (provider === AIProvider.OPENAI && keys?.openaiApiKey) ||
-      (provider === AIProvider.GOOGLE && (keys?.googleApiKey || DEFAULT_GOOGLE_API_KEY()));
+    if (provider === AIProvider.ANTHROPIC) {
+      if (!keys?.anthropicApiKey) {
+        throw new Error(
+          `Anthropic API 키가 설정되지 않아 "${requestedModel}" 모델을 사용할 수 없습니다. ` +
+          `[설정 → Overview]에서 본인의 Anthropic 키를 입력하거나, 무료 Gemini 모델을 선택하세요.`
+        );
+      }
+      return requestedModel;
+    }
+    if (provider === AIProvider.OPENAI) {
+      if (!keys?.openaiApiKey) {
+        throw new Error(
+          `OpenAI API 키가 설정되지 않아 "${requestedModel}" 모델을 사용할 수 없습니다. ` +
+          `[설정 → Overview]에서 본인의 OpenAI 키를 입력하거나, 무료 Gemini 모델을 선택하세요.`
+        );
+      }
+      return requestedModel;
+    }
+    if (provider === AIProvider.GOOGLE) {
+      if (!keys?.googleApiKey && !DEFAULT_GOOGLE_API_KEY()) {
+        throw new Error('Google API 키가 설정되지 않았습니다. [설정 → Overview]에서 키를 입력해주세요.');
+      }
+      return requestedModel;
+    }
 
-    return hasKey ? requestedModel : DEFAULT_AI_MODEL();
+    return requestedModel;
   }
 
   private getAnthropicClient(): Anthropic {

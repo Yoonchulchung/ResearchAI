@@ -19,6 +19,15 @@ export function IconImprove() {
     </svg>
   );
 }
+export function IconSpellcheck() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M2 11L4 7L6 11M2.7 9.5H5.3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 7H11.5C12.3 7 13 7.7 13 8.5C13 9.3 12.3 10 11.5 10H8V7Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M8 10H11.5C12.3 10 13 10.7 13 11.5C13 12.3 12.3 13 11.5 13H8V10Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
 export function IconSummarize() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

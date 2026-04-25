@@ -354,6 +354,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       continue:  QueueJob.TaskType.WRITEASSIST_CONTINUE,
       section:   QueueJob.TaskType.WRITEASSIST_SECTION,
       improve:   QueueJob.TaskType.WRITEASSIST_IMPROVE,
+      spellcheck: QueueJob.TaskType.WRITEASSIST_SPELLCHECK,
       summarize: QueueJob.TaskType.WRITEASSIST_SUMMARIZE,
     };
     const taskType = ACTION_TO_TASK_TYPE[action];

@@ -9,7 +9,7 @@ import type { DocWriteAction } from "@/lib/api/doc-write";
 import type { ExperienceSearchResult } from "@/lib/api/experiences";
 import {
   IconAppend, IconContinue, IconCopy, IconEvaluate,
-  IconImprove, IconInsert, IconPlagiarism, IconSection, IconSummarize,
+  IconImprove, IconInsert, IconPlagiarism, IconSection, IconSpellcheck, IconSummarize,
 } from "./icons";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -19,6 +19,7 @@ const FALLBACK_ACTIONS: DocWriteAction[] = [
   { key: "continue", label: "계속 작성" },
   { key: "section", label: "섹션 추가" },
   { key: "improve", label: "내용 개선" },
+  { key: "spellcheck", label: "맞춤법 교정", skipCompanyCtx: true },
   { key: "summarize", label: "요약" },
   { key: "plagiarism", label: "AI 표절률 검사", skipCompanyCtx: true },
   { key: "evaluate", label: "글 평가", skipCompanyCtx: true },
@@ -28,6 +29,7 @@ const KEY_TO_ICON: Record<string, React.ReactNode> = {
   continue: <IconContinue />,
   section: <IconSection />,
   improve: <IconImprove />,
+  spellcheck: <IconSpellcheck />,
   summarize: <IconSummarize />,
   plagiarism: <IconPlagiarism />,
   evaluate: <IconEvaluate />,
@@ -233,11 +235,11 @@ export function AiPanel({
       <div className={`shrink-0 border-t px-4 pt-3 pb-4 space-y-2.5 transition-colors ${isGlass ? (isDark ? "bg-transparent border-white/10" : "bg-transparent border-black/10") : "bg-white border-slate-200/60"}`}>
         {/* Quick actions */}
         <div className="space-y-1.5">
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-3 gap-1.5">
             {actions.filter((a) => a.key !== "evaluate" && a.key !== "plagiarism").map((action) => (
               <button
                 key={action.key}
-                onClick={() => onRunAssist("", action.label, false, action.key)}
+                onClick={() => onRunAssist("", action.label, action.skipCompanyCtx, action.key)}
                 disabled={aiLoading}
                 className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-sm font-medium border disabled:opacity-40 disabled:cursor-not-allowed transition-all ${
                     isGlass && isDark

@@ -64,8 +64,8 @@ export class DocumentsController {
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async upload(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('파일이 없습니다');
-    const { text, pageCount } = await this.service.extractText(file.buffer, file.mimetype);
-    return { text, pageCount, filename: file.originalname, size: file.size };
+    const { text, pageCount, pages } = await this.service.extractText(file.buffer, file.mimetype);
+    return { text, pageCount, pages, filename: file.originalname, size: file.size };
   }
 
   @Post('doc-parse/ask')
@@ -78,6 +78,14 @@ export class DocumentsController {
   async quickAction(@Body() body: { docText: string; action: 'translate' | 'summarize' | 'explain' | 'keywords'; aiModel?: string }) {
     if (!body.docText || !body.action) throw new BadRequestException('docText와 action이 필요합니다');
     return this.service.quickAction(body.docText, body.action, body.aiModel);
+  }
+
+  @Post('doc-parse/evaluate')
+  async evaluate(@Body() body: { pages: string[]; aiModel?: string }) {
+    if (!body.pages || !Array.isArray(body.pages) || body.pages.length === 0) {
+      throw new BadRequestException('pages 배열이 필요합니다');
+    }
+    return this.service.evaluatePortfolio(body.pages, body.aiModel);
   }
 
   // ── Experiences ─────────────────────────────────────────────────────────

@@ -1,21 +1,35 @@
 // 런타임 환경에 따라 API/BE/WS 베이스 결정
-// - NEXT_PUBLIC_API_BASE 설정 시 그대로 사용
-// - 브라우저: 현재 origin 기반 (ingress를 통해 BE로 라우팅)
-// - 서버 사이드 렌더링: http://localhost:3001 (컨테이너 내부 기본값)
+// - NEXT_PUBLIC_API_BASE 설정 시 그대로 사용 (모든 환경 우선)
+// - 브라우저 dev (port 3000): hostname:3001 로 직접 라우팅
+// - 브라우저 prod (그 외 포트, ingress 환경): window.location.origin 으로 ingress 경유
+// - 서버 사이드 렌더링: http://localhost:3001
 function getBeBase(): string {
   if (process.env.NEXT_PUBLIC_API_BASE) {
     return process.env.NEXT_PUBLIC_API_BASE.replace(/\/api\/?$/, "");
   }
-  if (typeof window !== "undefined") return window.location.origin;
+  if (typeof window !== "undefined") {
+    // dev 모드: FE(3000) ↔ BE(3001) 분리
+    if (window.location.port === "3000") {
+      return `${window.location.protocol}//${window.location.hostname}:3001`;
+    }
+    return window.location.origin;
+  }
   return "http://localhost:3001";
+}
+
+function getWsBase(): string {
+  if (typeof window === "undefined") return "ws://localhost:3001/ws";
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  // dev 모드: BE WebSocket 은 :3001
+  if (window.location.port === "3000") {
+    return `${proto}//${window.location.hostname}:3001/ws`;
+  }
+  return `${proto}//${window.location.host}/ws`;
 }
 
 export const BE_BASE = getBeBase();
 export const API_BASE = `${BE_BASE}/api`;
-export const WS_BASE =
-  typeof window !== "undefined"
-    ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`
-    : "ws://localhost:3001/ws";
+export const WS_BASE = getWsBase();
 
 const TOKEN_KEY = "auth_token";
 const ANON_ID_KEY = "anon_id";
@@ -62,17 +76,32 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
   if (newToken) tokenStore.set(newToken);
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  let data: Record<string, unknown> = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // 비-JSON 응답 (보통 HTML 에러 페이지 또는 게이트웨이/프록시 오류)
+      const isHtml = text.trimStart().toLowerCase().startsWith("<!doctype") || text.includes("<html");
+      const hint = isHtml
+        ? "API 경로가 올바르지 않거나 서버가 응답하지 않습니다"
+        : "서버 응답을 해석할 수 없습니다";
+      if (!res.ok) {
+        throw new Error(`${hint} (${res.status} ${res.statusText})`);
+      }
+      throw new Error(`${hint}`);
+    }
+  }
   if (!res.ok) {
-    const msg = data.message;
+    const msg = (data as { message?: unknown }).message;
     const errStr = Array.isArray(msg)
       ? msg.join(", ")
       : typeof msg === "string"
       ? msg
-      : typeof msg?.message === "string"
-      ? msg.message
-      : typeof data.error === "string"
-      ? data.error
+      : typeof (msg as { message?: unknown })?.message === "string"
+      ? (msg as { message: string }).message
+      : typeof (data as { error?: unknown }).error === "string"
+      ? (data as { error: string }).error
       : `API 오류 (${res.status})`;
     throw new Error(errStr);
   }

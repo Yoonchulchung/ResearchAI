@@ -1,25 +1,23 @@
 # k3s 기본 ingress controller: Traefik
-# 외부에서 http://<node-ip>/ 로 접근 → FE/BE 로 라우팅
+# 외부에서 http://<node-ip>/ 로 접근 → BE/FE 로 라우팅
 #
-# 호스트 이름을 쓰려면 아래 host: 를 설정하고 DNS/hosts 에 등록.
-# 호스트 이름 없이 IP 로만 접근하려면 host: 를 지우거나 빈 문자열로.
+# Traefik 의 path Prefix 매칭은 보통 더 긴 prefix 가 우선이지만, 안전하게
+# BE Ingress (router.priority 높음) 와 FE Ingress 를 분리합니다.
+
+# ── BE: /api, /ws, /backgrounds ─────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: research-ai
+  name: research-ai-be
   namespace: research-ai
   annotations:
-    # Traefik: WebSocket 지원 기본, 대용량 응답 버퍼링 off
-    traefik.ingress.kubernetes.io/router.entrypoints: web
-    # SSE/WebSocket 타임아웃 늘리기
-    traefik.ingress.kubernetes.io/service.serversscheme: http
+    # 우선순위 — 같은 호스트 내에서 더 높은 priority 가 먼저 매칭됨
+    traefik.ingress.kubernetes.io/router.priority: "100"
 spec:
   ingressClassName: traefik
   rules:
-    # ⬇️ 도메인이 있으면 여기에 입력 (없으면 이 블록 제거하고 아래 defaultBackend 사용)
     - http:
         paths:
-          # BE REST API
           - path: /api
             pathType: Prefix
             backend:
@@ -27,7 +25,6 @@ spec:
                 name: be
                 port:
                   number: 3001
-          # BE WebSocket
           - path: /ws
             pathType: Prefix
             backend:
@@ -35,7 +32,6 @@ spec:
                 name: be
                 port:
                   number: 3001
-          # BE 배경 이미지 정적 파일
           - path: /backgrounds
             pathType: Prefix
             backend:
@@ -43,7 +39,20 @@ spec:
                 name: be
                 port:
                   number: 3001
-          # FE (루트, 그 외 모든 경로)
+---
+# ── FE: 그 외 모든 경로 (/) ────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: research-ai-fe
+  namespace: research-ai
+  annotations:
+    traefik.ingress.kubernetes.io/router.priority: "1"
+spec:
+  ingressClassName: traefik
+  rules:
+    - http:
+        paths:
           - path: /
             pathType: Prefix
             backend:
