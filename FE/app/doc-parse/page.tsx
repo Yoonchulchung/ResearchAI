@@ -45,6 +45,20 @@ const QUICK_ACTIONS: { value: QuickAction; label: string; icon: string }[] = [
   { value: "keywords", label: "키워드", icon: "🔑" },
 ];
 
+// ─── 세션 영속화 ──────────────────────────────────────────────────────────────
+const STORAGE_KEY = "doc-parse-draft";
+
+interface DocParseDraft {
+  docText: string;
+  docPages: string[];
+  filename: string;
+  pageCount: number;
+  isReady: boolean;
+  messages: Message[];
+  selectedModel: string;
+  pdfDataUrl?: string | null; // PDF 미리보기 (용량 초과 시 생략)
+}
+
 function TypingDot() {
   return (
     <div className="flex items-center gap-1 px-4 py-3">
@@ -68,6 +82,8 @@ export default function DocParsePage() {
   const [filename, setFilename] = useState("");
   const [pageCount, setPageCount] = useState(0);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null); // 영속화용 base64
+  const [hydrated, setHydrated] = useState(false);
 
   // 모델 목록 로드 후 기본값 설정 (claude-sonnet-4-6 → 첫 클라우드 → 무료)
   useEffect(() => {
@@ -89,18 +105,71 @@ export default function DocParsePage() {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   }, []);
 
+  // ── 세션 복원 (마운트 시 1회) ──────────────────────────────────────────────
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const draft: DocParseDraft = JSON.parse(raw);
+        if (draft.docText) setDocText(draft.docText);
+        if (draft.docPages?.length) setDocPages(draft.docPages);
+        if (draft.filename) setFilename(draft.filename);
+        if (draft.pageCount) setPageCount(draft.pageCount);
+        if (draft.isReady) setIsReady(draft.isReady);
+        if (draft.messages?.length) setMessages(draft.messages);
+        if (draft.selectedModel) setSelectedModel(draft.selectedModel);
+        if (draft.pdfDataUrl) {
+          setPdfDataUrl(draft.pdfDataUrl);
+          setPdfUrl(draft.pdfDataUrl); // data URL 그대로 iframe src 로 사용 가능
+        }
+      }
+    } catch { /* 손상된 draft 는 무시 */ }
+    setHydrated(true);
+  }, []);
+
+  // ── 세션 저장 (복원 완료 후, 상태 변경 시) ─────────────────────────────────
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!docText && messages.length === 0 && !filename) {
+      sessionStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+    const draft: DocParseDraft = {
+      docText, docPages, filename, pageCount, isReady, messages, selectedModel, pdfDataUrl,
+    };
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+    } catch {
+      // 용량 초과 — PDF 미리보기 빼고 재시도
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...draft, pdfDataUrl: null }));
+      } catch { /* 그래도 실패하면 포기 */ }
+    }
+  }, [hydrated, docText, docPages, filename, pageCount, isReady, messages, selectedModel, pdfDataUrl]);
+
   const handleFile = async (file: File) => {
     if (!file) return;
     setUploading(true);
     setIsReady(false);
     setDocText("");
+    setDocPages([]);
     setMessages([]);
-    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    if (pdfUrl && pdfUrl.startsWith("blob:")) URL.revokeObjectURL(pdfUrl);
+    setPdfDataUrl(null);
 
-    // Show PDF in iframe
+    // Show PDF in iframe (즉시) + 영속화용 base64 변환 (백그라운드)
     const objectUrl = URL.createObjectURL(file);
     setPdfUrl(objectUrl);
     setFilename(file.name);
+
+    // 페이지 이탈 후 복원을 위해 PDF 를 base64 로 보관 (10MB 미만만)
+    if (file.size < 10 * 1024 * 1024) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") setPdfDataUrl(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
 
     const formData = new FormData();
     formData.append("file", file);

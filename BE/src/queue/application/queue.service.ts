@@ -18,7 +18,7 @@ import { LightResearchRepository } from '../../research/domain/repository/light-
 import { DeepResearchExecutorService } from './job/deep-research-executor.service';
 import { LightResearchExecutorService } from './job/light-research-executor.service';
 import { SummaryExecutorService } from './job/summary-executor.service';
-import { WriteAssistExecutorService, WriteAssistExtras } from './job/write-assist-executor.service';
+import { WriteAssistExecutorService, WriteAssistExtras } from './job/write-assist/write-assist-executor.service';
 import { CompanyProfileExecutorService } from './job/company-profile-executor.service';
 import { QueueJobRepository } from '../domain/repository/queue-job.repository';
 import { QueueJobDbStatus } from '../domain/entity/queue-job.entity';

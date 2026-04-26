@@ -4,7 +4,7 @@ import { QueueService } from './application/queue.service';
 import { DeepResearchExecutorService } from './application/job/deep-research-executor.service';
 import { LightResearchExecutorService } from './application/job/light-research-executor.service';
 import { SummaryExecutorService } from './application/job/summary-executor.service';
-import { WriteAssistExecutorService } from './application/job/write-assist-executor.service';
+import { WriteAssistExecutorService } from './application/job/write-assist/write-assist-executor.service';
 import { CompanyProfileExecutorService } from './application/job/company-profile-executor.service';
 import { QueueController } from './presentation/queue.controller';
 import { ResearchModule } from '../research/research.module';
