@@ -116,21 +116,24 @@ export default function NewSession() {
             </div>
           )}
 
-          {/* Tasks */}
-          <div ref={taskListRef}>
-            <TaskList
-              tasks={tasks}
-              topic={topic}
-              model={selectedCloudAiModel}
-              onUpdate={updateTask}
-              onRemove={removeTask}
-              onAdd={addTask}
-              searchSource={searchSource}
-            />
-          </div>
+          {/* Tasks — recruit 모드에서는 숨김 */}
+          {searchSource !== "recruit" && (
+            <div ref={taskListRef}>
+              <TaskList
+                tasks={tasks}
+                topic={topic}
+                model={selectedCloudAiModel}
+                onUpdate={updateTask}
+                onRemove={removeTask}
+                onAdd={addTask}
+                searchSource={searchSource}
+              />
+            </div>
+          )}
+          {searchSource === "recruit" && <div ref={taskListRef} />}
 
-          {/* 세션 제목 (태스크 생성 후 표시) */}
-          {tasks.length > 0 && (
+          {/* 세션 제목 — recruit 모드에서는 숨김 */}
+          {tasks.length > 0 && searchSource !== "recruit" && (
             <div className="bg-white border border-slate-200/60 rounded-xl px-5 py-4 shadow-sm">
               <div className="flex items-center gap-2 mb-2">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-indigo-500 shrink-0">
@@ -163,7 +166,7 @@ export default function NewSession() {
               disabled={creating || !topic.trim() || generatingTitle}
               className="w-full bg-linear-to-r from-slate-400 to-slate-400 text-white font-bold text-base py-4 rounded-2xl hover:from-slate-500 hover:to-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-slate-200"
             >
-              {creating ? "세션 생성 중..." : "리서치 세션 시작"}
+              {creating ? "세션 생성 중..." : searchSource === "recruit" ? "채용 공고 검색 시작" : "리서치 세션 시작"}
             </button>
           )}
         </div>

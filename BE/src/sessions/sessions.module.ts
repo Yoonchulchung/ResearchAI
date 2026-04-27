@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SessionsController } from './presentation/sessions.controller';
 import { SessionGateway } from './presentation/session.gateway';
@@ -13,9 +13,16 @@ import { SessionItemEntity } from './domain/entity/session-item.entity';
 import { SessionRepository } from './domain/repository/session.repository';
 import { SessionItemRepository } from './domain/repository/session-item.repository';
 import { VectorModule } from '../vector/vector.module';
+import { RecruitModule } from '../recruit/recruit.module';
+import { ResearchModule } from '../research/research.module';
 
 @Module({
-  imports: [VectorModule, TypeOrmModule.forFeature([SessionEntity, SessionItemEntity])],
+  imports: [
+    VectorModule,
+    RecruitModule,
+    forwardRef(() => ResearchModule),
+    TypeOrmModule.forFeature([SessionEntity, SessionItemEntity]),
+  ],
   controllers: [SessionsController],
   providers: [SessionGateway, SessionsService, SessionQueryService, SessionCommandService, SessionItemService, SessionItemQueryService, SessionItemCommandService, SessionRepository, SessionItemRepository],
   exports: [SessionGateway, SessionsService, SessionQueryService, SessionCommandService, SessionItemService, SessionItemQueryService, SessionItemCommandService],

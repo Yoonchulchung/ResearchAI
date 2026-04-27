@@ -1,4 +1,4 @@
-import { Session, Task, ChatMessage } from "@/types";
+import { Session, Task, ChatMessage, RecruitJob } from "@/types";
 import { apiFetch, API_BASE, readSSE } from "./base";
 
 export const getSessions = () =>
@@ -6,10 +6,18 @@ export const getSessions = () =>
 
 export const getSession = (id: string) => apiFetch<Session>(`/sessions/${id}`);
 
-export const createSession = (topic: string, researchCloudAIModel: string, researchLocalAIModel: string, researchWebModel: string, tasks: Task[]) =>
+export const createSession = (
+  topic: string,
+  researchCloudAIModel: string,
+  researchLocalAIModel: string,
+  researchWebModel: string,
+  tasks: Task[],
+  sessionType?: string,
+  lightResearchId?: string | null,
+) =>
   apiFetch<Session>("/sessions", {
     method: "POST",
-    body: JSON.stringify({ topic, researchCloudAIModel, researchLocalAIModel, researchWebModel, tasks }),
+    body: JSON.stringify({ topic, researchCloudAIModel, researchLocalAIModel, researchWebModel, tasks, sessionType, lightResearchId }),
   });
 
 export const deleteSession = (id: string) =>
@@ -114,5 +122,35 @@ export async function chatStream(
     else if (event.type === "status" && event.text) onStatus?.(event.text);
     else if (event.type === "done") return true;
     else if (event.type === "error") throw new Error(event.message);
+  });
+}
+
+// ── Recruit Jobs ──────────────────────────────────────────────────────────────
+
+export const getSessionJobs = (sessionId: string) =>
+  apiFetch<RecruitJob[]>(`/sessions/${sessionId}/jobs`);
+
+export type JobSearchEvent =
+  | { type: "log"; message: string }
+  | { type: "jobs"; jobs: RecruitJob[] }
+  | { type: "done"; count: number };
+
+export async function searchMoreJobs(
+  sessionId: string,
+  keyword: string,
+  onEvent: (event: JobSearchEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/jobs/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keyword }),
+    signal,
+  });
+  if (!res.ok || !res.body) throw new Error("Job search failed");
+
+  await readSSE<JobSearchEvent>(res, (event) => {
+    onEvent(event);
+    if (event.type === "done") return true;
   });
 }

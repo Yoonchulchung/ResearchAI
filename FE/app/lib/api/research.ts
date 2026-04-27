@@ -51,7 +51,7 @@ export type LightResearchEvent =
   | { type: "log"; message: string }
   | { type: "jobs"; jobs: JobItem[] }
   | { type: "generating"; model: string }
-  | { type: "done"; tasks: Task[]; searchPlan: { source: "web" | "recruit" | "both"; reason: string } };
+  | { type: "done"; tasks: Task[]; searchPlan: { source: "web" | "recruit" | "both"; reason: string }; searchId?: string };
 
 export interface AttachedFilePayload {
   type: string;       // 'image' | 'pdf' | 'docx'

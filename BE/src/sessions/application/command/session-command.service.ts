@@ -23,6 +23,8 @@ export class SessionCommandService {
     researchWebModel: string,
     tasks: Task[],
     userId?: string | null,
+    sessionType?: string,
+    lightResearchId?: string | null,
   ): Promise<SessionResponseDto> {
     const session: Session = {
       id: randomUUID(),
@@ -33,6 +35,8 @@ export class SessionCommandService {
       researchWebModel,
       summaryState: SummaryState.IDLE,
       createdAt: new Date().toISOString(),
+      sessionType: sessionType ?? 'research',
+      lightResearchId: lightResearchId ?? null,
     };
     await this.sessionRepository.save(session);
 

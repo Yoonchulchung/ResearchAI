@@ -67,6 +67,8 @@ export function useNewSession(models: ModelDefinition[]) {
   const taskListRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const searchIdRef = useRef<string | null>(null);
+  const lightResearchIdRef = useRef<string | null>(null);
+  const searchSourceRef = useRef<"web" | "recruit" | "both" | null>(null);
   const topicRef = useRef(topic);
   const cloudAiModelRef = useRef(selectedCloudAiModel);
   useEffect(() => { topicRef.current = topic; }, [topic]);
@@ -93,7 +95,7 @@ export function useNewSession(models: ModelDefinition[]) {
         const draft: DraftState = JSON.parse(raw);
         if (draft.topic) setTopic(draft.topic);
         if (draft.tasks?.length) setTasks(draft.tasks);
-        if (draft.searchSource) setSearchSource(draft.searchSource);
+        if (draft.searchSource) { setSearchSource(draft.searchSource); searchSourceRef.current = draft.searchSource; }
         if (draft.terminalLogs?.length) setTerminalLogs(draft.terminalLogs);
         if (draft.jobPostings?.length) setJobPostings(draft.jobPostings);
         if (draft.selectedCloudAiModel) setSelectedCloudAiModel(draft.selectedCloudAiModel);
@@ -135,9 +137,15 @@ export function useNewSession(models: ModelDefinition[]) {
           } else if (event.type === "jobs") {
             setJobPostings(event.jobs);
           } else if (event.type === "done") {
+            const src = event.searchPlan.source;
             setTasks(event.tasks);
-            setSearchSource(event.searchPlan.source);
+            setSearchSource(src);
+            searchSourceRef.current = src;
             setProgressStep(null);
+            if (src === "recruit") {
+              setSessionTitle(topicRef.current.trim());
+              return;
+            }
             setGeneratingTitle(true);
             generateSessionTitle(topicRef.current, event.tasks, cloudAiModelRef.current)
               .then(({ title }) => setSessionTitle(title))
@@ -185,10 +193,18 @@ export function useNewSession(models: ModelDefinition[]) {
     } else if (event.type === "jobs") {
       setJobPostings(event.jobs);
     } else if (event.type === "done") {
+      const src = event.searchPlan.source;
       setTasks(event.tasks);
-      setSearchSource(event.searchPlan.source);
+      setSearchSource(src);
+      searchSourceRef.current = src;
+      if (event.searchId) lightResearchIdRef.current = event.searchId;
       setProgressStep(null);
       setTimeout(() => taskListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+      // 채용 공고 모드: AI 제목 생성 skip, 주제 그대로 사용
+      if (src === "recruit") {
+        setSessionTitle(topic.trim());
+        return;
+      }
       // AI로 세션 제목 자동 생성
       setGeneratingTitle(true);
       generateSessionTitle(topic, event.tasks, selectedCloudAiModel)
@@ -209,6 +225,7 @@ export function useNewSession(models: ModelDefinition[]) {
     setTerminalLogs([]);
     setTasks([]);
     setSearchSource(null);
+    searchSourceRef.current = null;
     setJobPostings([]);
     setError("");
     try {
@@ -328,7 +345,9 @@ export function useNewSession(models: ModelDefinition[]) {
     setError("");
     try {
       const title = sessionTitle.trim() || topic.trim();
-      const session = await createSession(title, selectedCloudAiModel, selectedLocalAiModel, selectedWebModel, tasks);
+      const sessionType = searchSourceRef.current === "recruit" ? "recruit" : "research";
+      const lightResearchId = lightResearchIdRef.current ?? undefined;
+      const session = await createSession(title, selectedCloudAiModel, selectedLocalAiModel, selectedWebModel, tasks, sessionType, lightResearchId);
       const fileIds = attachedFiles
         .filter((f) => f.parsed?.fileId)
         .map((f) => f.parsed!.fileId!);

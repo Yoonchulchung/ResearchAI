@@ -20,7 +20,7 @@ import { SessionsModule } from '../sessions/sessions.module';
 import { QueueModule } from '../queue/queue.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ResearchRecruitEntity, LightResearchEntity, SearchListEntity]), RecruitModule, AiModule, SessionsModule, forwardRef(() => QueueModule)],
+  imports: [TypeOrmModule.forFeature([ResearchRecruitEntity, LightResearchEntity, SearchListEntity]), RecruitModule, forwardRef(() => AiModule), forwardRef(() => SessionsModule), forwardRef(() => QueueModule)],
   controllers: [ResearchController],
   providers: [
     WebSearchProvider,

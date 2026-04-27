@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsArray, IsOptional } from 'class-validator';
 
 export class CreateSessionDto {
   @IsString()
@@ -19,4 +19,12 @@ export class CreateSessionDto {
 
   @IsArray()
   tasks: any[];
+
+  @IsOptional()
+  @IsString()
+  sessionType?: string;
+
+  @IsOptional()
+  @IsString()
+  lightResearchId?: string | null;
 }

@@ -18,6 +18,7 @@ import { useTaskRunner } from "./hooks/useTaskRunner";
 import { useChatHandler } from "./hooks/useChatHandler";
 import { useCompaction } from "./hooks/useCompaction";
 import { TaskPanel, TaskPanelTab } from "@/sessions/components/TaskPanel";
+import { RecruitView } from "./components/RecruitView";
 
 export default function SessionPage() {
   const { id } = useParams<{ id: string }>();
@@ -160,6 +161,14 @@ export default function SessionPage() {
 
   if (loading) return <SessionSkeleton />;
   if (!session) return null;
+
+  if (session.sessionType === "recruit") {
+    return (
+      <div className="h-full flex flex-col overflow-hidden font-system">
+        <RecruitView session={session} />
+      </div>
+    );
+  }
 
   const tasks: Task[] = (session.items ?? []).filter((t) => !deletedItemIds.has(t.itemId));
   const doneCount = Object.values(statuses).filter((s) => s === "done").length;

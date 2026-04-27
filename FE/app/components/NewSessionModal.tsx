@@ -392,21 +392,24 @@ function ModalContent({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {/* Task List */}
-        <div ref={taskListRef}>
-          <TaskList
-            tasks={tasks}
-            topic={topic}
-            model={selectedCloudAiModel}
-            onUpdate={updateTask}
-            onRemove={removeTask}
-            onAdd={addTask}
-            searchSource={searchSource}
-          />
-        </div>
+        {/* Task List — recruit 모드에서는 숨김 (단일 placeholder 태스크라 편집 불필요) */}
+        {searchSource !== "recruit" && (
+          <div ref={taskListRef}>
+            <TaskList
+              tasks={tasks}
+              topic={topic}
+              model={selectedCloudAiModel}
+              onUpdate={updateTask}
+              onRemove={removeTask}
+              onAdd={addTask}
+              searchSource={searchSource}
+            />
+          </div>
+        )}
+        {searchSource === "recruit" && <div ref={taskListRef} />}
 
-        {/* Session Title (AI 생성) */}
-        {tasks.length > 0 && (
+        {/* Session Title (AI 생성) — recruit 모드에서는 숨김 */}
+        {tasks.length > 0 && searchSource !== "recruit" && (
           <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5">
             <div className="flex items-center gap-2 mb-2">
               <IconSparkle />
@@ -431,8 +434,8 @@ function ModalContent({ onClose }: { onClose: () => void }) {
         )}
       </div>
 
-      {/* ── Chat Bar ────────────────────────────────────────────────────────── */}
-      {tasks.length > 0 && (
+      {/* ── Chat Bar — recruit 모드에서는 숨김 ─────────────────────────────── */}
+      {tasks.length > 0 && searchSource !== "recruit" && (
         <div className="shrink-0 border-t border-slate-100">
           <TaskChatBar
             topic={topic}
@@ -447,7 +450,9 @@ function ModalContent({ onClose }: { onClose: () => void }) {
       <div className="shrink-0 flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-white">
         <div className="text-xs text-slate-400">
           {tasks.length > 0
-            ? `${tasks.length}개 조사 항목`
+            ? searchSource === "recruit"
+              ? "채용 공고 검색"
+              : `${tasks.length}개 조사 항목`
             : "주제를 입력하고 조사 항목을 생성해주세요"}
         </div>
         <div className="flex items-center gap-2">
@@ -467,7 +472,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
                 <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                 생성 중...
               </span>
-            ) : "리서치 시작"}
+            ) : searchSource === "recruit" ? "채용 공고 검색 시작" : "리서치 시작"}
           </button>
         </div>
       </div>

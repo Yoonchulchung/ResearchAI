@@ -63,6 +63,12 @@ export class SessionEntity {
   @Column({ name: 'summary_state', default: SummaryState.IDLE })
   summaryState: string;
 
+  @Column({ name: 'session_type', type: 'text', nullable: true, default: 'research' })
+  sessionType: string;
+
+  @Column({ name: 'light_research_id', type: 'text', nullable: true })
+  lightResearchId: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

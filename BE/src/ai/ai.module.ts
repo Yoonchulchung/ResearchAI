@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiProviderService } from './infrastructure/ai-provider.service';
 import { AiService } from './application/ai.service';
@@ -9,7 +9,7 @@ import { AiCallLogEntity } from './domain/entity/ai-call-log.entity';
 import { AiCallLogRepository } from './domain/repository/ai-call-log.repository';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([AiCallLogEntity]), SessionsModule, OverviewModule],
+  imports: [TypeOrmModule.forFeature([AiCallLogEntity]), forwardRef(() => SessionsModule), OverviewModule],
   controllers: [AiController],
   providers: [AiProviderService, AiService, AiCallLogRepository],
   exports: [AiProviderService, AiService],

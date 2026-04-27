@@ -83,4 +83,18 @@ export interface Session {
   summary?: string | null;
   items?: Task[];
   doneCount?: number;
+  sessionType?: string;
+  lightResearchId?: string | null;
+}
+
+export interface RecruitJob {
+  id: string;
+  title: string;
+  company: string;
+  location?: string | null;
+  description?: string | null;
+  skills: string[];
+  url: string;
+  postedAt?: string | null;
+  source: string;
 }

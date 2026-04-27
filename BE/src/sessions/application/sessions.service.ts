@@ -28,8 +28,8 @@ export class SessionsService {
   // *********** //
   // DB 작성용 로직 //
   // *********** //
-  createSession(topic: string, researchCloudAIModel: string, researchLocalAIModel: string, researchWebModel: string, tasks: Task[], userId?: string | null) {
-    return this.command.createSession(topic, researchCloudAIModel, researchLocalAIModel, researchWebModel, tasks, userId);
+  createSession(topic: string, researchCloudAIModel: string, researchLocalAIModel: string, researchWebModel: string, tasks: Task[], userId?: string | null, sessionType?: string, lightResearchId?: string | null) {
+    return this.command.createSession(topic, researchCloudAIModel, researchLocalAIModel, researchWebModel, tasks, userId, sessionType, lightResearchId);
   }
   updateSessionItem(sessionId: string, itemId: string, aiResult: string, webResult: string, status: ResearchState) {
     return this.command.updateSessionItem(sessionId, itemId, aiResult, webResult, status);

@@ -22,6 +22,10 @@ export class ResearchRecruitRepository {
     return this.repo.save(entity);
   }
 
+  async findByLightResearchId(lightResearchId: string): Promise<ResearchRecruitEntity[]> {
+    return this.repo.find({ where: { lightResearchId }, order: { createdAt: 'ASC' } });
+  }
+
   async delete(id: string): Promise<void> {
     await this.repo.delete(id);
   }

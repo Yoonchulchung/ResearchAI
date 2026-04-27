@@ -24,7 +24,7 @@ export type LightResearchEvent =
   | { type: LightResearchEventType.LOG; message: string }
   | { type: LightResearchEventType.JOBS; jobs: JobItem[] }
   | { type: LightResearchEventType.GENERATING; model: string }
-  | { type: LightResearchEventType.DONE; tasks: any[]; searchPlan: SearchPlan }
+  | { type: LightResearchEventType.DONE; tasks: any[]; searchPlan: SearchPlan; searchId?: string }
   | { type: LightResearchEventType.SAVEDB; action: 'recruit'; searchId: string; jobs: JobItem[] }
   | { type: LightResearchEventType.SAVEDB; action: 'searchList'; searchId: string; tasks: { title: string; prompt: string }[] };
 
@@ -273,6 +273,17 @@ export class LightResearchPipelineService {
     useBuiltinSearch?: boolean,
     attachedFiles?: AttachedFilePayload[],
   ): AsyncGenerator<LightResearchEvent> {
+    // 채용 공고 모드: AI 호출 없이 단일 태스크 즉시 반환
+    if (searchPlan.searchMode === SearchMode.RECRUIT) {
+      yield* this.printFront(`채용 공고 모드 — 태스크 생성 완료`);
+      const mappedTasks = [{ id: 1, title: '채용 공고 검색', webSearchPrompt: searchPlan.keyword }];
+      if (searchId) {
+        yield { type: LightResearchEventType.SAVEDB, action: 'searchList' as const, searchId, tasks: [{ title: '채용 공고 검색', prompt: searchPlan.keyword }] };
+      }
+      yield { type: LightResearchEventType.DONE, tasks: mappedTasks, searchPlan: { ...searchPlan, source: searchPlan.searchMode } as any, searchId };
+      return;
+    }
+
     yield* this.printFront(`AI 검색 실행을 시작하겠습니다. 잠시만 기다려주세요.`);
     yield* this.printFront(`사용된 모델: ${model}`);
 
@@ -319,7 +330,7 @@ export class LightResearchPipelineService {
       prompt: undefined,
     }));
 
-    yield { type: LightResearchEventType.DONE, tasks: mappedTasks, searchPlan };
+    yield { type: LightResearchEventType.DONE, tasks: mappedTasks, searchPlan: { ...searchPlan, source: searchPlan.searchMode } as any, searchId };
   }
 
   

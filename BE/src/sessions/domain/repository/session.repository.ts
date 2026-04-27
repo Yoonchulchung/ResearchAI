@@ -32,6 +32,8 @@ export class SessionRepository {
       researchLocalAIModel: session.researchLocalAIModel,
       researchWebModel: session.researchWebModel,
       researchState: state ?? ResearchState.IDLE,
+      sessionType: session.sessionType ?? 'research',
+      lightResearchId: session.lightResearchId ?? null,
     });
   }
 
@@ -101,6 +103,8 @@ export class SessionRepository {
       summary: row.summary,
       items: withTasks ? items : undefined,
       doneCount,
+      sessionType: row.sessionType ?? 'research',
+      lightResearchId: row.lightResearchId ?? null,
     };
   }
 }

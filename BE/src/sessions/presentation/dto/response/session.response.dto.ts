@@ -58,6 +58,8 @@ export class SessionResponseDto {
   summary?: string | null;
   items?: ItemResponseDto[];
   doneCount?: number;
+  sessionType?: string;
+  lightResearchId?: string | null;
 
   static from(session: Session): SessionResponseDto {
     const dto = new SessionResponseDto();
@@ -73,6 +75,8 @@ export class SessionResponseDto {
     dto.summary = session.summary;
     dto.items = session.items?.map(ItemResponseDto.from);
     dto.doneCount = session.doneCount;
+    dto.sessionType = session.sessionType;
+    dto.lightResearchId = session.lightResearchId;
     return dto;
   }
 }

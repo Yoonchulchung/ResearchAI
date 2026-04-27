@@ -33,4 +33,6 @@ export interface Session {
   summary?: string | null;
   items?: ItemWithResult[];
   doneCount?: number;
+  sessionType?: string;
+  lightResearchId?: string | null;
 }

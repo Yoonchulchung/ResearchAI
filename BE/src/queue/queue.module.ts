@@ -15,7 +15,7 @@ import { QueueJobRepository } from './domain/repository/queue-job.repository';
 import { AppConfigModule } from '../config/config.module';
 
 @Module({
-  imports: [forwardRef(() => ResearchModule), SessionsModule, AiModule, TypeOrmModule.forFeature([QueueJobEntity]), AppConfigModule],
+  imports: [forwardRef(() => ResearchModule), forwardRef(() => SessionsModule), forwardRef(() => AiModule), TypeOrmModule.forFeature([QueueJobEntity]), AppConfigModule],
   controllers: [QueueController],
   providers: [QueueService, DeepResearchExecutorService, LightResearchExecutorService, SummaryExecutorService, WriteAssistExecutorService, CompanyProfileExecutorService, QueueJobRepository],
   exports: [QueueService],
