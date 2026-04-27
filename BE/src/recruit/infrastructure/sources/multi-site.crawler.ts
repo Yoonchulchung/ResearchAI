@@ -33,10 +33,10 @@ export class MultiSiteJobCrawler implements JobSource {
   }
 
   async *collect(query: CollectQuery): AsyncGenerator<JobPosting> {
-    const limit = query.limit ?? 40;
+    const perSite = query.limit && query.limit < Number.MAX_SAFE_INTEGER ? Math.ceil(query.limit / 4) : 9999;
     let browser: Browser | null = null;
 
-    this.logger.log(`[크롤] 시작 — keyword="${query.keyword}" limit=${limit}`);
+    this.logger.log(`[크롤] 시작 — keyword="${query.keyword}" perSite=${perSite}`);
 
     try {
       this.logger.log('[크롤] 브라우저 실행 중...');
@@ -45,8 +45,6 @@ export class MultiSiteJobCrawler implements JobSource {
       await page.setViewport({ width: 1280, height: 900 });
       await page.setExtraHTTPHeaders({ 'Accept-Language': 'ko-KR,ko;q=0.9' });
       this.logger.log('[크롤] 브라우저 준비 완료');
-
-      const perSite = Math.ceil(limit / 4);
       const allJobs: RawJob[] = [];
 
       // ── 1. 링커리어 ────────────────────────────────────────────────────────
@@ -93,9 +91,9 @@ export class MultiSiteJobCrawler implements JobSource {
         this.logger.warn(`[인크루트] 실패 — ${e instanceof Error ? e.message : String(e)}`);
       }
 
-      this.logger.log(`[크롤] 전체 수집 완료 — 총 ${allJobs.length}개 (limit ${limit}개 반환)`);
+      this.logger.log(`[크롤] 전체 수집 완료 — 총 ${allJobs.length}개`);
 
-      for (const job of allJobs.slice(0, limit)) {
+      for (const job of allJobs) {
         yield {
           id: randomUUID(),
           source: job.source,

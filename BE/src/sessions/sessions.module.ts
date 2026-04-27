@@ -10,8 +10,10 @@ import { SessionItemQueryService } from './application/query/session-item-query.
 import { SessionItemCommandService } from './application/command/session-item-command.service';
 import { SessionEntity } from './domain/entity/session.entity';
 import { SessionItemEntity } from './domain/entity/session-item.entity';
+import { SessionJobEntity } from './domain/entity/session-job.entity';
 import { SessionRepository } from './domain/repository/session.repository';
 import { SessionItemRepository } from './domain/repository/session-item.repository';
+import { SessionJobRepository } from './domain/repository/session-job.repository';
 import { VectorModule } from '../vector/vector.module';
 import { RecruitModule } from '../recruit/recruit.module';
 import { ResearchModule } from '../research/research.module';
@@ -21,10 +23,10 @@ import { ResearchModule } from '../research/research.module';
     VectorModule,
     RecruitModule,
     forwardRef(() => ResearchModule),
-    TypeOrmModule.forFeature([SessionEntity, SessionItemEntity]),
+    TypeOrmModule.forFeature([SessionEntity, SessionItemEntity, SessionJobEntity]),
   ],
   controllers: [SessionsController],
-  providers: [SessionGateway, SessionsService, SessionQueryService, SessionCommandService, SessionItemService, SessionItemQueryService, SessionItemCommandService, SessionRepository, SessionItemRepository],
-  exports: [SessionGateway, SessionsService, SessionQueryService, SessionCommandService, SessionItemService, SessionItemQueryService, SessionItemCommandService],
+  providers: [SessionGateway, SessionsService, SessionQueryService, SessionCommandService, SessionItemService, SessionItemQueryService, SessionItemCommandService, SessionRepository, SessionItemRepository, SessionJobRepository],
+  exports: [SessionGateway, SessionsService, SessionQueryService, SessionCommandService, SessionItemService, SessionItemQueryService, SessionItemCommandService, SessionJobRepository],
 })
 export class SessionsModule {}

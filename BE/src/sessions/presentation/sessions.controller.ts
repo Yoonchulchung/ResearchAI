@@ -4,14 +4,16 @@ import { ResearchState } from '../domain/entity/session.entity';
 import { CreateSessionDto } from './dto/request/create-session.dto';
 import { UpdateTaskDto } from './dto/request/update-task.dto';
 import { requestContext } from '../../shared/request-context';
-import { ResearchRecruitRepository } from '../../research/domain/repository/research-recruit.repository';
 import { RecruitContextService } from '../../recruit/application/recruit-context.service';
+import { SessionJobRepository } from '../domain/repository/session-job.repository';
+import { ResearchRecruitRepository } from '../../research/domain/repository/research-recruit.repository';
 import { randomUUID } from 'crypto';
 
 @Controller('sessions')
 export class SessionsController {
   constructor(
     private readonly sessionsService: SessionsService,
+    private readonly sessionJobRepository: SessionJobRepository,
     private readonly recruitRepository: ResearchRecruitRepository,
     private readonly recruitContext: RecruitContextService,
   ) {}
@@ -90,19 +92,43 @@ export class SessionsController {
   /** 세션에 연결된 채용 공고 목록 조회 */
   @Get(':id/jobs')
   async getJobs(@Param('id') id: string) {
-    const session = await this.sessionsService.findOne(id);
-    if (!session?.lightResearchId) return [];
-    const recruits = await this.recruitRepository.findByLightResearchId(session.lightResearchId);
-    return recruits.map((r) => ({
-      id: r.id,
-      title: r.topic,
-      company: r.detail,
-      location: r.location,
-      description: r.description,
-      skills: r.skills ? r.skills.split(',').map((s) => s.trim()).filter(Boolean) : [],
-      url: r.url,
-      postedAt: r.recruitCreatedAt,
-      source: r.url ? this.detectSource(r.url) : 'unknown',
+    let jobs = await this.sessionJobRepository.findBySessionId(id);
+
+    // 초기 크롤링 결과가 research_recruit에만 있는 경우 session_job으로 이전
+    if (jobs.length === 0) {
+      const session = await this.sessionsService.findOne(id);
+      if (session?.lightResearchId) {
+        const recruits = await this.recruitRepository.findByLightResearchId(session.lightResearchId);
+        if (recruits.length > 0) {
+          await this.sessionJobRepository.saveMany(
+            recruits.map((r) => ({
+              id: randomUUID(),
+              sessionId: id,
+              title: r.topic ?? null,
+              company: r.detail ?? null,
+              location: r.location ?? null,
+              description: r.description ?? null,
+              skills: r.skills ?? null,
+              url: r.url ?? null,
+              source: r.url ? this.detectSource(r.url) : null,
+              postedAt: r.recruitCreatedAt ?? null,
+            })),
+          );
+          jobs = await this.sessionJobRepository.findBySessionId(id);
+        }
+      }
+    }
+
+    return jobs.map((j) => ({
+      id: j.id,
+      title: j.title,
+      company: j.company,
+      location: j.location,
+      description: j.description,
+      skills: j.skills ? j.skills.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
+      url: j.url,
+      postedAt: j.postedAt,
+      source: j.source ?? (j.url ? this.detectSource(j.url) : 'unknown'),
     }));
   }
 
@@ -113,9 +139,6 @@ export class SessionsController {
     @Body() body: { keyword: string },
     @Res() res: any,
   ) {
-    const session = await this.sessionsService.findOne(id);
-    const lightResearchId = session?.lightResearchId;
-
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -125,30 +148,29 @@ export class SessionsController {
 
     const newJobs: { title: string; company: string; location?: string | null; description?: string | null; skills: string[]; url: string }[] = [];
 
-    for await (const event of this.recruitContext.liveSearch({ keyword: body.keyword })) {
+    for await (const event of this.recruitContext.liveSearch({ keyword: body.keyword }, Number.MAX_SAFE_INTEGER)) {
       if (event.type === 'log') {
         send({ type: 'log', message: event.message });
       } else if (event.type === 'jobs') {
         newJobs.push(...event.jobs);
         send({ type: 'jobs', jobs: event.jobs });
 
-        if (lightResearchId) {
-          Promise.all(
-            event.jobs.map((job) =>
-              this.recruitRepository.save({
-                id: randomUUID(),
-                lightResearchId,
-                topic: job.title ?? null,
-                detail: job.company ?? null,
-                location: job.location ?? null,
-                description: job.description ?? null,
-                skills: job.skills?.join(', ') ?? null,
-                url: job.url ?? null,
-                recruitCreatedAt: new Date().toISOString(),
-              }),
-            ),
-          ).catch(() => {});
-        }
+        Promise.all(
+          event.jobs.map((job) =>
+            this.sessionJobRepository.save({
+              id: randomUUID(),
+              sessionId: id,
+              title: job.title ?? null,
+              company: job.company ?? null,
+              location: job.location ?? null,
+              description: job.description ?? null,
+              skills: job.skills?.join(', ') ?? null,
+              url: job.url ?? null,
+              source: job.url ? this.detectSource(job.url) : null,
+              postedAt: null,
+            }),
+          ),
+        ).catch(() => {});
       }
     }
 

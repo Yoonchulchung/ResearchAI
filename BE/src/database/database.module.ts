@@ -16,6 +16,7 @@ import { DocumentEntity } from '../documents/domain/entity/document.entity';
 import { CompanyAnalysisEntity } from '../documents/domain/entity/company-analysis.entity';
 import { AiCallLogEntity } from '../ai/domain/entity/ai-call-log.entity';
 import { UserEntity } from '../auth/domain/entity/user.entity';
+import { SessionJobEntity } from '../sessions/domain/entity/session-job.entity';
 
 @Module({
   imports: [
@@ -28,7 +29,7 @@ import { UserEntity } from '../auth/domain/entity/user.entity';
                  TokenHistoryEntity, QueueJobEntity,
                  NewsBriefingEntity, AppConfigEntity,
                  GmailTokenEntity, ExperienceEntity, DocumentEntity,
-                 CompanyAnalysisEntity,
+                 CompanyAnalysisEntity, SessionJobEntity,
                  AiCallLogEntity, UserEntity],
       synchronize: true,
     }),
