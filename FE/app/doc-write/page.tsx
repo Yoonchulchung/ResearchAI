@@ -103,12 +103,12 @@ function DocWritePageInner() {
     <div className={`h-full flex flex-col overflow-hidden ${isGlass ? "p-3 pr-4 pb-4 bg-transparent" : "bg-slate-100"}`}>
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl border border-white/20" : ""}`}>
       {/* ── Topbar ─────────────────────────────────────────────────────────── */}
-      <div className={`flex items-center gap-3 px-5 py-2.5 shrink-0 transition-all ${isGlass ? `border-b ${isDark ? "border-white/20" : "border-black/10"}` : `bg-white border-b ${isDark ? "border-slate-700/50" : "border-slate-200/60"}`}`}>
+      <div className={`flex flex-wrap items-center gap-3 px-5 py-2.5 shrink-0 transition-all ${isGlass ? `border-b ${isDark ? "border-white/20" : "border-black/10"}` : `bg-white border-b ${isDark ? "border-slate-700/50" : "border-slate-200/60"}`}`}>
         <input
           value={docSave.savedDocTitle}
           onChange={(e) => docSave.setSavedDocTitle(e.target.value)}
           placeholder="제목 없음"
-          className={`text-base font-semibold !bg-transparent !border-0 focus:outline-none min-w-0 w-72 ${isDark ? "text-white placeholder-white/40" : "text-slate-800 placeholder-slate-400"}`}
+          className={`text-base font-semibold !bg-transparent !border-0 focus:outline-none min-w-0 w-full md:w-72 ${isDark ? "text-white placeholder-white/40" : "text-slate-800 placeholder-slate-400"}`}
         />
 
         <div className="flex-1" />
@@ -183,9 +183,9 @@ function DocWritePageInner() {
       {/* ── Split View ─────────────────────────────────────────────────────── */}
       <div
         ref={containerRef}
-        className={`flex-1 flex min-h-0 overflow-hidden ${isDragging ? "select-none cursor-col-resize" : ""} ${isGlass ? "" : "bg-white"}`}
+        className={`flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden ${isDragging ? "select-none cursor-col-resize" : ""} ${isGlass ? "" : "bg-white"}`}
       >
-        <div style={{ width: `${splitRatio * 100}%` }} className="flex flex-col min-h-0 overflow-hidden">
+        <div style={{ "--split": `${splitRatio * 100}%` } as any} className="w-full md:w-[var(--split)] flex-1 md:flex-none flex flex-col min-h-[50vh] md:min-h-0 overflow-hidden">
           <EditorPanel
             content={editor.content}
             setContent={editor.setContent}
@@ -214,9 +214,9 @@ function DocWritePageInner() {
           />
         </div>
 
-        <ResizeDivider onMouseDown={startResize} isDragging={isDragging} />
+        <div className="hidden md:flex"><ResizeDivider onMouseDown={startResize} isDragging={isDragging} /></div>
 
-        <div style={{ width: `${(1 - splitRatio) * 100}%` }} className="flex flex-col min-h-0 overflow-hidden">
+        <div style={{ "--split": `${(1 - splitRatio) * 100}%` } as any} className="w-full md:w-[var(--split)] flex-1 md:flex-none flex flex-col min-h-[50vh] md:min-h-0 overflow-hidden">
           <AiPanel
             messages={ai.messages}
             streamingContent={ai.streamingContent}

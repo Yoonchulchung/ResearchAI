@@ -79,6 +79,11 @@ export class AuthService {
       NAVER_CLIENT_ID: 'naverClientId',
       NAVER_CLIENT_SECRET: 'naverClientSecret',
       BRAVE_API_KEY: 'braveApiKey',
+      DART_API_KEY: 'dartApiKey',
+      JOBPLANET_ID: 'jobplanetId',
+      JOBPLANET_PASSWORD: 'jobplanetPassword',
+      JOBKOREA_ID: 'jobkoreaId',
+      JOBKOREA_PASSWORD: 'jobkoreaPassword',
     };
     const field = allowed[key];
     if (!field) throw new UnauthorizedException('지원하지 않는 키입니다.');

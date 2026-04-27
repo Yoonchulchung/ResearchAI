@@ -39,6 +39,13 @@ export class AuthContextMiddleware implements NestMiddleware {
                 naverClientSecret: user.naverClientSecret,
                 braveApiKey: user.braveApiKey,
               },
+              serviceCredentials: {
+                dartApiKey: user.dartApiKey,
+                jobplanetId: user.jobplanetId,
+                jobplanetPassword: user.jobplanetPassword,
+                jobkoreaId: user.jobkoreaId,
+                jobkoreaPassword: user.jobkoreaPassword,
+              },
             },
             () => next(),
           );
@@ -53,7 +60,7 @@ export class AuthContextMiddleware implements NestMiddleware {
     const anonId = req.headers['x-anon-id'];
     if (anonId && typeof anonId === 'string') {
       requestContext.run(
-        { id: anonId, username: 'anonymous', role: 'visitor', defaultCloudModel: null, defaultLocalModel: null, apiKeys: {} },
+        { id: anonId, username: 'anonymous', role: 'visitor', defaultCloudModel: null, defaultLocalModel: null, apiKeys: {}, serviceCredentials: {} },
         () => next(),
       );
       return;

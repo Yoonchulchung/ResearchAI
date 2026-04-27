@@ -40,7 +40,7 @@ async function deleteLogs(): Promise<void> {
 export function AiCallLogPanel() {
   const { theme, uiStyle } = useTheme();
   const isDark = theme === "dark";
-  const isGlass = uiStyle === "glass";
+  
 
   const [logs, setLogs] = useState<AiCallLog[]>([]);
   const [total, setTotal] = useState(0);
@@ -81,22 +81,14 @@ export function AiCallLogPanel() {
     }
   };
 
-  const panelBase = isGlass
-    ? isDark
-      ? "border border-white/15 bg-white/5 rounded-xl"
-      : "border border-black/10 bg-black/5 rounded-xl"
-    : "border border-slate-200 bg-white rounded-xl";
+  const panelBase = isDark ? "border border-slate-700 bg-slate-800 rounded-md" : "border border-slate-200 bg-white rounded-md";
 
   const textPrimary = isDark ? "text-white" : "text-slate-800";
   const textSecondary = isDark ? "text-white/50" : "text-slate-500";
   const textMuted = isDark ? "text-white/30" : "text-slate-400";
   const divider = isDark ? "border-white/10" : "border-slate-100";
   const inputCls = `w-full px-3 py-2 text-sm rounded-lg border outline-none transition-colors ${
-    isGlass && isDark
-      ? "bg-white/10 border-white/20 text-white placeholder:text-white/30 focus:border-white/40"
-      : isGlass
-      ? "bg-black/5 border-black/15 text-slate-800 placeholder:text-slate-400 focus:border-black/30"
-      : "bg-white border-slate-300 text-slate-800 placeholder:text-slate-400 focus:border-indigo-400"
+    isDark ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700" : "bg-white border-slate-300 text-slate-800 placeholder:text-slate-400 focus:border-slate-300"
   }`;
 
   const badgeColor = (log: AiCallLog) => {
@@ -134,11 +126,7 @@ export function AiCallLogPanel() {
         <button
           onClick={load}
           className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
-            isGlass && isDark
-              ? "border-white/20 bg-white/10 text-white hover:bg-white/20"
-              : isGlass
-              ? "border-black/15 bg-black/5 text-slate-700 hover:bg-black/10"
-              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            isDark ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
           }`}
         >
           새로고침
@@ -238,11 +226,7 @@ export function AiCallLogPanel() {
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
             className={`px-3 py-1.5 text-sm rounded-lg border transition-colors disabled:opacity-40 ${
-              isGlass && isDark
-                ? "border-white/20 bg-white/10 text-white"
-                : isGlass
-                ? "border-black/15 bg-black/5 text-slate-700"
-                : "border-slate-300 bg-white text-slate-700"
+              isDark ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-slate-300 bg-white text-slate-700"
             }`}
           >
             이전
@@ -252,11 +236,7 @@ export function AiCallLogPanel() {
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
             className={`px-3 py-1.5 text-sm rounded-lg border transition-colors disabled:opacity-40 ${
-              isGlass && isDark
-                ? "border-white/20 bg-white/10 text-white"
-                : isGlass
-                ? "border-black/15 bg-black/5 text-slate-700"
-                : "border-slate-300 bg-white text-slate-700"
+              isDark ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700" : "border-slate-300 bg-white text-slate-700"
             }`}
           >
             다음

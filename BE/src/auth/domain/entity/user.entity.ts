@@ -36,6 +36,21 @@ export class UserEntity {
   @Column({ name: 'brave_api_key', type: 'text', nullable: true })
   braveApiKey: string | null;
 
+  @Column({ name: 'dart_api_key', type: 'text', nullable: true })
+  dartApiKey: string | null;
+
+  @Column({ name: 'jobplanet_id', type: 'text', nullable: true })
+  jobplanetId: string | null;
+
+  @Column({ name: 'jobplanet_password', type: 'text', nullable: true })
+  jobplanetPassword: string | null;
+
+  @Column({ name: 'jobkorea_id', type: 'text', nullable: true })
+  jobkoreaId: string | null;
+
+  @Column({ name: 'jobkorea_password', type: 'text', nullable: true })
+  jobkoreaPassword: string | null;
+
   @Column({ name: 'default_cloud_model', type: 'text', nullable: true })
   defaultCloudModel: string | null;
 

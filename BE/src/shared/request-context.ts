@@ -11,6 +11,14 @@ export interface UserApiKeys {
   braveApiKey?: string | null;
 }
 
+export interface ServiceCredentials {
+  dartApiKey?: string | null;
+  jobplanetId?: string | null;
+  jobplanetPassword?: string | null;
+  jobkoreaId?: string | null;
+  jobkoreaPassword?: string | null;
+}
+
 export interface RequestUser {
   id: string;
   username: string;
@@ -18,6 +26,7 @@ export interface RequestUser {
   defaultCloudModel: string | null;
   defaultLocalModel: string | null;
   apiKeys: UserApiKeys;
+  serviceCredentials: ServiceCredentials;
 }
 
 export const DEFAULT_AI_MODEL = () => process.env.DEFAULT_AI_MODEL ?? 'gemini-2.0-flash-lite';

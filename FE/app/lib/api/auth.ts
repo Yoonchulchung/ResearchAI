@@ -14,6 +14,11 @@ export interface AuthUser {
   naverClientId: string | null;
   naverClientSecret: string | null;
   braveApiKey: string | null;
+  dartApiKey: string | null;
+  jobplanetId: string | null;
+  jobplanetPassword: string | null;
+  jobkoreaId: string | null;
+  jobkoreaPassword: string | null;
 }
 
 export async function checkUsernameApi(username: string): Promise<{ available: boolean }> {

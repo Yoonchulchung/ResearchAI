@@ -45,6 +45,18 @@ export class CompanyAnalysisEntity {
   @Column({ name: 'ai_model', type: 'text', nullable: true })
   aiModel: string | null;
 
+  /** 13개 역량별 점수 근거 (JSON) */
+  @Column({ type: 'text', nullable: true })
+  reasons: string | null;
+
+  /** DART 재무 데이터 요약 */
+  @Column({ name: 'financial_summary', type: 'text', nullable: true })
+  financialSummary: string | null;
+
+  /** 잡플래닛 리뷰 요약 */
+  @Column({ name: 'jobplanet_summary', type: 'text', nullable: true })
+  jobplanetSummary: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

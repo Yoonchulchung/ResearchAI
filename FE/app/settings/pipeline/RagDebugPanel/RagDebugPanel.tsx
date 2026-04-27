@@ -52,7 +52,7 @@ function HitCard({ hit, label }: { hit: { score: number; text: string; [key: str
   const isDark = theme === "dark";
 
   return (
-    <div className={`rounded-xl border px-4 py-3 space-y-2 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
+    <div className={`rounded-md border px-4 py-3 space-y-2 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
       <div className="flex items-center justify-between gap-2">
         <span className={`text-xs font-medium truncate flex-1 ${isDark ? "text-white/80" : "text-slate-700"}`}>{label}</span>
         <ScoreBadge score={hit.score} />
@@ -137,14 +137,14 @@ export function RagDebugPanel() {
     }
   };
 
-  const inputCls = `w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
+  const inputCls = `w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
     isDark ? "bg-white/5 border-white/10 text-white placeholder:text-white/30" : "bg-white border-slate-200 text-slate-800 placeholder:text-slate-300"
   }`;
 
   return (
     <div className="space-y-6">
       {/* 검색 입력 */}
-      <div className={`rounded-2xl border p-5 space-y-4 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
+      <div className={`rounded-lg shadow-sm border p-5 space-y-4 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
         <div>
           <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-white/60" : "text-slate-500"}`}>검색 쿼리</label>
           <input
@@ -184,7 +184,7 @@ export function RagDebugPanel() {
         <button
           onClick={handleSearch}
           disabled={loading || !query.trim()}
-          className="w-full py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+          className="w-full py-2 rounded-md bg-slate-50 text-slate-8000 hover:bg-slate-900 disabled:opacity-40 text-white text-sm font-medium transition-colors"
         >
           {loading ? "검색 중..." : "RAG 검색 실행"}
         </button>
@@ -196,7 +196,7 @@ export function RagDebugPanel() {
       {result && (
         <div className="space-y-6">
           {/* 요약 바 */}
-          <div className={`rounded-xl border px-5 py-3 flex gap-6 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
+          <div className={`rounded-md border px-5 py-3 flex gap-6 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
             {[
               { label: "research_rag", count: result.collections.research_rag.length },
               { label: "experience_rag", count: result.collections.experience_rag.length },

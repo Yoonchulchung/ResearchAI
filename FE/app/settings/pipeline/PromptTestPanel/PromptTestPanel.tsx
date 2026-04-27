@@ -31,19 +31,19 @@ function ResultPanel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border border-slate-200 rounded-2xl overflow-hidden">
+    <div className="border border-slate-200 rounded-lg shadow-sm overflow-hidden">
       <button
         onClick={onClick}
         className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${
-          active ? "bg-indigo-50" : "bg-white hover:bg-slate-50"
+          active ? "bg-slate-50 text-slate-800" : "bg-white hover:bg-slate-50"
         }`}
       >
-        <span className={`text-sm font-semibold ${active ? "text-indigo-700" : "text-slate-700"}`}>
+        <span className={`text-sm font-semibold ${active ? "text-slate-900" : "text-slate-700"}`}>
           {label}
         </span>
         <div className="flex items-center gap-2">
           {badge && (
-            <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-medium">
+            <span className="text-xs bg-slate-100 text-slate-700 text-slate-700 px-2 py-0.5 rounded-full font-medium">
               {badge}
             </span>
           )}
@@ -98,7 +98,7 @@ function PromptEditor({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={10}
-        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-700 font-mono leading-relaxed focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 resize-y"
+        className="w-full px-3 py-2.5 rounded-md border border-slate-200 text-xs text-slate-700 font-mono leading-relaxed focus:outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-100 resize-y"
       />
     </div>
   );
@@ -165,7 +165,7 @@ export function PromptTestPanel({ models }: { models: ModelDefinition[] }) {
   return (
     <div className="space-y-4">
       {/* 입력 폼 */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-5 space-y-4">
         <div>
           <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">
             리서치 주제
@@ -176,7 +176,7 @@ export function PromptTestPanel({ models }: { models: ModelDefinition[] }) {
             onChange={(e) => setTopic(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleTest()}
             placeholder="예: AI 반도체 시장 동향"
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-100"
           />
         </div>
 
@@ -187,7 +187,7 @@ export function PromptTestPanel({ models }: { models: ModelDefinition[] }) {
           <select
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 bg-white"
+            className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm text-slate-800 focus:outline-none focus:border-slate-300 bg-white"
           >
             {models.map((m) => (
               <option key={m.id} value={m.id}>
@@ -198,7 +198,7 @@ export function PromptTestPanel({ models }: { models: ModelDefinition[] }) {
         </div>
 
         {/* 프롬프트 편집 토글 */}
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <div className="border border-slate-200 rounded-md overflow-hidden">
           <button
             type="button"
             onClick={() => setShowEditor((v) => !v)}
@@ -249,13 +249,13 @@ export function PromptTestPanel({ models }: { models: ModelDefinition[] }) {
         <button
           onClick={handleTest}
           disabled={loading || !topic.trim() || models.length === 0}
-          className="w-full bg-indigo-600 text-white font-bold text-sm py-2.5 rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full bg-slate-900 text-white font-bold text-sm py-2.5 rounded-md hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {loading ? "⏳ 실행 중..." : "▶ 테스트 실행"}
         </button>
 
         {error && (
-          <div className="text-xs text-red-500 bg-red-50 px-4 py-3 rounded-xl">
+          <div className="text-xs text-red-500 bg-red-50 px-4 py-3 rounded-md">
             {error}
           </div>
         )}

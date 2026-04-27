@@ -16,14 +16,19 @@ export interface CompetencyScores {
   전문성: number;
 }
 
+export type CompetencyReasons = Partial<Record<keyof CompetencyScores, string>>;
+
 export interface CompanyAnalysis {
   id: string;
   companyKey: string;
   companyName: string;
   scores: CompetencyScores;
+  reasons: CompetencyReasons | null;
   summary: string | null;
   evidence: { title: string; url: string }[] | null;
   aiModel: string | null;
+  financialSummary: string | null;
+  jobplanetSummary: string | null;
   createdAt: string;
   updatedAt: string;
 }

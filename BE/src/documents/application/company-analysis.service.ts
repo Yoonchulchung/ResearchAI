@@ -5,6 +5,9 @@ import { randomUUID } from 'crypto';
 import { CompanyAnalysisEntity, CompetencyScores } from '../domain/entity/company-analysis.entity';
 import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 import { WebSearchService } from '../../research/application/web-search.service';
+import { JobplanetScraperService } from '../infrastructure/jobplanet-scraper.service';
+import { DartFinancialService } from '../infrastructure/dart-financial.service';
+import { requestContext } from '../../shared/request-context';
 
 const COMPETENCY_KEYS = [
   '성취지향', '도전정신', '주도성', '문제해결', '의사소통',
@@ -23,14 +26,19 @@ export interface CompanyAnalysisProgress {
   result?: CompanyAnalysisDto;
 }
 
+export type CompetencyReasons = Partial<Record<typeof COMPETENCY_KEYS[number], string>>;
+
 export interface CompanyAnalysisDto {
   id: string;
   companyKey: string;
   companyName: string;
   scores: CompetencyScores;
+  reasons: CompetencyReasons | null;
   summary: string | null;
   evidence: { title: string; url: string }[] | null;
   aiModel: string | null;
+  financialSummary: string | null;
+  jobplanetSummary: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -60,10 +68,15 @@ const SYSTEM_PROMPT = `당신은 기업 인재상 분석 전문가입니다.
 - 20~39: 낮은 비중 (간접 언급만)
 - 0~19: 거의 무관 (해당 회사 인재상과 거리)
 
+## 추가 분석 지침
+- DART 재무 데이터가 제공된 경우: 기업 규모·성장성을 인재상 추론에 반영하세요
+- 잡플래닛 리뷰가 제공된 경우: 실제 직원 경험에서 나타나는 역량 강조 패턴을 반영하세요
+- 복지·워라밸 정보도 요약에 포함하세요
+
 ## 출력 형식 (JSON 만, 다른 텍스트 금지)
 \`\`\`json
 {
-  "summary": "회사 인재상의 핵심 1~3 문장 요약",
+  "summary": "회사 인재상의 핵심 1~3 문장 요약 (복지·재무 정보도 간략히 포함)",
   "scores": {
     "성취지향": 0,
     "도전정신": 0,
@@ -78,6 +91,21 @@ const SYSTEM_PROMPT = `당신은 기업 인재상 분석 전문가입니다.
     "치밀성": 0,
     "분석적사고": 0,
     "전문성": 0
+  },
+  "reasons": {
+    "성취지향": "이 점수를 부여한 구체적 근거 1~2문장 (어떤 자료의 어떤 내용에서 판단했는지)",
+    "도전정신": "...",
+    "주도성": "...",
+    "문제해결": "...",
+    "의사소통": "...",
+    "대인관계": "...",
+    "열정": "...",
+    "주인의식": "...",
+    "팀워크": "...",
+    "자원계획관리": "...",
+    "치밀성": "...",
+    "분석적사고": "...",
+    "전문성": "..."
   }
 }
 \`\`\``;
@@ -91,9 +119,10 @@ export class CompanyAnalysisService {
     private readonly repo: Repository<CompanyAnalysisEntity>,
     private readonly aiProvider: AiProviderService,
     private readonly webSearch: WebSearchService,
+    private readonly jobplanetScraper: JobplanetScraperService,
+    private readonly dartFinancial: DartFinancialService,
   ) {}
 
-  /** 기업명을 검색 키로 정규화 (대소문자·공백·특수문자 제거) */
   private normalizeKey(name: string): string {
     return name.trim().toLowerCase().replace(/\s+/g, '').replace(/[^\p{L}\p{N}]/gu, '');
   }
@@ -119,7 +148,6 @@ export class CompanyAnalysisService {
     await this.repo.delete({ companyKey });
   }
 
-  /** AI Agent 로 기업 인재상을 분석하여 점수 산출 + DB 저장 (스트리밍 진행 상황) */
   async *analyzeStream(
     companyName: string,
     aiModel: string,
@@ -130,17 +158,18 @@ export class CompanyAnalysisService {
       return;
     }
 
+    const creds = requestContext.getStore()?.serviceCredentials ?? {};
+
+    // ── 1. 웹 검색 ──────────────────────────────────────────────────────
     yield { type: 'log', message: `🔍 "${companyName}" 인재상·핵심가치 검색 중...` };
     yield { type: 'searching' };
 
-    // 1. 웹 검색 — 회사의 인재상·핵심가치·채용공고 수집
-    let context = '';
+    let webContext = '';
     let evidence: { title: string; url: string }[] = [];
     try {
       const query = `${companyName} 인재상 핵심가치 채용 공식`;
       const { context: webCtx, sources } = await this.webSearch.runSearch(query);
-      context = webCtx;
-      // sources 에서 출처 추출
+      webContext = webCtx;
       const sourceList = (sources?.duckduckgo ?? sources?.tavily ?? sources?.serper ?? sources?.naver ?? sources?.brave) as
         | { title: string; url: string }[]
         | string
@@ -152,19 +181,69 @@ export class CompanyAnalysisService {
       this.logger.warn(`웹 검색 실패: ${(err as Error).message}`);
     }
 
-    if (!context.trim()) {
-      yield { type: 'log', message: '⚠️ 웹 검색 결과가 부족합니다 — AI 학습 지식만으로 분석합니다' };
+    // ── 2. DART 재무 데이터 수집 ─────────────────────────────────────
+    let dartText = '';
+    if (creds.dartApiKey) {
+      yield { type: 'log', message: '📊 DART OpenAPI로 재무 데이터 수집 중...' };
+    }
+
+    try {
+      const dartData = await this.dartFinancial.fetchCompanyData(
+        companyName,
+        creds.dartApiKey,
+      );
+      if (dartData) {
+        dartText = this.dartFinancial.formatForAnalysis(dartData);
+        yield { type: 'log', message: `✅ DART 데이터 수집 완료 (공시 ${dartData.disclosures.length}건)` };
+      } else if (creds.dartApiKey) {
+        yield { type: 'log', message: '⚠️ DART 데이터 수집 실패 (API 키 또는 기업명 확인 필요)' };
+      }
+    } catch (err) {
+      this.logger.warn(`DART 수집 실패: ${(err as Error).message}`);
+      yield { type: 'log', message: '⚠️ DART 데이터 수집 중 오류 발생' };
+    }
+
+    // ── 3. 잡플래닛 리뷰 수집 ────────────────────────────────────────
+    let jobplanetText = '';
+    if (creds.jobplanetId && creds.jobplanetPassword) {
+      yield { type: 'log', message: '💼 잡플래닛 기업 리뷰 수집 중...' };
+      try {
+        const jpData = await this.jobplanetScraper.scrapeCompany(
+          companyName,
+          creds.jobplanetId,
+          creds.jobplanetPassword,
+        );
+        if (jpData) {
+          jobplanetText = this.jobplanetScraper.formatForAnalysis(jpData);
+          yield { type: 'log', message: `✅ 잡플래닛 리뷰 수집 완료 (리뷰 ${jpData.reviewCount}개, 평점 ${jpData.overallRating})` };
+        } else {
+          yield { type: 'log', message: '⚠️ 잡플래닛 리뷰 수집 실패 (로그인 확인 필요)' };
+        }
+      } catch (err) {
+        this.logger.warn(`잡플래닛 스크래핑 실패: ${(err as Error).message}`);
+        yield { type: 'log', message: '⚠️ 잡플래닛 수집 중 오류 발생' };
+      }
+    }
+
+    if (!webContext.trim() && !dartText && !jobplanetText) {
+      yield { type: 'log', message: '⚠️ 수집된 데이터가 부족합니다 — AI 학습 지식으로만 분석합니다' };
     } else {
-      yield { type: 'log', message: `✅ 검색 완료 (${evidence.length}개 출처). AI 분석 시작...` };
+      yield { type: 'log', message: `✅ 데이터 수집 완료. AI 분석 시작...` };
     }
 
     yield { type: 'scoring' };
 
-    // 2. AI 분석 — 13개 역량 점수화
-    const userPrompt = `## 분석 대상 기업\n${companyName}\n\n## 수집된 인재상·채용 자료\n${context.slice(0, 15000) || '(자료 부족 — 일반 지식 기반 추정)'}`;
+    // ── 4. AI 분석 ──────────────────────────────────────────────────────
+    const contextParts: string[] = [];
+    if (webContext.trim()) contextParts.push(`## 웹 검색 — 인재상·채용 자료\n${webContext.slice(0, 10000)}`);
+    if (dartText) contextParts.push(dartText);
+    if (jobplanetText) contextParts.push(jobplanetText);
+
+    const userPrompt = `## 분석 대상 기업\n${companyName}\n\n${contextParts.join('\n\n---\n\n') || '(자료 부족 — 일반 지식 기반 추정)'}`;
 
     let parsedScores: CompetencyScores = { ...ZERO_SCORES };
     let parsedSummary = '';
+    let parsedReasons: CompetencyReasons = {};
     try {
       const { text } = await this.aiProvider.call(aiModel, SYSTEM_PROMPT, userPrompt, {
         caller: 'CompanyAnalysis',
@@ -176,11 +255,14 @@ export class CompanyAnalysisService {
       const parsed = JSON.parse(cleaned.slice(start, end + 1)) as {
         summary?: string;
         scores?: Partial<CompetencyScores>;
+        reasons?: Partial<Record<string, string>>;
       };
       parsedSummary = parsed.summary?.trim() ?? '';
       for (const k of COMPETENCY_KEYS) {
         const v = parsed.scores?.[k];
         parsedScores[k] = typeof v === 'number' ? Math.max(0, Math.min(100, Math.round(v))) : 50;
+        const r = parsed.reasons?.[k];
+        if (r && typeof r === 'string') parsedReasons[k] = r.trim();
       }
     } catch (err) {
       this.logger.error(`[CompanyAnalysis] AI 분석 실패: ${(err as Error).message}`);
@@ -190,7 +272,7 @@ export class CompanyAnalysisService {
 
     yield { type: 'log', message: '💾 결과 저장 중...' };
 
-    // 3. DB 업서트
+    // ── 5. DB 업서트 ─────────────────────────────────────────────────
     const existing = await this.repo.findOne({ where: { companyKey: key } });
     const id = existing?.id ?? randomUUID();
     const entity = await this.repo.save({
@@ -198,9 +280,12 @@ export class CompanyAnalysisService {
       companyKey: key,
       companyName: companyName.trim(),
       scores: JSON.stringify(parsedScores),
+      reasons: Object.keys(parsedReasons).length > 0 ? JSON.stringify(parsedReasons) : null,
       summary: parsedSummary || null,
       evidence: evidence.length > 0 ? JSON.stringify(evidence) : null,
       aiModel: aiModel || null,
+      financialSummary: dartText || null,
+      jobplanetSummary: jobplanetText || null,
     });
 
     yield { type: 'done', result: this.toDto(entity) };
@@ -209,6 +294,8 @@ export class CompanyAnalysisService {
   private toDto(e: CompanyAnalysisEntity): CompanyAnalysisDto {
     let scores: CompetencyScores;
     try { scores = JSON.parse(e.scores); } catch { scores = { ...ZERO_SCORES }; }
+    let reasons: CompetencyReasons | null = null;
+    try { reasons = e.reasons ? JSON.parse(e.reasons) : null; } catch { reasons = null; }
     let evidence: { title: string; url: string }[] | null = null;
     try { evidence = e.evidence ? JSON.parse(e.evidence) : null; } catch { evidence = null; }
     return {
@@ -216,9 +303,12 @@ export class CompanyAnalysisService {
       companyKey: e.companyKey,
       companyName: e.companyName,
       scores,
+      reasons,
       summary: e.summary,
       evidence,
       aiModel: e.aiModel,
+      financialSummary: e.financialSummary ?? null,
+      jobplanetSummary: e.jobplanetSummary ?? null,
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
     };

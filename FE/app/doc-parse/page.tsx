@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { API_BASE, tokenStore } from "@/lib/api/base";
 import { useModels } from "@/sessions/new/hooks/useModels";
 import { DEFAULT_FREE_MODEL_ID } from "@/sessions/new/hooks/useNewSession";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const API = `${API_BASE}/doc-parse`;
 
@@ -74,6 +75,10 @@ function TypingDot() {
 }
 
 export default function DocParsePage() {
+  const { theme, uiStyle } = useTheme();
+  const isDark = theme === "dark";
+  const isGlass = uiStyle === "glass";
+
   const { cloudAiModels, localAiModels, isLoading: modelsLoading } = useModels();
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [docText, setDocText] = useState("");
@@ -85,10 +90,10 @@ export default function DocParsePage() {
   const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null); // 영속화용 base64
   const [hydrated, setHydrated] = useState(false);
 
-  // 모델 목록 로드 후 기본값 설정 (claude-sonnet-4-6 → 첫 클라우드 → 무료)
+  // 모델 목록 로드 후 기본값 설정 (claude-haiku-4-5 → 첫 클라우드 → 무료)
   useEffect(() => {
     if (selectedModel || modelsLoading) return;
-    const sonnet = cloudAiModels.find((m) => m.id === "claude-sonnet-4-6");
+    const sonnet = cloudAiModels.find((m) => m.id === "claude-haiku-4-5");
     setSelectedModel(sonnet?.id ?? cloudAiModels[0]?.id ?? DEFAULT_FREE_MODEL_ID);
   }, [cloudAiModels, modelsLoading, selectedModel]);
 
@@ -282,12 +287,13 @@ export default function DocParsePage() {
   };
 
   return (
-    <div className="h-full flex overflow-hidden bg-slate-50">
+    <div className={`h-full flex flex-col overflow-hidden transition-all ${isGlass ? "p-3 bg-transparent" : isDark ? "bg-slate-900" : "bg-slate-50"}`}>
+      <div className={`flex-1 flex flex-col md:flex-row overflow-hidden ${isGlass ? "glass-panel rounded-2xl shadow-xl border " + (isDark ? "border-white/20" : "border-black/5") : ""}`}>
       {/* ── Left: PDF Viewer ───────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 border-r border-slate-200">
+      <div className={`flex-1 flex flex-col min-w-0 min-h-[40vh] md:min-h-0 border-b md:border-b-0 md:border-r ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : (isDark ? "border-slate-700" : "border-slate-200")}`}>
         {/* Toolbar */}
         <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 shrink-0">
-          <span className="text-sm font-bold text-slate-700">📄 문서 파싱</span>
+          <span className={`text-sm font-bold ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"}`}>📄 문서 파싱</span>
           {filename && (
             <span className="text-xs text-slate-400 truncate max-w-xs">
               {filename} {pageCount > 0 && `· ${pageCount}p`}
@@ -350,11 +356,11 @@ export default function DocParsePage() {
       </div>
 
       {/* ── Right: AI Chat Panel ───────────────────────────── */}
-      <div className="w-120 shrink-0 flex flex-col bg-white">
+      <div className={`w-full md:w-120 shrink-0 flex flex-col overflow-hidden md:overflow-visible h-[60vh] md:h-auto ${isGlass ? "" : isDark ? "bg-slate-800" : "bg-white"}`}>
         {/* Header */}
-        <div className="px-4 py-3 border-b border-slate-100 shrink-0">
+        <div className={`px-4 py-3 border-b shrink-0 ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : (isDark ? "border-slate-700" : "border-slate-100")}`}>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-slate-700">AI 문서 분석</span>
+            <span className={`text-sm font-bold ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"}`}>AI 문서 분석</span>
             <span className="text-2xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-semibold">AI</span>
           </div>
           {/* 모델 선택 */}
@@ -365,7 +371,7 @@ export default function DocParsePage() {
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
-                className="w-full text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 cursor-pointer"
+                className={`w-full text-xs ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"} bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-300 focus:border-indigo-300 cursor-pointer`}
               >
                 <option value={DEFAULT_FREE_MODEL_ID}>☁️ Gemini (기본 무료)</option>
                 {cloudAiModels.length > 0 && (
@@ -395,9 +401,9 @@ export default function DocParsePage() {
 
         {/* Quick Actions */}
         {isReady && (
-          <div className="px-3 py-2.5 border-b border-slate-100 shrink-0">
+          <div className={`px-3 py-2.5 border-b shrink-0 ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : (isDark ? "border-slate-700" : "border-slate-100")}`}>
             <p className="text-2xs text-slate-400 font-semibold mb-1.5 uppercase tracking-wider">빠른 실행</p>
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-1.5 overflow-x-auto">
               {QUICK_ACTIONS.map((a) => {
                 const isEvaluate = a.value === "evaluate";
                 return (
@@ -440,8 +446,8 @@ export default function DocParsePage() {
                     msg.role === "user"
                       ? "bg-indigo-600 text-white rounded-br-sm max-w-[85%] space-y-1"
                       : msg.markdown
-                      ? "bg-white border border-slate-200 text-slate-700 rounded-bl-sm w-[95%] shadow-sm"
-                      : "bg-slate-50 text-slate-700 rounded-bl-sm max-w-[85%] space-y-1"
+                      ? `bg-white border border-slate-200 ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"} rounded-bl-sm w-[95%] shadow-sm`
+                      : `bg-slate-50 ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"} rounded-bl-sm max-w-[85%] space-y-1`
                   }`}
                 >
                   {msg.role === "assistant" && msg.markdown ? (
@@ -480,7 +486,7 @@ export default function DocParsePage() {
         </div>
 
         {/* Input */}
-        <div className="px-3 py-3 border-t border-slate-100 shrink-0">
+        <div className={`px-3 py-3 border-t shrink-0 ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : (isDark ? "border-slate-700" : "border-slate-100")}`}>
           <div className="flex items-end gap-2 bg-slate-50 rounded-xl border border-slate-200 focus-within:border-indigo-300 focus-within:ring-1 focus-within:ring-indigo-200 px-3 py-2 transition-all">
             <textarea
               value={input}
@@ -494,7 +500,7 @@ export default function DocParsePage() {
               disabled={!isReady || loading}
               placeholder={isReady ? "문서에 대해 질문하세요..." : "문서를 먼저 업로드하세요"}
               rows={2}
-              className="flex-1 bg-transparent text-xs text-slate-700 placeholder-slate-300 resize-none focus:outline-none disabled:opacity-50"
+              className={`flex-1 bg-transparent text-xs ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"} placeholder-slate-300 resize-none focus:outline-none disabled:opacity-50`}
             />
             <button
               onClick={() => sendMessage(input)}
@@ -507,6 +513,7 @@ export default function DocParsePage() {
           <p className="text-2xs text-slate-300 mt-1.5 text-center">Enter로 전송, Shift+Enter로 줄바꿈</p>
         </div>
       </div>
+    </div>
     </div>
   );
 }

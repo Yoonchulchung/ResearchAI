@@ -62,7 +62,7 @@ export function PipelineDiagram({
       `모드: ${plan.searchMode}`,
       `키워드: ${plan.keyword}`,
       `이유: ${plan.reason}`,
-      plan.companyTypes?.length ? `기업유형: ${plan.companyTypes.join(", ")}` : "",
+      plan.companyTypes?.length ? `기업 유형: ${plan.companyTypes.join(", ")}` : "",
       plan.jobTypes?.length ? `경력: ${plan.jobTypes.join(", ")}` : "",
       "",
       ...logs,
@@ -80,7 +80,7 @@ export function PipelineDiagram({
       setSearchPlan(res.searchPlan);
       setStep0({ status: "ok", result: planSummary(res.searchPlan, res.logs), ms: Date.now() - t0, expanded: true });
     } catch (e: unknown) {
-      setStep0({ status: "error", error: e instanceof Error ? e.message : "플랜 실패", ms: Date.now() - t0, expanded: false });
+      setStep0({ status: "error", error: e instanceof Error ? e.message : "플래너 실행 실패", ms: Date.now() - t0, expanded: false });
     }
   }
 
@@ -95,7 +95,7 @@ export function PipelineDiagram({
       setStep1a({
         status: "ok",
         result: res.webContext
-          ? `[${res.webContext.length.toLocaleString()}자 수집]\n\n${logsToResult(res.logs)}`
+          ? `[${res.webContext.length.toLocaleString()}자 수집됨]\n\n${logsToResult(res.logs)}`
           : logsToResult(res.logs),
         ms: Date.now() - t0,
         expanded: true,
@@ -114,13 +114,13 @@ export function PipelineDiagram({
       const res = await testPipelineStep1b(searchPlan.keyword, searchPlan.companyTypes, searchPlan.jobTypes);
       setRecruitCtx(res.recruitCtx);
       const summary = [
-        `채용 공고 ${res.jobs.length}개 수집`,
+        `채용 공고 ${res.jobs.length}건 수집됨`,
         ...res.logs,
         res.jobs.length > 0 ? "\n" + res.jobs.map((j: JobItem) => `• ${j.title} — ${j.company}`).join("\n") : "",
       ].filter(Boolean).join("\n");
       setStep1b({ status: "ok", result: summary, ms: Date.now() - t0, expanded: true });
     } catch (e: unknown) {
-      setStep1b({ status: "error", error: e instanceof Error ? e.message : "채용 검색 실패", ms: Date.now() - t0, expanded: false });
+      setStep1b({ status: "error", error: e instanceof Error ? e.message : "채용 공고 검색 실패", ms: Date.now() - t0, expanded: false });
     }
   }
 
@@ -131,14 +131,14 @@ export function PipelineDiagram({
     try {
       const res = await testPipelineStep2(topic.trim(), cloudModel, searchPlan, webContext, recruitCtx);
       const summary = [
-        `태스크 ${res.tasks.length}개 생성`,
+        `태스크 ${res.tasks.length}개 생성됨`,
         ...res.logs,
         "",
         ...res.tasks.map((t: any) => `${t.title}\n  ${t.webSearchPrompt ?? t.prompt ?? ""}`),
       ].filter(Boolean).join("\n");
       setStep2({ status: "ok", result: summary, ms: Date.now() - t0, expanded: true });
     } catch (e: unknown) {
-      setStep2({ status: "error", error: e instanceof Error ? e.message : "AI 태스크 생성 실패", ms: Date.now() - t0, expanded: false });
+      setStep2({ status: "error", error: e instanceof Error ? e.message : "태스크 생성 실패", ms: Date.now() - t0, expanded: false });
     }
   }
 
@@ -157,11 +157,11 @@ export function PipelineDiagram({
         setSearchPlan(plan);
         setStep0({ status: "ok", result: planSummary(plan, res.logs), ms: Date.now() - t0, expanded: true });
       } catch (e: unknown) {
-        setStep0({ status: "error", error: e instanceof Error ? e.message : "플랜 실패", ms: Date.now() - t0, expanded: false });
+        setStep0({ status: "error", error: e instanceof Error ? e.message : "플래너 실행 실패", ms: Date.now() - t0, expanded: false });
         return;
       }
 
-      // Step 1a / 1b 병렬
+      // Step 1a / 1b Parallel
       let wCtx: string | undefined;
       let rCtx: string | undefined;
       const parallel: Promise<void>[] = [];
@@ -174,7 +174,7 @@ export function PipelineDiagram({
             const res = await testPipelineStep1a(plan.keyword);
             wCtx = res.webContext;
             setWebContext(wCtx);
-            setStep1a({ status: "ok", result: res.webContext ? `[${res.webContext.length.toLocaleString()}자]\n\n${logsToResult(res.logs)}` : logsToResult(res.logs), ms: Date.now() - t, expanded: true });
+            setStep1a({ status: "ok", result: res.webContext ? `[${res.webContext.length.toLocaleString()}자 수집됨]\n\n${logsToResult(res.logs)}` : logsToResult(res.logs), ms: Date.now() - t, expanded: true });
           } catch (e: unknown) {
             setStep1a({ status: "error", error: e instanceof Error ? e.message : "웹 검색 실패", ms: Date.now() - t, expanded: false });
           }
@@ -189,10 +189,10 @@ export function PipelineDiagram({
             const res = await testPipelineStep1b(plan.keyword, plan.companyTypes, plan.jobTypes);
             rCtx = res.recruitCtx;
             setRecruitCtx(rCtx);
-            const summary = [`채용 공고 ${res.jobs.length}개`, ...res.logs, res.jobs.length > 0 ? "\n" + res.jobs.map((j: JobItem) => `• ${j.title} — ${j.company}`).join("\n") : ""].filter(Boolean).join("\n");
+            const summary = [`채용 공고 ${res.jobs.length}건`, ...res.logs, res.jobs.length > 0 ? "\n" + res.jobs.map((j: JobItem) => `• ${j.title} — ${j.company}`).join("\n") : ""].filter(Boolean).join("\n");
             setStep1b({ status: "ok", result: summary, ms: Date.now() - t, expanded: true });
           } catch (e: unknown) {
-            setStep1b({ status: "error", error: e instanceof Error ? e.message : "채용 검색 실패", ms: Date.now() - t, expanded: false });
+            setStep1b({ status: "error", error: e instanceof Error ? e.message : "채용 공고 검색 실패", ms: Date.now() - t, expanded: false });
           }
         })());
       }
@@ -204,10 +204,10 @@ export function PipelineDiagram({
       setStep2({ status: "running", expanded: false });
       try {
         const res = await testPipelineStep2(topic.trim(), cloudModel, plan, wCtx, rCtx);
-        const summary = [`태스크 ${res.tasks.length}개 생성`, ...res.logs, "", ...res.tasks.map((t: any) => `${t.title}\n  ${t.webSearchPrompt ?? t.prompt ?? ""}`)].filter(Boolean).join("\n");
+        const summary = [`태스크 ${res.tasks.length}개 생성됨`, ...res.logs, "", ...res.tasks.map((t: any) => `${t.title}\n  ${t.webSearchPrompt ?? t.prompt ?? ""}`)].filter(Boolean).join("\n");
         setStep2({ status: "ok", result: summary, ms: Date.now() - t2, expanded: true });
       } catch (e: unknown) {
-        setStep2({ status: "error", error: e instanceof Error ? e.message : "AI 태스크 생성 실패", ms: Date.now() - t2, expanded: false });
+        setStep2({ status: "error", error: e instanceof Error ? e.message : "태스크 생성 실패", ms: Date.now() - t2, expanded: false });
       }
     } finally {
       setRunningAll(false);
@@ -220,30 +220,30 @@ export function PipelineDiagram({
 
   return (
     <div className="space-y-0">
-      {/* 입력 */}
-      <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 shadow-sm">
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-3">입력</span>
+      {/* Target Subject Input */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm">
+        <h3 className="text-sm font-semibold text-slate-800 mb-4">테스트 입력</h3>
         <input
           type="text"
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") runAll(); }}
-          placeholder="테스트할 주제 또는 쿼리를 입력하세요..."
-          className="w-full text-sm text-slate-800 placeholder:text-slate-300 bg-slate-50 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-200 mb-3"
+          placeholder="테스트할 주제 또는 키워드를 입력하세요..."
+          className="w-full text-sm text-slate-900 border border-slate-300 rounded-md px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 mb-5 shadow-sm"
         />
-        <div className="flex gap-3 flex-wrap items-center">
+        <div className="border-t border-slate-100 pt-4 flex gap-4 flex-wrap items-center">
           {localAiModels.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 shrink-0">로컬 모델</span>
-              <select value={localModel} onChange={(e) => setLocalModel(e.target.value)} className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-700">로컬 모델</span>
+              <select value={localModel} onChange={(e) => setLocalModel(e.target.value)} className="text-sm text-slate-700 border border-slate-300 rounded-md px-3 py-1.5 focus:outline-none bg-white">
                 {localAiModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
           )}
           {cloudAiModels.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 shrink-0">API 모델</span>
-              <select value={cloudModel} onChange={(e) => setCloudModel(e.target.value)} className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-700">API 모델</span>
+              <select value={cloudModel} onChange={(e) => setCloudModel(e.target.value)} className="text-sm text-slate-700 border border-slate-300 rounded-md px-3 py-1.5 focus:outline-none bg-white">
                 {cloudAiModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
@@ -251,10 +251,9 @@ export function PipelineDiagram({
           <button
             onClick={runAll}
             disabled={!topic.trim() || runningAll}
-            className="ml-auto px-5 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="ml-auto px-5 py-2 min-w-32 bg-slate-900 text-white text-sm font-medium rounded-md hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {runningAll ? <span className="animate-spin">◌</span> : <span>▶</span>}
-            전체 실행
+            {runningAll ? "실행 중..." : "전체 실행"}
           </button>
         </div>
       </div>
@@ -263,15 +262,11 @@ export function PipelineDiagram({
 
       {/* Step 0 */}
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Step 0 — 검색 소스 결정</span>
-          <div className="flex-1 h-px bg-slate-100" />
-        </div>
-        <div className="max-w-sm mx-auto">
-          <NodeCard icon="🧭" label="Search Planner" desc="Ollama로 검색 소스·키워드 결정" state={step0} onRun={runStep0} disabled={!topic.trim()} />
+        <div className="max-w-[400px] mx-auto">
+          <NodeCard label="검색 플래너 (Step 0)" desc="로컬 모델을 통한 검색 소스 및 키워드 결정" state={step0} onRun={runStep0} disabled={!topic.trim()} />
           {step0.result && (
-            <button onClick={() => toggleExpand(setStep0)} className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1">
-              {step0.expanded ? "▲ 접기" : "▼ 결과 보기"}
+            <button onClick={() => toggleExpand(setStep0)} className="w-full mt-2 text-xs text-slate-400 hover:text-slate-700 font-medium py-1 transition-colors">
+              {step0.expanded ? "결과 숨기기" : "결과 보기"}
             </button>
           )}
         </div>
@@ -281,33 +276,28 @@ export function PipelineDiagram({
 
       {/* Step 1 */}
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Step 1 — 데이터 수집</span>
-          <div className="flex-1 h-px bg-slate-100" />
-        </div>
-
         {!searchPlan && (
-          <div className="max-w-sm mx-auto">
-            <NodeCard icon="🔍" label="데이터 수집 (Step 1a / 1b)" desc="Step 0 실행 후 활성화됩니다" state={{ status: "disabled", expanded: false }} onRun={() => {}} disabled />
+          <div className="max-w-[400px] mx-auto">
+            <NodeCard label="데이터 수집 (Step 1)" desc="Step 0 실행 시 활성화됩니다" state={{ status: "disabled", expanded: false }} onRun={() => {}} disabled />
           </div>
         )}
 
         {searchPlan && !showOnlyRecruit && (
-          <div className={showBothRow ? "grid grid-cols-2 gap-3" : "max-w-sm mx-auto"}>
+          <div className={showBothRow ? "grid grid-cols-2 gap-4" : "max-w-[400px] mx-auto"}>
             <div>
-              <NodeCard icon="🌐" label="Web Search (Step 1a)" desc="웹 검색 엔진으로 컨텍스트 수집" state={canRun1a ? step1a : { ...step1a, status: "disabled", expanded: false }} onRun={runStep1a} disabled={!canRun1a} />
+              <NodeCard label="웹 검색 (Step 1a)" desc="구글 검색 API 컨텍스트 수집" state={canRun1a ? step1a : { ...step1a, status: "disabled", expanded: false }} onRun={runStep1a} disabled={!canRun1a} />
               {step1a.result && (
-                <button onClick={() => toggleExpand(setStep1a)} className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1">
-                  {step1a.expanded ? "▲ 접기" : "▼ 결과 보기"}
+                <button onClick={() => toggleExpand(setStep1a)} className="w-full mt-2 text-xs text-slate-400 hover:text-slate-700 font-medium py-1 transition-colors">
+                  {step1a.expanded ? "결과 숨기기" : "결과 보기"}
                 </button>
               )}
             </div>
             {showBothRow && (
               <div>
-                <NodeCard icon="💼" label="Recruit Search (Step 1b)" desc="채용 공고 크롤링" state={canRun1b ? step1b : { ...step1b, status: "disabled", expanded: false }} onRun={runStep1b} disabled={!canRun1b} />
+                <NodeCard label="채용 공고 검색 (Step 1b)" desc="라이브 채용 플랫폼 데이터 수집" state={canRun1b ? step1b : { ...step1b, status: "disabled", expanded: false }} onRun={runStep1b} disabled={!canRun1b} />
                 {step1b.result && (
-                  <button onClick={() => toggleExpand(setStep1b)} className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1">
-                    {step1b.expanded ? "▲ 접기" : "▼ 결과 보기"}
+                  <button onClick={() => toggleExpand(setStep1b)} className="w-full mt-2 text-xs text-slate-400 hover:text-slate-700 font-medium py-1 transition-colors">
+                    {step1b.expanded ? "결과 숨기기" : "결과 보기"}
                   </button>
                 )}
               </div>
@@ -316,11 +306,11 @@ export function PipelineDiagram({
         )}
 
         {showOnlyRecruit && (
-          <div className="max-w-sm mx-auto">
-            <NodeCard icon="💼" label="Recruit Search (Step 1b)" desc="채용 공고 크롤링" state={canRun1b ? step1b : { ...step1b, status: "disabled", expanded: false }} onRun={runStep1b} disabled={!canRun1b} />
+          <div className="max-w-[400px] mx-auto">
+            <NodeCard label="채용 공고 검색 (Step 1b)" desc="라이브 채용 플랫폼 데이터 수집" state={canRun1b ? step1b : { ...step1b, status: "disabled", expanded: false }} onRun={runStep1b} disabled={!canRun1b} />
             {step1b.result && (
-              <button onClick={() => toggleExpand(setStep1b)} className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1">
-                {step1b.expanded ? "▲ 접기" : "▼ 결과 보기"}
+              <button onClick={() => toggleExpand(setStep1b)} className="w-full mt-2 text-xs text-slate-400 hover:text-slate-700 font-medium py-1 transition-colors">
+                {step1b.expanded ? "결과 숨기기" : "결과 보기"}
               </button>
             )}
           </div>
@@ -331,22 +321,17 @@ export function PipelineDiagram({
 
       {/* Step 2 */}
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Step 2 — AI 태스크 생성</span>
-          <div className="flex-1 h-px bg-slate-100" />
-        </div>
-        <div className="max-w-sm mx-auto">
+        <div className="max-w-[400px] mx-auto">
           <NodeCard
-            icon="🤖"
-            label={cloudAiModels.find((m) => m.id === cloudModel)?.name ?? "AI 모델"}
-            desc="수집된 컨텍스트 기반 태스크 생성"
+            label={cloudAiModels.find((m) => m.id === cloudModel)?.name ?? "클라우드 AI 모델"}
+            desc="수집된 문맥을 바탕으로 최종 AI 태스크 도출"
             state={canRun2 ? step2 : { ...step2, status: "disabled", expanded: false }}
             onRun={runStep2}
             disabled={!canRun2 || !cloudModel}
           />
           {step2.result && (
-            <button onClick={() => toggleExpand(setStep2)} className="w-full mt-1 text-xs text-slate-400 hover:text-slate-600 text-center py-1">
-              {step2.expanded ? "▲ 접기" : "▼ 결과 보기"}
+            <button onClick={() => toggleExpand(setStep2)} className="w-full mt-2 text-xs text-slate-400 hover:text-slate-700 font-medium py-1 transition-colors">
+              {step2.expanded ? "결과 숨기기" : "결과 보기"}
             </button>
           )}
         </div>

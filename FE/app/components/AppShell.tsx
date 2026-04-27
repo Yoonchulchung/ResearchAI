@@ -33,7 +33,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isMobile = useIsMobile();
 
-  if (NO_SHELL_PATHS.some((p) => pathname.startsWith(p))) {
+  if (pathname === "/" || NO_SHELL_PATHS.some((p) => pathname.startsWith(p))) {
     return <>{children}</>;
   }
 

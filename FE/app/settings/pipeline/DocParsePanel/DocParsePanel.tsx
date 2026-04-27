@@ -17,7 +17,7 @@ function StatBadge({ label, value }: { label: string; value: string | number }) 
   const { theme } = useTheme();
   const isDark = theme === "dark";
   return (
-    <div className={`flex flex-col items-center px-4 py-2 rounded-xl ${isDark ? "bg-white/5" : "bg-slate-50"}`}>
+    <div className={`flex flex-col items-center px-4 py-2 rounded-md ${isDark ? "bg-white/5" : "bg-slate-50"}`}>
       <span className={`text-lg font-bold font-mono ${isDark ? "text-white" : "text-slate-800"}`}>{value}</span>
       <span className={`text-2xs ${isDark ? "text-white/40" : "text-slate-400"}`}>{label}</span>
     </div>
@@ -72,14 +72,14 @@ export function DocParsePanel() {
     parse(file);
   };
 
-  const baseCardCls = `rounded-2xl border p-5 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`;
-  const inputCls = `w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isDark ? "bg-white/5 border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-800"}`;
+  const baseCardCls = `rounded-lg shadow-sm border p-5 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`;
+  const inputCls = `w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isDark ? "bg-white/5 border-white/10 text-white" : "bg-slate-50 border-slate-200 text-slate-800"}`;
 
   return (
     <div className="space-y-5">
       {/* 업로드 영역 */}
       <div
-        className={`${baseCardCls} transition-colors ${dragging ? "border-indigo-400 bg-indigo-50/40" : ""}`}
+        className={`${baseCardCls} transition-colors ${dragging ? "border-slate-300 bg-slate-50 text-slate-800/40" : ""}`}
         onDragEnter={(e) => { e.preventDefault(); dragCounter.current++; setDragging(true); }}
         onDragLeave={(e) => { e.preventDefault(); dragCounter.current--; if (dragCounter.current === 0) setDragging(false); }}
         onDragOver={(e) => e.preventDefault()}
@@ -91,7 +91,7 @@ export function DocParsePanel() {
           className="flex flex-col items-center justify-center py-8 cursor-pointer"
           onClick={() => inputRef.current?.click()}
         >
-          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 ${isDark ? "bg-white/10" : "bg-slate-100"}`}>
+          <div className={`w-12 h-12 rounded-lg shadow-sm flex items-center justify-center mb-3 ${isDark ? "bg-white/10" : "bg-slate-100"}`}>
             {loading
               ? <span className="animate-spin text-indigo-500 text-xl">◌</span>
               : <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
@@ -129,7 +129,7 @@ export function DocParsePanel() {
               )}
               <StatBadge label="추출 글자" value={(result.text?.length ?? 0).toLocaleString()} />
               <StatBadge label="추출 줄" value={(result.text?.split("\n").length ?? 0).toLocaleString()} />
-              <div className={`flex flex-col items-center px-4 py-2 rounded-xl ${
+              <div className={`flex flex-col items-center px-4 py-2 rounded-md ${
                 !result.text || result.text.trim().length === 0
                   ? "bg-red-50"
                   : result.text.length < 500
@@ -164,7 +164,7 @@ export function DocParsePanel() {
                   </select>
                 </div>
               </div>
-              <pre className={`text-xs leading-relaxed whitespace-pre-wrap font-mono rounded-xl p-4 max-h-[480px] overflow-y-auto ${isDark ? "bg-black/20 text-white/70" : "bg-slate-50 text-slate-700"}`}>
+              <pre className={`text-xs leading-relaxed whitespace-pre-wrap font-mono rounded-md p-4 max-h-[480px] overflow-y-auto ${isDark ? "bg-black/20 text-white/70" : "bg-slate-50 text-slate-700"}`}>
                 {result.text.split("\n").slice(0, previewLines).join("\n")}
                 {result.text.split("\n").length > previewLines && (
                   `\n\n... (${(result.text.split("\n").length - previewLines).toLocaleString()}줄 더 있음)`

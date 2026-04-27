@@ -15,6 +15,7 @@ import {
   TavilyCard,
   TokenUsageCard,
   ApiKeysTable,
+  ServiceCredentialsCard,
 } from "./components";
 
 interface AnalyticsSummary {
@@ -223,6 +224,15 @@ export default function OverviewPage() {
             onSave={handleSaveLocalModel}
           />
           <ApiKeysTable loading={loading} apiKeys={apiKeys} onRefresh={refreshUser} />
+          <ServiceCredentialsCard
+            loading={loading}
+            dartApiKey={user?.dartApiKey ?? null}
+            jobplanetId={user?.jobplanetId ?? null}
+            jobplanetPassword={user?.jobplanetPassword ?? null}
+            jobkoreaId={user?.jobkoreaId ?? null}
+            jobkoreaPassword={user?.jobkoreaPassword ?? null}
+            onRefresh={refreshUser}
+          />
 
           <div className={`rounded-2xl border px-6 py-5 flex items-center justify-between ${isGlass ? "border-white/20 bg-white/5" : "bg-white border-slate-200 shadow-sm"}`}>
             <p className={`text-sm ${isGlass ? "text-white/60" : "text-slate-500"}`}>
