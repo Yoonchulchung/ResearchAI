@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PROSE_CLASS } from "../_constants";
@@ -59,8 +60,8 @@ interface Props {
   onRevert: () => void;
   companyName: string;
   setCompanyName: (v: string) => void;
-  jobTitle: string;
-  setJobTitle: (v: string) => void;
+  jobDescription: string;
+  setJobDescription: (v: string) => void;
   onFetchProfile: () => void;
   profileLoading: boolean;
   highlightFlash?: boolean;
@@ -80,12 +81,13 @@ export function EditorPanel({
   onRevert,
   companyName,
   setCompanyName,
-  jobTitle,
-  setJobTitle,
+  jobDescription,
+  setJobDescription,
   onFetchProfile,
   profileLoading,
   highlightFlash,
 }: Props) {
+  const [jdExpanded, setJdExpanded] = useState(false);
   const { theme, uiStyle } = useTheme();
   const isGlass = uiStyle === "glass";
   const isDark = theme === "dark";
@@ -101,42 +103,63 @@ export function EditorPanel({
   return (
     <div className={`flex-1 flex flex-col min-w-0 border-r overflow-hidden transition-colors ${isGlass ? `bg-transparent ${isDark ? "border-white/10" : "border-black/10"}` : `bg-white ${isDark ? "border-slate-700/50" : "border-slate-200/60"}`}`}>
 
-      {/* Company name + Job title input */}
-      <div className={`flex items-center gap-2 px-4 py-2 border-b shrink-0 ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-100"}`}>
-        <span className={`text-sm shrink-0 ${isDark ? "text-white/60" : "text-slate-500"}`}>지원 기업</span>
-        <input
-          value={companyName}
-          onChange={(e) => setCompanyName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") onFetchProfile(); }}
-          placeholder="기업명 입력..."
-          className={`w-36 text-sm !bg-transparent !border-0 focus:outline-none min-w-0 ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
-        />
-        <span className={`text-sm ${isDark ? "text-white/20" : "text-slate-300"}`}>|</span>
-        <span className={`text-sm shrink-0 ${isDark ? "text-white/60" : "text-slate-500"}`}>직무</span>
-        <input
-          value={jobTitle}
-          onChange={(e) => setJobTitle(e.target.value)}
-          placeholder="직무명 입력..."
-          className={`flex-1 text-sm !bg-transparent !border-0 focus:outline-none min-w-0 ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
-        />
-        <button
-          onClick={onFetchProfile}
-          disabled={!companyName.trim() || profileLoading}
-          className={`shrink-0 flex items-center gap-1 px-3 py-1.5 text-sm font-medium border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
-            isGlass && isDark
-              ? "text-indigo-100 bg-white/10 border-white/20 hover:bg-white/20"
-              : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
-          }`}
-        >
-          {profileLoading ? (
-            <span className="w-2.5 h-2.5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
-          ) : (
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M5 1L6.2 4.2L9.5 5L6.2 5.8L5 9L3.8 5.8L0.5 5L3.8 4.2L5 1Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
-            </svg>
-          )}
-          인재상 조회
-        </button>
+      {/* Company name + Job Description */}
+      <div className={`px-4 py-2 border-b shrink-0 space-y-1.5 ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-100"}`}>
+        {/* 1행: 기업명 + 인재상 조회 + JD 펼침 토글 */}
+        <div className="flex items-center gap-2">
+          <span className={`text-sm shrink-0 ${isDark ? "text-white/60" : "text-slate-500"}`}>지원 기업</span>
+          <input
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") onFetchProfile(); }}
+            placeholder="기업명 입력..."
+            className={`flex-1 text-sm bg-transparent! border-0! focus:outline-none min-w-0 ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
+          />
+          <button
+            onClick={() => setJdExpanded((v) => !v)}
+            className={`shrink-0 flex items-center gap-1 px-2.5 py-1 text-2xs font-medium rounded-md transition-colors ${
+              jobDescription.trim()
+                ? "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
+                : isDark ? "text-white/50 bg-white/5 hover:bg-white/10" : "text-slate-500 bg-slate-100 hover:bg-slate-200"
+            }`}
+          >
+            {jdExpanded ? "▲" : "▼"} Job Description
+            {jobDescription.trim() && <span className="text-2xs opacity-60">({jobDescription.length}자)</span>}
+          </button>
+          <button
+            onClick={onFetchProfile}
+            disabled={!companyName.trim() || profileLoading}
+            className={`shrink-0 flex items-center gap-1 px-3 py-1.5 text-sm font-medium border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+              isGlass && isDark
+                ? "text-indigo-100 bg-white/10 border-white/20 hover:bg-white/20"
+                : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
+            }`}
+          >
+            {profileLoading ? (
+              <span className="w-2.5 h-2.5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+            ) : (
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M5 1L6.2 4.2L9.5 5L6.2 5.8L5 9L3.8 5.8L0.5 5L3.8 4.2L5 1Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+              </svg>
+            )}
+            인재상 조회
+          </button>
+        </div>
+
+        {/* 2행: JD 텍스트영역 (펼침 시) */}
+        {jdExpanded && (
+          <textarea
+            value={jobDescription}
+            onChange={(e) => setJobDescription(e.target.value)}
+            placeholder="Job Description 전체 내용을 붙여넣으세요. 평가/개선 시 이 JD에 부합하는지를 핵심 기준으로 사용합니다."
+            rows={6}
+            className={`w-full text-sm border rounded-lg px-3 py-2 resize-y focus:outline-none focus:ring-1 ${
+              isDark
+                ? "bg-white/5 border-white/10 text-white placeholder-white/30 focus:ring-indigo-400 focus:border-indigo-400"
+                : "bg-slate-50 border-slate-200 text-slate-700 placeholder-slate-400 focus:ring-indigo-300 focus:border-indigo-300"
+            }`}
+          />
+        )}
       </div>
 
       {/* Word/char count */}

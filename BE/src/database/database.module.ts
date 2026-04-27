@@ -13,6 +13,7 @@ import { AppConfigEntity } from '../config/domain/entity/app-config.entity';
 import { GmailTokenEntity } from '../gmail/domain/entity/gmail-token.entity';
 import { ExperienceEntity } from '../documents/domain/entity/experience.entity';
 import { DocumentEntity } from '../documents/domain/entity/document.entity';
+import { CompanyAnalysisEntity } from '../documents/domain/entity/company-analysis.entity';
 import { AiCallLogEntity } from '../ai/domain/entity/ai-call-log.entity';
 import { UserEntity } from '../auth/domain/entity/user.entity';
 
@@ -27,6 +28,7 @@ import { UserEntity } from '../auth/domain/entity/user.entity';
                  TokenHistoryEntity, QueueJobEntity,
                  NewsBriefingEntity, AppConfigEntity,
                  GmailTokenEntity, ExperienceEntity, DocumentEntity,
+                 CompanyAnalysisEntity,
                  AiCallLogEntity, UserEntity],
       synchronize: true,
     }),

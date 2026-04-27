@@ -88,6 +88,15 @@ function IconBookmark() {
   );
 }
 
+function IconChart() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+      <path d="M2 13V6M6 13V3M10 13V8M14 13V5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M1.5 14H14.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function IconPlus() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
@@ -277,11 +286,15 @@ export function Sidebar() {
             <IconPencil />
           </button>
           <button
-            onClick={openDocStore}
-            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
-            title="문서 저장"
+            onClick={() => router.push("/doc-write/company-analysis")}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+              pathname?.startsWith("/doc-write/company-analysis")
+                ? "bg-brand-primary/10 text-brand-primary"
+                : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
+            }`}
+            title="기업 분석"
           >
-            <IconBookmark />
+            <IconChart />
           </button>
         </div>
         {/* Session dots */}
@@ -374,11 +387,15 @@ export function Sidebar() {
           문서 작성
         </button>
         <button
-          onClick={openDocStore}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
+          onClick={() => router.push("/doc-write/company-analysis")}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            pathname?.startsWith("/doc-write/company-analysis")
+              ? "bg-brand-primary/10 text-brand-primary"
+              : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
+          }`}
         >
-          <IconBookmark />
-          문서 저장
+          <IconChart />
+          기업 분석
         </button>
       </div>
 

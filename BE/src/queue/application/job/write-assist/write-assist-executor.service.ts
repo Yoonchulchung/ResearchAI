@@ -10,6 +10,8 @@ import {
   EVALUATE_RUBRICS,
   EVALUATE_OUTPUT_FORMAT,
   EVALUATE_SYSTEM_PROMPT,
+  IMPROVE_PIPELINE_SYSTEM_PROMPT,
+  IMPROVE_PIPELINE_OUTPUT_FORMAT,
 } from './prompts';
 
 export type { WriteAssistExtras } from './types';
@@ -31,6 +33,11 @@ export class WriteAssistExecutorService {
     // 글 평가는 2단계 AI Agent 흐름 (분류 → 유형별 평가)
     if (taskType === QueueJob.TaskType.WRITEASSIST_EVALUATE) {
       return this.executeEvaluate(content, model, onChunk, signal, extras);
+    }
+
+    // 내용 개선은 3단계 파이프라인 (분류 → 평가/문제도출 → 개선)
+    if (taskType === QueueJob.TaskType.WRITEASSIST_IMPROVE) {
+      return this.executeImprove(content, model, onChunk, signal, extras);
     }
 
     // 그 외 액션은 정적 프롬프트 단일 호출
@@ -96,14 +103,12 @@ export class WriteAssistExecutorService {
     const typeLabel = QUESTION_TYPE_LABELS[type];
     const rubric = EVALUATE_RUBRICS[type];
 
-    // 출력 형식의 자리표시자를 유형별 항목명으로 치환
-    const axisNames = this.extractAxisNames(rubric);
-    const outputFormat = EVALUATE_OUTPUT_FORMAT
-      .replaceAll('{TYPE_LABEL}', typeLabel)
-      .replaceAll('{AXIS_1}', axisNames[0])
-      .replaceAll('{AXIS_2}', axisNames[1])
-      .replaceAll('{AXIS_3}', axisNames[2])
-      .replaceAll('{AXIS_4}', axisNames[3]);
+    // 출력 형식의 자리표시자를 유형별 항목명·최대점수로 치환
+    const axes = this.extractAxisInfo(rubric);
+    const outputFormat = this.fillAxisPlaceholders(
+      EVALUATE_OUTPUT_FORMAT.replaceAll('{TYPE_LABEL}', typeLabel),
+      axes,
+    );
 
     const system = EVALUATE_SYSTEM_PROMPT.replaceAll('{TYPE_LABEL}', typeLabel);
 
@@ -139,12 +144,84 @@ ${content.trim() || '(빈 문서)'}`;
     return fullText;
   }
 
-  /** 루브릭 텍스트에서 "### N. 항목명 (25점)" 패턴으로 4개 axis 이름 추출 */
-  private extractAxisNames(rubric: string): string[] {
-    const matches = [...rubric.matchAll(/^###\s+\d+\.\s*([^\n(]+?)(?:\s*\(\d+점\))?$/gm)];
-    const names = matches.map((m) => m[1].trim());
-    while (names.length < 4) names.push(`항목 ${names.length + 1}`);
-    return names.slice(0, 4);
+  /** 루브릭 텍스트에서 "### N. 항목명 (25점)" 패턴으로 4개 axis 이름 + max 점수 추출 */
+  private extractAxisInfo(rubric: string): { name: string; max: number }[] {
+    const matches = [...rubric.matchAll(/^###\s+\d+\.\s*([^\n(]+?)(?:\s*\((\d+)점\))?$/gm)];
+    const info = matches.map((m) => ({
+      name: m[1].trim(),
+      max: m[2] ? parseInt(m[2], 10) : 25,
+    }));
+    while (info.length < 4) info.push({ name: `항목 ${info.length + 1}`, max: 25 });
+    return info.slice(0, 4);
+  }
+
+  /** 평가/개선 출력 템플릿의 {AXIS_N} / {MAX_N} 자리표시자 치환 */
+  private fillAxisPlaceholders(template: string, axes: { name: string; max: number }[]): string {
+    let out = template;
+    axes.forEach((a, i) => {
+      out = out.replaceAll(`{AXIS_${i + 1}}`, a.name).replaceAll(`{MAX_${i + 1}}`, String(a.max));
+    });
+    return out;
+  }
+
+  // ── 내용 개선 — 3단계 파이프라인 (분류 → 평가/문제도출 → 개선) ──────────
+
+  /** 분류 후 단일 스트리밍으로 [분석 표 + 개선 문서] 출력 */
+  private async executeImprove(
+    content: string,
+    model: string,
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal,
+    extras?: WriteAssistExtras,
+  ): Promise<string> {
+    // 1) 문항 분류 (단발 호출)
+    const { type, questionText } = await this.classifyQuestionType(content, model, signal);
+    if (signal?.aborted) return '';
+
+    const typeLabel = QUESTION_TYPE_LABELS[type];
+    const rubric = EVALUATE_RUBRICS[type];
+
+    // 출력 형식 자리표시자 치환 (axis 이름 + 최대 점수)
+    const axes = this.extractAxisInfo(rubric);
+    const outputFormat = this.fillAxisPlaceholders(
+      IMPROVE_PIPELINE_OUTPUT_FORMAT.replaceAll('{TYPE_LABEL}', typeLabel),
+      axes,
+    );
+
+    const system = IMPROVE_PIPELINE_SYSTEM_PROMPT.replaceAll('{TYPE_LABEL}', typeLabel);
+
+    const expContext = this.buildExpContext(extras?.experiences);
+    const userPrompt = `${extras?.companyCtx ?? ''}${expContext}# 내용 개선 작업
+
+## 문항 유형
+${typeLabel}
+
+## 추출된 문항
+"${questionText}"
+
+## 평가 루브릭
+${rubric}
+
+---
+
+${outputFormat}
+
+---
+
+## 원본 문서
+
+${content.trim() || '(빈 문서)'}`;
+
+    // 2 + 3) 평가/문제도출 + 개선 (단일 스트리밍 호출)
+    let fullText = '';
+    for await (const chunk of this.aiProvider.stream(model, system, [
+      { role: 'user' as const, content: userPrompt },
+    ])) {
+      if (signal?.aborted) break;
+      fullText += chunk;
+      onChunk(chunk);
+    }
+    return fullText;
   }
 
   // ── 액션별 프롬프트 조립 (정적 PROMPTS) ─────────────────────────────────

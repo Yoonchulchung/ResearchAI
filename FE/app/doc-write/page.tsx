@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useEditor } from "./_hooks/useEditor";
 import { useDocSave } from "./_hooks/useDocSave";
 import { useAiAssist } from "./_hooks/useAiAssist";
@@ -15,6 +16,7 @@ import { enqueueCompanyProfile, streamCompanyProfile } from "@/lib/api/ai";
 import { IconDownload } from "./_components/icons";
 
 function DocWritePageInner() {
+  const router = useRouter();
   const { theme, uiStyle } = useTheme();
   const isGlass = uiStyle === "glass";
   const isDark = theme === "dark";
@@ -31,7 +33,7 @@ function DocWritePageInner() {
     start: number;
   } | null>(null);
 
-  const [jobTitle, setJobTitle] = useState("");
+  const [jobDescription, setJobDescription] = useState("");
   const [companyProfile, setCompanyProfile] = useState("");
   const [profileLoading, setProfileLoading] = useState(false);
 
@@ -73,11 +75,20 @@ function DocWritePageInner() {
   }, [editor.content, docSave]);
 
   const handleRunAssist = (instruction: string, userLabel?: string, skipCompanyCtx?: boolean, actionKey?: string) => {
-    const companyCtx = skipCompanyCtx ? "" : companyProfile
-      ? `## 지원 기업 정보\n기업명: ${companyName}\n\n### 인재상\n${companyProfile}\n\n이 기업의 인재상을 반드시 고려하여 작업해주세요.\n\n---\n\n`
-      : companyName.trim()
-        ? `## 지원 기업\n기업명: ${companyName}\n\n---\n\n`
-        : "";
+    // 기업 정보 + Job Description 컨텍스트 조립 — JD 가 있으면 평가/개선의 핵심 기준으로 항상 첨부
+    const parts: string[] = [];
+    if (!skipCompanyCtx) {
+      if (companyName.trim() || companyProfile) {
+        parts.push(`## 지원 기업`);
+        if (companyName.trim()) parts.push(`**기업명**: ${companyName}`);
+        if (companyProfile) parts.push(`### 인재상\n${companyProfile}`);
+      }
+    }
+    // JD 는 평가·개선의 핵심 기준 — skipCompanyCtx 와 무관하게 항상 포함
+    if (jobDescription.trim()) {
+      parts.push(`## 📌 Job Description (평가·개선의 핵심 기준)\n\`\`\`\n${jobDescription.trim()}\n\`\`\`\n\n**평가·개선 시 위 JD 에 본인 강점·경험·비전이 얼마나 부합하는지를 최우선 기준으로 판단하세요.**`);
+    }
+    const companyCtx = parts.length > 0 ? parts.join('\n\n') + '\n\n---\n\n' : '';
     ai.runAssist(
       actionKey ? companyCtx : companyCtx + instruction,
       editor.content,
@@ -102,29 +113,15 @@ function DocWritePageInner() {
 
         <div className="flex-1" />
 
+        {/* 기업 분석 — 인재상 핵심역량 매핑 페이지로 이동 */}
         <button
-          onClick={() => docSave.handleSave(editor.content, companyName)}
-          disabled={!editor.content.trim() || docSave.saving}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-            docSave.saveSuccess
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-              : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
-          }`}
+          onClick={() => router.push("/doc-write/company-analysis")}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border transition-all bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
         >
-          {docSave.saving ? (
-            <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-          ) : docSave.saveSuccess ? (
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          ) : (
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M2 2H8L10 4V10H2V2Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-              <path d="M4 2V5H8V2" stroke="currentColor" strokeWidth="1.3" />
-              <rect x="3.5" y="7" width="5" height="2.5" rx="0.5" stroke="currentColor" strokeWidth="1.2" />
-            </svg>
-          )}
-          {docSave.saveSuccess ? "저장됨" : docSave.savedDocId ? "저장" : "저장하기"}
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 10V5M5 10V2M8 10V7M11 10V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          기업 분석
         </button>
 
         <button
@@ -150,7 +147,7 @@ function DocWritePageInner() {
           <button
             onClick={() => {
               handleRunAssist(
-`선택된 글을 아래 항목별로 평가해줘.\n\n1. 문장 명확성 — 문장이 명확하고 이해하기 쉬운지\n2. 논리 구조 — 논리적 흐름과 일관성이 있는지\n3. 표현력 — 어휘 선택과 표현이 적절한지\n4. 구체적 스토리 — 추상적 주장에 그치지 않고 실제 경험·사례·에피소드가 구체적으로 드러나는지\n5. 직무 적합성 — ${jobTitle ? `지원 직무(${jobTitle})에 필요한 역량·경험이 잘 드러나는지` : "지원 직무에 필요한 역량·경험이 잘 드러나는지 (직무명을 입력하면 더 구체적으로 평가할 수 있습니다)"}\n\n각 항목에 대해 현재 수준을 간략히 평가하고, 개선이 필요한 부분은 구체적인 개선 방향을 제안해줘.`,
+`선택된 글을 아래 항목별로 평가해줘.\n\n1. 문장 명확성 — 문장이 명확하고 이해하기 쉬운지\n2. 논리 구조 — 논리적 흐름과 일관성이 있는지\n3. 표현력 — 어휘 선택과 표현이 적절한지\n4. 구체적 스토리 — 추상적 주장에 그치지 않고 실제 경험·사례·에피소드가 구체적으로 드러나는지\n5. 직무 적합성 — ${jobDescription.trim() ? `위에 제시된 Job Description 의 요구사항에 본인 강점·경험이 부합하는지` : "지원 직무에 필요한 역량·경험이 잘 드러나는지 (Job Description 을 입력하면 더 구체적으로 평가할 수 있습니다)"}\n\n각 항목에 대해 현재 수준을 간략히 평가하고, 개선이 필요한 부분은 구체적인 개선 방향을 제안해줘.`,
                 "글 평가",
               );
             }}
@@ -209,8 +206,8 @@ function DocWritePageInner() {
             }}
             companyName={companyName}
             setCompanyName={setCompanyName}
-            jobTitle={jobTitle}
-            setJobTitle={setJobTitle}
+            jobDescription={jobDescription}
+            setJobDescription={setJobDescription}
             onFetchProfile={fetchCompanyProfile}
             profileLoading={profileLoading}
             highlightFlash={editor.highlightFlash}

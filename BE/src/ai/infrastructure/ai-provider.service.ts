@@ -142,15 +142,18 @@ export class AiProviderService {
   ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number; toolCalls?: ToolCallResult[]; stopReason?: string; searchLog?: { query: string; result: string }[] }> {
     aiModel = this.resolveEffectiveModel(aiModel);
     const promptPreview = typeof prompt === 'string'
-      ? prompt.slice(0, 100).replace(/\n/g, ' ')
+      ? prompt
       : prompt.map((m: any) => {
           const content = typeof m.content === 'string'
-            ? m.content.slice(0, 60).replace(/\n/g, ' ')
-            : JSON.stringify(m.content).slice(0, 60);
+            ? m.content
+            : JSON.stringify(m.content);
           return `[${m.role}] ${content}`;
-        }).join(' | ');
-    const isTruncated = typeof prompt === 'string' ? prompt.length > 100 : false;
-    this.logger.log(`model=${aiModel} | prompt="${promptPreview}${isTruncated ? '...' : ''}"`);
+        }).join('\n');
+    this.logger.log(
+      `model=${aiModel}\n` +
+      `[system]\n${system}\n[/system]\n` +
+      `[prompt]\n${promptPreview}\n[/prompt]`,
+    );
 
     const useSearch = opts?.useBuiltinSearch ?? false;
     const promptText = typeof prompt === 'string'
@@ -265,10 +268,12 @@ export class AiProviderService {
     aiModel = this.resolveEffectiveModel(aiModel);
 
     const streamPreview = messages.map((m) => {
-      const text = typeof m.content === 'string' ? m.content : m.content.filter((c): c is string => typeof c === 'string').join(' ');
-      return `[${m.role}] ${text.slice(0, 60).replace(/\n/g, ' ')}`;
-    }).join(' | ');
-    this.logger.log(`model=${aiModel} | stream="${streamPreview}"`);
+      const text = typeof m.content === 'string'
+        ? m.content
+        : m.content.filter((c): c is string => typeof c === 'string').join(' ');
+      return `[${m.role}] ${text}`;
+    }).join('\n');
+    this.logger.log(`model=${aiModel} | system=\n${system}\n[/system]\nstream=\n${streamPreview}\n[/stream]`);
 
     // **** 로컬 **** //
     if (aiModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) {
