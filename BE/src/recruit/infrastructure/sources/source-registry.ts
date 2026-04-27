@@ -1,13 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { JobSource } from '../../domain/job-source.interface';
-import { SaraminCrawler } from './saramin.crawler';
-import { SaraminApi } from './saramin.api';
+import { MultiSiteJobCrawler } from './multi-site.crawler';
 
 @Injectable()
 export class SourceRegistry {
   private readonly sources: JobSource[] = [
-    new SaraminCrawler(),
-    new SaraminApi(),
+    new MultiSiteJobCrawler(),
   ];
 
   getAll(): { name: string; type: string; available: boolean }[] {

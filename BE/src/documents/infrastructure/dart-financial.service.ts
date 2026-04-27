@@ -26,7 +26,8 @@ export interface DartFinancialData {
   corpClass: string | null;      // Y=유가증권 K=코스닥 N=코넥스 E=기타
   ceoName: string | null;
   foundedDate: string | null;
-  employees: string | null;
+  employees: string | null;      // 예: "15,234명"
+  capital: string | null;        // 자본금, 예: "897억 원"
   industry: string | null;
   homeUrl: string | null;
   address: string | null;
@@ -65,6 +66,11 @@ interface OpenDartFinanceItem {
   thstrm_amount: string;
 }
 
+interface OpenDartEmployee {
+  fo_bbm: string;   // 직원 구분 (사무직·생산직·합계 등)
+  sm_empNo: string; // 소계 직원수 (남+여)
+}
+
 interface OpenDartDisclosure {
   report_nm: string;
   rcept_dt: string;
@@ -94,10 +100,12 @@ export class DartFinancialService {
       }
       this.logger.log(`[DART-DBG] 기업코드: ${corpCode}`);
 
-      const [companyRes, disclosuresRes, multiYearRes] = await Promise.allSettled([
+      const latestYear = new Date().getFullYear() - 1;
+      const [companyRes, disclosuresRes, multiYearRes, employeesRes] = await Promise.allSettled([
         this.fetchCompanyInfo(corpCode, dartApiKey),
         this.fetchDisclosures(corpCode, dartApiKey),
         this.fetchMultiYearFinancials(corpCode, dartApiKey),
+        this.fetchEmployeeCount(corpCode, dartApiKey, latestYear),
       ]);
 
       if (companyRes.status === 'rejected') this.logger.warn(`[DART-DBG] 기업정보 오류: ${companyRes.reason}`);
@@ -106,11 +114,13 @@ export class DartFinancialService {
 
       const company = companyRes.status === 'fulfilled' ? companyRes.value : null;
       const disclosures = disclosuresRes.status === 'fulfilled' ? disclosuresRes.value : [];
-      const multiYearFinancials = multiYearRes.status === 'fulfilled' ? multiYearRes.value : [];
+      const { financials: multiYearFinancials, latestCapital } =
+        multiYearRes.status === 'fulfilled' ? multiYearRes.value : { financials: [], latestCapital: null };
+      const employees = employeesRes.status === 'fulfilled' ? employeesRes.value : null;
 
       this.logger.log(`[DART-DBG] 기업정보: ${JSON.stringify(company).slice(0, 200)}`);
       this.logger.log(`[DART-DBG] 공시 수: ${disclosures.length}`);
-      this.logger.log(`[DART-DBG] 재무 연도 수: ${multiYearFinancials.length} — ${JSON.stringify(multiYearFinancials)}`);
+      this.logger.log(`[DART-DBG] 재무 연도 수: ${multiYearFinancials.length}, 자본금: ${latestCapital}, 사원수: ${employees}`);
 
       const latest = multiYearFinancials.at(-1) ?? null;
 
@@ -121,11 +131,12 @@ export class DartFinancialService {
         corpClass: company?.corp_cls || null,
         ceoName: company?.ceo_nm || null,
         foundedDate: company?.est_dt || null,
-        employees: null,
+        employees,
+        capital: latestCapital,
         industry: null,
         homeUrl: company?.hm_url?.startsWith('http') ? company.hm_url : null,
         address: company?.adres || null,
-        dartUrl: `https://dart.fss.or.kr/corp/searchCorpAll.do?textCrpNm=${encodeURIComponent(companyName)}`,
+        dartUrl: `https://dart.fss.or.kr/corp/searchCorpInfo.do?corp_code=${corpCode}`,
         fiscalMonth: company?.acc_mt ? `${company.acc_mt}월` : null,
         revenue: latest?.revenueFormatted ?? null,
         operatingProfit: latest?.operatingProfitFormatted ?? null,
@@ -293,11 +304,14 @@ export class DartFinancialService {
     }));
   }
 
-  private async fetchMultiYearFinancials(corpCode: string, apiKey: string): Promise<YearlyFinancial[]> {
+  private async fetchMultiYearFinancials(
+    corpCode: string,
+    apiKey: string,
+  ): Promise<{ financials: YearlyFinancial[]; latestCapital: string | null }> {
     const currentYear = new Date().getFullYear();
     const results: YearlyFinancial[] = [];
+    let latestCapital: string | null = null;
 
-    // 최근 3개년 병렬 조회
     const yearRange = [currentYear - 3, currentYear - 2, currentYear - 1];
     this.logger.log(`[DART-DBG] 재무데이터 조회 연도: ${yearRange.join(', ')}`);
     const responses = await Promise.allSettled(
@@ -317,8 +331,9 @@ export class DartFinancialService {
         r.list!.find((item) => names.some((n) => item.account_nm.includes(n)))?.thstrm_amount ?? null;
 
       const revenueRaw = find(['매출액', '수익(매출액)']);
-      const opRaw = find(['영업이익', '영업손익']);
-      const niRaw = find(['당기순이익', '당기순손익']);
+      const opRaw      = find(['영업이익', '영업손익']);
+      const niRaw      = find(['당기순이익', '당기순손익']);
+      const capitalRaw = find(['자본금']);
 
       const toEok = (raw: string | null) => {
         if (!raw) return null;
@@ -334,6 +349,9 @@ export class DartFinancialService {
           ? Math.round((operatingProfit / revenue) * 1000) / 10
           : null;
 
+      // 가장 최신 연도의 자본금 저장
+      if (capitalRaw) latestCapital = this.fmtAmount(capitalRaw);
+
       results.push({
         year,
         revenue,
@@ -346,7 +364,19 @@ export class DartFinancialService {
       });
     }
 
-    return results.sort((a, b) => a.year - b.year);
+    return { financials: results.sort((a, b) => a.year - b.year), latestCapital };
+  }
+
+  private async fetchEmployeeCount(corpCode: string, apiKey: string, year: number): Promise<string | null> {
+    const url = `${OPEN_DART_BASE}/empSttus.json?crtfc_key=${apiKey}&corp_code=${corpCode}&bsns_year=${year}&reprt_code=${ANNUAL_REPORT_CODE}`;
+    const res = await this.dartFetch<{ status: string; list?: OpenDartEmployee[] }>(url);
+    if (!res || res.status !== '000' || !res.list?.length) return null;
+
+    // "합계" 행 우선, 없으면 첫 번째 유효 값
+    const total = res.list.find((e) => e.fo_bbm?.includes('합계'));
+    const raw = total?.sm_empNo ?? res.list[0]?.sm_empNo;
+    const n = parseInt((raw ?? '').replace(/,/g, ''), 10);
+    return isNaN(n) || n <= 0 ? null : `${n.toLocaleString()}명`;
   }
 
   private async dartFetch<T>(url: string): Promise<T | null> {

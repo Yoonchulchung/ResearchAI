@@ -304,7 +304,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
             )}
           </div>
 
-          {/* Local AI Model */}
+          {/* Summary AI Model — cloud + local */}
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
               요약/대화 AI
@@ -318,6 +318,13 @@ function ModalContent({ onClose }: { onClose: () => void }) {
                 className="w-full text-sm text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 cursor-pointer"
               >
                 <option value={DEFAULT_FREE_MODEL_ID}>☁️ Gemini (기본 무료)</option>
+                {cloudAiModels.length > 0 && (
+                  <optgroup label="Cloud AI">
+                    {cloudAiModels.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </optgroup>
+                )}
                 {localAiModels.length > 0 && (
                   <optgroup label="로컬 모델">
                     {localAiModels.map((m) => {

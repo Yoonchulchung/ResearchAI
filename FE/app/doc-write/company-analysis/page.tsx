@@ -20,6 +20,7 @@ import {
   type SwotAnalysis,
   type YearlyFinancial,
 } from "@/lib/api/company-analysis";
+import { API_BASE, readSSE, tokenStore } from "@/lib/api/base";
 
 const COMPETENCY_LABELS: Array<{ key: keyof CompetencyScores; label: string }> = [
   { key: "성취지향", label: "성취지향" },
@@ -291,8 +292,43 @@ export default function CompanyAnalysisPage() {
   const [selected, setSelected] = useState<CompanyAnalysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [progressLogs, setProgressLogs] = useState<string[]>([]);
+  const [logsVisible, setLogsVisible] = useState(true);
   const [error, setError] = useState("");
   const logEndRef = useRef<HTMLDivElement>(null);
+
+  // ── 플로팅 채팅 ──────────────────────────────────────────────────────────
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatModel, setChatModel] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
+  const chatPanelRef = useRef<HTMLDivElement>(null);
+  const chatBtnRef = useRef<HTMLButtonElement>(null);
+
+  // chatModel 초기값: Haiku 우선, 없으면 마지막 클라우드 모델
+  // dep를 string으로 유지해 배열 크기 변동 오류 방지
+  const haikuModelId = cloudAiModels.find((m) => m.id.toLowerCase().includes("haiku"))?.id
+    ?? cloudAiModels.at(-1)?.id
+    ?? "";
+  useEffect(() => {
+    if (chatModel || !haikuModelId) return;
+    setChatModel(haikuModelId);
+  }, [haikuModelId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 채팅 패널 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!chatOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (chatPanelRef.current?.contains(target)) return;
+      if (chatBtnRef.current?.contains(target)) return;
+      setChatOpen(false);
+    };
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [chatOpen]);
 
   const refreshList = async () => {
     setLoadingList(true);
@@ -379,9 +415,94 @@ export default function CompanyAnalysisPage() {
     });
   }, [selected, companies]);
 
+  // 기업 선택이 바뀌면 대화 초기화
+  useEffect(() => {
+    setChatMessages([]);
+  }, [selected?.companyKey]);
+
+  // 새 메시지 도착 시 스크롤 하단 이동
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  // 채팅창 열릴 때 입력창에 포커스
+  useEffect(() => {
+    if (chatOpen) setTimeout(() => chatInputRef.current?.focus(), 50);
+  }, [chatOpen]);
+
+  const buildCompanyContext = (c: CompanyAnalysis): string => {
+    const parts: string[] = [`## ${c.companyName} 기업 분석 데이터`];
+    if (c.summary) parts.push(`### 인재상 요약\n${c.summary}`);
+    if (c.industry) parts.push(`업종: ${c.industry}`);
+    if (c.ceoName) parts.push(`대표이사: ${c.ceoName}`);
+    if (c.foundedDate) parts.push(`설립: ${c.foundedDate}`);
+    if (c.report) parts.push(`### 기업 보고서\n${c.report}`);
+    if (c.jobplanetSummary) parts.push(`### 잡플래닛 리뷰\n${c.jobplanetSummary}`);
+    if (c.swot) parts.push(`### SWOT\n강점: ${c.swot.S?.join(", ")}\n약점: ${c.swot.W?.join(", ")}\n기회: ${c.swot.O?.join(", ")}\n위협: ${c.swot.T?.join(", ")}`);
+    if (c.financialSummary) parts.push(`### 재무 정보\n${c.financialSummary.slice(0, 2000)}`);
+    return parts.join("\n\n");
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg = chatInput.trim();
+    setChatInput("");
+
+    const nextMessages = [...chatMessages, { role: "user" as const, content: userMsg }];
+    setChatMessages(nextMessages);
+    setChatLoading(true);
+
+    let assistantContent = "";
+    setChatMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+    // 기업 컨텍스트를 system prompt에 포함
+    const systemPrompt = selected
+      ? `당신은 ${selected.companyName} 기업 분석 AI 어시스턴트입니다. 아래 기업 분석 데이터를 바탕으로 질문에 명확하고 간결하게 한국어로 답변하세요. 이모지는 사용하지 마세요.\n\n${buildCompanyContext(selected)}`
+      : "당신은 기업 분석 AI 어시스턴트입니다. 한국어로 답변하세요. 이모지는 사용하지 마세요.";
+
+    try {
+      const token = tokenStore.get();
+      const res = await fetch(`${API_BASE}/chat/direct`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          message: userMsg,
+          model: chatModel || "",
+          systemPrompt,
+          // 직전 대화 이력 (현재 user msg 제외, 최근 20개)
+          history: chatMessages.slice(-20),
+        }),
+      });
+
+      if (!res.ok || !res.body) throw new Error(`채팅 API 오류 (${res.status})`);
+
+      await readSSE<{ type: string; text?: string; message?: string }>(res, (ev) => {
+        if (ev.type === "chunk" && ev.text) {
+          assistantContent += ev.text;
+          setChatMessages((prev) => [
+            ...prev.slice(0, -1),
+            { role: "assistant", content: assistantContent },
+          ]);
+        }
+        if (ev.type === "done" || ev.type === "error") return true;
+      });
+    } catch (e) {
+      setChatMessages((prev) => [
+        ...prev.slice(0, -1),
+        { role: "assistant", content: `오류: ${e instanceof Error ? e.message : "알 수 없는 오류"}` },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   const card = `border rounded-sm p-5 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300 shadow-sm"}`;
 
   return (
+    <>
     <div className={`h-full flex flex-col font-sans overflow-hidden transition-all ${isGlass ? "p-3 bg-transparent" : isDark ? "bg-slate-900" : "bg-[#f4f5f7]"}`}>
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl border " + (isDark ? "border-white/20" : "border-black/5") : ""}`}>
 
@@ -436,13 +557,28 @@ export default function CompanyAnalysisPage() {
           </div>
 
           {(analyzing || progressLogs.length > 0 || error) && (
-            <div className={`mt-3 px-4 py-2 border rounded-sm text-sm font-mono ${error ? "bg-red-50 text-red-700 border-red-300" : isDark ? "bg-slate-900 text-slate-400 border-slate-700" : "bg-slate-100 text-slate-600 border-slate-300"}`}>
-              {error ? <div>[오류] {error}</div> : (
-                <div className="max-h-32 overflow-y-auto flex flex-col gap-1 text-xs">
-                  {progressLogs.map((l, i) => <div key={i}>{">"} {l}</div>)}
-                  {analyzing && <div className="text-blue-600 mt-1">{">"} 프로세싱 중입니다. 잠시만 기다려 주십시오.</div>}
-                  <div ref={logEndRef} />
-                </div>
+            <div className={`mt-3 border rounded-sm text-sm font-mono ${error ? "bg-red-50 text-red-700 border-red-300" : isDark ? "bg-slate-900 text-slate-400 border-slate-700" : "bg-slate-100 text-slate-600 border-slate-300"}`}>
+              {error ? (
+                <div className="px-4 py-2">[오류] {error}</div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between px-4 py-1.5">
+                    <span className="text-xs opacity-60">분석 진행 로그</span>
+                    <button
+                      onClick={() => setLogsVisible((v) => !v)}
+                      className={`text-xs px-2 py-0.5 rounded border transition-colors ${isDark ? "border-slate-700 hover:border-slate-500 text-slate-500 hover:text-slate-300" : "border-slate-300 hover:border-slate-400 text-slate-400 hover:text-slate-600"}`}
+                    >
+                      {logsVisible ? "숨기기" : "펼치기"}
+                    </button>
+                  </div>
+                  {logsVisible && (
+                    <div className="px-4 pb-2 max-h-32 overflow-y-auto flex flex-col gap-1 text-xs border-t border-current border-opacity-10">
+                      {progressLogs.map((l, i) => <div key={i}>{">"} {l}</div>)}
+                      {analyzing && <div className="text-blue-600 mt-1">{">"} 프로세싱 중입니다. 잠시만 기다려 주십시오.</div>}
+                      <div ref={logEndRef} />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -544,7 +680,7 @@ export default function CompanyAnalysisPage() {
                 )}
 
                 {/* 기업 개요 카드 */}
-                {(selected.ceoName || selected.foundedDate || selected.corpClass || selected.industry || selected.address || selected.dartUrl || selected.creditRating || selected.competitors?.length || selected.businessSegments?.length || selected.jobPostings?.length) && (
+                {(selected.ceoName || selected.foundedDate || selected.corpClass || selected.industry || selected.companySize || selected.address || selected.dartUrl || selected.creditRating || selected.competitors?.length || selected.businessSegments?.length || selected.jobPostings?.length) && (
                   <section className={card}>
                     <SectionHeader title="기업 개요 (Company Overview)" badge="INFO" isDark={isDark} />
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
@@ -560,24 +696,71 @@ export default function CompanyAnalysisPage() {
                       )}
                       {selected.corpClass && (
                         <InfoItem label="상장구분" isDark={isDark}>
-                          <span className={`inline-block px-2 py-0.5 text-xs rounded-sm font-semibold ${selected.corpClass === "Y" ? "bg-blue-100 text-blue-700" : selected.corpClass === "K" ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-600"}`}>
-                            {CORP_CLASS_LABEL[selected.corpClass] ?? selected.corpClass}
+                          <span className="flex items-center gap-2 flex-wrap">
+                            <span className={`inline-block px-2 py-0.5 text-xs rounded-sm font-semibold ${selected.corpClass === "Y" ? "bg-blue-100 text-blue-700" : selected.corpClass === "K" ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-600"}`}>
+                              {CORP_CLASS_LABEL[selected.corpClass] ?? selected.corpClass}
+                            </span>
+                            {(selected.corpClass === "Y" || selected.corpClass === "K") && selected.stockCode && (
+                              <a
+                                href={`https://www.tossinvest.com/stocks/A${selected.stockCode}/order`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`inline-flex items-center gap-0.5 text-xs hover:underline shrink-0 ${isDark ? "text-blue-400" : "text-blue-600"}`}
+                              >
+                                토스증권 ↗
+                              </a>
+                            )}
                           </span>
                         </InfoItem>
                       )}
                       {selected.industry && (
                         <InfoItem label="업종" isDark={isDark}>{selected.industry}</InfoItem>
                       )}
+                      {selected.companySize && (
+                        <InfoItem label="기업 규모" isDark={isDark}>
+                          <span className={`inline-block px-2 py-0.5 text-xs rounded-sm font-semibold ${
+                            selected.companySize === "대기업"   ? "bg-blue-100 text-blue-800" :
+                            selected.companySize === "중견기업" ? "bg-violet-100 text-violet-800" :
+                            selected.companySize === "스타트업" ? "bg-emerald-100 text-emerald-800" :
+                                                                 "bg-slate-100 text-slate-700"
+                          }`}>
+                            {selected.companySize}
+                          </span>
+                        </InfoItem>
+                      )}
                       {selected.creditRating && (
                         <InfoItem label="신용등급" isDark={isDark}>
                           <span className="font-bold font-mono text-base">{selected.creditRating}</span>
                         </InfoItem>
                       )}
+                      {selected.employees && (
+                        <InfoItem label="사원수" isDark={isDark}>{selected.employees}</InfoItem>
+                      )}
+                      {(selected.multiYearFinancials?.at(-1)?.revenueFormatted) && (
+                        <InfoItem label={`매출 (${selected.multiYearFinancials!.at(-1)!.year})`} isDark={isDark}>
+                          {selected.multiYearFinancials!.at(-1)!.revenueFormatted}
+                        </InfoItem>
+                      )}
+                      {selected.capital && (
+                        <InfoItem label="자본금" isDark={isDark}>{selected.capital}</InfoItem>
+                      )}
                     </div>
 
                     {selected.address && (
                       <div className="mt-4">
-                        <InfoItem label="주소" isDark={isDark}>{selected.address}</InfoItem>
+                        <InfoItem label="주소" isDark={isDark}>
+                          <span className="flex items-center gap-2 flex-wrap">
+                            <span>{selected.address}</span>
+                            <a
+                              href={`https://map.naver.com/v5/search/${encodeURIComponent(selected.address)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`inline-flex items-center gap-0.5 text-xs hover:underline shrink-0 ${isDark ? "text-emerald-400" : "text-emerald-700"}`}
+                            >
+                              지도 ↗
+                            </a>
+                          </span>
+                        </InfoItem>
                       </div>
                     )}
 
@@ -632,6 +815,43 @@ export default function CompanyAnalysisPage() {
                         </div>
                       </div>
                     )}
+                  </section>
+                )}
+
+                {/* 경영이념·인재상 */}
+                {selected.missionVision && (selected.missionVision.mission || selected.missionVision.vision || selected.missionVision.coreValues?.length || selected.missionVision.talentProfile) && (
+                  <section className={card}>
+                    <SectionHeader title="경영이념 · 인재상 (Mission & Values)" badge="AI" isDark={isDark} />
+                    <div className="space-y-5">
+                      {selected.missionVision.mission && (
+                        <div>
+                          <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>미션 (Mission)</p>
+                          <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{selected.missionVision.mission}</p>
+                        </div>
+                      )}
+                      {selected.missionVision.vision && (
+                        <div>
+                          <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>비전 (Vision)</p>
+                          <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{selected.missionVision.vision}</p>
+                        </div>
+                      )}
+                      {selected.missionVision.coreValues?.length > 0 && (
+                        <div>
+                          <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${isDark ? "text-slate-500" : "text-slate-400"}`}>핵심 가치 (Core Values)</p>
+                          <div className="flex flex-wrap gap-2">
+                            {selected.missionVision.coreValues.map((v) => (
+                              <span key={v} className={`inline-block px-3 py-1 text-xs font-medium border rounded-sm ${isDark ? "bg-blue-900/30 text-blue-300 border-blue-700/50" : "bg-blue-50 text-blue-700 border-blue-200"}`}>{v}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selected.missionVision.talentProfile && (
+                        <div className={`p-4 rounded-sm border-l-4 ${isDark ? "bg-slate-700/40 border-amber-500" : "bg-amber-50 border-amber-500"}`}>
+                          <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1.5 ${isDark ? "text-amber-400" : "text-amber-700"}`}>인재상</p>
+                          <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{selected.missionVision.talentProfile}</p>
+                        </div>
+                      )}
+                    </div>
                   </section>
                 )}
 
@@ -726,13 +946,13 @@ export default function CompanyAnalysisPage() {
                       {selected.report.split(/\n\n+/).map((paragraph, i) => {
                         if (paragraph.startsWith("## ")) {
                           return (
-                            <h4 key={i} className={`text-sm font-bold mt-2 first:mt-0 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                            <h4 key={i} className={`text-sm font-medium mt-2 first:mt-0 ${isDark ? "text-slate-300" : "text-slate-700"}`}>
                               {paragraph.replace(/^## \d+\. /, "")}
                             </h4>
                           );
                         }
                         return (
-                          <p key={i} className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                          <p key={i} className={`text-sm font-normal leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                             {paragraph}
                           </p>
                         );
@@ -745,23 +965,43 @@ export default function CompanyAnalysisPage() {
                 {/* 최근 뉴스 */}
                 {selected.recentNews && selected.recentNews.length > 0 && (
                   <section className={card}>
-                    <SectionHeader title="관련 최근 기사 (Recent News)" badge="WEB" isDark={isDark} />
+                    <SectionHeader title="최근 주요 기사 (Recent News)" badge="WEB" isDark={isDark} />
                     <ul className="space-y-3">
                       {selected.recentNews.map((n, i) => (
-                        <li key={i} className={`flex items-start gap-3 pb-3 ${i < selected.recentNews!.length - 1 ? `border-b ${isDark ? "border-slate-700" : "border-slate-100"}` : ""}`}>
-                          <span className={`text-xs font-mono mt-0.5 shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`}>{String(i + 1).padStart(2, "0")}</span>
-                          <div className="min-w-0">
-                            <a
-                              href={n.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`text-sm font-medium hover:underline block truncate ${isDark ? "text-slate-200" : "text-slate-800"}`}
-                            >
-                              {n.title}
-                            </a>
-                            {n.date && (
-                              <p className={`text-xs mt-0.5 font-mono ${isDark ? "text-slate-500" : "text-slate-400"}`}>{n.date}</p>
-                            )}
+                        <li key={i} className={`pb-3 ${i < selected.recentNews!.length - 1 ? `border-b ${isDark ? "border-slate-700" : "border-slate-100"}` : ""}`}>
+                          <div className="flex items-start gap-3">
+                            <span className={`text-xs font-mono mt-0.5 shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`}>{String(i + 1).padStart(2, "0")}</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                {n.category && (
+                                  <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-sm border ${
+                                    n.category === "신사업"   ? (isDark ? "bg-blue-900/40 text-blue-300 border-blue-700/50"     : "bg-blue-50 text-blue-700 border-blue-200") :
+                                    n.category === "B2B확장" ? (isDark ? "bg-violet-900/40 text-violet-300 border-violet-700/50" : "bg-violet-50 text-violet-700 border-violet-200") :
+                                    n.category === "법적분쟁"? (isDark ? "bg-red-900/40 text-red-300 border-red-700/50"         : "bg-red-50 text-red-700 border-red-200") :
+                                    n.category === "경영진"  ? (isDark ? "bg-amber-900/40 text-amber-300 border-amber-700/50"   : "bg-amber-50 text-amber-700 border-amber-200") :
+                                    n.category === "신제품"  ? (isDark ? "bg-emerald-900/40 text-emerald-300 border-emerald-700/50" : "bg-emerald-50 text-emerald-700 border-emerald-200") :
+                                    n.category === "재무"    ? (isDark ? "bg-cyan-900/40 text-cyan-300 border-cyan-700/50"      : "bg-cyan-50 text-cyan-700 border-cyan-200") :
+                                                               (isDark ? "bg-slate-700 text-slate-400 border-slate-600"         : "bg-slate-100 text-slate-500 border-slate-200")
+                                  }`}>
+                                    {n.category}
+                                  </span>
+                                )}
+                                <a
+                                  href={n.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`text-sm font-medium hover:underline truncate ${isDark ? "text-slate-200" : "text-slate-800"}`}
+                                >
+                                  {n.title}
+                                </a>
+                              </div>
+                              {n.summary && (
+                                <p className={`text-xs leading-relaxed ml-0 ${isDark ? "text-slate-400" : "text-slate-500"}`}>{n.summary}</p>
+                              )}
+                              {n.date && (
+                                <p className={`text-xs mt-0.5 font-mono ${isDark ? "text-slate-600" : "text-slate-400"}`}>{n.date}</p>
+                              )}
+                            </div>
                           </div>
                         </li>
                       ))}
@@ -819,5 +1059,147 @@ export default function CompanyAnalysisPage() {
         </div>
       </div>
     </div>
+
+    {/* ── 플로팅 채팅 버튼 ──────────────────────────────────────── */}
+    <button
+      ref={chatBtnRef}
+      onClick={() => {
+        if (!chatOpen) setChatMessages([]);
+        setChatOpen((o) => !o);
+      }}
+      title={chatOpen ? "채팅 닫기" : "AI와 채팅"}
+      className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-200 ${
+        chatOpen
+          ? isDark ? "bg-slate-600 hover:bg-slate-500 text-white" : "bg-slate-500 hover:bg-slate-400 text-white"
+          : isDark ? "bg-blue-600 hover:bg-blue-500 text-white" : "bg-slate-800 hover:bg-slate-700 text-white"
+      }`}
+    >
+      {chatOpen ? (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      ) : (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+      )}
+    </button>
+
+    {/* ── 채팅 패널 ──────────────────────────────────────────────── */}
+    {chatOpen && (
+      <div
+        ref={chatPanelRef}
+        className={`fixed bottom-24 right-6 z-50 w-96 h-[520px] flex flex-col rounded-lg border shadow-2xl overflow-hidden ${
+          isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"
+        }`}
+      >
+        {/* 헤더 */}
+        <div className={`shrink-0 border-b ${isDark ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200"}`}>
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full shrink-0 ${chatLoading ? "bg-blue-500 animate-pulse" : "bg-emerald-500"}`} />
+              <span className={`text-sm font-semibold truncate max-w-[180px] ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                {selected ? `${selected.companyName} 어시스턴트` : "기업 분석 AI"}
+              </span>
+            </div>
+            <button
+              onClick={() => { if (confirm("대화를 초기화하시겠습니까?")) setChatMessages([]); }}
+              className={`text-xs px-2 py-0.5 rounded border transition-colors shrink-0 ${isDark ? "border-slate-600 text-slate-400 hover:text-red-400 hover:border-red-600" : "border-slate-300 text-slate-400 hover:text-red-500 hover:border-red-400"}`}
+            >
+              초기화
+            </button>
+          </div>
+          {/* 모델 선택 */}
+          <div className={`px-3 pb-2.5`}>
+            <select
+              value={chatModel}
+              onChange={(e) => setChatModel(e.target.value)}
+              disabled={chatLoading}
+              className={`w-full text-xs px-2 py-1.5 border rounded appearance-none focus:outline-none ${isDark ? "bg-slate-900 border-slate-600 text-slate-300" : "bg-white border-slate-300 text-slate-700"}`}
+              style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23666%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: "no-repeat", backgroundPosition: "right .5rem top 50%", backgroundSize: ".55rem auto" }}
+            >
+              <option value={DEFAULT_FREE_MODEL_ID}>Gemini (기본)</option>
+              {cloudAiModels.length > 0 && (
+                <optgroup label="Cloud">
+                  {cloudAiModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </optgroup>
+              )}
+              {localAiModels.length > 0 && (
+                <optgroup label="Local">
+                  {localAiModels.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </optgroup>
+              )}
+            </select>
+          </div>
+        </div>
+
+        {/* 메시지 목록 */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          {chatMessages.length === 0 && (
+            <div className={`text-center text-xs mt-8 leading-relaxed ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+              {selected
+                ? `${selected.companyName}에 대해 궁금한 점을 물어보세요.\n인재상, 재무, 문화 등을 분석해 드립니다.`
+                : "좌측에서 기업을 선택하면 해당 기업의\n분석 데이터를 바탕으로 답변합니다."}
+            </div>
+          )}
+          {chatMessages.map((msg, i) => (
+            <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[82%] text-sm px-3 py-2 rounded-2xl leading-relaxed whitespace-pre-wrap break-words ${
+                  msg.role === "user"
+                    ? isDark ? "bg-blue-600 text-white rounded-br-sm" : "bg-slate-800 text-white rounded-br-sm"
+                    : isDark ? "bg-slate-700 text-slate-200 rounded-bl-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm"
+                }`}
+              >
+                {msg.content !== "" ? msg.content : (
+                  <span className="flex gap-1 items-center h-4">
+                    <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* 입력창 */}
+        <div className={`shrink-0 border-t px-3 py-3 ${isDark ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200"}`}>
+          <div className={`flex items-end gap-2 border rounded-xl px-3 py-2 ${isDark ? "bg-slate-900 border-slate-600 focus-within:border-blue-500" : "bg-white border-slate-300 focus-within:border-slate-500"}`}>
+            <textarea
+              ref={chatInputRef}
+              value={chatInput}
+              onChange={(e) => {
+                setChatInput(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendChatMessage();
+                }
+              }}
+              placeholder="메시지 입력… (Shift+Enter 줄바꿈)"
+              disabled={chatLoading}
+              rows={1}
+              className={`flex-1 text-sm bg-transparent focus:outline-none resize-none overflow-hidden leading-relaxed ${isDark ? "text-slate-200 placeholder-slate-500" : "text-slate-800 placeholder-slate-400"}`}
+              style={{ minHeight: "24px", maxHeight: "120px" }}
+            />
+            <button
+              onClick={sendChatMessage}
+              disabled={chatLoading || !chatInput.trim()}
+              className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 ${isDark ? "bg-blue-600 hover:bg-blue-500 text-white" : "bg-slate-800 hover:bg-slate-700 text-white"}`}
+            >
+              <svg className="w-4 h-4 rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

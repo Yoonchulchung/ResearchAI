@@ -85,7 +85,7 @@ export class JobplanetScraperService {
       await this.loginWithSession(page, id, password);
       const loginUrl = page.url();
 
-      const searchUrl = `https://www.jobplanet.co.kr/companies?query=${encodeURIComponent(companyName)}`;
+      const searchUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(companyName)}`;
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 20000 });
 
       // 실제 페이지에서 /companies/ 링크 수집
@@ -353,9 +353,28 @@ export class JobplanetScraperService {
     }
   }
 
+  /** /companies/{id}/landing/{slug} → /companies/{id}/reviews/{slug} */
+  private toReviewUrl(href: string): string {
+    try {
+      const url = new URL(href);
+      const parts = url.pathname.split('/').filter(Boolean);
+      // parts: ['companies', '89520', 'landing', 'slug']
+      if (parts[0] === 'companies' && parts[1]) {
+        const id = parts[1];
+        const slug = parts.slice(3).join('/');
+        url.pathname = slug ? `/companies/${id}/reviews/${slug}` : `/companies/${id}/reviews`;
+        url.search = '';
+        return url.toString();
+      }
+    } catch { /* fallback below */ }
+    return href.replace(/\/companies\/(\d+)\/[^/]+\/(.+)/, '/companies/$1/reviews/$2')
+               .replace(/\/companies\/(\d+)(?:\/[^/]*)?$/, '/companies/$1/reviews');
+  }
+
   private async scrapeCompanyData(page: Page, companyName: string): Promise<JobplanetCompanyData | null> {
     try {
-      const searchUrl = `https://www.jobplanet.co.kr/companies?query=${encodeURIComponent(companyName)}`;
+      // /search?query= 가 올바른 검색 엔드포인트 (/companies?query= 는 랭킹 홈 리다이렉트)
+      const searchUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(companyName)}`;
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 20000 });
 
       // 회사 링크 추출 — 빈 텍스트 앵커와 사이드바 링크 제외
@@ -402,8 +421,9 @@ export class JobplanetScraperService {
         return null;
       }
 
-      // 리뷰 페이지
-      const reviewUrl = companyLink.replace(/\/$/, '').replace(/\/(reviews|salary|benefit|culture|interview).*$/, '') + '/reviews';
+      // /companies/{id}/reviews/{slug} 형태로 리뷰 페이지 이동
+      const reviewUrl = this.toReviewUrl(companyLink);
+      this.logger.log(`[Jobplanet] 리뷰 URL: ${reviewUrl}`);
       await page.goto(reviewUrl, { waitUntil: 'networkidle2', timeout: 20000 });
 
       // JS 렌더링 대기 + 스크롤로 지연 로딩 리뷰 유도
@@ -506,7 +526,8 @@ export class JobplanetScraperService {
           cultureRating,
           wlbRating,
           reviews,
-          rawSummary: '',
+          // 리뷰 파싱 실패 시 AI가 원문을 직접 분석할 수 있도록 반환
+          rawSummary: reviews.length === 0 ? rawSummary.slice(0, 20000) : '',
         };
       }, companyName);
 
@@ -539,18 +560,26 @@ export class JobplanetScraperService {
 
       await this.loginWithSession(page, id, password);
 
-      const searchUrl = `https://www.jobplanet.co.kr/companies?query=${encodeURIComponent(companyName)}`;
+      const searchUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(companyName)}`;
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 20000 });
 
-      const companyLink = await page.evaluate(() => {
-        const a = Array.from(document.querySelectorAll('a[href*="/companies/"]'))
-          .find((el) => /\/companies\/\d+/.test((el as HTMLAnchorElement).href));
-        return a ? (a as HTMLAnchorElement).href : null;
-      });
+      const companyLink = await page.evaluate((query) => {
+        const norm = (s: string) => s.replace(/[\s(주)㈜()（）\.,·]/g, '').toLowerCase();
+        const qNorm = norm(query);
+        const anchors = Array.from(document.querySelectorAll('a[href*="/companies/"]'))
+          .filter((el) => /\/companies\/\d+/.test((el as HTMLAnchorElement).href));
+        const match = anchors.find((a) => {
+          const t = norm(a.textContent?.trim() ?? '');
+          return t && (t === qNorm || t.startsWith(qNorm) || qNorm.startsWith(t));
+        }) ?? anchors.find((a) => {
+          const t = a.textContent?.trim() ?? '';
+          return t.length > 0 && (t.includes(query) || query.includes(t));
+        }) ?? anchors[0];
+        return match ? (match as HTMLAnchorElement).href : null;
+      }, companyName);
 
-      const reviewUrl = companyLink
-        ? companyLink.replace(/\/$/, '').replace(/\/(reviews|salary|benefit|culture|interview).*$/, '') + '/reviews'
-        : searchUrl;
+      const reviewUrl = companyLink ? this.toReviewUrl(companyLink) : searchUrl;
+      this.logger.log(`[Jobplanet-Debug] 선택 링크: ${companyLink} → 리뷰: ${reviewUrl}`);
 
       await page.goto(reviewUrl, { waitUntil: 'networkidle2', timeout: 20000 });
       await new Promise<void>((r) => setTimeout(r, 2000));
@@ -596,6 +625,10 @@ export class JobplanetScraperService {
         if (r.pros) lines.push(`장점: ${r.pros.slice(0, 200)}`);
         if (r.cons) lines.push(`단점: ${r.cons.slice(0, 200)}`);
       });
+    } else if (data.rawSummary) {
+      // 구조화 파싱 실패 시 원문을 AI에게 직접 전달
+      lines.push('\n### 페이지 원문 (구조 파싱 실패 — AI 직접 분석)');
+      lines.push(data.rawSummary);
     }
 
     return lines.join('\n');

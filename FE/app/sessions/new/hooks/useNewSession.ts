@@ -72,12 +72,12 @@ export function useNewSession(models: ModelDefinition[]) {
   useEffect(() => { topicRef.current = topic; }, [topic]);
   useEffect(() => { cloudAiModelRef.current = selectedCloudAiModel; }, [selectedCloudAiModel]);
 
-  // 모델 목록이 로드되면 기본 로컬 모델 설정 (draft 복원값이 없을 때만)
-  // 로컬 모델이 하나도 없으면 "기본 무료 AI" 로 설정
+  // 요약·생성 AI 초기값: 로컬 → 클라우드 → 기본 무료 순으로 설정
   useEffect(() => {
     if (selectedLocalAiModel) return;
     const firstLocal = models.find((m) => m.provider === "ollama" || m.provider === "llama-cpp");
-    setSelectedLocalAiModel(firstLocal?.id ?? DEFAULT_FREE_MODEL_ID);
+    const firstCloud = models.find((m) => m.provider !== "ollama" && m.provider !== "llama-cpp");
+    setSelectedLocalAiModel(firstLocal?.id ?? firstCloud?.id ?? DEFAULT_FREE_MODEL_ID);
   }, [models]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 검색 엔진 목록 로드

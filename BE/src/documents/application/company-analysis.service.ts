@@ -75,10 +75,14 @@ export interface CompanyAnalysisDto {
   competitors: string[] | null;
   businessSegments: string[] | null;
   industry: string | null;
+  companySize: string | null;
   creditRating: string | null;
   report: string | null;
   // DART 기업 정보
   corpClass: string | null;
+  stockCode: string | null;
+  employees: string | null;
+  capital: string | null;
   homeUrl: string | null;
   address: string | null;
   dartUrl: string | null;
@@ -89,9 +93,10 @@ export interface CompanyAnalysisDto {
   financialSummary: string | null;
   disclosures: { title: string; date: string; url: string }[] | null;
   // 웹 수집
-  recentNews: { title: string; url: string; date: string }[] | null;
+  recentNews: { title: string; url: string; date: string; category?: string; summary?: string }[] | null;
   jobPostings: { title: string; url: string; date: string }[] | null;
   jobplanetSummary: string | null;
+  missionVision: { mission: string | null; vision: string | null; coreValues: string[]; talentProfile: string | null } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -121,6 +126,7 @@ const SYSTEM_PROMPT = `당신은 기업 분석 전문가입니다. 주어진 자
 {
   "summary": "인재상 핵심 2~3문장 (복지·재무 정보도 포함)",
   "industry": "업종명 (예: IT서비스, 반도체, 금융, 유통, 제조업 등)",
+  "companySize": "대기업 | 중견기업 | 중소기업 | 스타트업 중 하나 — 매출·직원수·설립연도·투자규모·재무규모 등을 종합 판단. 판단 불가 시 null",
   "creditRating": "신용등급 (예: AAA, AA+, A0) — 알 수 없으면 null",
   "report": "## 1. 기업 개요\n(회사 소개·역사·규모 3~5문장)\n\n## 2. 핵심 사업 모델\n(주요 제품·서비스·수익구조 3~5문장)\n\n## 3. 재무 및 성장성\n(매출·이익 트렌드·재무 건전성 3~5문장)\n\n## 4. 조직문화 및 인재상\n(기업문화·복지·인재상 3~5문장)\n\n## 5. 투자 관점 평가\n(기회요인·위험요인·종합의견 3~5문장)",
   "scores": {
@@ -141,8 +147,28 @@ const SYSTEM_PROMPT = `당신은 기업 분석 전문가입니다. 주어진 자
     "T": ["위협1", "위협2"]
   },
   "competitors": ["경쟁사1", "경쟁사2", "경쟁사3"],
-  "businessSegments": ["핵심사업부문1 — 간략설명", "사업부문2 — 간략설명"]
+  "businessSegments": ["핵심사업부문1 — 간략설명", "사업부문2 — 간략설명"],
+  "missionVision": {
+    "mission": "기업의 핵심 미션/사명 1~2문장 — 없으면 null",
+    "vision": "중장기 비전/목표 1~2문장 — 없으면 null",
+    "coreValues": ["핵심가치1", "핵심가치2", "핵심가치3"],
+    "talentProfile": "인재상 종합 설명 2~3문장 — 없으면 null"
+  },
+  "categorizedNews": [
+    {
+      "title": "위에 제공된 뉴스 제목과 동일하게",
+      "category": "신사업 | B2B확장 | 법적분쟁 | 경영진 | 신제품 | 재무 | 기타 중 하나",
+      "summary": "한 줄 핵심 요약 (30자 이내) — 없으면 null"
+    }
+  ]
 }
+\`\`\`
+
+## companySize 판단 기준
+- 대기업: 공정거래법상 대기업집단 소속 또는 매출 1조↑ 또는 직원 1000명↑ 대형 상장사
+- 중견기업: 중소기업기본법상 중견기업 (매출 400억~1조, 직원 300~1000명 수준)
+- 중소기업: 매출 400억 미만 또는 직원 300명 미만의 비-스타트업
+- 스타트업: 설립 10년 이내이며 VC/엔젤 투자를 받았거나 고성장 초기 기업
 \`\`\``;
 
 @Injectable()
@@ -286,6 +312,10 @@ export class CompanyAnalysisService {
     if (webContext.trim()) contextParts.push(`## 인재상·채용 자료\n${webContext.slice(0, 10000)}`);
     if (dartText) contextParts.push(dartText);
     if (jobplanetText) contextParts.push(jobplanetText);
+    if (recentNews.length > 0) {
+      const newsTitles = recentNews.map((n, i) => `${i + 1}. ${n.title}`).join('\n');
+      contextParts.push(`## 최근 뉴스 목록 (category·summary 분류 필요)\n${newsTitles}`);
+    }
 
     const userPrompt = `## 분석 대상: ${companyName}\n\n${contextParts.join('\n\n---\n\n') || '(자료 부족 — 일반 지식 기반 추정)'}`;
 
@@ -298,6 +328,8 @@ export class CompanyAnalysisService {
     let parsedIndustry: string | null = null;
     let parsedCreditRating: string | null = null;
     let parsedReport: string | null = null;
+    let parsedCompanySize: string | null = null;
+    let parsedMissionVision: { mission: string | null; vision: string | null; coreValues: string[]; talentProfile: string | null } | null = null;
 
     try {
       const { text } = await this.aiProvider.call(aiModel, SYSTEM_PROMPT, userPrompt, { caller: 'CompanyAnalysis' });
@@ -318,6 +350,7 @@ export class CompanyAnalysisService {
       const parsed = JSON.parse(jsonStr) as {
         summary?: string;
         industry?: string;
+        companySize?: string | null;
         creditRating?: string | null;
         report?: string;
         scores?: Partial<CompetencyScores>;
@@ -325,12 +358,15 @@ export class CompanyAnalysisService {
         swot?: { S?: string[]; W?: string[]; O?: string[]; T?: string[] };
         competitors?: string[];
         businessSegments?: string[];
+        missionVision?: { mission?: string; vision?: string; coreValues?: string[]; talentProfile?: string };
+        categorizedNews?: { title?: string; category?: string; summary?: string }[];
       };
 
       parsedSummary = parsed.summary?.trim() ?? '';
       parsedIndustry = parsed.industry?.trim() || null;
       parsedCreditRating = parsed.creditRating?.trim() || null;
       parsedReport = parsed.report?.trim() || null;
+      parsedCompanySize = parsed.companySize?.trim() || null;
 
       for (const k of COMPETENCY_KEYS) {
         const v = parsed.scores?.[k];
@@ -350,6 +386,26 @@ export class CompanyAnalysisService {
 
       if (Array.isArray(parsed.competitors)) parsedCompetitors = parsed.competitors.filter(Boolean);
       if (Array.isArray(parsed.businessSegments)) parsedSegments = parsed.businessSegments.filter(Boolean);
+
+      if (parsed.missionVision) {
+        parsedMissionVision = {
+          mission: parsed.missionVision.mission?.trim() || null,
+          vision: parsed.missionVision.vision?.trim() || null,
+          coreValues: Array.isArray(parsed.missionVision.coreValues) ? parsed.missionVision.coreValues.filter(Boolean) : [],
+          talentProfile: parsed.missionVision.talentProfile?.trim() || null,
+        };
+      }
+
+      // 뉴스 카테고리·요약 병합 (title 부분 일치로 매칭)
+      if (Array.isArray(parsed.categorizedNews)) {
+        recentNews = recentNews.map((n) => {
+          const match = parsed.categorizedNews!.find((cn) =>
+            cn.title && (cn.title === n.title || n.title.includes(cn.title) || cn.title.includes(n.title)),
+          );
+          if (match) return { ...n, category: match.category ?? undefined, summary: match.summary ?? undefined };
+          return n;
+        });
+      }
     } catch (err) {
       this.logger.error(`AI 분석 실패: ${(err as Error).message}`);
       yield { type: 'error', message: `AI 분석 실패: ${(err as Error).message}` };
@@ -358,7 +414,7 @@ export class CompanyAnalysisService {
 
     yield { type: 'log', message: '💾 결과 저장 중...' };
 
-    // ── 6. DB 저장 ──────────────────────────────────────────────────────
+    // ── 7. DB 저장 ──────────────────────────────────────────────────────
     const existing = await this.repo.findOne({ where: { companyKey: key } });
     const entity = await this.repo.save({
       id: existing?.id ?? randomUUID(),
@@ -373,9 +429,14 @@ export class CompanyAnalysisService {
       competitors: parsedCompetitors?.length ? JSON.stringify(parsedCompetitors) : null,
       businessSegments: parsedSegments?.length ? JSON.stringify(parsedSegments) : null,
       industry: parsedIndustry,
+      companySize: parsedCompanySize,
       creditRating: parsedCreditRating,
       report: parsedReport,
+      missionVision: parsedMissionVision ? JSON.stringify(parsedMissionVision) : null,
       corpClass: dartData?.corpClass ?? null,
+      stockCode: dartData?.stockCode ?? null,
+      employees: dartData?.employees ?? null,
+      capital: dartData?.capital ?? null,
       homeUrl: officialWebsiteUrl ?? dartData?.homeUrl ?? null,
       address: dartData?.address ?? null,
       dartUrl: dartData?.dartUrl ?? null,
@@ -411,9 +472,13 @@ export class CompanyAnalysisService {
       competitors: parse<string[]>(e.competitors),
       businessSegments: parse<string[]>(e.businessSegments),
       industry: e.industry,
+      companySize: e.companySize ?? null,
       creditRating: e.creditRating,
       report: e.report,
       corpClass: e.corpClass,
+      stockCode: e.stockCode ?? null,
+      employees: e.employees ?? null,
+      capital: e.capital ?? null,
       homeUrl: e.homeUrl,
       address: e.address,
       dartUrl: e.dartUrl,
@@ -423,9 +488,10 @@ export class CompanyAnalysisService {
       multiYearFinancials: parse<YearlyFinancial[]>(e.multiYearFinancials),
       financialSummary: e.financialSummary,
       disclosures: parse<{ title: string; date: string; url: string }[]>(e.disclosures),
-      recentNews: parse<{ title: string; url: string; date: string }[]>(e.recentNews),
+      recentNews: parse<{ title: string; url: string; date: string; category?: string; summary?: string }[]>(e.recentNews),
       jobPostings: parse<{ title: string; url: string; date: string }[]>(e.jobPostings),
       jobplanetSummary: e.jobplanetSummary,
+      missionVision: parse<{ mission: string | null; vision: string | null; coreValues: string[]; talentProfile: string | null }>(e.missionVision),
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
     };

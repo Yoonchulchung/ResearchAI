@@ -48,9 +48,9 @@ export default function NewSession() {
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-8 py-8">
         <div className="max-w-5xl mx-auto space-y-6">
-          {/* API 모델 */}
+          {/* 리서치 계획·분석 AI */}
           <ModelSelector
-            title="API 모델"
+            title="리서치 계획·분석 AI (API)"
             models={cloudAiModels}
             selectedModel={selectedCloudAiModel}
             onSelect={setSelectedCloudAiModel}
@@ -58,14 +58,14 @@ export default function NewSession() {
             defaultOpen={false}
           />
 
-          {/* 로컬 모델 */}
+          {/* 요약·태스크 생성 AI — 클라우드 + 로컬 모두 선택 가능 */}
           <ModelSelector
-            title="로컬 모델 (Ollama)"
-            models={localAiModels}
+            title="요약·태스크 생성 AI"
+            models={[...cloudAiModels, ...localAiModels]}
             selectedModel={selectedLocalAiModel}
             onSelect={setSelectedLocalAiModel}
             loading={isLoading}
-            emptyMessage="Ollama가 실행 중이지 않거나 설치된 모델이 없습니다."
+            emptyMessage="사용 가능한 모델이 없습니다."
             defaultOpen={false}
           />
 
@@ -86,7 +86,7 @@ export default function NewSession() {
             generating={generating || classifyingIntent}
             placeholder={conversation.length > 0 ? "추가 설명이나 답변을 입력하세요..." : "리서치 주제를 입력하세요 (애매하면 AI가 질문으로 안내합니다)"}
             cloudAiModels={cloudAiModels}
-            localAiModels={localAiModels}
+            localAiModels={[...cloudAiModels, ...localAiModels]}
             webEngines={webEngines}
             selectedCloudAiModel={selectedCloudAiModel}
             selectedLocalAiModel={selectedLocalAiModel}

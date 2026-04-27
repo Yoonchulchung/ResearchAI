@@ -32,13 +32,12 @@ export class JobRepository {
         (id, source, source_type, title, company, location, description, skills, url, posted_at, collected_at)
       VALUES
         (@id, @source, @sourceType, @title, @company, @location, @description, @skills, @url, @postedAt, @collectedAt)
-      ON CONFLICT(id) DO UPDATE SET
+      ON CONFLICT(url) DO UPDATE SET
         title        = excluded.title,
         company      = excluded.company,
         location     = excluded.location,
         description  = excluded.description,
         skills       = excluded.skills,
-        url          = excluded.url,
         collected_at = excluded.collected_at
     `).run({
       ...job,

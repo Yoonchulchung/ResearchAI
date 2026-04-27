@@ -16,8 +16,17 @@ export class SearchPlannerService {
   constructor(private readonly aiProvider: AiProviderService) {}
 
   async plan(topic: string, localAIModel?: string): Promise<SearchPlan> {
-    // 사용자가 로컬 모델을 지정했으면 그대로 사용 (ollama: 또는 llama: 접두사 포함)
-    // 빈 문자열("")은 "기본 AI 사용" 의도이므로 env fallback도 건너뛰고 빈 문자열 전달 → DEFAULT_AI_MODEL
+    // 모델 ID → 적절한 provider prefix 적용
+    // - 빈 문자열(""): 기본 무료 AI (Gemini) 사용
+    // - claude-*, gemini-*, gpt-*, o1*, o3*: 클라우드 모델 — 그대로 사용
+    // - ollama:*, llama:*: 이미 prefix 포함 — 그대로 사용
+    // - 그 외 bare 이름 (llama3.1, phi4:latest 등): Ollama local 모델로 간주 → ollama: prefix 추가
+    const CLOUD_PREFIXES = [
+      AI_MODEL_PREFIX.ANTHROPIC, // 'claude'
+      AI_MODEL_PREFIX.GOOGLE,    // 'gemini'
+      'gpt-', 'o1', 'o3',        // OpenAI 계열
+    ];
+
     let aiModel: string;
     if (localAIModel !== undefined) {
       const trimmed = localAIModel.trim();
@@ -25,11 +34,12 @@ export class SearchPlannerService {
         aiModel = ''; // DEFAULT_AI_MODEL (Gemini 무료) 로 폴백
       } else if (
         trimmed.startsWith(AI_MODEL_PREFIX.OLLAMA) ||
-        trimmed.startsWith(AI_MODEL_PREFIX.LLAMA_CPP)
+        trimmed.startsWith(AI_MODEL_PREFIX.LLAMA_CPP) ||
+        CLOUD_PREFIXES.some((p) => trimmed.toLowerCase().startsWith(p.toLowerCase()))
       ) {
-        aiModel = trimmed; // 그대로 사용
+        aiModel = trimmed; // 이미 provider 식별 가능 — 그대로 사용
       } else {
-        aiModel = `${AI_MODEL_PREFIX.OLLAMA}${trimmed}`; // 접두사 없으면 Ollama로 간주
+        aiModel = `${AI_MODEL_PREFIX.OLLAMA}${trimmed}`; // bare 로컬 모델명 → Ollama로 간주
       }
     } else {
       const envModel = process.env.OLLAMA_PLANNER_MODEL ?? process.env.OLLAMA_MODEL ?? 'llama3.1';
@@ -42,39 +52,46 @@ export class SearchPlannerService {
     const currentYear = now.getFullYear();
     const currentDate = `${currentYear}년 ${now.getMonth() + 1}월 ${now.getDate()}일`;
 
-    const prompt = `다음 리서치 주제를 분석하여 가장 적합한 서칭 방법 결정과 주제를 생성하세요.
+    const prompt = `다음 리서치 주제를 분석하여 가장 적합한 서칭 방법과 키워드를 결정하세요.
 
 오늘 날짜: ${currentDate}
 
 주제: "${topic}"
 
-데이터 소스:
-- "web"    : 기술 정보, 기업 정보, 지식, 트렌드
-- "recruit": 채용 공고, 직무 요건, 요구 스킬, 채용 기업, 취업 시장 동향
-- "both"   : 채용 공고와 기업 정보 모두 필요할 때
+## 데이터 소스 선택 규칙 (우선순위 순)
 
-판단 기준:
-1. recruit: 주제가 취업 공고 검색과 관련
-2. both: 주제가 취업 공고와 기업 관련 조사
-3. web: 주제가 순수 기술 정보, 뉴스, 트렌드, 개념 질문
+1. **"recruit"** — 주제에 "채용 공고", "채용", "취업", "공고", "직무", "포지션" 등이 포함되거나 구직 목적인 경우
+   - 예: "FastAPI 개발자 채용 공고", "2025년 백엔드 채용 동향", "AI 엔지니어 취업"
+   - ⚠️ "채용 동향", "취업 시장 동향" 같이 트렌드 표현이 있어도 채용 공고 검색이 목적이면 → **"recruit"**
+
+2. **"both"** — 특정 회사에 지원하거나, 특정 기업의 채용과 기업 정보를 함께 조사하는 경우
+   - 예: "카카오 개발자 채용 준비", "네이버 입사 전략"
+
+3. **"web"** — 순수 기술 정보, 제품 비교, 개념 학습, 기업 정보(채용 아님)
+   - 예: "FastAPI vs Django 비교", "React 최신 트렌드", "삼성 사업 전략"
 
 반드시 JSON만 반환:
 { "source": "web" | "recruit" | "both", "keywords": "검색 키워드", "companyTypes": ["대기업"], "jobTypes": ["신입"] }
 
-keywords 규칙:
-- 데이터 소스가 "recruit", 주제를 검색에 최적화된 키워드로 변환. 특정 기업이 언급되면 키워드에 기업 이름 추가.
-- 데이터 소스가 "web", 주제를 검색할 수 있는 검색 문장으로 반환
-- 데이터 소스가 "both", 직무명/기술명을 중심으로 채용 공고 검색에 최적화되어 반환
-  (예: "최신 CI/CD 공고 찾아줘" → ["CI/CD DevOps 엔지니어" or "DevOps 개발자 채용" or "CI/CD 파이프라인 엔지니어"])
-- 각 후보는 2~20 영어 단어 조합, 검색창에 바로 붙여넣을 수 있는 형태
+## keywords 작성 규칙
 
-companyTypes 판단 기준.
-- 주제에서 기업 이름을 추출해 판단.
-- 없으면 빈 배열
+- **"recruit"** 또는 **"both"**: 채용 공고 사이트 검색창에 입력하는 **짧은 직무·기술 키워드** (2~4단어)
+  - 반드시 제거: 연도(2025년), 지역(서울, 수도권), "채용 공고", "구인 정보", "채용 동향", "취업 시장" 등 메타 표현
+  - 남길 것: 직무명 + 핵심 기술명 (+ 기업명이 명시된 경우)
+  - 예시:
+    - "2025년 서울 FastAPI 개발자 채용 공고" → **"FastAPI 개발자"**
+    - "최신 CI/CD DevOps 채용 동향" → **"DevOps 엔지니어 CI/CD"**
+    - "카카오 백엔드 신입 채용" → **"카카오 백엔드 개발자"**
+    - "AI 엔지니어 취업 준비" → **"AI 엔지니어"**
+- **"web"**: 검색 엔진에 입력할 자연어 검색 문장 (연도·지역 포함 가능)
+  - 예: "FastAPI 최신 트렌드 2025" / "AI 스타트업 현황"
+- 단일 검색어 문자열로 반환 (배열 아님)
 
-jobTypes 판단 기준.
-- 주제에서 채용 포지션 추출.
-- 없으면 빈 배열`;
+## companyTypes
+- 주제에서 특정 기업 이름이 명시된 경우만 추출. 없으면 빈 배열 []
+
+## jobTypes
+- 주제에서 신입/경력 등 채용 구분이 명시된 경우만 추출. 없으면 빈 배열 []`;
 
     try {
       const { text } = await this.aiProvider.call(aiModel, SYSTEM, prompt);

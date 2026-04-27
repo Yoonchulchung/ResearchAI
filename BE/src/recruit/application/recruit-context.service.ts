@@ -49,7 +49,7 @@ export class RecruitContextService {
             }
           })(),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('시간 초과 (15s)')), 15_000),
+            setTimeout(() => reject(new Error('시간 초과 (120s)')), 120_000),
           ),
         ]);
         yield { type: 'log', message: `[${source.name}] ${count}개 수집` };

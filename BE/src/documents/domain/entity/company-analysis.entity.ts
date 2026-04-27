@@ -58,9 +58,21 @@ export class CompanyAnalysisEntity {
   @Column({ name: 'credit_rating', type: 'text', nullable: true })
   creditRating: string | null;
 
+  @Column({ name: 'company_size', type: 'text', nullable: true })
+  companySize: string | null;
+
+  @Column({ name: 'stock_code', type: 'text', nullable: true })
+  stockCode: string | null;
+
   // ── DART 기업 정보 ─────────────────────────────────────
   @Column({ name: 'corp_class', type: 'text', nullable: true })
   corpClass: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  employees: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  capital: string | null;
 
   @Column({ name: 'home_url', type: 'text', nullable: true })
   homeUrl: string | null;
@@ -99,6 +111,9 @@ export class CompanyAnalysisEntity {
   // ── AI 생성 보고서 ─────────────────────────────────────
   @Column({ type: 'text', nullable: true })
   report: string | null;
+
+  @Column({ name: 'mission_vision', type: 'text', nullable: true })
+  missionVision: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

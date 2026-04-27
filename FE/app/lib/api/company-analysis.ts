@@ -50,10 +50,14 @@ export interface CompanyAnalysis {
   competitors: string[] | null;
   businessSegments: string[] | null;
   industry: string | null;
+  companySize: string | null;
   creditRating: string | null;
   report: string | null;
   // DART 기업 정보
   corpClass: string | null;
+  stockCode: string | null;
+  employees: string | null;
+  capital: string | null;
   homeUrl: string | null;
   address: string | null;
   dartUrl: string | null;
@@ -64,9 +68,10 @@ export interface CompanyAnalysis {
   financialSummary: string | null;
   disclosures: { title: string; date: string; url: string }[] | null;
   // 웹 수집
-  recentNews: { title: string; url: string; date: string }[] | null;
+  recentNews: { title: string; url: string; date: string; category?: string; summary?: string }[] | null;
   jobPostings: { title: string; url: string; date: string }[] | null;
   jobplanetSummary: string | null;
+  missionVision: { mission: string | null; vision: string | null; coreValues: string[]; talentProfile: string | null } | null;
   createdAt: string;
   updatedAt: string;
 }
