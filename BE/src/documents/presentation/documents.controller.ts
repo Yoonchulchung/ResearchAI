@@ -7,6 +7,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { DocumentsService } from '../application/documents.service';
 import { CompanyAnalysisService } from '../application/company-analysis.service';
+import { JobplanetScraperService } from '../infrastructure/jobplanet-scraper.service';
 import { requestContext } from '../../shared/request-context';
 
 // ── Experience DTOs ───────────────────────────────────────────────────────
@@ -32,6 +33,7 @@ export class DocumentsController {
   constructor(
     private readonly service: DocumentsService,
     private readonly companyAnalysisService: CompanyAnalysisService,
+    private readonly jobplanetScraper: JobplanetScraperService,
   ) {}
 
   // ── Company Analysis (인재상 핵심 역량 매핑) ────────────────────────────
@@ -87,6 +89,74 @@ export class DocumentsController {
     } finally {
       req.off('close', cleanup);
       res.end();
+    }
+  }
+
+  // ── Jobplanet Test ──────────────────────────────────────────────────────
+
+  /** 로그인 후 기업 리뷰 페이지 HTML 덤프 — 셀렉터 디버깅용 */
+  @Post('jobplanet/debug-page')
+  async debugJobplanetPage(
+    @Body() body: { id: string; password: string; companyName?: string },
+  ) {
+    if (!body.id || !body.password) throw new BadRequestException('id와 password가 필요합니다');
+    return this.jobplanetScraper.debugPage(body.id, body.password, body.companyName ?? '삼성전자');
+  }
+
+  /** 잡플래닛 리뷰 페이지 원문 + 추출 결과 — 셀렉터 튜닝용 */
+  @Post('jobplanet/debug-reviews')
+  async debugJobplanetReviews(
+    @Body() body: { id: string; password: string; companyName: string },
+  ) {
+    if (!body.id || !body.password || !body.companyName) {
+      throw new BadRequestException('id, password, companyName 이 필요합니다');
+    }
+    return this.jobplanetScraper.debugReviews(body.id, body.password, body.companyName);
+  }
+
+  @Post('jobplanet/test-login')
+  async testJobplanetLogin(
+    @Body() body: { id: string; password: string; companyName?: string },
+  ) {
+    if (!body.id || !body.password) {
+      throw new BadRequestException('id와 password가 필요합니다');
+    }
+
+    // 1단계: 로그인 테스트
+    const loginResult = await this.jobplanetScraper.testLogin(body.id, body.password);
+    if (!loginResult.success) {
+      return {
+        ok: false,
+        failedStep: loginResult.failedStep,
+        finalUrl: loginResult.finalUrl,
+        error: loginResult.error,
+      };
+    }
+
+    // 2단계: 기업 데이터 수집 (companyName 있을 때만)
+    if (!body.companyName?.trim()) {
+      return { ok: true, loginOnly: true, finalUrl: loginResult.finalUrl };
+    }
+
+    try {
+      const result = await this.jobplanetScraper.scrapeCompany(
+        body.companyName.trim(),
+        body.id,
+        body.password,
+      );
+      if (!result) {
+        return { ok: false, failedStep: '기업 데이터 수집', error: `"${body.companyName}" 검색 결과 없음 또는 수집 실패` };
+      }
+      return {
+        ok: true,
+        companyName: result.companyName,
+        overallRating: result.overallRating,
+        reviewCount: result.reviewCount,
+        welfare: result.welfare,
+        preview: result.reviews.slice(0, 2),
+      };
+    } catch (err) {
+      return { ok: false, failedStep: '기업 데이터 수집', error: (err as Error).message };
     }
   }
 

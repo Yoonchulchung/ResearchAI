@@ -21,41 +21,84 @@ export class CompanyAnalysisEntity {
   @PrimaryColumn({ type: 'text' })
   id: string;
 
-  /** 기업명 — 정규화된 형태 (소문자·공백 제거된 키) */
   @Column({ name: 'company_key', type: 'text', unique: true })
   companyKey: string;
 
-  /** 표시용 기업명 (사용자가 입력한 원본) */
   @Column({ name: 'company_name', type: 'text' })
   companyName: string;
 
-  /** 13개 핵심 역량 점수 (0~100) — JSON */
   @Column({ type: 'text' })
   scores: string;
 
-  /** 인재상 요약 — AI Agent 가 생성한 분석 텍스트 */
-  @Column({ type: 'text', nullable: true })
-  summary: string | null;
-
-  /** 분석 근거 — 검색·인용 출처들 (JSON 배열) */
-  @Column({ type: 'text', nullable: true })
-  evidence: string | null;
-
-  /** 분석에 사용된 AI 모델 */
-  @Column({ name: 'ai_model', type: 'text', nullable: true })
-  aiModel: string | null;
-
-  /** 13개 역량별 점수 근거 (JSON) */
   @Column({ type: 'text', nullable: true })
   reasons: string | null;
 
-  /** DART 재무 데이터 요약 */
+  @Column({ type: 'text', nullable: true })
+  summary: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  evidence: string | null;
+
+  @Column({ name: 'ai_model', type: 'text', nullable: true })
+  aiModel: string | null;
+
+  // ── AI 생성 분석 ───────────────────────────────────────
+  @Column({ type: 'text', nullable: true })
+  swot: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  competitors: string | null;
+
+  @Column({ name: 'business_segments', type: 'text', nullable: true })
+  businessSegments: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  industry: string | null;
+
+  @Column({ name: 'credit_rating', type: 'text', nullable: true })
+  creditRating: string | null;
+
+  // ── DART 기업 정보 ─────────────────────────────────────
+  @Column({ name: 'corp_class', type: 'text', nullable: true })
+  corpClass: string | null;
+
+  @Column({ name: 'home_url', type: 'text', nullable: true })
+  homeUrl: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  address: string | null;
+
+  @Column({ name: 'dart_url', type: 'text', nullable: true })
+  dartUrl: string | null;
+
+  @Column({ name: 'ceo_name', type: 'text', nullable: true })
+  ceoName: string | null;
+
+  @Column({ name: 'founded_date', type: 'text', nullable: true })
+  foundedDate: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  disclosures: string | null;
+
+  @Column({ name: 'multi_year_financials', type: 'text', nullable: true })
+  multiYearFinancials: string | null;
+
   @Column({ name: 'financial_summary', type: 'text', nullable: true })
   financialSummary: string | null;
 
-  /** 잡플래닛 리뷰 요약 */
+  // ── 웹 수집 데이터 ─────────────────────────────────────
+  @Column({ name: 'recent_news', type: 'text', nullable: true })
+  recentNews: string | null;
+
+  @Column({ name: 'job_postings', type: 'text', nullable: true })
+  jobPostings: string | null;
+
   @Column({ name: 'jobplanet_summary', type: 'text', nullable: true })
   jobplanetSummary: string | null;
+
+  // ── AI 생성 보고서 ─────────────────────────────────────
+  @Column({ type: 'text', nullable: true })
+  report: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

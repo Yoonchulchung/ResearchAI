@@ -18,6 +18,24 @@ export interface CompetencyScores {
 
 export type CompetencyReasons = Partial<Record<keyof CompetencyScores, string>>;
 
+export interface SwotAnalysis {
+  S: string[];
+  W: string[];
+  O: string[];
+  T: string[];
+}
+
+export interface YearlyFinancial {
+  year: number;
+  revenue: number | null;
+  revenueFormatted: string | null;
+  operatingProfit: number | null;
+  operatingProfitFormatted: string | null;
+  netIncome: number | null;
+  netIncomeFormatted: string | null;
+  operatingMargin: number | null;
+}
+
 export interface CompanyAnalysis {
   id: string;
   companyKey: string;
@@ -27,7 +45,27 @@ export interface CompanyAnalysis {
   summary: string | null;
   evidence: { title: string; url: string }[] | null;
   aiModel: string | null;
+  // AI 분석
+  swot: SwotAnalysis | null;
+  competitors: string[] | null;
+  businessSegments: string[] | null;
+  industry: string | null;
+  creditRating: string | null;
+  report: string | null;
+  // DART 기업 정보
+  corpClass: string | null;
+  homeUrl: string | null;
+  address: string | null;
+  dartUrl: string | null;
+  ceoName: string | null;
+  foundedDate: string | null;
+  fiscalYear: string | null;
+  multiYearFinancials: YearlyFinancial[] | null;
   financialSummary: string | null;
+  disclosures: { title: string; date: string; url: string }[] | null;
+  // 웹 수집
+  recentNews: { title: string; url: string; date: string }[] | null;
+  jobPostings: { title: string; url: string; date: string }[] | null;
   jobplanetSummary: string | null;
   createdAt: string;
   updatedAt: string;

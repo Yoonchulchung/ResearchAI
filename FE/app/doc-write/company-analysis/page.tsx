@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, Tooltip, Legend,
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useModels } from "@/sessions/new/hooks/useModels";
@@ -16,6 +17,8 @@ import {
   type CompanyAnalysis,
   type CompetencyScores,
   type CompetencyReasons,
+  type SwotAnalysis,
+  type YearlyFinancial,
 } from "@/lib/api/company-analysis";
 
 const COMPETENCY_LABELS: Array<{ key: keyof CompetencyScores; label: string }> = [
@@ -33,6 +36,167 @@ const COMPETENCY_LABELS: Array<{ key: keyof CompetencyScores; label: string }> =
   { key: "분석적사고", label: "분석적 사고" },
   { key: "전문성", label: "전문성" },
 ];
+
+const CORP_CLASS_LABEL: Record<string, string> = {
+  Y: "유가증권(KOSPI)",
+  K: "코스닥(KOSDAQ)",
+  N: "코넥스",
+  E: "비상장",
+};
+
+function SectionHeader({ title, badge, isDark }: { title: string; badge?: string; isDark: boolean }) {
+  return (
+    <div className={`border-b pb-3 mb-4 flex items-center justify-between ${isDark ? "border-slate-700" : "border-slate-200"}`}>
+      <h3 className={`text-sm font-bold uppercase tracking-wider ${isDark ? "text-slate-300" : "text-slate-800"}`}>{title}</h3>
+      {badge && (
+        <span className="text-[10px] font-mono text-slate-500 border px-1 border-slate-500">{badge}</span>
+      )}
+    </div>
+  );
+}
+
+function InfoItem({ label, children, isDark }: { label: string; children: React.ReactNode; isDark: boolean }) {
+  return (
+    <div>
+      <p className={`text-[10px] font-semibold uppercase tracking-widest mb-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>{label}</p>
+      <div className={`text-sm ${isDark ? "text-slate-200" : "text-slate-800"}`}>{children}</div>
+    </div>
+  );
+}
+
+function Chip({ label, isDark, color = "default" }: { label: string; isDark: boolean; color?: "default" | "blue" | "green" }) {
+  const colors = {
+    default: isDark ? "bg-slate-700 text-slate-300" : "bg-slate-100 text-slate-700",
+    blue: isDark ? "bg-blue-900/40 text-blue-300" : "bg-blue-50 text-blue-700",
+    green: isDark ? "bg-emerald-900/40 text-emerald-300" : "bg-emerald-50 text-emerald-700",
+  };
+  return (
+    <span className={`inline-block px-2.5 py-0.5 rounded-sm text-xs font-medium border ${colors[color]} ${isDark ? "border-slate-600" : "border-slate-200"}`}>
+      {label}
+    </span>
+  );
+}
+
+function SwotGrid({ swot, isDark }: { swot: SwotAnalysis; isDark: boolean }) {
+  const quadrants = [
+    { key: "S" as const, label: "Strengths 강점", bg: isDark ? "bg-emerald-900/20 border-emerald-700/40" : "bg-emerald-50 border-emerald-200", header: isDark ? "text-emerald-400" : "text-emerald-700" },
+    { key: "W" as const, label: "Weaknesses 약점", bg: isDark ? "bg-red-900/20 border-red-700/40" : "bg-red-50 border-red-200", header: isDark ? "text-red-400" : "text-red-700" },
+    { key: "O" as const, label: "Opportunities 기회", bg: isDark ? "bg-blue-900/20 border-blue-700/40" : "bg-blue-50 border-blue-200", header: isDark ? "text-blue-400" : "text-blue-700" },
+    { key: "T" as const, label: "Threats 위협", bg: isDark ? "bg-amber-900/20 border-amber-700/40" : "bg-amber-50 border-amber-200", header: isDark ? "text-amber-400" : "text-amber-700" },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {quadrants.map(({ key, label, bg, header }) => (
+        <div key={key} className={`rounded-sm border p-4 ${bg}`}>
+          <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${header}`}>{label}</p>
+          <ul className="space-y-1.5">
+            {(swot[key] ?? []).map((item, i) => (
+              <li key={i} className={`flex gap-2 text-xs leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                <span className={`shrink-0 font-mono ${header}`}>·</span>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FinancialChart({ data, isDark }: { data: YearlyFinancial[]; isDark: boolean }) {
+  const chartData = data.map((d) => ({
+    year: `${d.year}`,
+    매출액: d.revenue,
+    영업이익: d.operatingProfit,
+    순이익: d.netIncome,
+    영업이익률: d.operatingMargin,
+  }));
+
+  const tickStyle = { fill: isDark ? "#94a3b8" : "#64748b", fontSize: 11 };
+  const gridColor = isDark ? "#334155" : "#e2e8f0";
+
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <ComposedChart data={chartData} margin={{ top: 8, right: 24, left: 8, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+        <XAxis dataKey="year" tick={tickStyle} axisLine={false} tickLine={false} />
+        <YAxis
+          yAxisId="left"
+          tick={tickStyle}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={(v) => `${v}억`}
+          width={52}
+        />
+        <YAxis
+          yAxisId="right"
+          orientation="right"
+          tick={tickStyle}
+          axisLine={false}
+          tickLine={false}
+          tickFormatter={(v) => `${v}%`}
+          width={36}
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: isDark ? "#1e293b" : "#ffffff",
+            borderColor: isDark ? "#334155" : "#e2e8f0",
+            color: isDark ? "#f8fafc" : "#0f172a",
+            fontSize: 12,
+            borderRadius: 2,
+          }}
+          formatter={(value, name) => {
+            const v = value as number | null | undefined;
+            return name === "영업이익률"
+              ? [`${v ?? "—"}%`, name as string]
+              : [`${v?.toLocaleString() ?? "—"}억`, name as string];
+          }}
+        />
+        <Legend wrapperStyle={{ fontSize: 11, fontFamily: "monospace", paddingTop: 8 }} />
+        <Bar yAxisId="left" dataKey="매출액" fill={isDark ? "#3b82f6" : "#1d4ed8"} opacity={0.8} radius={[2, 2, 0, 0]} maxBarSize={40} />
+        <Bar yAxisId="left" dataKey="영업이익" fill={isDark ? "#10b981" : "#059669"} opacity={0.8} radius={[2, 2, 0, 0]} maxBarSize={40} />
+        <Bar yAxisId="left" dataKey="순이익" fill={isDark ? "#8b5cf6" : "#7c3aed"} opacity={0.8} radius={[2, 2, 0, 0]} maxBarSize={40} />
+        <Line yAxisId="right" dataKey="영업이익률" stroke={isDark ? "#f59e0b" : "#d97706"} strokeWidth={2} dot={{ r: 4, fill: isDark ? "#f59e0b" : "#d97706" }} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+function FinancialTable({ data, isDark }: { data: YearlyFinancial[]; isDark: boolean }) {
+  const cols = [
+    { label: "연도", render: (d: YearlyFinancial) => d.year },
+    { label: "매출액", render: (d: YearlyFinancial) => d.revenueFormatted ?? "—" },
+    { label: "영업이익", render: (d: YearlyFinancial) => d.operatingProfitFormatted ?? "—" },
+    { label: "순이익", render: (d: YearlyFinancial) => d.netIncomeFormatted ?? "—" },
+    { label: "영업이익률", render: (d: YearlyFinancial) => d.operatingMargin != null ? `${d.operatingMargin}%` : "—" },
+  ];
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs font-mono">
+        <thead>
+          <tr className={`border-b ${isDark ? "border-slate-700" : "border-slate-200"}`}>
+            {cols.map((c) => (
+              <th key={c.label} className={`pb-2 text-right first:text-left font-semibold uppercase tracking-wider ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className={`divide-y ${isDark ? "divide-slate-800" : "divide-slate-100"}`}>
+          {data.map((d) => (
+            <tr key={d.year}>
+              {cols.map((c) => (
+                <td key={c.label} className={`py-2 text-right first:text-left ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                  {String(c.render(d))}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function ScoreDetailTable({
   scores,
@@ -87,11 +251,10 @@ function ScoreDetailTable({
                     ▼
                   </span>
                 ) : (
-                  <span className="w-2 shrink-0"></span> // Placeholder for alignment
+                  <span className="w-2 shrink-0"></span>
                 )}
               </button>
 
-              {/* 근거 펼침 */}
               {isOpen && reason && (
                 <div className={`px-4 py-3 ${isDark ? "bg-slate-700/80 border-t border-slate-600" : "bg-slate-50 border-t border-slate-200"}`}>
                   <div className="flex gap-3">
@@ -129,6 +292,7 @@ export default function CompanyAnalysisPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [progressLogs, setProgressLogs] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const logEndRef = useRef<HTMLDivElement>(null);
 
   const refreshList = async () => {
     setLoadingList(true);
@@ -142,6 +306,7 @@ export default function CompanyAnalysisPage() {
   };
 
   useEffect(() => { refreshList(); }, []);
+  useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [progressLogs]);
 
   const filteredCompanies = useMemo(() => {
     if (!searchQuery.trim()) return companies;
@@ -214,14 +379,16 @@ export default function CompanyAnalysisPage() {
     });
   }, [selected, companies]);
 
+  const card = `border rounded-sm p-5 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300 shadow-sm"}`;
+
   return (
     <div className={`h-full flex flex-col font-sans overflow-hidden transition-all ${isGlass ? "p-3 bg-transparent" : isDark ? "bg-slate-900" : "bg-[#f4f5f7]"}`}>
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl border " + (isDark ? "border-white/20" : "border-black/5") : ""}`}>
-        {/* 상단 헤더 영역 */}
+
+        {/* 상단 헤더 */}
         <div className={`px-6 py-4 shrink-0 border-b ${isGlass ? (isDark ? "border-white/20" : "border-black/5") : isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300"}`}>
           <div className="flex flex-wrap items-center gap-3">
-            <div className={`flex-1 flex items-center gap-2 px-3 py-2 border rounded-sm ${isDark ? "bg-slate-900 border-slate-600 focus-within:border-blue-500" : "bg-white border-slate-400 focus-within:border-blue-600"
-              }`}>
+            <div className={`flex-1 flex items-center gap-2 px-3 py-2 border rounded-sm ${isDark ? "bg-slate-900 border-slate-600 focus-within:border-blue-500" : "bg-white border-slate-400 focus-within:border-blue-600"}`}>
               <svg className={`w-4 h-4 ${isDark ? "text-slate-500" : "text-slate-400"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="square" strokeLinejoin="miter" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
@@ -229,11 +396,8 @@ export default function CompanyAnalysisPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !analyzing && searchQuery.trim() && !exactMatch) {
-                    handleAnalyze();
-                  } else if (e.key === "Enter" && exactMatch) {
-                    setSelected(exactMatch);
-                  }
+                  if (e.key === "Enter" && !analyzing && searchQuery.trim() && !exactMatch) handleAnalyze();
+                  else if (e.key === "Enter" && exactMatch) setSelected(exactMatch);
                 }}
                 placeholder="대상 기업명을 검색하거나 신규 분석을 위해 입력하십시오"
                 className={`flex-1 text-sm bg-transparent focus:outline-none ${isDark ? "text-slate-200 placeholder-slate-500" : "text-slate-800 placeholder-slate-400"}`}
@@ -244,9 +408,8 @@ export default function CompanyAnalysisPage() {
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
               disabled={modelsLoading || analyzing}
-              className={`w-full md:w-48 text-sm px-3 py-2 border rounded-sm focus:outline-none focus:ring-1 focus:ring-blue-600 appearance-none ${isDark ? "bg-slate-900 border-slate-600 text-slate-200" : "bg-white border-slate-400 text-slate-800"
-                }`}
-              style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23666%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .7rem top 50%', backgroundSize: '.65rem auto' }}
+              className={`w-full md:w-48 text-sm px-3 py-2 border rounded-sm focus:outline-none focus:ring-1 focus:ring-blue-600 appearance-none ${isDark ? "bg-slate-900 border-slate-600 text-slate-200" : "bg-white border-slate-400 text-slate-800"}`}
+              style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23666%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: "no-repeat", backgroundPosition: "right .7rem top 50%", backgroundSize: ".65rem auto" }}
             >
               <option value={DEFAULT_FREE_MODEL_ID}>Gemini Model</option>
               {cloudAiModels.length > 0 && (
@@ -265,10 +428,7 @@ export default function CompanyAnalysisPage() {
               <button
                 onClick={handleAnalyze}
                 disabled={analyzing}
-                className={`w-full md:w-auto px-5 py-2 text-sm font-semibold rounded-sm border shrink-0 transition-colors ${isDark
-                  ? "bg-blue-600 border-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                  : "bg-slate-800 border-slate-800 text-white hover:bg-slate-900 disabled:opacity-50"
-                  }`}
+                className={`w-full md:w-auto px-5 py-2 text-sm font-semibold rounded-sm border shrink-0 transition-colors ${isDark ? "bg-blue-600 border-blue-600 text-white hover:bg-blue-700 disabled:opacity-50" : "bg-slate-800 border-slate-800 text-white hover:bg-slate-900 disabled:opacity-50"}`}
               >
                 {analyzing ? "처리 중..." : "분석 실행"}
               </button>
@@ -276,22 +436,21 @@ export default function CompanyAnalysisPage() {
           </div>
 
           {(analyzing || progressLogs.length > 0 || error) && (
-            <div className={`mt-3 px-4 py-2 border rounded-sm text-sm font-mono ${error ? "bg-red-50 text-red-700 border-red-300"
-              : isDark ? "bg-slate-900 text-slate-400 border-slate-700" : "bg-slate-100 text-slate-600 border-slate-300"
-              }`}>
+            <div className={`mt-3 px-4 py-2 border rounded-sm text-sm font-mono ${error ? "bg-red-50 text-red-700 border-red-300" : isDark ? "bg-slate-900 text-slate-400 border-slate-700" : "bg-slate-100 text-slate-600 border-slate-300"}`}>
               {error ? <div>[오류] {error}</div> : (
-                <div className="flex flex-col gap-1 text-xs">
-                  {progressLogs.slice(-3).map((l, i) => <div key={i}>{'>'} {l}</div>)}
-                  {analyzing && <div className="text-blue-600 mt-1">{'>'} 프로세싱 중입니다. 잠시만 기다려 주십시오.</div>}
+                <div className="max-h-32 overflow-y-auto flex flex-col gap-1 text-xs">
+                  {progressLogs.map((l, i) => <div key={i}>{">"} {l}</div>)}
+                  {analyzing && <div className="text-blue-600 mt-1">{">"} 프로세싱 중입니다. 잠시만 기다려 주십시오.</div>}
+                  <div ref={logEndRef} />
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* 본문 영역 */}
+        {/* 본문 */}
         <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
-          {/* 좌측 패널: 기업 목록 */}
+          {/* 좌측 목록 */}
           <div className={`w-full md:w-72 h-40 md:h-auto shrink-0 overflow-y-auto border-b md:border-b-0 md:border-r ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300"}`}>
             {loadingList ? (
               <div className={`p-5 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>데이터 불러오는 중...</div>
@@ -307,8 +466,7 @@ export default function CompanyAnalysisPage() {
                       onClick={() => handleSelect(c.companyKey)}
                       className={`w-full text-left px-4 py-3 transition-colors ${selected?.companyKey === c.companyKey
                         ? (isDark ? "bg-slate-700/50 border-l-4 border-blue-500" : "bg-blue-50/50 border-l-4 border-blue-700")
-                        : (isDark ? "hover:bg-slate-700/30 border-l-4 border-transparent" : "hover:bg-slate-50 border-l-4 border-transparent")
-                        }`}
+                        : (isDark ? "hover:bg-slate-700/30 border-l-4 border-transparent" : "hover:bg-slate-50 border-l-4 border-transparent")}`}
                     >
                       <div className="flex items-center justify-between">
                         <span className={`font-semibold text-sm ${isDark ? "text-slate-200" : "text-slate-800"}`}>{c.companyName}</span>
@@ -322,7 +480,7 @@ export default function CompanyAnalysisPage() {
                         </div>
                       </div>
                       <p className={`text-xs mt-1 font-mono ${isDark ? "text-slate-500" : "text-slate-500"}`}>
-                        {new Date(c.updatedAt).toISOString().split('T')[0]}
+                        {new Date(c.updatedAt).toISOString().split("T")[0]}
                       </p>
                     </button>
                   </li>
@@ -331,7 +489,7 @@ export default function CompanyAnalysisPage() {
             )}
           </div>
 
-          {/* 우측 패널: 상세 분석 내용 */}
+          {/* 우측 상세 */}
           <div className={`flex-1 overflow-y-auto px-4 py-6 md:px-10 md:py-8 ${isGlass ? "" : isDark ? "bg-slate-900" : "bg-[#f4f5f7]"}`}>
             {!selected ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
@@ -345,11 +503,25 @@ export default function CompanyAnalysisPage() {
             ) : (
               <div className="max-w-5xl mx-auto space-y-6">
 
+                {/* 헤더 */}
                 <div className={`flex items-end justify-between border-b pb-4 ${isDark ? "border-slate-700" : "border-slate-300"}`}>
                   <div>
-                    <h2 className={`text-3xl font-bold tracking-tight ${isDark ? "text-slate-100" : "text-slate-900"}`}>
-                      {selected.companyName}
-                    </h2>
+                    <div className="flex items-center gap-3">
+                      <h2 className={`text-3xl font-bold tracking-tight ${isDark ? "text-slate-100" : "text-slate-900"}`}>
+                        {selected.companyName}
+                      </h2>
+                      {selected.homeUrl && (
+                        <a
+                          href={selected.homeUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="공식 홈페이지"
+                          className={`flex items-center gap-1 px-2 py-0.5 text-xs font-medium border rounded-sm transition-colors ${isDark ? "border-slate-600 text-blue-400 hover:bg-slate-800" : "border-slate-300 text-blue-600 hover:bg-slate-50"}`}
+                        >
+                          홈페이지 ↗
+                        </a>
+                      )}
+                    </div>
                     <p className={`text-sm mt-2 font-mono ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                       DATE: {new Date(selected.updatedAt).toLocaleString("en-US", { hour12: false })} | MODEL: {selected.aiModel || "Unknown"}
                     </p>
@@ -357,15 +529,13 @@ export default function CompanyAnalysisPage() {
                   <button
                     onClick={() => handleReanalyze(selected.companyName)}
                     disabled={analyzing}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold border rounded-sm transition-colors ${isDark
-                      ? "border-slate-600 text-slate-300 hover:bg-slate-800 disabled:opacity-50"
-                      : "border-slate-400 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-                      }`}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold border rounded-sm transition-colors ${isDark ? "border-slate-600 text-slate-300 hover:bg-slate-800 disabled:opacity-50" : "border-slate-400 text-slate-700 hover:bg-slate-100 disabled:opacity-50"}`}
                   >
                     재분석 실행
                   </button>
                 </div>
 
+                {/* 요약 */}
                 {selected.summary && (
                   <section className={`p-5 border-l-4 rounded-r-sm ${isDark ? "bg-slate-800 border-blue-600" : "bg-white border-blue-800 shadow-sm"}`}>
                     <h3 className={`text-sm font-bold uppercase tracking-wider mb-2 ${isDark ? "text-blue-400" : "text-blue-800"}`}>Overall Summary</h3>
@@ -373,12 +543,121 @@ export default function CompanyAnalysisPage() {
                   </section>
                 )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                  {/* 레이더 차트 (좌측) */}
-                  <section className={`border rounded-sm p-6 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300 shadow-sm"}`}>
-                    <div className={`border-b pb-3 mb-4 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-                      <h3 className={`text-sm font-bold uppercase tracking-wider ${isDark ? "text-slate-300" : "text-slate-800"}`}>역량 프로파일</h3>
+                {/* 기업 개요 카드 */}
+                {(selected.ceoName || selected.foundedDate || selected.corpClass || selected.industry || selected.address || selected.dartUrl || selected.creditRating || selected.competitors?.length || selected.businessSegments?.length || selected.jobPostings?.length) && (
+                  <section className={card}>
+                    <SectionHeader title="기업 개요 (Company Overview)" badge="INFO" isDark={isDark} />
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+                      {selected.ceoName && (
+                        <InfoItem label="대표이사" isDark={isDark}>{selected.ceoName}</InfoItem>
+                      )}
+                      {selected.foundedDate && (
+                        <InfoItem label="설립일" isDark={isDark}>
+                          {selected.foundedDate.length === 8
+                            ? `${selected.foundedDate.slice(0, 4)}.${selected.foundedDate.slice(4, 6)}.${selected.foundedDate.slice(6, 8)}`
+                            : selected.foundedDate}
+                        </InfoItem>
+                      )}
+                      {selected.corpClass && (
+                        <InfoItem label="상장구분" isDark={isDark}>
+                          <span className={`inline-block px-2 py-0.5 text-xs rounded-sm font-semibold ${selected.corpClass === "Y" ? "bg-blue-100 text-blue-700" : selected.corpClass === "K" ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-600"}`}>
+                            {CORP_CLASS_LABEL[selected.corpClass] ?? selected.corpClass}
+                          </span>
+                        </InfoItem>
+                      )}
+                      {selected.industry && (
+                        <InfoItem label="업종" isDark={isDark}>{selected.industry}</InfoItem>
+                      )}
+                      {selected.creditRating && (
+                        <InfoItem label="신용등급" isDark={isDark}>
+                          <span className="font-bold font-mono text-base">{selected.creditRating}</span>
+                        </InfoItem>
+                      )}
                     </div>
+
+                    {selected.address && (
+                      <div className="mt-4">
+                        <InfoItem label="주소" isDark={isDark}>{selected.address}</InfoItem>
+                      </div>
+                    )}
+
+                    {selected.dartUrl && (
+                      <div className="mt-4">
+                        <InfoItem label="DART 공시" isDark={isDark}>
+                          <a href={selected.dartUrl} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1 text-xs hover:underline ${isDark ? "text-blue-400" : "text-blue-600"}`}>
+                            공시 바로가기 ↗
+                          </a>
+                        </InfoItem>
+                      </div>
+                    )}
+
+                    {selected.jobPostings && selected.jobPostings.length > 0 && (
+                      <div className={`mt-4 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-200"}`}>
+                        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${isDark ? "text-slate-500" : "text-slate-400"}`}>채용 공고</p>
+                        <ul className="space-y-1.5">
+                          {selected.jobPostings.slice(0, 5).map((j, i) => (
+                            <li key={i} className="flex items-center gap-3">
+                              <span className={`text-xs font-mono shrink-0 ${isDark ? "text-slate-600" : "text-slate-400"}`}>{i + 1}</span>
+                              <a
+                                href={j.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`text-xs hover:underline truncate flex-1 ${isDark ? "text-blue-400" : "text-blue-600"}`}
+                              >
+                                {j.title}
+                              </a>
+                              {j.date && (
+                                <span className={`text-xs font-mono shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`}>{j.date}</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {selected.competitors && selected.competitors.length > 0 && (
+                      <div className="mt-4">
+                        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${isDark ? "text-slate-500" : "text-slate-400"}`}>경쟁사</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selected.competitors.map((c) => <Chip key={c} label={c} isDark={isDark} color="blue" />)}
+                        </div>
+                      </div>
+                    )}
+
+                    {selected.businessSegments && selected.businessSegments.length > 0 && (
+                      <div className="mt-4">
+                        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${isDark ? "text-slate-500" : "text-slate-400"}`}>사업 부문</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selected.businessSegments.map((s) => <Chip key={s} label={s} isDark={isDark} color="green" />)}
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {/* SWOT */}
+                {selected.swot && (selected.swot.S?.length || selected.swot.W?.length || selected.swot.O?.length || selected.swot.T?.length) && (
+                  <section className={card}>
+                    <SectionHeader title="SWOT 분석" badge="AI" isDark={isDark} />
+                    <SwotGrid swot={selected.swot} isDark={isDark} />
+                  </section>
+                )}
+
+                {/* 재무 현황 차트 + 테이블 */}
+                {selected.multiYearFinancials && selected.multiYearFinancials.length > 0 && (
+                  <section className={card}>
+                    <SectionHeader title="재무 현황 (Financial Overview)" badge="DART" isDark={isDark} />
+                    <FinancialChart data={selected.multiYearFinancials} isDark={isDark} />
+                    <div className="mt-6">
+                      <FinancialTable data={selected.multiYearFinancials} isDark={isDark} />
+                    </div>
+                  </section>
+                )}
+
+                {/* 역량 프로파일 + 세부 점수 */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                  <section className={`border rounded-sm p-6 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300 shadow-sm"}`}>
+                    <SectionHeader title="역량 프로파일" isDark={isDark} />
                     <ResponsiveContainer width="100%" height={380}>
                       <RadarChart data={radarData} outerRadius="70%">
                         <PolarGrid stroke={isDark ? "#475569" : "#cbd5e1"} />
@@ -393,12 +672,12 @@ export default function CompanyAnalysisPage() {
                         />
                         <Tooltip
                           contentStyle={{
-                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                            borderColor: isDark ? '#334155' : '#e2e8f0',
-                            color: isDark ? '#f8fafc' : '#0f172a',
-                            fontSize: '12px',
-                            borderRadius: '2px',
-                            boxShadow: 'none'
+                            backgroundColor: isDark ? "#1e293b" : "#ffffff",
+                            borderColor: isDark ? "#334155" : "#e2e8f0",
+                            color: isDark ? "#f8fafc" : "#0f172a",
+                            fontSize: "12px",
+                            borderRadius: "2px",
+                            boxShadow: "none",
                           }}
                         />
                         {companies.length > 0 && (
@@ -419,52 +698,103 @@ export default function CompanyAnalysisPage() {
                           fillOpacity={0.15}
                           strokeWidth={2}
                         />
-                        <Legend wrapperStyle={{ paddingTop: 20, fontSize: 11, fontFamily: 'monospace' }} />
+                        <Legend wrapperStyle={{ paddingTop: 20, fontSize: 11, fontFamily: "monospace" }} />
                       </RadarChart>
                     </ResponsiveContainer>
                   </section>
 
-                  {/* 세부 점수 테이블 (우측) */}
                   <div className="space-y-6">
-                    <ScoreDetailTable
-                      scores={selected.scores}
-                      reasons={selected.reasons}
-                      isDark={isDark}
-                    />
+                    <ScoreDetailTable scores={selected.scores} reasons={selected.reasons} isDark={isDark} />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {selected.financialSummary && (
-                    <section className={`border rounded-sm p-5 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300 shadow-sm"}`}>
-                      <div className={`border-b pb-3 mb-3 flex items-center justify-between ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-                        <h3 className={`text-sm font-bold uppercase tracking-wider ${isDark ? "text-slate-300" : "text-slate-800"}`}>재무 현황 (Financial Data)</h3>
-                        <span className="text-[10px] font-mono text-slate-500 border px-1 border-slate-500">DART</span>
-                      </div>
-                      <pre className={`text-sm leading-relaxed font-sans whitespace-pre-wrap ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                        {selected.financialSummary}
-                      </pre>
-                    </section>
-                  )}
+                {/* 잡플래닛 조직문화 */}
+                {selected.jobplanetSummary && (
+                  <section className={card}>
+                    <SectionHeader title="조직 문화 (Corporate Culture)" badge="REVIEW" isDark={isDark} />
+                    <pre className={`text-sm leading-relaxed font-sans whitespace-pre-wrap ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                      {selected.jobplanetSummary}
+                    </pre>
+                  </section>
+                )}
 
-                  {selected.jobplanetSummary && (
-                    <section className={`border rounded-sm p-5 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300 shadow-sm"}`}>
-                      <div className={`border-b pb-3 mb-3 flex items-center justify-between ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-                        <h3 className={`text-sm font-bold uppercase tracking-wider ${isDark ? "text-slate-300" : "text-slate-800"}`}>조직 문화 (Corporate Culture)</h3>
-                        <span className="text-[10px] font-mono text-slate-500 border px-1 border-slate-500">REVIEW</span>
-                      </div>
-                      <pre className={`text-sm leading-relaxed font-sans whitespace-pre-wrap ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                        {selected.jobplanetSummary}
-                      </pre>
-                    </section>
-                  )}
-                </div>
-
-                {selected.evidence && selected.evidence.length > 0 && (
-                  <section className={`border rounded-sm p-5 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300 shadow-sm"}`}>
-                    <div className={`border-b pb-3 mb-3 ${isDark ? "border-slate-700" : "border-slate-200"}`}>
-                      <h3 className={`text-sm font-bold uppercase tracking-wider ${isDark ? "text-slate-300" : "text-slate-800"}`}>참고 문헌 (References)</h3>
+                {/* 기업 분석 보고서 */}
+                {selected.report && (
+                  <section className={card}>
+                    <SectionHeader title="기업 분석 보고서 (Company Report)" badge="AI" isDark={isDark} />
+                    <div className="space-y-4">
+                      {selected.report.split(/\n\n+/).map((paragraph, i) => {
+                        if (paragraph.startsWith("## ")) {
+                          return (
+                            <h4 key={i} className={`text-sm font-bold mt-2 first:mt-0 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                              {paragraph.replace(/^## \d+\. /, "")}
+                            </h4>
+                          );
+                        }
+                        return (
+                          <p key={i} className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                            {paragraph}
+                          </p>
+                        );
+                      })}
                     </div>
+                  </section>
+                )}
+
+
+                {/* 최근 뉴스 */}
+                {selected.recentNews && selected.recentNews.length > 0 && (
+                  <section className={card}>
+                    <SectionHeader title="관련 최근 기사 (Recent News)" badge="WEB" isDark={isDark} />
+                    <ul className="space-y-3">
+                      {selected.recentNews.map((n, i) => (
+                        <li key={i} className={`flex items-start gap-3 pb-3 ${i < selected.recentNews!.length - 1 ? `border-b ${isDark ? "border-slate-700" : "border-slate-100"}` : ""}`}>
+                          <span className={`text-xs font-mono mt-0.5 shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`}>{String(i + 1).padStart(2, "0")}</span>
+                          <div className="min-w-0">
+                            <a
+                              href={n.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`text-sm font-medium hover:underline block truncate ${isDark ? "text-slate-200" : "text-slate-800"}`}
+                            >
+                              {n.title}
+                            </a>
+                            {n.date && (
+                              <p className={`text-xs mt-0.5 font-mono ${isDark ? "text-slate-500" : "text-slate-400"}`}>{n.date}</p>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                {/* DART 공시 자료 */}
+                {selected.disclosures && selected.disclosures.length > 0 && (
+                  <section className={card}>
+                    <SectionHeader title="기업 공시 자료 (DART Disclosures)" badge="DART" isDark={isDark} />
+                    <ul className="space-y-2">
+                      {selected.disclosures.map((d, i) => (
+                        <li key={i} className="flex items-center gap-3">
+                          <span className={`text-xs font-mono shrink-0 w-20 ${isDark ? "text-slate-500" : "text-slate-400"}`}>{d.date}</span>
+                          <a
+                            href={d.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`text-sm hover:underline truncate ${isDark ? "text-blue-400" : "text-blue-700"}`}
+                          >
+                            {d.title}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                {/* 참고 문헌 */}
+                {selected.evidence && selected.evidence.length > 0 && (
+                  <section className={card}>
+                    <SectionHeader title="자료 출처 (References)" isDark={isDark} />
                     <ul className="space-y-2">
                       {selected.evidence.map((e, i) => (
                         <li key={i} className="flex items-start gap-2">

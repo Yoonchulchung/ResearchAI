@@ -11,8 +11,141 @@ import { DocParsePanel } from "@/settings/pipeline/DocParsePanel/DocParsePanel";
 import { AiCallLogPanel } from "@/settings/pipeline/AiCallLogPanel/AiCallLogPanel";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { API_BASE, tokenStore } from "@/lib/api/base";
 
-type Tab = "pipeline" | "api" | "local" | "recruit" | "rag" | "docparse" | "calllog";
+type Tab = "pipeline" | "api" | "local" | "recruit" | "rag" | "docparse" | "calllog" | "jobplanet";
+
+interface JobplanetTestResult {
+  ok: boolean;
+  error?: string;
+  failedStep?: string;
+  finalUrl?: string;
+  loginOnly?: boolean;
+  companyName?: string;
+  overallRating?: number;
+  reviewCount?: number;
+  welfare?: string;
+  preview?: { rating: number; title: string; pros: string; cons: string; date: string }[];
+}
+
+function JobplanetTestPanel({ isDark, user }: { isDark: boolean; user: ReturnType<typeof useAuth>["user"] }) {
+  const [jpId, setJpId] = useState(user?.jobplanetId ?? "");
+  const [jpPw, setJpPw] = useState(user?.jobplanetPassword ?? "");
+  const [company, setCompany] = useState("삼성전자");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<JobplanetTestResult | null>(null);
+
+  const handleTest = async () => {
+    if (!jpId || !jpPw) return;
+    setLoading(true);
+    setResult(null);
+    try {
+      const token = tokenStore.get();
+      const res = await fetch(`${API_BASE}/jobplanet/test-login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ id: jpId, password: jpPw, companyName: company }),
+      });
+      const data = await res.json() as JobplanetTestResult;
+      setResult(data);
+    } catch (e) {
+      setResult({ ok: false, error: e instanceof Error ? e.message : "네트워크 오류" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputCls = `w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${isDark ? "bg-slate-800 border-slate-600 text-slate-200 placeholder-slate-500 focus:ring-slate-500" : "bg-white border-slate-300 text-slate-800 placeholder-slate-400 focus:ring-slate-300"}`;
+
+  return (
+    <div className="space-y-4">
+      <div className={`rounded-xl border p-5 space-y-4 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"}`}>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>잡플래닛 ID (이메일)</label>
+            <input value={jpId} onChange={(e) => setJpId(e.target.value)} placeholder="example@email.com" className={inputCls} />
+          </div>
+          <div>
+            <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>비밀번호</label>
+            <input type="password" value={jpPw} onChange={(e) => setJpPw(e.target.value)} placeholder="••••••••" className={inputCls} />
+          </div>
+        </div>
+        <div>
+          <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>테스트 기업명</label>
+          <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="삼성전자" className={inputCls} />
+        </div>
+        <button
+          onClick={handleTest}
+          disabled={loading || !jpId || !jpPw}
+          className="w-full py-2 text-sm font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+        >
+          {loading ? "로그인 및 수집 중... (30~60초 소요)" : "테스트 실행"}
+        </button>
+        {loading && (
+          <p className={`text-xs text-center ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+            Puppeteer로 잡플래닛에 로그인 후 기업 리뷰를 수집합니다. 잠시 기다려 주세요.
+          </p>
+        )}
+      </div>
+
+      {result && (
+        <div className={`rounded-xl border p-5 ${result.ok ? (isDark ? "bg-emerald-900/20 border-emerald-700/40" : "bg-emerald-50 border-emerald-200") : (isDark ? "bg-red-900/20 border-red-700/40" : "bg-red-50 border-red-200")}`}>
+          {result.ok ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-500 text-lg">✓</span>
+                <span className={`font-semibold text-sm ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>로그인 및 수집 성공</span>
+              </div>
+              <div className={`grid grid-cols-3 gap-3 text-sm ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                <div><p className="text-xs text-slate-500 mb-0.5">기업명</p><p className="font-medium">{result.companyName}</p></div>
+                <div><p className="text-xs text-slate-500 mb-0.5">평점</p><p className="font-medium">{result.overallRating} / 5</p></div>
+                <div><p className="text-xs text-slate-500 mb-0.5">리뷰 수</p><p className="font-medium">{result.reviewCount}개</p></div>
+              </div>
+              {result.welfare && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">복지 정보</p>
+                  <p className={`text-sm ${isDark ? "text-slate-300" : "text-slate-700"}`}>{result.welfare}</p>
+                </div>
+              )}
+              {result.preview && result.preview.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500">리뷰 미리보기</p>
+                  {result.preview.map((r, i) => (
+                    <div key={i} className={`text-xs p-3 rounded-lg ${isDark ? "bg-slate-700/50" : "bg-white/70"}`}>
+                      <p className={`font-medium mb-1 ${isDark ? "text-slate-200" : "text-slate-800"}`}>{r.title} · {r.rating}★ · {r.date}</p>
+                      <p className={`${isDark ? "text-emerald-400" : "text-emerald-700"}`}>👍 {r.pros}</p>
+                      <p className={`${isDark ? "text-red-400" : "text-red-700"}`}>👎 {r.cons}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-start gap-2">
+                <span className="text-red-500 text-lg shrink-0">✕</span>
+                <div>
+                  <p className={`font-semibold text-sm mb-1 ${isDark ? "text-red-300" : "text-red-700"}`}>
+                    테스트 실패{result.failedStep ? ` — ${result.failedStep}` : ""}
+                  </p>
+                  <p className={`text-sm ${isDark ? "text-red-400" : "text-red-600"}`}>{result.error}</p>
+                </div>
+              </div>
+              {result.finalUrl && (
+                <div className={`text-xs font-mono px-3 py-2 rounded-lg ${isDark ? "bg-slate-700/50 text-slate-400" : "bg-slate-100 text-slate-500"}`}>
+                  최종 URL: {result.finalUrl}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function PipelinePage() {
   const { theme } = useTheme();
@@ -58,6 +191,7 @@ export default function PipelinePage() {
     { id: "docparse", label: "문서 파싱" },
     { id: "rag", label: "RAG 디버그" },
     { id: "calllog", label: "호출 이력" },
+    { id: "jobplanet", label: "잡플래닛 테스트" },
   ];
 
   if (user?.role !== "admin") {
@@ -229,6 +363,18 @@ export default function PipelinePage() {
                 </p>
               </div>
               <AiCallLogPanel />
+            </div>
+          )}
+
+          {activeTab === "jobplanet" && (
+            <div className="max-w-2xl">
+              <div className="mb-6">
+                <h3 className={`text-base font-semibold ${isDark ? "text-slate-200" : "text-slate-900"}`}>잡플래닛 로그인 테스트</h3>
+                <p className={`text-sm mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  잡플래닛 로그인 및 기업 리뷰 수집이 정상적으로 동작하는지 확인합니다.
+                </p>
+              </div>
+              <JobplanetTestPanel isDark={isDark} user={user} />
             </div>
           )}
 
