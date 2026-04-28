@@ -706,7 +706,6 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     } catch (e) {
       // AbortError: cancelByItem/cancelBySession에서 이미 STOPPED 처리됨
       if (controller.signal.aborted) return;
-      console.log(e);
       const msg = e instanceof Error ? e.message : '오류';
       this.updateJob(job.jobId, { status: QueueJobStatus.ERROR, phase: undefined, result: msg });
       if (job.taskType === QueueJob.TaskType.SUMMARY) {

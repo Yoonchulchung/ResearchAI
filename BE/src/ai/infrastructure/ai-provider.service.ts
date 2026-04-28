@@ -85,7 +85,6 @@ export class AiProviderService {
     }
 
     const store = requestContext.getStore();
-    console.log('[DEBUG(AiProviderService)] requestContext store:', store);
     const keys = store?.apiKeys;
     const provider = getProvider(requestedModel);
 
@@ -152,12 +151,8 @@ export class AiProviderService {
     prompt: string | any[],
     opts?: { useBuiltinSearch?: boolean; tools?: any[]; signal?: AbortSignal; caller?: string },
   ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number; toolCalls?: ToolCallResult[]; stopReason?: string; searchLog?: { query: string; result: string }[] }> {
-    console.log(aiModel);
-    console.log("**");
 
     aiModel = this.resolveEffectiveModel(aiModel);
-    console.log("$$");
-    console.log(aiModel);
     const promptPreview = typeof prompt === 'string'
       ? prompt
       : prompt.map((m: any) => {
@@ -171,7 +166,6 @@ export class AiProviderService {
       `[system]\n${system}\n[/system]\n` +
       `[prompt]\n${promptPreview}\n[/prompt]`,
     );
-    console.log("))");
     const useSearch = opts?.useBuiltinSearch ?? false;
     const promptText = typeof prompt === 'string'
       ? prompt

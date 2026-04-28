@@ -274,7 +274,7 @@ export function TaskCard({
   return (
     <div
       ref={cardRef}
-      className={`glass-panel rounded-xl shadow-sm border-l-4 ${leftBorder} overflow-hidden transition-all`}
+      className={`bg-white dark:bg-black/10 rounded-sm shadow-sm border ${isDark ? "border-slate-800" : "border-slate-200"} overflow-hidden transition-all`}
     >
       {/* Card Header */}
       <div

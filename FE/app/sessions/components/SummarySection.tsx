@@ -11,7 +11,7 @@ import { ModelDefinition } from "@/types";
 interface Props {
   sessionId: string;
   topic: string;
-  localAiModels: ModelDefinition[];
+  cloudAiModels: ModelDefinition[];
   allDone: boolean;
   summaryState?: string | null;
 }
@@ -26,19 +26,21 @@ function SparkleIcon() {
   );
 }
 
-export function SummarySection({ sessionId, topic, localAiModels, allDone, summaryState }: Props) {
+export function SummarySection({ sessionId, topic, cloudAiModels, allDone, summaryState }: Props) {
   const [summary, setSummary] = useState<string>("");
   const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [expanded, setExpanded] = useState(true);
-  const [selectedModel, setSelectedModel] = useState(() => localAiModels[0]?.id ?? "");
+  const [selectedModel, setSelectedModel] = useState(() => {
+    return cloudAiModels.find(m => m.id.includes("haiku"))?.id ?? cloudAiModels[0]?.id ?? "";
+  });
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (selectedModel === "" && localAiModels.length > 0) {
-      setSelectedModel(localAiModels[0].id);
+    if (selectedModel === "" && cloudAiModels.length > 0) {
+      setSelectedModel(cloudAiModels.find(m => m.id.includes("haiku"))?.id ?? cloudAiModels[0].id);
     }
-  }, [localAiModels, selectedModel]);
+  }, [cloudAiModels, selectedModel]);
 
   useEffect(() => {
     if (summaryStatus === "running") return;
@@ -141,7 +143,7 @@ export function SummarySection({ sessionId, topic, localAiModels, allDone, summa
   };
 
   return (
-    <div className="bg-white border border-slate-200/60 rounded-xl shadow-sm overflow-hidden mb-3">
+    <div className={`bg-white dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-sm shadow-sm overflow-hidden mb-8`}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 gap-3">
         <button
@@ -167,14 +169,14 @@ export function SummarySection({ sessionId, topic, localAiModels, allDone, summa
         </button>
 
         <div className="flex items-center gap-1 shrink-0">
-          {localAiModels.length > 0 && (
+          {cloudAiModels.length > 0 && (
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
               disabled={summaryStatus === "running"}
               className="text-xs text-slate-500 bg-transparent focus:outline-none cursor-pointer max-w-36 truncate disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {localAiModels.map((m) => (
+              {cloudAiModels.map((m) => (
                 <option key={m.id} value={m.id}>{m.name}</option>
               ))}
             </select>
@@ -249,9 +251,9 @@ export function SummarySection({ sessionId, topic, localAiModels, allDone, summa
                 <span className="inline-block w-0.5 h-4 bg-indigo-400 ml-0.5 align-middle animate-pulse" />
               )}
             </div>
-          ) : localAiModels.length === 0 ? (
+          ) : cloudAiModels.length === 0 ? (
             <div className="px-5 py-4">
-              <p className="text-sm text-slate-400">로컬 LLM 모델이 없어 서머리를 생성할 수 없습니다.</p>
+              <p className="text-sm text-slate-400">클라우드 LLM 모델이 없어 서머리를 생성할 수 없습니다.</p>
             </div>
           ) : (
             <div className="px-5 py-4">

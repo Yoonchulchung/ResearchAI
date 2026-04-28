@@ -28,7 +28,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   private resolveException(exception: unknown): { status: number; message: string | object } {
     
     if (exception instanceof UndefinedAiAPIException) {
-      console.log("##");
       return { 
         status: exception.status, 
         message: exception.message 

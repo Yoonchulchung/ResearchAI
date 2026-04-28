@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { API_BASE } from "@/lib/api/base";
+import { apiFetch } from "@/lib/api/base";
 
 type Tab = "news" | "github" | "hf";
 
@@ -66,7 +66,7 @@ function SummaryList({ summary }: { summary: string }) {
   );
 }
 
-function useSummary(url: string) {
+function useSummary(path: string) {
   const [summary, setSummary] = useState("");
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -77,13 +77,12 @@ function useSummary(url: string) {
     setSummary("");
     setAttempted(false);
     setLastUpdated(null);
-  }, [url]);
+  }, [path]);
 
   const fetch_ = useCallback(() => {
     setLoading(true);
-    fetch(url)
-      .then((r) => r.json())
-      .then((data: { summary: string }) => {
+    apiFetch<{ summary: string }>(path)
+      .then((data) => {
         setSummary(data.summary ?? "");
         setLastUpdated(new Date());
       })
@@ -92,7 +91,7 @@ function useSummary(url: string) {
         setLoading(false);
         setAttempted(true);
       });
-  }, [url]);
+  }, [path]);
 
   return { summary, loading, lastUpdated, attempted, refresh: fetch_ };
 }
@@ -102,9 +101,9 @@ export function SummaryCard() {
   const [githubSince, setGithubSince] = useState<GithubSince>("daily");
   const [hfCategory, setHfCategory] = useState<HFCategory>("models");
 
-  const news = useSummary(`${API_BASE}/news/summary`);
-  const github = useSummary(`${API_BASE}/news/github-summary?since=${githubSince}`);
-  const hf = useSummary(`${API_BASE}/news/hf-summary?category=${hfCategory}`);
+  const news = useSummary(`/news/summary`);
+  const github = useSummary(`/news/github-summary?since=${githubSince}`);
+  const hf = useSummary(`/news/hf-summary?category=${hfCategory}`);
 
   // 첫 탭(뉴스)은 마운트 시 자동 로드
   useEffect(() => { news.refresh(); }, []);  // eslint-disable-line react-hooks/exhaustive-deps

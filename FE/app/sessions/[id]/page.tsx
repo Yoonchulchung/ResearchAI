@@ -9,6 +9,7 @@ import { SessionHeader } from "@/sessions/components/SessionHeader";
 import { reEvaluateConfidence } from "@/lib/api/ai";
 import { SessionSkeleton } from "@/sessions/components/SessionSkeleton";
 import { ChatSection } from "@/sessions/components/ChatSection";
+import { SummarySection } from "@/sessions/components/SummarySection";
 import { ChatInputArea } from "@/sessions/components/ChatInputArea";
 import { DetailPanel } from "@/sessions/components/DetailPanel";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -22,7 +23,8 @@ import { RecruitView } from "./components/RecruitView";
 
 export default function SessionPage() {
   const { id } = useParams<{ id: string }>();
-  const { uiStyle } = useTheme();
+  const { uiStyle, theme } = useTheme();
+  const isDark = theme === "dark";
 
   const { session, loading, models } = useSessionData(id);
   const { statuses, phases, aiResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
@@ -238,7 +240,22 @@ export default function SessionPage() {
         {/* 왼쪽: 태스크 목록 + 채팅 */}
         <div className={`flex flex-col flex-1 min-w-0 overflow-hidden relative transition-[padding-right] duration-300 ease-in-out ${expandedDetail ? "hidden" : (showDetail || showTaskPanel) ? "md:pr-[52%]" : "pr-0"}`}>
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6">
-            <div className="space-y-3 px-6">
+            <SummarySection
+              sessionId={id}
+              topic={session.topic}
+              cloudAiModels={cloudAiModels}
+              allDone={allDone}
+              summaryState={session.summaryState}
+            />
+            <div className={`bg-white dark:bg-black/20 border ${isDark ? "border-slate-800" : "border-slate-200"} rounded-sm shadow-sm mb-8`}>
+              <div className={`px-6 py-4 flex items-center justify-between border-b ${isDark ? "border-slate-800" : "border-slate-100"}`}>
+                <h2 className={`text-[15px] font-bold tracking-wide ${isDark ? "text-slate-200" : "text-slate-800"} uppercase`}>수행 중인 리서치 (Research Tasks)</h2>
+                <span className={`text-[10px] uppercase font-bold tracking-widest border px-1.5 py-0.5 rounded-sm ${isDark ? "border-slate-700 text-slate-400" : "border-slate-300 text-slate-500"}`}>
+                  TOTAL {total}
+                </span>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-5 items-start">
               {tasks.map((task) => {
                 const mergedTask = confidenceOverrides[task.itemId]
                   ? { ...task, confidence: confidenceOverrides[task.itemId] }
@@ -287,6 +304,8 @@ export default function SessionPage() {
                   </ScrollReveal>
                 );
               })}
+                </div>
+              </div>
             </div>
 
             <ChatSection
