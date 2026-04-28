@@ -16,6 +16,8 @@ import { TokenHistoryRepository } from '../../overview/domain/repository/token-h
 import { AiCallLogRepository } from '../domain/repository/ai-call-log.repository';
 import { requestContext, DEFAULT_AI_MODEL, DEFAULT_GOOGLE_API_KEY, DEFAULT_GROQ_API_KEY, DEFAULT_GROQ_MODEL } from '../../shared/request-context';
 import { randomUUID } from 'crypto';
+import { UndefinedAiAPIException } from '../../shared/exceptions/undefined-ai-api.exception';
+
 
 /** Default Google 키(free tier) 전용 RPM throttle — 분당 12회(5초 간격) */
 class DefaultGoogleRateLimiter {
@@ -67,40 +69,50 @@ export class AiProviderService {
    * - 명시적 클라우드 모델: 해당 프로바이더 키가 없으면 **명확한 오류** (조용한 폴백 제거)
    */
   resolveEffectiveModel(requestedModel: string): string {
+
+    // 모델이 없으면 기본값 반환
     if (!requestedModel) {
       const store = requestContext.getStore();
       return store?.defaultCloudModel || DEFAULT_AI_MODEL();
     }
-    if (requestedModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) return requestedModel;
-    if (requestedModel.startsWith(AI_MODEL_PREFIX.LLAMA_CPP)) return requestedModel;
+
+    // 로컬 모델은 즉시 반한
+    if (
+      requestedModel.startsWith(AI_MODEL_PREFIX.OLLAMA) ||
+      requestedModel.startsWith(AI_MODEL_PREFIX.LLAMA_CPP)
+    ) {
+      return requestedModel;
+    }
 
     const store = requestContext.getStore();
+    console.log('[DEBUG(AiProviderService)] requestContext store:', store);
     const keys = store?.apiKeys;
     const provider = getProvider(requestedModel);
 
-    if (provider === AIProvider.ANTHROPIC) {
-      if (!keys?.anthropicApiKey) {
-        throw new Error(
-          `Anthropic API 키가 설정되지 않아 "${requestedModel}" 모델을 사용할 수 없습니다. ` +
-          `[설정 → Overview]에서 본인의 Anthropic 키를 입력하거나, 무료 Gemini 모델을 선택하세요.`
-        );
-      }
-      return requestedModel;
-    }
-    if (provider === AIProvider.OPENAI) {
-      if (!keys?.openaiApiKey) {
-        throw new Error(
-          `OpenAI API 키가 설정되지 않아 "${requestedModel}" 모델을 사용할 수 없습니다. ` +
-          `[설정 → Overview]에서 본인의 OpenAI 키를 입력하거나, 무료 Gemini 모델을 선택하세요.`
-        );
-      }
-      return requestedModel;
-    }
-    if (provider === AIProvider.GOOGLE) {
-      if (!keys?.googleApiKey && !DEFAULT_GOOGLE_API_KEY()) {
-        throw new Error('Google API 키가 설정되지 않았습니다. [설정 → Overview]에서 키를 입력해주세요.');
-      }
-      return requestedModel;
+    switch (provider) {
+      case AIProvider.ANTHROPIC:
+        if (!keys?.anthropicApiKey) {
+          throw new UndefinedAiAPIException(
+            `Anthropic API 키가 설정되지 않아 "${requestedModel}" 모델을 사용할 수 없습니다. ` +
+            `[설정 → Overview]에서 본인의 Anthropic 키를 입력하거나, 무료 Gemini 모델을 선택하세요.`
+          );
+        }
+        break;
+
+      case AIProvider.OPENAI:
+        if (!keys?.openaiApiKey) {
+          throw new UndefinedAiAPIException(
+            `OpenAI API 키가 설정되지 않아 "${requestedModel}" 모델을 사용할 수 없습니다. ` +
+            `[설정 → Overview]에서 본인의 OpenAI 키를 입력하거나, 무료 Gemini 모델을 선택하세요.`
+          );
+        }
+        break;
+
+      case AIProvider.GOOGLE:
+        if (!keys?.googleApiKey && !DEFAULT_GOOGLE_API_KEY()) {
+          throw new UndefinedAiAPIException('Google API 키가 설정되지 않았습니다. [설정 → Overview]에서 키를 입력해주세요.');
+        }
+        break;
     }
 
     return requestedModel;
@@ -110,13 +122,13 @@ export class AiProviderService {
     const key = requestContext.getStore()?.apiKeys.anthropicApiKey;
     if (key) return new Anthropic({ apiKey: key });
     // 사용자 키 없음 — resolveEffectiveModel 이 이미 Gemini 로 전환했어야 하지만 안전망
-    throw new Error('Anthropic API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.');
+    throw new UndefinedAiAPIException('Anthropic API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.');
   }
 
   private getOpenAIClient(): OpenAI {
     const key = requestContext.getStore()?.apiKeys.openaiApiKey;
     if (key) return new OpenAI({ apiKey: key });
-    throw new Error('OpenAI API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.');
+    throw new UndefinedAiAPIException('OpenAI API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.');
   }
 
   private isUsingDefaultGoogleKey(): boolean {
@@ -132,7 +144,7 @@ export class AiProviderService {
   constructor(
     private readonly tokenHistoryRepository: TokenHistoryRepository,
     private readonly aiCallLogRepository: AiCallLogRepository,
-  ) {}
+  ) { }
 
   async call(
     aiModel: string,
@@ -140,21 +152,26 @@ export class AiProviderService {
     prompt: string | any[],
     opts?: { useBuiltinSearch?: boolean; tools?: any[]; signal?: AbortSignal; caller?: string },
   ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number; toolCalls?: ToolCallResult[]; stopReason?: string; searchLog?: { query: string; result: string }[] }> {
+    console.log(aiModel);
+    console.log("**");
+
     aiModel = this.resolveEffectiveModel(aiModel);
+    console.log("$$");
+    console.log(aiModel);
     const promptPreview = typeof prompt === 'string'
       ? prompt
       : prompt.map((m: any) => {
-          const content = typeof m.content === 'string'
-            ? m.content
-            : JSON.stringify(m.content);
-          return `[${m.role}] ${content}`;
-        }).join('\n');
+        const content = typeof m.content === 'string'
+          ? m.content
+          : JSON.stringify(m.content);
+        return `[${m.role}] ${content}`;
+      }).join('\n');
     this.logger.log(
       `model=${aiModel}\n` +
       `[system]\n${system}\n[/system]\n` +
       `[prompt]\n${promptPreview}\n[/prompt]`,
     );
-
+    console.log("))");
     const useSearch = opts?.useBuiltinSearch ?? false;
     const promptText = typeof prompt === 'string'
       ? prompt
@@ -234,12 +251,12 @@ export class AiProviderService {
       const modelInfo = MODELS.find((m) => aiModel.startsWith(m.id));
       estimatedFees = modelInfo
         ? (inputTokens / 1_000_000) * modelInfo.inputPricePer1M +
-          (outputTokens / 1_000_000) * modelInfo.outputPricePer1M
+        (outputTokens / 1_000_000) * modelInfo.outputPricePer1M
         : 0;
 
       this.tokenHistoryRepository
         .save({ id: randomUUID(), aiModel, usedTokens: `input:${inputTokens}/output:${outputTokens}`, estimatedFees })
-        .catch(() => {});
+        .catch(() => { });
 
       return { text, inputTokens, outputTokens, estimatedFees, toolCalls, stopReason, searchLog };
     } catch (err) {
@@ -256,7 +273,7 @@ export class AiProviderService {
         error: errorMsg ?? null,
         inputTokens, outputTokens, estimatedFees,
         durationMs: Date.now() - startMs,
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }
 

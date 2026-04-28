@@ -1,6 +1,7 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { BrokenCircuitError } from 'cockatiel';
 import { Request, Response } from 'express';
+import { UndefinedAiAPIException } from '../exceptions/undefined-ai-api.exception';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -10,7 +11,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const request = ctx.getRequest<Request>();
     const response = ctx.getResponse<Response>();
-
     const { status, message } = this.resolveException(exception);
 
     if (status >= 500) {
@@ -26,6 +26,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   }
 
   private resolveException(exception: unknown): { status: number; message: string | object } {
+    
+    if (exception instanceof UndefinedAiAPIException) {
+      console.log("##");
+      return { 
+        status: exception.status, 
+        message: exception.message 
+      };
+    }
+
     if (exception instanceof BrokenCircuitError) {
       return { status: HttpStatus.SERVICE_UNAVAILABLE, message: '외부 서비스가 일시적으로 사용 불가능합니다. 잠시 후 다시 시도해주세요.' };
     }

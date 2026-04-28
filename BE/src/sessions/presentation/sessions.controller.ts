@@ -152,13 +152,18 @@ export class SessionsController {
       if (event.type === 'log') {
         send({ type: 'log', message: event.message });
       } else if (event.type === 'jobs') {
-        newJobs.push(...event.jobs);
-        send({ type: 'jobs', jobs: event.jobs });
+        const jobsWithId = event.jobs.map((job) => ({
+          ...job,
+          id: randomUUID(),
+          source: job.url ? this.detectSource(job.url) : 'other',
+        }));
+        newJobs.push(...jobsWithId);
+        send({ type: 'jobs', jobs: jobsWithId });
 
         Promise.all(
-          event.jobs.map((job) =>
+          jobsWithId.map((job) =>
             this.sessionJobRepository.save({
-              id: randomUUID(),
+              id: job.id,
               sessionId: id,
               title: job.title ?? null,
               company: job.company ?? null,
@@ -166,7 +171,7 @@ export class SessionsController {
               description: job.description ?? null,
               skills: job.skills?.join(', ') ?? null,
               url: job.url ?? null,
-              source: job.url ? this.detectSource(job.url) : null,
+              source: job.source,
               postedAt: null,
             }),
           ),

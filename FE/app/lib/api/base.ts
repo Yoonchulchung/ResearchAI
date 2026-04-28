@@ -57,14 +57,17 @@ function getAnonId(): string {
   return id;
 }
 
-export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+export function getAuthHeaders(): Record<string, string> {
   const token = tokenStore.get();
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  } else {
-    headers["X-Anon-Id"] = getAnonId();
-  }
+  if (token) return { "Authorization": `Bearer ${token}` };
+  return { "X-Anon-Id": getAnonId() };
+}
+
+export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { 
+    "Content-Type": "application/json",
+    ...getAuthHeaders()
+  };
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,

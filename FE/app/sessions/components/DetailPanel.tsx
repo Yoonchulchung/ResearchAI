@@ -49,16 +49,16 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
         const idx = parseInt(v, 10);
         if (!isNaN(idx) && idx >= 0 && idx < FONT_SIZES.length) return idx;
       }
-    } catch {}
+    } catch { }
     return DEFAULT_FONT_SIZE_IDX;
   });
   const fontSize = FONT_SIZES[fontSizeIdx];
   const [bgColor, setBgColor] = useState(() => {
-    try { return localStorage.getItem("viewer_bg_color") ?? BG_COLORS[1].value; } catch {}
+    try { return localStorage.getItem("viewer_bg_color") ?? BG_COLORS[1].value; } catch { }
     return BG_COLORS[1].value;
   });
   const [darkBgColor, setDarkBgColor] = useState(() => {
-    try { return localStorage.getItem("viewer_dark_bg_color") ?? DARK_BG_COLORS[0].value; } catch {}
+    try { return localStorage.getItem("viewer_dark_bg_color") ?? DARK_BG_COLORS[0].value; } catch { }
     return DARK_BG_COLORS[0].value;
   });
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -124,7 +124,7 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
   // 변경 시 debounce 저장
   const save = (key: string, value: string) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => { try { localStorage.setItem(key, value); } catch {} }, 300);
+    saveTimer.current = setTimeout(() => { try { localStorage.setItem(key, value); } catch { } }, 300);
   };
 
   const handleFontSizeIdx = (idx: number) => {
@@ -144,70 +144,89 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
 
   return (
     <div className="flex flex-col h-full w-full" style={{ backgroundColor: activeColor }}>
-      <div className="px-6 py-3.5 flex items-center gap-3 shrink-0 glass-header">
-        <h2 className="font-bold text-sm text-slate-800 truncate flex-1">{session.topic}</h2>
-        <span className="text-xs text-slate-400 shrink-0">{doneTasks.length}건 완료</span>
+      <div className="px-6 py-3.5 flex items-center justify-between gap-4 shrink-0 border-b border-black/[0.06] dark:border-white/[0.08]">
+        {/* Left: Title & Count */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <h2 className="font-semibold text-[15px] text-slate-800 dark:text-slate-100 truncate tracking-tight">
+            {session.topic}
+          </h2>
+        </div>
 
-        {/* 배경 색상 */}
-        <div className="flex items-center gap-1 shrink-0">
-          {activePalette.map((c) => (
+        {/* Right: Controls */}
+        <div className="flex items-center gap-2 shrink-0">
+
+          {/* Theme Palette */}
+          <div className="flex items-center gap-1.5 px-2 py-1.5 bg-black/[0.02] dark:bg-white/[0.02] rounded-lg border border-black/[0.06] dark:border-white/[0.06]">
+            {activePalette.map((c) => (
+              <button
+                key={c.value}
+                onClick={() => handleBgColor(c.value)}
+                title={c.label}
+                className="w-4 h-4 rounded m-0.5 border border-black/10 transition-transform hover:scale-110 flex items-center justify-center shadow-sm"
+                style={{ backgroundColor: c.value }}
+              >
+                {activeColor === c.value && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-black/40 dark:bg-white/40" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          <div className="w-px h-5 bg-black/[0.08] dark:bg-white/[0.08] mx-1" />
+
+          {/* Font Size */}
+          <div className="flex items-center bg-black/[0.02] dark:bg-white/[0.02] rounded-lg border border-black/[0.06] dark:border-white/[0.06] p-0.5">
             <button
-              key={c.value}
-              onClick={() => handleBgColor(c.value)}
-              title={c.label}
-              className="w-4 h-4 rounded-full border transition-all"
-              style={{
-                backgroundColor: c.value,
-                borderColor: activeColor === c.value ? "#64748b" : "#cbd5e1",
-                boxShadow: activeColor === c.value ? "0 0 0 1.5px #64748b" : undefined,
-              }}
-            />
-          ))}
-        </div>
+              onClick={() => handleFontSizeIdx(Math.max(0, fontSizeIdx - 1))}
+              disabled={fontSizeIdx === 0}
+              className="w-7 h-7 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-all disabled:opacity-30"
+              title="글자 작게"
+            >
+              <span className="text-[11px] font-medium tracking-tighter">A-</span>
+            </button>
+            <span className="w-6 text-center text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+              {fontSize}
+            </span>
+            <button
+              onClick={() => handleFontSizeIdx(Math.min(FONT_SIZES.length - 1, fontSizeIdx + 1))}
+              disabled={fontSizeIdx === FONT_SIZES.length - 1}
+              className="w-7 h-7 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-all disabled:opacity-30"
+              title="글자 크게"
+            >
+              <span className="text-[11px] font-medium tracking-tighter">A+</span>
+            </button>
+          </div>
 
-        {/* 글자 크기 */}
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={() => handleFontSizeIdx(Math.max(0, fontSizeIdx - 1))}
-            disabled={fontSizeIdx === 0}
-            className="text-slate-400 hover:text-slate-600 disabled:opacity-30 transition-colors leading-none px-1"
-            title="글자 작게"
-          >
-            A<span className="text-micro align-sub">-</span>
-          </button>
-          <span className="text-xs text-slate-400 w-6 text-center">{fontSize}</span>
-          <button
-            onClick={() => handleFontSizeIdx(Math.min(FONT_SIZES.length - 1, fontSizeIdx + 1))}
-            disabled={fontSizeIdx === FONT_SIZES.length - 1}
-            className="text-slate-400 hover:text-slate-600 disabled:opacity-30 transition-colors leading-none px-1"
-            title="글자 크게"
-          >
-            A<span className="text-[11px] align-sub">+</span>
-          </button>
-        </div>
+          <div className="w-px h-5 bg-black/[0.08] dark:bg-white/[0.08] mx-1" />
 
-        <button
-          onClick={onExpand}
-          className="text-slate-400 hover:text-slate-600 transition-colors leading-none shrink-0"
-          title={expanded ? "축소" : "전체 보기"}
-        >
-          {expanded ? (
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M5.5 1.5H1.5V5.5M9.5 1.5H13.5V5.5M5.5 13.5H1.5V9.5M9.5 13.5H13.5V9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          ) : (
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M1.5 5.5V1.5H5.5M13.5 5.5V1.5H9.5M1.5 9.5V13.5H5.5M13.5 9.5V13.5H9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          )}
-        </button>
-        <button
-          onClick={onClose}
-          className="text-slate-400 hover:text-slate-600 transition-colors text-lg leading-none shrink-0"
-          title="닫기"
-        >
-          ✕
-        </button>
+          {/* Window Controls */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onExpand}
+              className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-black/[0.05] dark:hover:bg-white/[0.05] rounded-md transition-all"
+              title={expanded ? "축소" : "전체 보기"}
+            >
+              {expanded ? (
+                <svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M5.5 1.5H1.5V5.5M9.5 1.5H13.5V5.5M5.5 13.5H1.5V9.5M9.5 13.5H13.5V9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M1.5 5.5V1.5H5.5M13.5 5.5V1.5H9.5M1.5 9.5V13.5H5.5M13.5 9.5V13.5H9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all"
+              title="닫기"
+            >
+              <svg width="12" height="12" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M11.7816 4.03157C12.0062 3.80702 12.0062 3.44295 11.7816 3.2184C11.5571 2.99385 11.193 2.99385 10.9685 3.2184L7.50005 6.68682L4.03164 3.2184C3.80708 2.99385 3.44301 2.99385 3.21846 3.2184C2.99391 3.44295 2.99391 3.80702 3.21846 4.03157L6.68688 7.49999L3.21846 10.9684C2.99391 11.193 2.99391 11.557 3.21846 11.7816C3.44301 12.0061 3.80708 12.0061 4.03164 11.7816L7.50005 8.31316L10.9685 11.7816C11.193 12.0061 11.5571 12.0061 11.7816 11.7816C12.0062 11.557 12.0062 11.193 11.7816 10.9684L8.31322 7.49999L11.7816 4.03157Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Content */}
@@ -224,21 +243,23 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
                   {task.title}
                 </h3>
                 <div className="prose prose-slate max-w-none
-                  [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm
-                  [&_th]:bg-slate-100 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
-                  [&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:border-slate-200
+                  [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm [&_table]:my-4
+                  tracking-wide
+                  [&_th]:bg-slate-100 [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:font-semibold [&_th]:border [&_th]:border-slate-300
+                  [&_td]:px-4 [&_td]:py-3 [&_td]:border [&_td]:border-slate-200
                   [&_tr:nth-child(even)]:bg-white [&_tr:nth-child(odd)]:bg-slate-50/50
-                  [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:text-slate-800
-                  [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-slate-800
-                  [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:text-slate-700
-                  [&_strong]:font-bold [&_strong]:text-slate-800
-                  [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2
-                  [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2
-                  [&_li]:my-0.5 [&_li]:text-slate-700
-                  [&_p]:my-2 [&_p]:leading-relaxed [&_p]:text-slate-700
-                  [&_code]:bg-slate-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700
-                  [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-3 [&_blockquote]:text-slate-500 [&_blockquote]:italic
-                  [&_hr]:border-slate-200 [&_hr]:my-3">
+                  [&_h1]:font-bold [&_h1]:text-2xl [&_h1]:mt-10 [&_h1]:mb-5 [&_h1]:pb-2 [&_h1]:border-b-2 [&_h1]:border-slate-800 [&_h1]:text-slate-900
+                  [&_h2]:font-bold [&_h2]:text-xl [&_h2]:mt-8 [&_h2]:mb-4 [&_h2]:pl-3 [&_h2]:border-l-4 [&_h2]:border-indigo-600 [&_h2]:text-slate-800
+                  [&_h3]:font-bold [&_h3]:text-lg [&_h3]:mt-6 [&_h3]:mb-3 [&_h3]:text-slate-800
+                  [&_h4]:font-bold [&_h4]:text-base [&_h4]:mt-5 [&_h4]:mb-3 [&_h4]:text-slate-800
+                  [&_strong]:font-bold [&_strong]:text-slate-900
+                  [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-3
+                  [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-3
+                  [&_li]:my-0.5 [&_li]:text-slate-700 [&_li]:leading-relaxed
+                  [&_p]:my-3 [&_p]:leading-relaxed [&_p]:text-slate-700
+                  [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700 [&_code]:font-mono
+                  [&_blockquote]:bg-slate-50 [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-400 [&_blockquote]:p-3 [&_blockquote]:my-4 [&_blockquote]:not-italic [&_blockquote]:text-slate-700 [&_blockquote]:rounded-r-lg [&_blockquote_p]:m-0
+                  [&_hr]:border-slate-200 [&_hr]:my-6">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{task.aiResult ?? ""}</ReactMarkdown>
                 </div>
                 <div className="mt-6 border-b border-slate-100" />

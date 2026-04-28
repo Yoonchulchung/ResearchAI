@@ -11,7 +11,7 @@ export class ChatController {
   constructor(
     private readonly chatService: ChatService,
     private readonly aiProvider: AiProviderService,
-  ) {}
+  ) { }
 
   /** 세션 없이 동작하는 직접 스트리밍 채팅 (기업 분석 등 컨텍스트 기반 채팅용) */
   @Post('direct')
@@ -92,6 +92,7 @@ export class ChatController {
         res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
       }
     } catch (e) {
+      console.log(e);
       if (!res.writableEnded) {
         const msg = e instanceof Error ? e.message : '오류 발생';
         res.write(`data: ${JSON.stringify({ type: 'error', message: msg })}\n\n`);

@@ -1,5 +1,5 @@
 import { Session, Task, ChatMessage, RecruitJob } from "@/types";
-import { apiFetch, API_BASE, readSSE } from "./base";
+import { apiFetch, API_BASE, readSSE, getAuthHeaders } from "./base";
 
 export const getSessions = () =>
   apiFetch<Session[]>("/sessions");
@@ -54,7 +54,7 @@ export async function requestSessionSummary(
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/queue/sessions/${sessionId}/summary`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ localAIModel }),
   });
   if (!res.ok) throw new Error("Summary 요청 실패");
@@ -68,6 +68,7 @@ export async function streamSessionSummary(
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/queue/sessions/${sessionId}/summary/stream`, {
     method: "GET",
+    headers: { ...getAuthHeaders() },
     signal,
   });
   if (!res.ok || !res.body) throw new Error("Summary stream 실패");
@@ -111,7 +112,7 @@ export async function chatStream(
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/chat/${sessionId}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ message, model, attachedTexts: attachedTexts?.length ? attachedTexts : undefined }),
     signal,
   });
@@ -143,7 +144,7 @@ export async function searchMoreJobs(
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/sessions/${sessionId}/jobs/search`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
     body: JSON.stringify({ keyword }),
     signal,
   });

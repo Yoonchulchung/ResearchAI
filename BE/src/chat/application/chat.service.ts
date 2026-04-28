@@ -187,7 +187,7 @@ ${docNote}
 web_search 호출 조건: 첨부 문서가 없고, 최신 뉴스·구체적 수치·리서치에 없는 사실이 필요한 경우에만 호출하세요.
 web_search를 호출하지 말아야 하는 경우: 인사말, 간단한 질문, 일반 상식으로 답할 수 있는 경우, 업로드된 문서에 대한 질문.
 확실하지 않으면 호출하지 마세요.`;
-
+      
       const decision = await this.aiProvider.call(
         aiModel,
         decisionPrompt,
