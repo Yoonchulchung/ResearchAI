@@ -42,6 +42,15 @@ export class CompanyAnalysisEntity {
   @Column({ name: 'ai_model', type: 'text', nullable: true })
   aiModel: string | null;
 
+  @Column({ name: 'input_tokens', type: 'integer', nullable: true })
+  inputTokens: number | null;
+
+  @Column({ name: 'output_tokens', type: 'integer', nullable: true })
+  outputTokens: number | null;
+
+  @Column({ name: 'estimated_fees', type: 'real', nullable: true })
+  estimatedFees: number | null;
+
   // ── AI 생성 분석 ───────────────────────────────────────
   @Column({ type: 'text', nullable: true })
   swot: string | null;
@@ -51,6 +60,9 @@ export class CompanyAnalysisEntity {
 
   @Column({ name: 'business_segments', type: 'text', nullable: true })
   businessSegments: string | null;
+
+  @Column({ name: 'segment_sources', type: 'text', nullable: true })
+  segmentSources: string | null;
 
   @Column({ type: 'text', nullable: true })
   industry: string | null;
@@ -114,6 +126,12 @@ export class CompanyAnalysisEntity {
 
   @Column({ name: 'mission_vision', type: 'text', nullable: true })
   missionVision: string | null;
+
+  @Column({ name: 'company_profile', type: 'text', nullable: true })
+  companyProfile: string | null;
+
+  @Column({ name: 'employee_detail', type: 'text', nullable: true })
+  employeeDetail: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

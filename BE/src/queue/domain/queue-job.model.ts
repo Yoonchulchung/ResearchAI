@@ -34,6 +34,7 @@ export namespace QueueJob {
     WRITEASSIST_IMPROVE    = 'writeassist_improve',
     WRITEASSIST_SPELLCHECK = 'writeassist_spellcheck',
     WRITEASSIST_SUMMARIZE  = 'writeassist_summarize',
+    WRITEASSIST_EXAMPLE    = 'writeassist_example',
     COMPANYPROFILE         = 'companyprofile',
   }
 

@@ -30,23 +30,39 @@ export class WriteAssistExecutorService {
     signal?: AbortSignal,
     extras?: WriteAssistExtras,
   ): Promise<string> {
-    // 글 평가는 2단계 AI Agent 흐름 (분류 → 유형별 평가)
-    if (taskType === QueueJob.TaskType.WRITEASSIST_EVALUATE) {
-      return this.executeEvaluate(content, model, onChunk, signal, extras);
-    }
+    switch (taskType) {
+      case QueueJob.TaskType.WRITEASSIST_EVALUATE:
+        return this.executeEvaluate(content, model, onChunk, signal, extras);
 
-    // 내용 개선은 3단계 파이프라인 (분류 → 평가/문제도출 → 개선)
-    if (taskType === QueueJob.TaskType.WRITEASSIST_IMPROVE) {
-      return this.executeImprove(content, model, onChunk, signal, extras);
-    }
+      case QueueJob.TaskType.WRITEASSIST_IMPROVE:
+        return this.executeImprove(content, model, onChunk, signal, extras);
 
-    // 그 외 액션은 정적 프롬프트 단일 호출
+      default:
+        return this.executeDefaultTask(taskType, content, model, onChunk, signal, extras);
+    }
+  }
+
+  // ── 기본 액션 ────────────────────────────────────────────────────────────────
+
+  private async executeDefaultTask(
+    taskType: QueueJob.TaskType,
+    content: string,
+    model: string,
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal,
+    extras?: WriteAssistExtras,
+  ): Promise<string> {
     const instruction = this.buildInstruction(taskType, content, extras);
+    const currentMessage = { role: 'user' as const, content: instruction };
+
+    // 커스텀 프롬프트(WRITEASSIST)만 이전 대화 히스토리를 포함해 연속성 유지
+    const messages =
+      taskType === QueueJob.TaskType.WRITEASSIST && extras?.history?.length
+        ? [...extras.history, currentMessage]
+        : [currentMessage];
 
     let fullText = '';
-    for await (const chunk of this.aiProvider.stream(model, WRITE_ASSIST_SYSTEM_PROMPT, [
-      { role: 'user' as const, content: instruction },
-    ])) {
+    for await (const chunk of this.aiProvider.stream(model, WRITE_ASSIST_SYSTEM_PROMPT, messages)) {
       if (signal?.aborted) break;
       fullText += chunk;
       onChunk(chunk);
@@ -54,14 +70,35 @@ export class WriteAssistExecutorService {
     return fullText;
   }
 
-  // ── 글 평가 — 2단계 AI Agent ──────────────────────────────────────────────
+  // ── 문항 분리 ────────────────────────────────────────────────────────────────
 
-  /** 1단계: 문서 상단의 문항을 분석해 유형을 분류 */
+  /**
+   * 문서를 개별 문항 단위로 분리.
+   * **굵은 텍스트** 형태의 줄을 문항 헤더로 인식.
+   * 분리 불가능하면 문서 전체를 단일 섹션으로 반환.
+   */
+  private splitSections(content: string): { header: string; body: string }[] {
+    // 한 줄 전체가 **...** 인 경우를 문항 구분자로 사용
+    const parts = content.split(/^(\*\*[^\n*]+\*\*)\s*$/m);
+
+    if (parts.length <= 1) return [{ header: '', body: content.trim() }];
+
+    const sections: { header: string; body: string }[] = [];
+    for (let i = 1; i < parts.length; i += 2) {
+      const header = (parts[i] ?? '').trim();
+      const body = (parts[i + 1] ?? '').trim();
+      if (header || body) sections.push({ header, body });
+    }
+    return sections.length > 0 ? sections : [{ header: '', body: content.trim() }];
+  }
+
+  // ── 분류 ─────────────────────────────────────────────────────────────────────
+
   private async classifyQuestionType(
     content: string,
     model: string,
     signal?: AbortSignal,
-  ): Promise<{ type: QuestionType; questionText: string }> {
+  ): Promise<{ type: QuestionType; questionText: string; companyCtxFromDoc?: string }> {
     try {
       const { text } = await this.aiProvider.call(model, CLASSIFY_SYSTEM_PROMPT, buildClassifyPrompt(content), {
         signal,
@@ -74,21 +111,36 @@ export class WriteAssistExecutorService {
       const parsed = JSON.parse(cleaned.slice(start, end + 1)) as {
         type?: string;
         questionText?: string;
+        company?: { name?: string; position?: string; jd?: string; requiredCompetencies?: string[] };
       };
+
       const validTypes: QuestionType[] = ['motivation', 'experience', 'competency', 'general'];
-      const type = validTypes.includes(parsed.type as QuestionType)
-        ? (parsed.type as QuestionType)
-        : 'general';
+      const type = validTypes.includes(parsed.type as QuestionType) ? (parsed.type as QuestionType) : 'general';
       const questionText = (parsed.questionText ?? '').trim() || '(문항 추출 실패)';
-      this.logger.log(`[WriteAssistEvaluate] 분류 결과: ${type} | 문항: "${questionText.slice(0, 60)}"`);
-      return { type, questionText };
+
+      let companyCtxFromDoc: string | undefined;
+      const c = parsed.company;
+      if (c?.name || c?.position || c?.jd) {
+        const lines: string[] = ['## 지원 정보 (문서 자동 추출)'];
+        if (c.name) lines.push(`- 지원 회사: ${c.name}`);
+        if (c.position) lines.push(`- 지원 직무: ${c.position}`);
+        if (c.jd) lines.push(`- JD 요약: ${c.jd}`);
+        if (c.requiredCompetencies?.length) lines.push(`- 핵심 역량: ${c.requiredCompetencies.join(', ')}`);
+        companyCtxFromDoc = lines.join('\n') + '\n\n';
+      }
+
+      this.logger.log(
+        `[WriteAssistEvaluate] 분류: ${type} | "${questionText.slice(0, 60)}" | 회사: ${c?.name ?? '-'}`,
+      );
+      return { type, questionText, companyCtxFromDoc };
     } catch (err) {
       this.logger.warn(`[WriteAssistEvaluate] 분류 실패, general 폴백: ${(err as Error).message}`);
       return { type: 'general', questionText: '(자동 분류 실패)' };
     }
   }
 
-  /** 2단계: 분류된 유형에 맞춘 평가 프롬프트로 스트리밍 평가 */
+  // ── 글 평가 ──────────────────────────────────────────────────────────────────
+
   private async executeEvaluate(
     content: string,
     model: string,
@@ -96,24 +148,58 @@ export class WriteAssistExecutorService {
     signal?: AbortSignal,
     extras?: WriteAssistExtras,
   ): Promise<string> {
-    // 1) 문항 분류
-    const { type, questionText } = await this.classifyQuestionType(content, model, signal);
-    if (signal?.aborted) return '';
+    const sections = this.splitSections(content);
 
+    if (sections.length <= 1) {
+      const { type, questionText, companyCtxFromDoc } = await this.classifyQuestionType(content, model, signal);
+      if (signal?.aborted) return '';
+      const companyCtx = extras?.companyCtx ?? companyCtxFromDoc ?? '';
+      return this.streamEvalSection(content, type, questionText, companyCtx, extras, model, onChunk, signal);
+    }
+
+    // 다문항: 섹션별 순차 평가
+    let fullText = '';
+    let sharedCompanyCtx = extras?.companyCtx ?? '';
+
+    for (let i = 0; i < sections.length; i++) {
+      if (signal?.aborted) break;
+      const { header, body } = sections[i];
+      const sectionContent = [header, body].filter(Boolean).join('\n\n');
+
+      const { type, questionText, companyCtxFromDoc } = await this.classifyQuestionType(sectionContent, model, signal);
+      if (!sharedCompanyCtx && companyCtxFromDoc) sharedCompanyCtx = companyCtxFromDoc;
+      if (signal?.aborted) break;
+
+      const displayHeader = header.replace(/\*\*/g, '').trim();
+      const divider = `${i > 0 ? '\n\n' : ''}---\n\n## 📝 문항 ${i + 1} / ${sections.length}${displayHeader ? `\n\n> ${displayHeader}` : ''}\n\n`;
+      fullText += divider;
+      onChunk(divider);
+
+      const result = await this.streamEvalSection(sectionContent, type, questionText, sharedCompanyCtx, extras, model, onChunk, signal);
+      fullText += result;
+    }
+
+    return fullText;
+  }
+
+  private async streamEvalSection(
+    sectionContent: string,
+    type: QuestionType,
+    questionText: string,
+    companyCtx: string,
+    extras: WriteAssistExtras | undefined,
+    model: string,
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal,
+  ): Promise<string> {
     const typeLabel = QUESTION_TYPE_LABELS[type];
     const rubric = EVALUATE_RUBRICS[type];
-
-    // 출력 형식의 자리표시자를 유형별 항목명·최대점수로 치환
     const axes = this.extractAxisInfo(rubric);
-    const outputFormat = this.fillAxisPlaceholders(
-      EVALUATE_OUTPUT_FORMAT.replaceAll('{TYPE_LABEL}', typeLabel),
-      axes,
-    );
-
+    const outputFormat = this.fillAxisPlaceholders(EVALUATE_OUTPUT_FORMAT.replaceAll('{TYPE_LABEL}', typeLabel), axes);
     const system = EVALUATE_SYSTEM_PROMPT.replaceAll('{TYPE_LABEL}', typeLabel);
-
     const expContext = this.buildExpContext(extras?.experiences);
-    const userPrompt = `${extras?.companyCtx ?? ''}${expContext}# 평가 작업
+
+    const userPrompt = `${companyCtx}${expContext}# 평가 작업
 
 ## 문항 유형
 ${typeLabel}
@@ -131,12 +217,10 @@ ${outputFormat}
 
 ## 평가 대상 문서
 
-${content.trim() || '(빈 문서)'}`;
+${sectionContent.trim() || '(빈 문서)'}`;
 
     let fullText = '';
-    for await (const chunk of this.aiProvider.stream(model, system, [
-      { role: 'user' as const, content: userPrompt },
-    ])) {
+    for await (const chunk of this.aiProvider.stream(model, system, [{ role: 'user' as const, content: userPrompt }])) {
       if (signal?.aborted) break;
       fullText += chunk;
       onChunk(chunk);
@@ -144,18 +228,98 @@ ${content.trim() || '(빈 문서)'}`;
     return fullText;
   }
 
-  /** 루브릭 텍스트에서 "### N. 항목명 (25점)" 패턴으로 4개 axis 이름 + max 점수 추출 */
+  // ── 내용 개선 ────────────────────────────────────────────────────────────────
+
+  private async executeImprove(
+    content: string,
+    model: string,
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal,
+    extras?: WriteAssistExtras,
+  ): Promise<string> {
+    const sections = this.splitSections(content);
+
+    if (sections.length <= 1) {
+      const { type, questionText, companyCtxFromDoc } = await this.classifyQuestionType(content, model, signal);
+      if (signal?.aborted) return '';
+      const companyCtx = extras?.companyCtx ?? companyCtxFromDoc ?? '';
+      return this.streamImproveSection(content, type, questionText, companyCtx, extras, model, onChunk, signal);
+    }
+
+    // 다문항: 섹션별 순차 개선
+    let fullText = '';
+    let sharedCompanyCtx = extras?.companyCtx ?? '';
+
+    for (let i = 0; i < sections.length; i++) {
+      if (signal?.aborted) break;
+      const { header, body } = sections[i];
+      const sectionContent = [header, body].filter(Boolean).join('\n\n');
+
+      const { type, questionText, companyCtxFromDoc } = await this.classifyQuestionType(sectionContent, model, signal);
+      if (!sharedCompanyCtx && companyCtxFromDoc) sharedCompanyCtx = companyCtxFromDoc;
+      if (signal?.aborted) break;
+
+      const displayHeader = header.replace(/\*\*/g, '').trim();
+      const divider = `${i > 0 ? '\n\n' : ''}---\n\n## ✏️ 문항 ${i + 1} / ${sections.length}${displayHeader ? `\n\n> ${displayHeader}` : ''}\n\n`;
+      fullText += divider;
+      onChunk(divider);
+
+      const result = await this.streamImproveSection(sectionContent, type, questionText, sharedCompanyCtx, extras, model, onChunk, signal);
+      fullText += result;
+    }
+
+    return fullText;
+  }
+
+  private async streamImproveSection(
+    sectionContent: string,
+    type: QuestionType,
+    questionText: string,
+    companyCtx: string,
+    extras: WriteAssistExtras | undefined,
+    model: string,
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const typeLabel = QUESTION_TYPE_LABELS[type];
+    const rubric = EVALUATE_RUBRICS[type];
+    const axes = this.extractAxisInfo(rubric);
+    const outputFormat = this.fillAxisPlaceholders(IMPROVE_PIPELINE_OUTPUT_FORMAT.replaceAll('{TYPE_LABEL}', typeLabel), axes);
+    const system = IMPROVE_PIPELINE_SYSTEM_PROMPT.replaceAll('{TYPE_LABEL}', typeLabel);
+    const expContext = this.buildExpContext(extras?.experiences);
+
+    const userPrompt = `${companyCtx}${expContext}## 문항 유형
+${typeLabel}
+
+## 추출된 문항
+"${questionText}"
+
+${outputFormat}
+
+---
+
+## 원본 문서 (단락 수: 아래 문서의 단락 수를 반드시 확인하고 동일하게 유지)
+
+${sectionContent.trim() || '(빈 문서)'}`;
+
+    let fullText = '';
+    for await (const chunk of this.aiProvider.stream(model, system, [{ role: 'user' as const, content: userPrompt }])) {
+      if (signal?.aborted) break;
+      fullText += chunk;
+      onChunk(chunk);
+    }
+    return fullText;
+  }
+
+  // ── 루브릭 파싱 ──────────────────────────────────────────────────────────────
+
   private extractAxisInfo(rubric: string): { name: string; max: number }[] {
     const matches = [...rubric.matchAll(/^###\s+\d+\.\s*([^\n(]+?)(?:\s*\((\d+)점\))?$/gm)];
-    const info = matches.map((m) => ({
-      name: m[1].trim(),
-      max: m[2] ? parseInt(m[2], 10) : 25,
-    }));
+    const info = matches.map((m) => ({ name: m[1].trim(), max: m[2] ? parseInt(m[2], 10) : 25 }));
     while (info.length < 4) info.push({ name: `항목 ${info.length + 1}`, max: 25 });
     return info.slice(0, 4);
   }
 
-  /** 평가/개선 출력 템플릿의 {AXIS_N} / {MAX_N} 자리표시자 치환 */
   private fillAxisPlaceholders(template: string, axes: { name: string; max: number }[]): string {
     let out = template;
     axes.forEach((a, i) => {
@@ -164,89 +328,21 @@ ${content.trim() || '(빈 문서)'}`;
     return out;
   }
 
-  // ── 내용 개선 — 3단계 파이프라인 (분류 → 평가/문제도출 → 개선) ──────────
+  // ── 프롬프트 조립 ─────────────────────────────────────────────────────────────
 
-  /** 분류 후 단일 스트리밍으로 [분석 표 + 개선 문서] 출력 */
-  private async executeImprove(
-    content: string,
-    model: string,
-    onChunk: (chunk: string) => void,
-    signal?: AbortSignal,
-    extras?: WriteAssistExtras,
-  ): Promise<string> {
-    // 1) 문항 분류 (단발 호출)
-    const { type, questionText } = await this.classifyQuestionType(content, model, signal);
-    if (signal?.aborted) return '';
-
-    const typeLabel = QUESTION_TYPE_LABELS[type];
-    const rubric = EVALUATE_RUBRICS[type];
-
-    // 출력 형식 자리표시자 치환 (axis 이름 + 최대 점수)
-    const axes = this.extractAxisInfo(rubric);
-    const outputFormat = this.fillAxisPlaceholders(
-      IMPROVE_PIPELINE_OUTPUT_FORMAT.replaceAll('{TYPE_LABEL}', typeLabel),
-      axes,
-    );
-
-    const system = IMPROVE_PIPELINE_SYSTEM_PROMPT.replaceAll('{TYPE_LABEL}', typeLabel);
-
-    const expContext = this.buildExpContext(extras?.experiences);
-    const userPrompt = `${extras?.companyCtx ?? ''}${expContext}# 내용 개선 작업
-
-## 문항 유형
-${typeLabel}
-
-## 추출된 문항
-"${questionText}"
-
-## 평가 루브릭
-${rubric}
-
----
-
-${outputFormat}
-
----
-
-## 원본 문서
-
-${content.trim() || '(빈 문서)'}`;
-
-    // 2 + 3) 평가/문제도출 + 개선 (단일 스트리밍 호출)
-    let fullText = '';
-    for await (const chunk of this.aiProvider.stream(model, system, [
-      { role: 'user' as const, content: userPrompt },
-    ])) {
-      if (signal?.aborted) break;
-      fullText += chunk;
-      onChunk(chunk);
-    }
-    return fullText;
-  }
-
-  // ── 액션별 프롬프트 조립 (정적 PROMPTS) ─────────────────────────────────
-
-  private buildInstruction(
-    taskType: QueueJob.TaskType,
-    content: string,
-    extras?: WriteAssistExtras,
-  ): string {
-    // 커스텀 자유 입력
+  private buildInstruction(taskType: QueueJob.TaskType, content: string, extras?: WriteAssistExtras): string {
     if (taskType === QueueJob.TaskType.WRITEASSIST) {
       const expContext = this.buildExpContext(extras?.experiences);
       return `## 현재 문서 내용\n${content.trim() || '(빈 문서)'}\n\n## 요청사항\n${(extras?.companyCtx ?? '') + expContext + (extras?.instruction ?? '')}\n\n위 요청에 따라 마크다운으로 작성해주세요.`;
     }
-
     const template = ACTION_PROMPTS[taskType];
     if (!template) throw new Error(`알 수 없는 taskType: ${taskType}`);
-
     const expContext = this.buildExpContext(extras?.experiences);
-    const body = template.replace('{content}', content.trim() || '(빈 문서)');
-    return (extras?.companyCtx ?? '') + expContext + body;
+    return (extras?.companyCtx ?? '') + expContext + template.replace('{content}', content.trim() || '(빈 문서)');
   }
 
   private buildExpContext(experiences?: { title: string; content: string }[]): string {
-    if (!experiences || experiences.length === 0) return '';
+    if (!experiences?.length) return '';
     return `## 참고할 나의 경험\n${experiences.map((e) => `### ${e.title}\n${e.content}`).join('\n\n')}\n\n---\n\n`;
   }
 }

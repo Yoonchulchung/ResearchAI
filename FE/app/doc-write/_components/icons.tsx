@@ -149,6 +149,17 @@ export function IconInsert() {
     </svg>
   );
 }
+export function IconExample() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M2 3H9L12 6V12H2V3Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M9 3V6H12" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M4 6.5H8M4 8.5H7M4 10.5H6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="11" cy="11" r="2" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M10.3 11L10.8 11.5L11.7 10.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 export function IconAppend() {
   return (
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">

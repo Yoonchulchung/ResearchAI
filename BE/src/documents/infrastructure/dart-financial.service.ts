@@ -19,6 +19,21 @@ export interface YearlyFinancial {
   operatingMargin: number | null;
 }
 
+export interface EmployeeDetail {
+  year: number;
+  total: number | null;
+  regular: number | null;
+  contract: number | null;
+  avgTenure: string | null;      // 예: "17.5년"
+  avgSalary: string | null;      // 예: "5,400만원"
+  maleCount: number | null;
+  femaleCount: number | null;
+  maleTenure: string | null;
+  femaleTenure: string | null;
+  maleSalary: string | null;
+  femaleSalary: string | null;
+}
+
 export interface DartFinancialData {
   companyName: string;
   corpCode: string | null;
@@ -26,7 +41,8 @@ export interface DartFinancialData {
   corpClass: string | null;      // Y=유가증권 K=코스닥 N=코넥스 E=기타
   ceoName: string | null;
   foundedDate: string | null;
-  employees: string | null;      // 예: "15,234명"
+  employees: string | null;          // 예: "15,234명" (최신 연도 총계, 하위 호환용)
+  employeeHistory: EmployeeDetail[]; // 연도별 직원 현황 (오름차순)
   capital: string | null;        // 자본금, 예: "897억 원"
   industry: string | null;
   homeUrl: string | null;
@@ -43,6 +59,8 @@ export interface DartFinancialData {
   // 다년도
   multiYearFinancials: YearlyFinancial[];
   disclosures: { title: string; date: string; url: string }[];
+  // DART 사업보고서 "II. 사업의 내용" 파싱 결과 (최대 5000자)
+  businessContent: string | null;
 }
 
 
@@ -67,8 +85,14 @@ interface OpenDartFinanceItem {
 }
 
 interface OpenDartEmployee {
-  fo_bbm: string;   // 직원 구분 (사무직·생산직·합계 등)
-  sm_empNo: string; // 소계 직원수 (남+여)
+  fo_bbm: string;            // 직원 구분 (사무직·생산직·합계 등)
+  sexdstn_code_nm: string;   // 성별 구분 (남자·여자·합계)
+  rgllbr_co: string;         // 정규직수
+  cnttk_co: string;          // 계약직수
+  sm_empNo: string;          // 합계 (정규직+계약직)
+  avrg_cnwk_sdytrn: string;  // 평균 근속연수 (단위: 년)
+  jan_pd_totamt: string;     // 연간급여총액 (단위: 백만원)
+  jan_pd_avramt: string;     // 1인평균급여액 (단위: 백만원)
 }
 
 interface OpenDartDisclosure {
@@ -100,12 +124,11 @@ export class DartFinancialService {
       }
       this.logger.log(`[DART-DBG] 기업코드: ${corpCode}`);
 
-      const latestYear = new Date().getFullYear() - 1;
-      const [companyRes, disclosuresRes, multiYearRes, employeesRes] = await Promise.allSettled([
+      const [companyRes, disclosuresRes, multiYearRes, employeeHistoryRes] = await Promise.allSettled([
         this.fetchCompanyInfo(corpCode, dartApiKey),
         this.fetchDisclosures(corpCode, dartApiKey),
         this.fetchMultiYearFinancials(corpCode, dartApiKey),
-        this.fetchEmployeeCount(corpCode, dartApiKey, latestYear),
+        this.fetchEmployeeHistory(corpCode, dartApiKey),
       ]);
 
       if (companyRes.status === 'rejected') this.logger.warn(`[DART-DBG] 기업정보 오류: ${companyRes.reason}`);
@@ -113,16 +136,31 @@ export class DartFinancialService {
       if (multiYearRes.status === 'rejected') this.logger.warn(`[DART-DBG] 재무 오류: ${multiYearRes.reason}`);
 
       const company = companyRes.status === 'fulfilled' ? companyRes.value : null;
-      const disclosures = disclosuresRes.status === 'fulfilled' ? disclosuresRes.value : [];
+      const { list: disclosures, latestAnnualRceptNo } =
+        disclosuresRes.status === 'fulfilled'
+          ? disclosuresRes.value
+          : { list: [], latestAnnualRceptNo: null };
       const { financials: multiYearFinancials, latestCapital } =
         multiYearRes.status === 'fulfilled' ? multiYearRes.value : { financials: [], latestCapital: null };
-      const employees = employeesRes.status === 'fulfilled' ? employeesRes.value : null;
+      const employeeHistory = employeeHistoryRes.status === 'fulfilled' ? (employeeHistoryRes.value ?? []) : [];
+      const latestEmp = employeeHistory.at(-1) ?? null;
+      const employees = latestEmp ? `${(latestEmp.total ?? 0).toLocaleString()}명` : null;
 
       this.logger.log(`[DART-DBG] 기업정보: ${JSON.stringify(company).slice(0, 200)}`);
       this.logger.log(`[DART-DBG] 공시 수: ${disclosures.length}`);
-      this.logger.log(`[DART-DBG] 재무 연도 수: ${multiYearFinancials.length}, 자본금: ${latestCapital}, 사원수: ${employees}`);
+      this.logger.log(`[DART-DBG] 재무 연도 수: ${multiYearFinancials.length}, 자본금: ${latestCapital}, 사원수: ${employees}, 직원이력: ${employeeHistory.length}년치`);
 
       const latest = multiYearFinancials.at(-1) ?? null;
+
+      // 사업보고서 "II. 사업의 내용" 파싱 (순차 실행 — rcept_no 필요)
+      let businessContent: string | null = null;
+      if (latestAnnualRceptNo) {
+        this.logger.log('[DART-DOC] 사업보고서 본문 파싱 중...');
+        businessContent = await this.fetchAnnualReportSections(latestAnnualRceptNo);
+        if (businessContent) {
+          this.logger.log(`[DART-DOC] 사업 내용 추출 완료 — ${businessContent.length}자`);
+        }
+      }
 
       return {
         companyName,
@@ -132,6 +170,7 @@ export class DartFinancialService {
         ceoName: company?.ceo_nm || null,
         foundedDate: company?.est_dt || null,
         employees,
+        employeeHistory,
         capital: latestCapital,
         industry: null,
         homeUrl: company?.hm_url?.startsWith('http') ? company.hm_url : null,
@@ -146,6 +185,7 @@ export class DartFinancialService {
         fiscalYear: latest ? `${latest.year}년` : null,
         multiYearFinancials,
         disclosures,
+        businessContent,
       };
     } catch (err) {
       this.logger.error(`[DART-DBG] 최상위 오류: ${(err as Error).message}\n${(err as Error).stack}`);
@@ -291,17 +331,24 @@ export class DartFinancialService {
     return res?.status === '000' ? res : null;
   }
 
-  private async fetchDisclosures(corpCode: string, apiKey: string): Promise<{ title: string; date: string; url: string }[]> {
+  private async fetchDisclosures(
+    corpCode: string,
+    apiKey: string,
+  ): Promise<{ list: { title: string; date: string; url: string }[]; latestAnnualRceptNo: string | null }> {
     const bgn = this.dateYearsAgo(2);
     const url = `${OPEN_DART_BASE}/list.json?crtfc_key=${apiKey}&corp_code=${corpCode}&bgn_de=${bgn}&pblntf_ty=A&sort=date&page_count=10`;
     const res = await this.dartFetch<{ status: string; message?: string; list?: OpenDartDisclosure[] }>(url);
     this.logger.log(`[DART-DBG] list.json status=${res?.status} message=${res?.message ?? ''} items=${res?.list?.length ?? 0}`);
-    if (!res || res.status !== '000' || !res.list) return [];
-    return res.list.map((d) => ({
-      title: d.report_nm,
-      date: this.fmtDate(d.rcept_dt),
-      url: `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`,
-    }));
+    if (!res || res.status !== '000' || !res.list) return { list: [], latestAnnualRceptNo: null };
+    const latestAnnual = res.list.find((d) => d.report_nm.includes('사업보고서'));
+    return {
+      list: res.list.map((d) => ({
+        title: d.report_nm,
+        date: this.fmtDate(d.rcept_dt),
+        url: `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${d.rcept_no}`,
+      })),
+      latestAnnualRceptNo: latestAnnual?.rcept_no ?? null,
+    };
   }
 
   private async fetchMultiYearFinancials(
@@ -367,16 +414,205 @@ export class DartFinancialService {
     return { financials: results.sort((a, b) => a.year - b.year), latestCapital };
   }
 
-  private async fetchEmployeeCount(corpCode: string, apiKey: string, year: number): Promise<string | null> {
+  private async fetchEmployeeHistory(corpCode: string, apiKey: string): Promise<EmployeeDetail[]> {
+    const latestYear = new Date().getFullYear() - 1;
+    const years = [latestYear - 1, latestYear];
+    const settled = await Promise.allSettled(
+      years.map((y) => this.fetchEmployeeForYear(corpCode, apiKey, y)),
+    );
+    const results = settled
+      .filter((r): r is PromiseFulfilledResult<EmployeeDetail | null> => r.status === 'fulfilled')
+      .map((r) => r.value)
+      .filter((v): v is EmployeeDetail => v != null);
+    // 데이터가 없으면 더 이전 연도 시도
+    if (!results.length) {
+      const older = await this.fetchEmployeeForYear(corpCode, apiKey, latestYear - 2);
+      if (older) results.push(older);
+    }
+    return results.sort((a, b) => a.year - b.year);
+  }
+
+  private async fetchEmployeeForYear(corpCode: string, apiKey: string, year: number): Promise<EmployeeDetail | null> {
     const url = `${OPEN_DART_BASE}/empSttus.json?crtfc_key=${apiKey}&corp_code=${corpCode}&bsns_year=${year}&reprt_code=${ANNUAL_REPORT_CODE}`;
     const res = await this.dartFetch<{ status: string; list?: OpenDartEmployee[] }>(url);
-    if (!res || res.status !== '000' || !res.list?.length) return null;
 
-    // "합계" 행 우선, 없으면 첫 번째 유효 값
-    const total = res.list.find((e) => e.fo_bbm?.includes('합계'));
-    const raw = total?.sm_empNo ?? res.list[0]?.sm_empNo;
-    const n = parseInt((raw ?? '').replace(/,/g, ''), 10);
-    return isNaN(n) || n <= 0 ? null : `${n.toLocaleString()}명`;
+    if (!res || res.status !== '000' || !res.list?.length) {
+      return null;
+    }
+
+    const toNum = (s: string | undefined) => {
+      const n = parseInt((s ?? '').replace(/,/g, ''), 10);
+      return isNaN(n) || n < 0 ? null : n;
+    };
+    const toTenure = (s: string | undefined) => {
+      const n = parseFloat((s ?? '').replace(/,/g, ''));
+      return isNaN(n) || n <= 0 ? null : `${n}년`;
+    };
+    const toSalary = (s: string | undefined) => {
+      // jan_pd_avramt 단위: 백만원
+      const n = parseInt((s ?? '').replace(/,/g, ''), 10);
+      if (isNaN(n) || n <= 0) return null;
+      return n >= 10000
+        ? `${(n / 10000).toFixed(1)}억원`
+        : `${(n / 10).toFixed(0)}만원`;   // 백만원 → 만원 표기
+    };
+
+    const rows = res.list;
+
+    // 전체 합계 행: fo_bbm 합계 & sexdstn_code_nm 합계
+    const totalRow = rows.find(
+      (r) => r.fo_bbm?.includes('합계') && (r.sexdstn_code_nm?.includes('합계') || !r.sexdstn_code_nm),
+    ) ?? rows.find((r) => r.fo_bbm?.includes('합계')) ?? rows[0];
+
+    // 남/여 합계 행
+    const maleRow = rows.find(
+      (r) => r.fo_bbm?.includes('합계') && r.sexdstn_code_nm?.includes('남'),
+    );
+    const femaleRow = rows.find(
+      (r) => r.fo_bbm?.includes('합계') && r.sexdstn_code_nm?.includes('여'),
+    );
+
+    const total = toNum(totalRow?.sm_empNo);
+    if (!total) return null;
+
+    const regular = toNum(totalRow?.rgllbr_co);
+    const contract = toNum(totalRow?.cnttk_co);
+
+    return {
+      year,
+      total,
+      regular,
+      contract,
+      avgTenure: toTenure(totalRow?.avrg_cnwk_sdytrn),
+      avgSalary: toSalary(totalRow?.jan_pd_avramt),
+      maleCount: toNum(maleRow?.sm_empNo),
+      femaleCount: toNum(femaleRow?.sm_empNo),
+      maleTenure: toTenure(maleRow?.avrg_cnwk_sdytrn),
+      femaleTenure: toTenure(femaleRow?.avrg_cnwk_sdytrn),
+      maleSalary: toSalary(maleRow?.jan_pd_avramt),
+      femaleSalary: toSalary(femaleRow?.jan_pd_avramt),
+    };
+  }
+
+  // ── DART 사업보고서 HTML 파싱 ──────────────────────────────────────────
+
+  async fetchAnnualReportSections(rceptNo: string): Promise<string | null> {
+    this.logger.log(`[DART-DOC] 시작 rcpNo=${rceptNo}`);
+    try {
+      // 1. 메인 뷰어 frameset → TOC frame src 추출
+      const mainHtml = await this.fetchHtml(`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${rceptNo}`);
+      if (!mainHtml) { this.logger.warn('[DART-DOC] 메인 뷰어 접근 실패'); return null; }
+
+      const frameSrcs = [...mainHtml.matchAll(/src\s*=\s*["']([^"']+)["']/gi)].map((m) => m[1]);
+      const tocSrc = frameSrcs.find((s) => /toc/i.test(s));
+      if (!tocSrc) { this.logger.warn('[DART-DOC] TOC frame 미발견'); return null; }
+
+      const tocUrl = tocSrc.startsWith('http') ? tocSrc : `https://dart.fss.or.kr${tocSrc}`;
+
+      // 2. TOC → "사업의 내용" 섹션 URL
+      const tocHtml = await this.fetchHtml(tocUrl);
+      if (!tocHtml) { this.logger.warn('[DART-DOC] TOC 접근 실패'); return null; }
+
+      const sectionUrl = this.findSectionUrl(tocHtml);
+      if (!sectionUrl) { this.logger.warn('[DART-DOC] 사업의 내용 링크 미발견'); return null; }
+      this.logger.log(`[DART-DOC] 섹션 URL: ${sectionUrl}`);
+
+      // 3. 섹션 본문 HTML
+      const contentHtml = await this.fetchHtml(sectionUrl);
+      if (!contentHtml) return null;
+
+      // 4. 테이블(사업부문·매출비중) + 본문 텍스트 추출 — 토큰 절약을 위해 제한
+      const tables = this.extractTables(contentHtml);
+      const plainText = this.stripHtml(contentHtml);
+
+      const parts: string[] = [];
+      if (tables.trim()) parts.push(`[사업부문 테이블]\n${tables.slice(0, 2500)}`);
+      if (plainText.trim()) parts.push(`[사업 내용]\n${plainText.slice(0, 2500)}`);
+
+      return parts.join('\n\n').slice(0, 5000) || null;
+    } catch (err) {
+      this.logger.warn(`[DART-DOC] 오류: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  private findSectionUrl(tocHtml: string): string | null {
+    // "사업의 내용" 텍스트 기준으로 앞쪽 ~800자에서 goPage/href URL 추출
+    const idx = tocHtml.search(/사업의\s*내용/);
+    if (idx === -1) return null;
+    const window = tocHtml.slice(Math.max(0, idx - 800), idx + 200);
+
+    // goPage('/report/viewer.do?...') 패턴
+    const goPageMatch = window.match(/goPage\(['"]([^'"]+)['"]/);
+    if (goPageMatch) {
+      const u = goPageMatch[1];
+      return u.startsWith('http') ? u : `https://dart.fss.or.kr${u}`;
+    }
+    // <a href="/report/viewer.do?..."> 패턴
+    const hrefMatch = window.match(/href\s*=\s*["']([^"']*viewer[^"']*)["']/i);
+    if (hrefMatch) {
+      const u = hrefMatch[1];
+      return u.startsWith('http') ? u : `https://dart.fss.or.kr${u}`;
+    }
+    return null;
+  }
+
+  private async fetchHtml(url: string): Promise<string | null> {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'ko-KR,ko;q=0.9',
+          'Referer': 'https://dart.fss.or.kr/',
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) { this.logger.warn(`[DART-DOC] HTTP ${res.status} — ${url}`); return null; }
+      return await res.text();
+    } catch (err) {
+      this.logger.warn(`[DART-DOC] fetchHtml 오류 — ${url}: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  private stripHtml(html: string): string {
+    return html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#\d+;/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private extractTables(html: string): string {
+    const results: string[] = [];
+    const tableRe = /<table[^>]*>([\s\S]*?)<\/table>/gi;
+    let tblMatch: RegExpExecArray | null;
+    while ((tblMatch = tableRe.exec(html)) !== null) {
+      const rows: string[] = [];
+      const rowRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+      let rowMatch: RegExpExecArray | null;
+      while ((rowMatch = rowRe.exec(tblMatch[0])) !== null) {
+        const cellRe = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+        const cells: string[] = [];
+        let cellMatch: RegExpExecArray | null;
+        while ((cellMatch = cellRe.exec(rowMatch[0])) !== null) {
+          const text = this.stripHtml(cellMatch[1]).slice(0, 80);
+          if (text) cells.push(text);
+        }
+        if (cells.length >= 2) rows.push(cells.join(' | '));
+      }
+      if (rows.length >= 2) results.push(rows.join('\n'));
+    }
+    return results.join('\n\n');
   }
 
   private async dartFetch<T>(url: string): Promise<T | null> {
@@ -434,6 +670,29 @@ export class DartFinancialService {
     if (data.revenue) lines.push(`- 매출액: ${data.revenue}`);
     if (data.operatingProfit) lines.push(`- 영업이익: ${data.operatingProfit}`);
     if (data.netIncome) lines.push(`- 당기순이익: ${data.netIncome}`);
+
+    if (data.employeeHistory?.length) {
+      for (const e of data.employeeHistory) {
+        lines.push(`\n### 직원 현황 (${e.year}년 DART)`);
+        if (e.total != null) lines.push(`- 총 직원수: ${e.total.toLocaleString()}명`);
+        if (e.regular != null && e.contract != null && e.total) {
+          const rPct = Math.round((e.regular / e.total) * 100);
+          lines.push(`- 근무형태: 정규직 ${e.regular.toLocaleString()}명(${rPct}%), 계약직 ${e.contract.toLocaleString()}명(${100 - rPct}%)`);
+        }
+        if (e.maleCount != null && e.femaleCount != null && e.total) {
+          const mPct = Math.round((e.maleCount / e.total) * 100);
+          lines.push(`- 성별: 남성 ${e.maleCount.toLocaleString()}명(${mPct}%), 여성 ${e.femaleCount.toLocaleString()}명(${100 - mPct}%)`);
+        }
+        if (e.avgTenure) lines.push(`- 평균 근속연수: ${e.avgTenure} (남성 ${e.maleTenure ?? '—'} / 여성 ${e.femaleTenure ?? '—'})`);
+        if (e.avgSalary) lines.push(`- 1인 평균급여: ${e.avgSalary} (남성 ${e.maleSalary ?? '—'} / 여성 ${e.femaleSalary ?? '—'})`);
+      }
+    }
+
+    if (data.businessContent) {
+      lines.push('\n### DART 사업보고서 — 사업의 내용 (II)');
+      lines.push(data.businessContent);
+    }
+
     if (data.disclosures.length > 0) {
       lines.push('\n### 최근 공시');
       data.disclosures.slice(0, 5).forEach((d) => lines.push(`- [${d.date}] ${d.title}`));

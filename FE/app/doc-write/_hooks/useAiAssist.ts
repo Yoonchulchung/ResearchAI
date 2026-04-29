@@ -90,19 +90,22 @@ export function useAiAssist(setContent: Dispatch<SetStateAction<string>>) {
     let accumulated = "";
     const targetContent = selectedText || content;
 
+    // 현재 메시지 전송 전 상태의 히스토리 (새 user 메시지 제외)
+    const currentHistory = messages.map((m) => ({ role: m.role, content: m.content }));
+
     try {
       let jobId: string;
       if (actionKey) {
-        // 백엔드에서 프롬프트 조립
+        // 백엔드에서 프롬프트 조립 (액션 버튼은 히스토리 불필요)
         const experiences = selectedExperiences.map((e) => ({ title: e.title, content: e.content }));
         ({ jobId } = await enqueueDocWriteAssist(actionKey, targetContent, model, experiences, instruction || undefined));
       } else {
-        // 커스텀 프롬프트: FE에서 조립
+        // 커스텀 프롬프트: 이전 대화 히스토리 포함해 연속성 유지
         const expContext =
           selectedExperiences.length > 0
             ? `## 참고할 나의 경험\n${selectedExperiences.map((e) => `### ${e.title}\n${e.content}`).join("\n\n")}\n\n---\n\n`
             : "";
-        ({ jobId } = await enqueueWriteAssist(targetContent, expContext + instruction, model));
+        ({ jobId } = await enqueueWriteAssist(targetContent, expContext + instruction, model, currentHistory));
       }
       await streamWriteAssist(jobId, (event) => {
         if (event.type === "chunk") {

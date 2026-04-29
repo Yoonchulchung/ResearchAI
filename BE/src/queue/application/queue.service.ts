@@ -323,15 +323,18 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     content: string,
     instruction: string,
     model: string,
+    history?: { role: 'user' | 'assistant'; content: string }[],
   ): Promise<{ jobId: string }> {
     const jobId = randomUUID();
     this.writeAssistSubjects.set(jobId, new Subject<MessageEvent>());
     this.writeAssistAccumulated.set(jobId, '');
+    // 히스토리는 최근 10턴(20개 메시지)으로 제한해 토큰 과부하 방지
+    const trimmedHistory = history?.slice(-20);
     await this.pushJob({
       jobId,
       sessionId: jobId,
       itemId: '',
-      itemContent: JSON.stringify({ content, instruction } satisfies WriteAssistExtras & { content: string }),
+      itemContent: JSON.stringify({ content, instruction, history: trimmedHistory } satisfies WriteAssistExtras & { content: string }),
       taskType: QueueJob.TaskType.WRITEASSIST,
       localAIModel: '',
       CloudAIModel: model,
@@ -356,6 +359,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       improve:   QueueJob.TaskType.WRITEASSIST_IMPROVE,
       spellcheck: QueueJob.TaskType.WRITEASSIST_SPELLCHECK,
       summarize: QueueJob.TaskType.WRITEASSIST_SUMMARIZE,
+      example:   QueueJob.TaskType.WRITEASSIST_EXAMPLE,
     };
     const taskType = ACTION_TO_TASK_TYPE[action];
     if (!taskType) throw new Error(`알 수 없는 액션: ${action}`);

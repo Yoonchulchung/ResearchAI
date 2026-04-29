@@ -5,6 +5,8 @@ export interface WriteAssistExtras {
   experiences?: { title: string; content: string }[];
   /** 지원 기업 정보 — 평가·작성 컨텍스트 */
   companyCtx?: string;
+  /** 이전 채팅 히스토리 — 대화 연속성 유지 */
+  history?: { role: 'user' | 'assistant'; content: string }[];
 }
 
 /** 글 평가 — 문항 유형 (AI Agent 1단계에서 분류) */

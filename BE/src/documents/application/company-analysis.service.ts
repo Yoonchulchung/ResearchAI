@@ -2,174 +2,28 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
-import { CompanyAnalysisEntity, CompetencyScores } from '../domain/entity/company-analysis.entity';
+
+import { CompanyAnalysisEntity } from '../domain/entity/company-analysis.entity';
 import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 import { WebSearchService } from '../../research/application/web-search.service';
 import { JobplanetScraperService } from '../infrastructure/jobplanet-scraper.service';
-import { DartFinancialService, YearlyFinancial } from '../infrastructure/dart-financial.service';
+import { DartFinancialService, YearlyFinancial, EmployeeDetail } from '../infrastructure/dart-financial.service';
 import { requestContext } from '../../shared/request-context';
 
-/** 검색 엔진이 반환하는 "[제목]\n내용\n출처: url" 형식에서 링크를 추출
- *  블록 내부 빈 줄이 있어도 안전하도록 전역 regex 방식 사용 */
-function parseSearchLinks(text: string): { title: string; url: string }[] {
-  if (!text) return [];
-  const results: { title: string; url: string }[] = [];
-  // [제목] 이후 임의의 내용을 거쳐 "출처: url"까지 매칭 (non-greedy)
-  const re = /\[([^\]]+)\][\s\S]*?출처:\s*(https?:\/\/[^\s]+)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    results.push({ title: m[1].trim(), url: m[2].trim() });
-  }
-  return results;
-}
-
-const NEWS_SITE_PATTERNS = ['news', 'media', 'press', 'yna.co.kr', 'yonhap', 'kbs', 'mbc', 'sbs', 'jtbc', 'chosun', 'joongang', 'hani', 'khan', 'donga', 'heraldcorp', 'edaily', 'etnews', 'zdnet'];
-const JOB_BOARD_PATTERNS = ['saramin', 'jobkorea', 'wanted', 'incruit', 'linkareer', 'catch.co', 'jumpit', 'rallit', 'programmers', 'rocketpunch', 'recruit', 'career', 'job', 'employ', 'hiring', '채용'];
-
-function isJobPosting(url: string, title: string): boolean {
-  const combined = (url + ' ' + title).toLowerCase();
-  return JOB_BOARD_PATTERNS.some((p) => combined.includes(p));
-}
-
-function isNewsArticle(url: string): boolean {
-  return NEWS_SITE_PATTERNS.some((p) => url.toLowerCase().includes(p));
-}
-
-const COMPETENCY_KEYS = [
-  '성취지향', '도전정신', '주도성', '문제해결', '의사소통',
-  '대인관계', '열정', '주인의식', '팀워크', '자원계획관리',
-  '치밀성', '분석적사고', '전문성',
-] as const;
-
-const ZERO_SCORES: CompetencyScores = COMPETENCY_KEYS.reduce(
-  (acc, k) => ({ ...acc, [k]: 0 }),
-  {} as CompetencyScores,
-);
-
-export interface SwotAnalysis {
-  S: string[];
-  W: string[];
-  O: string[];
-  T: string[];
-}
-
-export type CompetencyReasons = Partial<Record<typeof COMPETENCY_KEYS[number], string>>;
-
-export interface CompanyAnalysisProgress {
-  type: 'log' | 'searching' | 'scoring' | 'done' | 'error';
-  message?: string;
-  result?: CompanyAnalysisDto;
-}
-
-export interface CompanyAnalysisDto {
-  id: string;
-  companyKey: string;
-  companyName: string;
-  scores: CompetencyScores;
-  reasons: CompetencyReasons | null;
-  summary: string | null;
-  evidence: { title: string; url: string }[] | null;
-  aiModel: string | null;
-  // AI 생성
-  swot: SwotAnalysis | null;
-  competitors: string[] | null;
-  businessSegments: string[] | null;
-  industry: string | null;
-  companySize: string | null;
-  creditRating: string | null;
-  report: string | null;
-  // DART 기업 정보
-  corpClass: string | null;
-  stockCode: string | null;
-  employees: string | null;
-  capital: string | null;
-  homeUrl: string | null;
-  address: string | null;
-  dartUrl: string | null;
-  ceoName: string | null;
-  foundedDate: string | null;
-  fiscalYear: string | null;
-  multiYearFinancials: YearlyFinancial[] | null;
-  financialSummary: string | null;
-  disclosures: { title: string; date: string; url: string }[] | null;
-  // 웹 수집
-  recentNews: { title: string; url: string; date: string; category?: string; summary?: string }[] | null;
-  jobPostings: { title: string; url: string; date: string }[] | null;
-  jobplanetSummary: string | null;
-  missionVision: { mission: string | null; vision: string | null; coreValues: string[]; talentProfile: string | null } | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const SYSTEM_PROMPT = `당신은 기업 분석 전문가입니다. 주어진 자료를 분석하여 아래 JSON을 출력하세요.
-
-## 13개 핵심 역량 (0~100 점수)
-1. 성취지향 — 목표달성·성과추구·결과책임
-2. 도전정신 — 새로운시도·리스크감수·실패극복
-3. 주도성 — 자발적행동·문제발견·리더십
-4. 문제해결 — 분석·대안도출·실행력
-5. 의사소통 — 명확한표현·경청·설득
-6. 대인관계 — 공감·신뢰·관계구축
-7. 열정 — 몰입·헌신·에너지
-8. 주인의식 — 책임감·당사자의식·장기관점
-9. 팀워크 — 협업·집단성과·시너지
-10. 자원계획관리 — 자원배분·계획·효율성
-11. 치밀성 — 꼼꼼함·정확성·완결성
-12. 분석적사고 — 데이터·논리·구조화·인사이트
-13. 전문성 — 특정분야깊이·기술·지식
-
-## 점수 기준
-80~100: 매우 강조(인재상 명시·반복) | 60~79: 중요시(직무·문화반영) | 40~59: 평균 | 20~39: 낮음 | 0~19: 거의 무관
-
-## 출력 형식 (JSON만, 다른 텍스트 금지)
-\`\`\`json
-{
-  "summary": "인재상 핵심 2~3문장 (복지·재무 정보도 포함)",
-  "industry": "업종명 (예: IT서비스, 반도체, 금융, 유통, 제조업 등)",
-  "companySize": "대기업 | 중견기업 | 중소기업 | 스타트업 중 하나 — 매출·직원수·설립연도·투자규모·재무규모 등을 종합 판단. 판단 불가 시 null",
-  "creditRating": "신용등급 (예: AAA, AA+, A0) — 알 수 없으면 null",
-  "report": "## 1. 기업 개요\n(회사 소개·역사·규모 3~5문장)\n\n## 2. 핵심 사업 모델\n(주요 제품·서비스·수익구조 3~5문장)\n\n## 3. 재무 및 성장성\n(매출·이익 트렌드·재무 건전성 3~5문장)\n\n## 4. 조직문화 및 인재상\n(기업문화·복지·인재상 3~5문장)\n\n## 5. 투자 관점 평가\n(기회요인·위험요인·종합의견 3~5문장)",
-  "scores": {
-    "성취지향": 0, "도전정신": 0, "주도성": 0, "문제해결": 0,
-    "의사소통": 0, "대인관계": 0, "열정": 0, "주인의식": 0,
-    "팀워크": 0, "자원계획관리": 0, "치밀성": 0, "분석적사고": 0, "전문성": 0
-  },
-  "reasons": {
-    "성취지향": "이 점수를 준 구체적 근거 1~2문장",
-    "도전정신": "...", "주도성": "...", "문제해결": "...",
-    "의사소통": "...", "대인관계": "...", "열정": "...", "주인의식": "...",
-    "팀워크": "...", "자원계획관리": "...", "치밀성": "...", "분석적사고": "...", "전문성": "..."
-  },
-  "swot": {
-    "S": ["강점1", "강점2", "강점3"],
-    "W": ["약점1", "약점2"],
-    "O": ["기회1", "기회2"],
-    "T": ["위협1", "위협2"]
-  },
-  "competitors": ["경쟁사1", "경쟁사2", "경쟁사3"],
-  "businessSegments": ["핵심사업부문1 — 간략설명", "사업부문2 — 간략설명"],
-  "missionVision": {
-    "mission": "기업의 핵심 미션/사명 1~2문장 — 없으면 null",
-    "vision": "중장기 비전/목표 1~2문장 — 없으면 null",
-    "coreValues": ["핵심가치1", "핵심가치2", "핵심가치3"],
-    "talentProfile": "인재상 종합 설명 2~3문장 — 없으면 null"
-  },
-  "categorizedNews": [
-    {
-      "title": "위에 제공된 뉴스 제목과 동일하게",
-      "category": "신사업 | B2B확장 | 법적분쟁 | 경영진 | 신제품 | 재무 | 기타 중 하나",
-      "summary": "한 줄 핵심 요약 (30자 이내) — 없으면 null"
-    }
-  ]
-}
-\`\`\`
-
-## companySize 판단 기준
-- 대기업: 공정거래법상 대기업집단 소속 또는 매출 1조↑ 또는 직원 1000명↑ 대형 상장사
-- 중견기업: 중소기업기본법상 중견기업 (매출 400억~1조, 직원 300~1000명 수준)
-- 중소기업: 매출 400억 미만 또는 직원 300명 미만의 비-스타트업
-- 스타트업: 설립 10년 이내이며 VC/엔젤 투자를 받았거나 고성장 초기 기업
-\`\`\``;
+import {
+  COMPETENCY_KEYS, ZERO_SCORES,
+  CompetencyScores, CompetencyReasons,
+  SwotAnalysis, Competitor, BusinessSegment, CompanyProfile,
+  CompanyAnalysisProgress, CompanyAnalysisDto,
+} from '../domain/company-analysis.types';
+import {
+  SYSTEM_PROMPT_SCORING,
+  SYSTEM_PROMPT_BUSINESS,
+  SYSTEM_PROMPT_REPORT,
+} from '../domain/company-analysis.prompts';
+import {
+  parseSearchLinks, isJobPosting, isNewsArticle, isNaverBlog, repairJsonStr,
+} from './company-analysis.utils';
 
 @Injectable()
 export class CompanyAnalysisService {
@@ -184,9 +38,7 @@ export class CompanyAnalysisService {
     private readonly dartFinancial: DartFinancialService,
   ) {}
 
-  private normalizeKey(name: string): string {
-    return name.trim().toLowerCase().replace(/\s+/g, '').replace(/[^\p{L}\p{N}]/gu, '');
-  }
+  // ── 조회 / 삭제 ────────────────────────────────────────────────────
 
   async findAll(): Promise<CompanyAnalysisDto[]> {
     const rows = await this.repo.find({ order: { updatedAt: 'DESC' } });
@@ -209,13 +61,15 @@ export class CompanyAnalysisService {
     await this.repo.delete({ companyKey });
   }
 
+  // ── 분석 스트림 ────────────────────────────────────────────────────
+
   async *analyzeStream(companyName: string, aiModel: string): AsyncGenerator<CompanyAnalysisProgress> {
     const key = this.normalizeKey(companyName);
     if (!key) { yield { type: 'error', message: '유효하지 않은 기업명' }; return; }
 
     const creds = requestContext.getStore()?.serviceCredentials ?? {};
 
-    // ── 1. 인재상·채용 웹 검색 ─────────────────────────────────────────
+    // 1. 인재상·채용 웹 검색
     yield { type: 'log', message: `🔍 "${companyName}" 인재상·채용 정보 검색 중...` };
     yield { type: 'searching' };
 
@@ -225,35 +79,63 @@ export class CompanyAnalysisService {
       const { context, sources } = await this.webSearch.runSearch(`${companyName} 인재상 핵심가치 채용 공식`);
       webContext = context;
       const srcText = sources?.tavily ?? sources?.duckduckgo ?? sources?.serper ?? sources?.naver ?? sources?.brave ?? '';
-      evidence = parseSearchLinks(srcText).slice(0, 8);
+      evidence = parseSearchLinks(srcText).filter((e) => !isNaverBlog(e.url)).slice(0, 8);
     } catch {}
 
-    // ── 2. 최근 뉴스 검색 ──────────────────────────────────────────────
+    // 2. 최근 뉴스 검색
     yield { type: 'log', message: `📰 "${companyName}" 최근 뉴스 검색 중...` };
     let recentNews: { title: string; url: string; date: string }[] = [];
     try {
-      // 뉴스 전용 쿼리 — 채용/인재상 관련어 제외
       const { sources: newsSrc } = await this.webSearch.runSearch(`${companyName} 뉴스`);
       const newsText = newsSrc?.naver ?? newsSrc?.tavily ?? newsSrc?.serper ?? newsSrc?.duckduckgo ?? newsSrc?.brave ?? '';
       recentNews = parseSearchLinks(newsText)
-        .filter((n) => n.title && !isJobPosting(n.url, n.title))  // 채용 링크 제외
+        .filter((n) => n.title && !isJobPosting(n.url, n.title) && !isNaverBlog(n.url))
         .slice(0, 8)
         .map((n) => ({ ...n, date: '' }));
     } catch {}
 
-    // ── 2-1. 채용 공고 검색 ────────────────────────────────────────────
+    // 2-1. 사업부문 검색 (DART HTML 파싱 보조)
+    yield { type: 'log', message: `🏭 "${companyName}" 사업부문 검색 중...` };
+    let segmentContext = '';
+    let segmentSources: { title: string; url: string }[] = [];
+    try {
+      const searchYear = new Date().getFullYear() - 1;
+      const { context: segCtx, sources: segSrc } = await this.webSearch.runSearch(
+        `"${companyName}" 사업보고서 사업부문 매출비중 ${searchYear}년 연결재무`,
+      );
+      segmentContext = segCtx?.slice(0, 4000) ?? '';
+      const segSrcText = segSrc?.tavily ?? segSrc?.serper ?? segSrc?.duckduckgo ?? segSrc?.naver ?? segSrc?.brave ?? '';
+      segmentSources = parseSearchLinks(segSrcText).slice(0, 6);
+    } catch {}
+
+    // 2-2. 직무소개 검색 (공식 채용 페이지 직무별 설명)
+    yield { type: 'log', message: `📋 "${companyName}" 직무소개 검색 중...` };
+    let jobIntroContext = '';
+    try {
+      const { context: jiCtx } = await this.webSearch.runSearch(
+        `"${companyName}" 직무소개 직무별 업무 site:${companyName.replace(/\s/g, '').toLowerCase()}.com OR site:recruit.${companyName.replace(/\s/g, '').toLowerCase()}.com`,
+      );
+      if (!jiCtx?.trim()) {
+        const { context: jiCtx2 } = await this.webSearch.runSearch(`"${companyName}" 직무소개 직무별 하는 일 채용 공식`);
+        jobIntroContext = jiCtx2?.slice(0, 3000) ?? '';
+      } else {
+        jobIntroContext = jiCtx.slice(0, 3000);
+      }
+    } catch {}
+
+    // 2-3. 채용 공고 검색
     yield { type: 'log', message: `📋 "${companyName}" 채용 공고 검색 중...` };
     let jobPostings: { title: string; url: string; date: string }[] = [];
     try {
       const { sources: jobSrc } = await this.webSearch.runSearch(`${companyName} 채용 공고 입사지원`);
       const jobText = jobSrc?.tavily ?? jobSrc?.serper ?? jobSrc?.duckduckgo ?? jobSrc?.naver ?? jobSrc?.brave ?? '';
       jobPostings = parseSearchLinks(jobText)
-        .filter((j) => j.title && (isJobPosting(j.url, j.title) || !isNewsArticle(j.url)))  // 뉴스 기사 제외
+        .filter((j) => j.title && !isNaverBlog(j.url) && (isJobPosting(j.url, j.title) || !isNewsArticle(j.url)))
         .slice(0, 10)
         .map((j) => ({ ...j, date: '' }));
     } catch {}
 
-    // ── 3. DART OpenAPI 재무 데이터 ────────────────────────────────────
+    // 3. DART OpenAPI
     let dartText = '';
     let dartData: Awaited<ReturnType<DartFinancialService['fetchCompanyData']>> = null;
     if (creds.dartApiKey) {
@@ -262,7 +144,7 @@ export class CompanyAnalysisService {
         dartData = await this.dartFinancial.fetchCompanyData(companyName, creds.dartApiKey);
         if (dartData) {
           dartText = this.dartFinancial.formatForAnalysis(dartData);
-          yield { type: 'log', message: `✅ DART 수집 완료 — ${dartData.multiYearFinancials.length}개년 재무·공시 ${dartData.disclosures.length}건` };
+          yield { type: 'log', message: `✅ DART 수집 완료 — ${dartData.multiYearFinancials.length}개년 재무·공시 ${dartData.disclosures.length}건${dartData.businessContent ? '·사업내용 파싱 완료' : ''}` };
         } else {
           yield { type: 'log', message: '⚠️ DART 기업 조회 실패 (API 키 또는 기업명 확인)' };
         }
@@ -272,21 +154,17 @@ export class CompanyAnalysisService {
       }
     }
 
-    // ── 4. 공식 웹사이트 탐색 (Puppeteer) ────────────────────────────────
+    // 4. 공식 웹사이트 탐색
     yield { type: 'log', message: `🌐 "${companyName}" 공식 웹사이트 탐색 중...` };
     let officialWebsiteUrl: string | null = null;
     try {
       officialWebsiteUrl = await this.jobplanetScraper.findOfficialWebsite(companyName);
-      if (officialWebsiteUrl) {
-        yield { type: 'log', message: `✅ 공식 웹사이트: ${officialWebsiteUrl}` };
-      } else {
-        yield { type: 'log', message: '⚠️ 공식 웹사이트 탐색 실패' };
-      }
+      yield { type: 'log', message: officialWebsiteUrl ? `✅ 공식 웹사이트: ${officialWebsiteUrl}` : '⚠️ 공식 웹사이트 탐색 실패' };
     } catch (err) {
       this.logger.warn(`공식 웹사이트 탐색 오류: ${(err as Error).message}`);
     }
 
-    // ── 5. 잡플래닛 리뷰 ──────────────────────────────────────────────
+    // 5. 잡플래닛 리뷰
     let jobplanetText = '';
     if (creds.jobplanetId && creds.jobplanetPassword) {
       yield { type: 'log', message: '💼 잡플래닛 기업 리뷰 수집 중...' };
@@ -304,117 +182,166 @@ export class CompanyAnalysisService {
       }
     }
 
-    yield { type: 'log', message: '🤖 AI 종합 분석 시작...' };
+    // 6. AI 분석 (3개 병렬 호출)
+    yield { type: 'log', message: '🤖 AI 분석 시작 (3개 병렬 호출)...' };
     yield { type: 'scoring' };
 
-    // ── 6. AI 분석 ─────────────────────────────────────────────────────
     const contextParts: string[] = [];
     if (webContext.trim()) contextParts.push(`## 인재상·채용 자료\n${webContext.slice(0, 10000)}`);
+    if (jobIntroContext.trim()) contextParts.push(`## 직무소개 자료 (아래 내용을 최대한 그대로 반영하세요)\n${jobIntroContext}`);
+    if (segmentContext.trim()) contextParts.push(`## 사업부문·종속회사 자료\n${segmentContext}`);
     if (dartText) contextParts.push(dartText);
     if (jobplanetText) contextParts.push(jobplanetText);
     if (recentNews.length > 0) {
-      const newsTitles = recentNews.map((n, i) => `${i + 1}. ${n.title}`).join('\n');
-      contextParts.push(`## 최근 뉴스 목록 (category·summary 분류 필요)\n${newsTitles}`);
+      contextParts.push(`## 최근 뉴스 목록\n${recentNews.map((n, i) => `${i + 1}. ${n.title}`).join('\n')}`);
     }
 
-    const userPrompt = `## 분석 대상: ${companyName}\n\n${contextParts.join('\n\n---\n\n') || '(자료 부족 — 일반 지식 기반 추정)'}`;
+    const today = new Date().toISOString().slice(0, 10);
+    const userPrompt = `오늘 날짜: ${today}\n\n## 분석 대상: ${companyName}\n\n${contextParts.join('\n\n---\n\n') || '(자료 부족 — 일반 지식 기반 추정)'}`;
 
     let parsedScores: CompetencyScores = { ...ZERO_SCORES };
     let parsedSummary = '';
     let parsedReasons: CompetencyReasons = {};
     let parsedSwot: SwotAnalysis | null = null;
-    let parsedCompetitors: string[] | null = null;
-    let parsedSegments: string[] | null = null;
+    let parsedCompetitors: Competitor[] | null = null;
+    let parsedSegments: BusinessSegment[] | null = null;
+    let parsedCompanyProfile: CompanyProfile | null = null;
     let parsedIndustry: string | null = null;
     let parsedCreditRating: string | null = null;
     let parsedReport: string | null = null;
     let parsedCompanySize: string | null = null;
     let parsedMissionVision: { mission: string | null; vision: string | null; coreValues: string[]; talentProfile: string | null } | null = null;
+    let aiInputTokens: number | null = null;
+    let aiOutputTokens: number | null = null;
+    let aiEstimatedFees: number | null = null;
 
-    try {
-      const { text } = await this.aiProvider.call(aiModel, SYSTEM_PROMPT, userPrompt, { caller: 'CompanyAnalysis' });
-      const cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-      const start = cleaned.indexOf('{');
-      const end = cleaned.lastIndexOf('}');
-      if (start === -1 || end === -1) throw new Error('JSON 파싱 실패');
+    const [scoringRes, businessRes, reportRes] = await Promise.allSettled([
+      this.aiProvider.call(aiModel, SYSTEM_PROMPT_SCORING, userPrompt, { caller: 'CompanyAnalysis/scoring' }),
+      this.aiProvider.call(aiModel, SYSTEM_PROMPT_BUSINESS, userPrompt, { caller: 'CompanyAnalysis/business' }),
+      this.aiProvider.call(aiModel, SYSTEM_PROMPT_REPORT, userPrompt, { caller: 'CompanyAnalysis/report' }),
+    ]);
 
-      let jsonStr = cleaned.slice(start, end + 1);
-
-      // AI가 JSON 값 위치에 \"...\" (이스케이프 따옴표)를 출력하는 경우 수정
-      try { JSON.parse(jsonStr); } catch {
-        jsonStr = jsonStr
-          .replace(/([:,{[]\s*)\\"/g, '$1"')   // :\" → :"
-          .replace(/\\"(\s*[,}\]])/g, '"$1');  // \", → ",
+    for (const r of [scoringRes, businessRes, reportRes]) {
+      if (r.status === 'fulfilled') {
+        aiInputTokens = (aiInputTokens ?? 0) + (r.value.inputTokens ?? 0);
+        aiOutputTokens = (aiOutputTokens ?? 0) + (r.value.outputTokens ?? 0);
+        aiEstimatedFees = (aiEstimatedFees ?? 0) + (r.value.estimatedFees ?? 0);
       }
+    }
 
-      const parsed = JSON.parse(jsonStr) as {
-        summary?: string;
-        industry?: string;
-        companySize?: string | null;
-        creditRating?: string | null;
-        report?: string;
-        scores?: Partial<CompetencyScores>;
-        reasons?: Partial<Record<string, string>>;
-        swot?: { S?: string[]; W?: string[]; O?: string[]; T?: string[] };
-        competitors?: string[];
-        businessSegments?: string[];
-        missionVision?: { mission?: string; vision?: string; coreValues?: string[]; talentProfile?: string };
-        categorizedNews?: { title?: string; category?: string; summary?: string }[];
-      };
-
-      parsedSummary = parsed.summary?.trim() ?? '';
-      parsedIndustry = parsed.industry?.trim() || null;
-      parsedCreditRating = parsed.creditRating?.trim() || null;
-      parsedReport = parsed.report?.trim() || null;
-      parsedCompanySize = parsed.companySize?.trim() || null;
-
-      for (const k of COMPETENCY_KEYS) {
-        const v = parsed.scores?.[k];
-        parsedScores[k] = typeof v === 'number' ? Math.max(0, Math.min(100, Math.round(v))) : 50;
-        const r = parsed.reasons?.[k];
-        if (r && typeof r === 'string') parsedReasons[k] = r.trim();
+    if (scoringRes.status === 'fulfilled') {
+      const p = this.parseAiJson(scoringRes.value.text, 'scoring');
+      if (p) {
+        parsedSummary = p.summary?.trim() ?? '';
+        parsedIndustry = p.industry?.trim() || null;
+        parsedCreditRating = p.creditRating?.trim() || null;
+        parsedCompanySize = p.companySize?.trim() || null;
+        for (const k of COMPETENCY_KEYS) {
+          const v = p.scores?.[k];
+          parsedScores[k] = typeof v === 'number' ? Math.max(0, Math.min(100, Math.round(v))) : 50;
+          const reason = p.reasons?.[k];
+          if (reason && typeof reason === 'string') parsedReasons[k] = reason.trim();
+        }
+        if (p.swot) {
+          parsedSwot = {
+            S: p.swot.S?.filter(Boolean) ?? [],
+            W: p.swot.W?.filter(Boolean) ?? [],
+            O: p.swot.O?.filter(Boolean) ?? [],
+            T: p.swot.T?.filter(Boolean) ?? [],
+          };
+        }
       }
+    } else {
+      this.logger.error(`[AI] scoring 호출 실패: ${scoringRes.reason}`);
+    }
 
-      if (parsed.swot) {
-        parsedSwot = {
-          S: parsed.swot.S?.filter(Boolean) ?? [],
-          W: parsed.swot.W?.filter(Boolean) ?? [],
-          O: parsed.swot.O?.filter(Boolean) ?? [],
-          T: parsed.swot.T?.filter(Boolean) ?? [],
-        };
+    if (businessRes.status === 'fulfilled') {
+      const p = this.parseAiJson(businessRes.value.text, 'business');
+      if (p) {
+        if (Array.isArray(p.competitors)) {
+          const validLevels = new Set(['high', 'medium', 'low']);
+          parsedCompetitors = p.competitors
+            .map((c: { name?: string; reason?: string; needed?: string; threatLevel?: string }) => ({
+              name: c.name?.trim() ?? '',
+              reason: c.reason?.trim() ?? '',
+              needed: c.needed?.trim() ?? '',
+              threatLevel: validLevels.has(c.threatLevel ?? '') ? (c.threatLevel as 'high' | 'medium' | 'low') : 'medium',
+            }))
+            .filter((c: { name: string }) => c.name);
+        }
+        if (Array.isArray(p.businessSegments)) {
+          parsedSegments = p.businessSegments
+            .map((s: { name?: string; revenueShare?: string; description?: string; subsidiaries?: string[]; mainProducts?: string; facilities?: string; corporateCount?: string }) => ({
+              name: s.name?.trim() ?? '',
+              revenueShare: s.revenueShare?.trim() || null,
+              description: s.description?.trim() ?? '',
+              subsidiaries: Array.isArray(s.subsidiaries) ? s.subsidiaries.filter(Boolean) : null,
+              mainProducts: s.mainProducts?.trim() || null,
+              facilities: s.facilities?.trim() || null,
+              corporateCount: s.corporateCount?.trim() || null,
+            }))
+            .filter((s: { name: string }) => s.name);
+        }
+        if (p.companyProfile) {
+          const cp = p.companyProfile;
+          parsedCompanyProfile = {
+            businessArea: cp.businessArea?.trim() || null,
+            businessStatus: cp.businessStatus?.trim() || null,
+            coreValues: Array.isArray(cp.coreValues) ? cp.coreValues.filter(Boolean) : [],
+            jobIntroduction: (() => {
+              if (!Array.isArray(cp.jobIntroduction)) return null;
+              return (cp.jobIntroduction as { name?: string; description?: string }[])
+                .map((j) => ({ name: (j.name ?? '').trim(), description: (j.description ?? '').trim() }))
+                .filter((j) => j.name);
+            })(),
+            specialNotes: cp.specialNotes?.trim() || null,
+            historyAchievements: cp.historyAchievements?.trim() || null,
+            socialContribution: cp.socialContribution?.trim() || null,
+            employeeCount: cp.employeeCount?.trim() || null,
+            brandImage: cp.brandImage?.trim() || null,
+            businessPromotion: cp.businessPromotion?.trim() || null,
+            currentYearGoal: cp.currentYearGoal?.trim() || null,
+            nextYearGoal: cp.nextYearGoal?.trim() || null,
+          };
+        }
+        if (p.missionVision) {
+          parsedMissionVision = {
+            mission: p.missionVision.mission?.trim() || null,
+            vision: p.missionVision.vision?.trim() || null,
+            coreValues: Array.isArray(p.missionVision.coreValues) ? p.missionVision.coreValues.filter(Boolean) : [],
+            talentProfile: p.missionVision.talentProfile?.trim() || null,
+          };
+        }
       }
+    } else {
+      this.logger.error(`[AI] business 호출 실패: ${businessRes.reason}`);
+    }
 
-      if (Array.isArray(parsed.competitors)) parsedCompetitors = parsed.competitors.filter(Boolean);
-      if (Array.isArray(parsed.businessSegments)) parsedSegments = parsed.businessSegments.filter(Boolean);
-
-      if (parsed.missionVision) {
-        parsedMissionVision = {
-          mission: parsed.missionVision.mission?.trim() || null,
-          vision: parsed.missionVision.vision?.trim() || null,
-          coreValues: Array.isArray(parsed.missionVision.coreValues) ? parsed.missionVision.coreValues.filter(Boolean) : [],
-          talentProfile: parsed.missionVision.talentProfile?.trim() || null,
-        };
+    if (reportRes.status === 'fulfilled') {
+      const p = this.parseAiJson(reportRes.value.text, 'report');
+      if (p) {
+        parsedReport = p.report?.trim() || null;
+        if (Array.isArray(p.categorizedNews)) {
+          recentNews = recentNews.map((n) => {
+            const match = p.categorizedNews.find((cn: { title?: string; category?: string; summary?: string }) =>
+              cn.title && (cn.title === n.title || n.title.includes(cn.title) || cn.title.includes(n.title)),
+            );
+            if (match) return { ...n, category: match.category ?? undefined, summary: match.summary ?? undefined };
+            return n;
+          });
+        }
       }
+    } else {
+      this.logger.error(`[AI] report 호출 실패: ${reportRes.reason}`);
+    }
 
-      // 뉴스 카테고리·요약 병합 (title 부분 일치로 매칭)
-      if (Array.isArray(parsed.categorizedNews)) {
-        recentNews = recentNews.map((n) => {
-          const match = parsed.categorizedNews!.find((cn) =>
-            cn.title && (cn.title === n.title || n.title.includes(cn.title) || cn.title.includes(n.title)),
-          );
-          if (match) return { ...n, category: match.category ?? undefined, summary: match.summary ?? undefined };
-          return n;
-        });
-      }
-    } catch (err) {
-      this.logger.error(`AI 분석 실패: ${(err as Error).message}`);
-      yield { type: 'error', message: `AI 분석 실패: ${(err as Error).message}` };
+    if (!parsedSummary && parsedScores === ZERO_SCORES) {
+      yield { type: 'error', message: 'AI 분석 실패: scoring 호출이 결과를 반환하지 않았습니다' };
       return;
     }
 
+    // 7. DB 저장
     yield { type: 'log', message: '💾 결과 저장 중...' };
-
-    // ── 7. DB 저장 ──────────────────────────────────────────────────────
     const existing = await this.repo.findOne({ where: { companyKey: key } });
     const entity = await this.repo.save({
       id: existing?.id ?? randomUUID(),
@@ -422,12 +349,17 @@ export class CompanyAnalysisService {
       companyName: companyName.trim(),
       scores: JSON.stringify(parsedScores),
       reasons: Object.keys(parsedReasons).length > 0 ? JSON.stringify(parsedReasons) : null,
+      inputTokens: aiInputTokens,
+      outputTokens: aiOutputTokens,
+      estimatedFees: aiEstimatedFees,
       summary: parsedSummary || null,
       evidence: evidence.length > 0 ? JSON.stringify(evidence) : null,
       aiModel: aiModel || null,
       swot: parsedSwot ? JSON.stringify(parsedSwot) : null,
       competitors: parsedCompetitors?.length ? JSON.stringify(parsedCompetitors) : null,
       businessSegments: parsedSegments?.length ? JSON.stringify(parsedSegments) : null,
+      segmentSources: segmentSources.length > 0 ? JSON.stringify(segmentSources) : null,
+      companyProfile: parsedCompanyProfile ? JSON.stringify(parsedCompanyProfile) : null,
       industry: parsedIndustry,
       companySize: parsedCompanySize,
       creditRating: parsedCreditRating,
@@ -436,6 +368,7 @@ export class CompanyAnalysisService {
       corpClass: dartData?.corpClass ?? null,
       stockCode: dartData?.stockCode ?? null,
       employees: dartData?.employees ?? null,
+      employeeDetail: dartData?.employeeHistory?.length ? JSON.stringify(dartData.employeeHistory) : null,
       capital: dartData?.capital ?? null,
       homeUrl: officialWebsiteUrl ?? dartData?.homeUrl ?? null,
       address: dartData?.address ?? null,
@@ -453,6 +386,39 @@ export class CompanyAnalysisService {
     yield { type: 'done', result: this.toDto(entity) };
   }
 
+  // ── 내부 유틸 ──────────────────────────────────────────────────────
+
+  private normalizeKey(name: string): string {
+    return name.trim().toLowerCase().replace(/\s+/g, '').replace(/[^\p{L}\p{N}]/gu, '');
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private parseAiJson(text: string, label: string): Record<string, any> | null {
+    const cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start === -1 || end === -1) { this.logger.warn(`[AI/${label}] JSON 블록 없음`); return null; }
+
+    let jsonStr = cleaned.slice(start, end + 1);
+    jsonStr = repairJsonStr(jsonStr);
+    jsonStr = jsonStr.replace(/\}(\s*\n+\s*)\{/g, '},$1{');
+    try { return JSON.parse(jsonStr); } catch {}
+
+    jsonStr = jsonStr
+      .replace(/([:,{[]\s*)\\"/g, '$1"')
+      .replace(/\\"(\s*[,}\]])/g, '"$1');
+    try { return JSON.parse(jsonStr); } catch (err) {
+      const msg = (err as Error).message;
+      const pos = parseInt(msg.match(/position (\d+)/)?.[1] ?? '-1', 10);
+      if (pos >= 0) {
+        this.logger.error(`[AI/${label}] 파싱 오류 pos=${pos}:\n${jsonStr.slice(Math.max(0, pos - 150), pos + 150)}`);
+      } else {
+        this.logger.error(`[AI/${label}] 파싱 오류: ${msg}`);
+      }
+      return null;
+    }
+  }
+
   private toDto(e: CompanyAnalysisEntity): CompanyAnalysisDto {
     const parse = <T>(json: string | null): T | null => {
       if (!json) return null;
@@ -468,9 +434,24 @@ export class CompanyAnalysisService {
       summary: e.summary,
       evidence: parse<{ title: string; url: string }[]>(e.evidence),
       aiModel: e.aiModel,
+      inputTokens: e.inputTokens ?? null,
+      outputTokens: e.outputTokens ?? null,
+      estimatedFees: e.estimatedFees ?? null,
       swot: parse<SwotAnalysis>(e.swot),
-      competitors: parse<string[]>(e.competitors),
-      businessSegments: parse<string[]>(e.businessSegments),
+      competitors: (() => {
+        const raw = parse<unknown[]>(e.competitors);
+        if (!raw?.length) return null;
+        if (typeof raw[0] === 'string') return null;
+        return raw as Competitor[];
+      })(),
+      businessSegments: (() => {
+        const raw = parse<unknown[]>(e.businessSegments);
+        if (!raw?.length) return null;
+        if (typeof raw[0] === 'string') return null;
+        return raw as BusinessSegment[];
+      })(),
+      segmentSources: parse<{ title: string; url: string }[]>(e.segmentSources),
+      companyProfile: parse<CompanyProfile>(e.companyProfile),
       industry: e.industry,
       companySize: e.companySize ?? null,
       creditRating: e.creditRating,
@@ -478,13 +459,21 @@ export class CompanyAnalysisService {
       corpClass: e.corpClass,
       stockCode: e.stockCode ?? null,
       employees: e.employees ?? null,
+      employeeHistory: (() => {
+        const raw = parse<EmployeeDetail | EmployeeDetail[]>(e.employeeDetail);
+        if (!raw) return null;
+        return Array.isArray(raw) ? raw : [raw];
+      })(),
       capital: e.capital ?? null,
       homeUrl: e.homeUrl,
       address: e.address,
       dartUrl: e.dartUrl,
       ceoName: e.ceoName,
       foundedDate: e.foundedDate,
-      fiscalYear: (() => { const mf = parse<YearlyFinancial[]>(e.multiYearFinancials); return mf?.at(-1)?.year != null ? `${mf.at(-1)!.year}년` : null; })(),
+      fiscalYear: (() => {
+        const mf = parse<YearlyFinancial[]>(e.multiYearFinancials);
+        return mf?.at(-1)?.year != null ? `${mf.at(-1)!.year}년` : null;
+      })(),
       multiYearFinancials: parse<YearlyFinancial[]>(e.multiYearFinancials),
       financialSummary: e.financialSummary,
       disclosures: parse<{ title: string; date: string; url: string }[]>(e.disclosures),

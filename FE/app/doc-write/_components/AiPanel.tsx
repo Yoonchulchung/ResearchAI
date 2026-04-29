@@ -8,7 +8,7 @@ import type { ChatMessage } from "../_types";
 import type { DocWriteAction } from "@/lib/api/doc-write";
 import type { ExperienceSearchResult } from "@/lib/api/experiences";
 import {
-  IconAppend, IconContinue, IconCopy, IconEvaluate,
+  IconAppend, IconContinue, IconCopy, IconEvaluate, IconExample,
   IconImprove, IconInsert, IconPlagiarism, IconSection, IconSpellcheck, IconSummarize,
 } from "./icons";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -21,6 +21,7 @@ const FALLBACK_ACTIONS: DocWriteAction[] = [
   { key: "improve", label: "내용 개선" },
   { key: "spellcheck", label: "맞춤법 교정", skipCompanyCtx: true },
   { key: "summarize", label: "요약" },
+  { key: "example", label: "예시 생성" },
   { key: "plagiarism", label: "AI 표절률 검사", skipCompanyCtx: true },
   { key: "evaluate", label: "글 평가", skipCompanyCtx: true },
 ];
@@ -31,6 +32,7 @@ const KEY_TO_ICON: Record<string, React.ReactNode> = {
   improve: <IconImprove />,
   spellcheck: <IconSpellcheck />,
   summarize: <IconSummarize />,
+  example: <IconExample />,
   plagiarism: <IconPlagiarism />,
   evaluate: <IconEvaluate />,
 };

@@ -25,6 +25,53 @@ export interface SwotAnalysis {
   T: string[];
 }
 
+export interface Competitor {
+  name: string;
+  reason: string;
+  needed: string;
+  threatLevel: 'high' | 'medium' | 'low';
+}
+
+export interface BusinessSegment {
+  name: string;
+  revenueShare: string | null;
+  description: string;
+  subsidiaries: string[] | null;
+  mainProducts: string | null;
+  facilities: string | null;
+  corporateCount: string | null;
+}
+
+export interface EmployeeDetail {
+  year: number;
+  total: number | null;
+  regular: number | null;
+  contract: number | null;
+  avgTenure: string | null;
+  avgSalary: string | null;
+  maleCount: number | null;
+  femaleCount: number | null;
+  maleTenure: string | null;
+  femaleTenure: string | null;
+  maleSalary: string | null;
+  femaleSalary: string | null;
+}
+
+export interface CompanyProfile {
+  businessArea: string | null;
+  businessStatus: string | null;
+  coreValues: string[];
+  jobIntroduction: { name: string; description: string }[] | null;
+  specialNotes: string | null;
+  historyAchievements: string | null;
+  socialContribution: string | null;
+  employeeCount: string | null;
+  brandImage: string | null;
+  businessPromotion: string | null;
+  currentYearGoal: string | null;
+  nextYearGoal: string | null;
+}
+
 export interface YearlyFinancial {
   year: number;
   revenue: number | null;
@@ -45,10 +92,15 @@ export interface CompanyAnalysis {
   summary: string | null;
   evidence: { title: string; url: string }[] | null;
   aiModel: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  estimatedFees: number | null;
   // AI 분석
   swot: SwotAnalysis | null;
-  competitors: string[] | null;
-  businessSegments: string[] | null;
+  competitors: Competitor[] | null;
+  businessSegments: BusinessSegment[] | null;
+  segmentSources: { title: string; url: string }[] | null;
+  companyProfile: CompanyProfile | null;
   industry: string | null;
   companySize: string | null;
   creditRating: string | null;
@@ -57,6 +109,7 @@ export interface CompanyAnalysis {
   corpClass: string | null;
   stockCode: string | null;
   employees: string | null;
+  employeeHistory: EmployeeDetail[] | null;
   capital: string | null;
   homeUrl: string | null;
   address: string | null;

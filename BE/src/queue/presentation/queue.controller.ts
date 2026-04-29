@@ -106,9 +106,9 @@ export class QueueController {
   @Post('write-assist')
   @HttpCode(202)
   async enqueueWriteAssist(
-    @Body() body: { content: string; instruction: string; model: string },
+    @Body() body: { content: string; instruction: string; model: string; history?: { role: 'user' | 'assistant'; content: string }[] },
   ) {
-    return this.queueService.enqueueWriteAssist(body.content, body.instruction, body.model);
+    return this.queueService.enqueueWriteAssist(body.content, body.instruction, body.model, body.history);
   }
 
   @Delete('write-assist/:jobId')

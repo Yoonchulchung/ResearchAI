@@ -660,6 +660,14 @@ export default function CompanyAnalysisPage() {
                     </div>
                     <p className={`text-sm mt-2 font-mono ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                       DATE: {new Date(selected.updatedAt).toLocaleString("en-US", { hour12: false })} | MODEL: {selected.aiModel || "Unknown"}
+                      {(selected.inputTokens != null || selected.outputTokens != null) && (
+                        <span className="ml-3">
+                          | IN: {(selected.inputTokens ?? 0).toLocaleString()} / OUT: {(selected.outputTokens ?? 0).toLocaleString()} tokens
+                          {selected.estimatedFees != null && selected.estimatedFees > 0 && (
+                            <span className="ml-2 text-amber-500">${selected.estimatedFees.toFixed(4)}</span>
+                          )}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <button
@@ -680,7 +688,7 @@ export default function CompanyAnalysisPage() {
                 )}
 
                 {/* 기업 개요 카드 */}
-                {(selected.ceoName || selected.foundedDate || selected.corpClass || selected.industry || selected.companySize || selected.address || selected.dartUrl || selected.creditRating || selected.competitors?.length || selected.businessSegments?.length || selected.jobPostings?.length) && (
+                {(selected.ceoName || selected.foundedDate || selected.corpClass || selected.industry || selected.companySize || selected.address || selected.dartUrl || selected.creditRating || selected.jobPostings?.length) && (
                   <section className={card}>
                     <SectionHeader title="기업 개요 (Company Overview)" badge="INFO" isDark={isDark} />
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
@@ -733,9 +741,95 @@ export default function CompanyAnalysisPage() {
                           <span className="font-bold font-mono text-base">{selected.creditRating}</span>
                         </InfoItem>
                       )}
-                      {selected.employees && (
+                      {selected.employeeHistory && selected.employeeHistory.length > 0 ? (() => {
+                        const hist = selected.employeeHistory!;
+                        const latest = hist[hist.length - 1];
+                        const prev = hist.length >= 2 ? hist[hist.length - 2] : null;
+                        const delta = (prev?.total != null && latest.total != null)
+                          ? latest.total - prev.total : null;
+                        const deltaSign = delta != null ? (delta > 0 ? "+" : "") : "";
+                        const deltaPct = (delta != null && prev?.total)
+                          ? ((delta / prev.total) * 100).toFixed(1) : null;
+                        return (
+                          <div className={`col-span-2 md:col-span-3 p-4 rounded-sm border ${isDark ? "bg-slate-700/30 border-slate-600" : "bg-slate-50 border-slate-200"}`}>
+                            {/* 헤더: 출처 */}
+                            <div className="flex items-center justify-between mb-3">
+                              <p className={`text-[10px] font-semibold uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                                임직원 현황
+                              </p>
+                              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${isDark ? "bg-slate-700 text-slate-400 border-slate-600" : "bg-white text-slate-400 border-slate-300"}`}>
+                                DART 전자공시시스템 ({hist.map(e => e.year).join(" · ")}년)
+                              </span>
+                            </div>
+                            {/* 총계 + 증감 */}
+                            <div className={`flex flex-wrap gap-4 mb-3 pb-3 border-b ${isDark ? "border-slate-600" : "border-slate-200"}`}>
+                              {latest.total != null && (
+                                <span className={`text-sm font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                                  총 직원수 {latest.total.toLocaleString()}명
+                                </span>
+                              )}
+                              {delta != null && (
+                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${delta > 0 ? (isDark ? "text-emerald-400" : "text-emerald-700") : delta < 0 ? (isDark ? "text-red-400" : "text-red-700") : (isDark ? "text-slate-400" : "text-slate-500")}`}>
+                                  {deltaSign}{delta.toLocaleString()}명 ({deltaSign}{deltaPct}%) vs {prev!.year}년
+                                </span>
+                              )}
+                              {latest.avgTenure && (
+                                <span className={`text-sm ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                                  평균 근속연수 {latest.avgTenure}
+                                </span>
+                              )}
+                              {latest.avgSalary && (
+                                <span className={`text-sm ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                                  평균급여 {latest.avgSalary}
+                                </span>
+                              )}
+                            </div>
+                            {/* 상세 */}
+                            <div className="space-y-1.5 text-xs">
+                              {(latest.regular != null || latest.contract != null) && (
+                                <div className="flex gap-2">
+                                  <span className={`shrink-0 w-16 font-semibold ${isDark ? "text-slate-500" : "text-slate-400"}`}>근무형태</span>
+                                  <span className={isDark ? "text-slate-300" : "text-slate-700"}>
+                                    {[
+                                      latest.regular != null && latest.total ? `정규직 ${latest.regular.toLocaleString()}명(${Math.round(latest.regular / latest.total * 100)}%)` : null,
+                                      latest.contract != null && latest.total ? `계약직 ${latest.contract.toLocaleString()}명(${Math.round(latest.contract / latest.total * 100)}%)` : null,
+                                    ].filter(Boolean).join("  ")}
+                                  </span>
+                                </div>
+                              )}
+                              {(latest.maleCount != null || latest.femaleCount != null) && (
+                                <div className="flex gap-2">
+                                  <span className={`shrink-0 w-16 font-semibold ${isDark ? "text-slate-500" : "text-slate-400"}`}>성별</span>
+                                  <span className={isDark ? "text-slate-300" : "text-slate-700"}>
+                                    {[
+                                      latest.maleCount != null && latest.total ? `남성 ${latest.maleCount.toLocaleString()}명(${Math.round(latest.maleCount / latest.total * 100)}%)` : null,
+                                      latest.femaleCount != null && latest.total ? `여성 ${latest.femaleCount.toLocaleString()}명(${Math.round(latest.femaleCount / latest.total * 100)}%)` : null,
+                                    ].filter(Boolean).join("  ")}
+                                  </span>
+                                </div>
+                              )}
+                              {(latest.maleTenure || latest.femaleTenure) && (
+                                <div className="flex gap-2">
+                                  <span className={`shrink-0 w-16 font-semibold ${isDark ? "text-slate-500" : "text-slate-400"}`}>근속연수</span>
+                                  <span className={isDark ? "text-slate-300" : "text-slate-700"}>
+                                    남성 {latest.maleTenure ?? "—"} / 여성 {latest.femaleTenure ?? "—"}
+                                  </span>
+                                </div>
+                              )}
+                              {(latest.maleSalary || latest.femaleSalary) && (
+                                <div className="flex gap-2">
+                                  <span className={`shrink-0 w-16 font-semibold ${isDark ? "text-slate-500" : "text-slate-400"}`}>평균급여</span>
+                                  <span className={isDark ? "text-slate-300" : "text-slate-700"}>
+                                    남성 {latest.maleSalary ?? "—"} / 여성 {latest.femaleSalary ?? "—"}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })() : selected.employees ? (
                         <InfoItem label="사원수" isDark={isDark}>{selected.employees}</InfoItem>
-                      )}
+                      ) : null}
                       {(selected.multiYearFinancials?.at(-1)?.revenueFormatted) && (
                         <InfoItem label={`매출 (${selected.multiYearFinancials!.at(-1)!.year})`} isDark={isDark}>
                           {selected.multiYearFinancials!.at(-1)!.revenueFormatted}
@@ -798,23 +892,208 @@ export default function CompanyAnalysisPage() {
                       </div>
                     )}
 
-                    {selected.competitors && selected.competitors.length > 0 && (
-                      <div className="mt-4">
-                        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${isDark ? "text-slate-500" : "text-slate-400"}`}>경쟁사</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {selected.competitors.map((c) => <Chip key={c} label={c} isDark={isDark} color="blue" />)}
-                        </div>
-                      </div>
-                    )}
+                  </section>
+                )}
 
-                    {selected.businessSegments && selected.businessSegments.length > 0 && (
-                      <div className="mt-4">
-                        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${isDark ? "text-slate-500" : "text-slate-400"}`}>사업 부문</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {selected.businessSegments.map((s) => <Chip key={s} label={s} isDark={isDark} color="green" />)}
+                {/* 기업 프로파일 */}
+                {selected.companyProfile && (
+                  <section className={card}>
+                    <SectionHeader title="기업 프로파일 (Company Profile)" badge="AI" isDark={isDark} />
+                    <div className="space-y-5">
+                      {selected.companyProfile.businessArea && (
+                        <div>
+                          <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>사업영역</p>
+                          <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{selected.companyProfile.businessArea}</p>
                         </div>
-                      </div>
-                    )}
+                      )}
+                      {selected.companyProfile.businessStatus && (
+                        <div>
+                          <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>사업현황</p>
+                          <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{selected.companyProfile.businessStatus}</p>
+                        </div>
+                      )}
+                      {selected.companyProfile.coreValues?.length > 0 && (
+                        <div>
+                          <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${isDark ? "text-slate-500" : "text-slate-400"}`}>핵심가치</p>
+                          <div className="flex flex-wrap gap-2">
+                            {selected.companyProfile.coreValues.map((v) => (
+                              <span key={v} className={`inline-block px-3 py-1 text-xs font-medium border rounded-sm ${isDark ? "bg-blue-900/30 text-blue-300 border-blue-700/50" : "bg-blue-50 text-blue-700 border-blue-200"}`}>{v}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selected.companyProfile.jobIntroduction && selected.companyProfile.jobIntroduction.length > 0 && (
+                        <div>
+                          <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${isDark ? "text-slate-500" : "text-slate-400"}`}>직무소개</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {selected.companyProfile.jobIntroduction.map((job) => (
+                              <div key={job.name} className={`px-3 py-2 rounded-sm border ${isDark ? "bg-slate-800/60 border-slate-700" : "bg-slate-50 border-slate-200"}`}>
+                                <p className={`text-xs font-semibold mb-0.5 ${isDark ? "text-blue-400" : "text-blue-700"}`}>{job.name}</p>
+                                <p className={`text-xs leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>{job.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {selected.companyProfile.historyAchievements && (
+                        <div>
+                          <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>역사 및 주요 업적</p>
+                          <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{selected.companyProfile.historyAchievements}</p>
+                        </div>
+                      )}
+                      {selected.companyProfile.socialContribution && (
+                        <div>
+                          <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>사회공헌활동</p>
+                          <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{selected.companyProfile.socialContribution}</p>
+                        </div>
+                      )}
+                      {(selected.companyProfile.employeeCount || selected.companyProfile.brandImage || selected.companyProfile.specialNotes) && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {selected.companyProfile.employeeCount && (
+                            <InfoItem label="임직원수" isDark={isDark}>{selected.companyProfile.employeeCount}</InfoItem>
+                          )}
+                          {selected.companyProfile.brandImage && (
+                            <div className="md:col-span-2">
+                              <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>CI · 브랜드 이미지</p>
+                              <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{selected.companyProfile.brandImage}</p>
+                            </div>
+                          )}
+                          {selected.companyProfile.specialNotes && (
+                            <div className={`md:col-span-2 p-3 rounded-sm border-l-4 ${isDark ? "bg-amber-900/20 border-amber-500" : "bg-amber-50 border-amber-400"}`}>
+                              <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${isDark ? "text-amber-400" : "text-amber-700"}`}>특기 사항</p>
+                              <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{selected.companyProfile.specialNotes}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {(selected.companyProfile.businessPromotion || selected.companyProfile.currentYearGoal || selected.companyProfile.nextYearGoal) && (
+                        <div className={`pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-200"}`}>
+                          <p className={`text-[10px] font-semibold uppercase tracking-widest mb-3 ${isDark ? "text-slate-500" : "text-slate-400"}`}>전략 및 목표</p>
+                          <div className="space-y-3">
+                            {selected.companyProfile.businessPromotion && (
+                              <div>
+                                <p className={`text-xs font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>사업 추진</p>
+                                <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{selected.companyProfile.businessPromotion}</p>
+                              </div>
+                            )}
+                            {selected.companyProfile.currentYearGoal && (
+                              <div>
+                                <p className={`text-xs font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>올해 목표</p>
+                                <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{selected.companyProfile.currentYearGoal}</p>
+                              </div>
+                            )}
+                            {selected.companyProfile.nextYearGoal && (
+                              <div>
+                                <p className={`text-xs font-semibold mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>내년 목표</p>
+                                <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{selected.companyProfile.nextYearGoal}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                )}
+
+                {/* 사업 부문 */}
+                {selected.businessSegments && selected.businessSegments.length > 0 && (
+                  <section className={card}>
+                    <SectionHeader title="사업 부문 (Business Segments)" badge="AI" isDark={isDark} />
+                    <div className="space-y-4">
+                      {selected.segmentSources && selected.segmentSources.length > 0 && (
+                        <div className={`flex flex-wrap gap-2 pb-1 mb-2 border-b ${isDark ? "border-slate-700" : "border-slate-200"}`}>
+                          <span className={`text-[10px] font-semibold self-center ${isDark ? "text-slate-500" : "text-slate-400"}`}>출처</span>
+                          {selected.segmentSources.map((src, si) => (
+                            <a key={si} href={src.url} target="_blank" rel="noopener noreferrer"
+                              className={`text-[11px] px-2 py-0.5 rounded-sm border truncate max-w-[280px] hover:underline ${isDark ? "bg-slate-800 text-blue-400 border-slate-700 hover:text-blue-300" : "bg-white text-blue-600 border-slate-200 hover:text-blue-800"}`}
+                              title={src.title}>
+                              {src.title.length > 40 ? src.title.slice(0, 40) + '…' : src.title}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                      {selected.businessSegments.map((seg, i) => (
+                        <div key={i} className={`p-4 rounded-sm border ${isDark ? "bg-slate-700/30 border-slate-600" : "bg-slate-50 border-slate-200"}`}>
+                          {/* 부문명 + 비중 */}
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <span className={`text-sm font-bold ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                              {seg.name}
+                            </span>
+                            {seg.revenueShare && (
+                              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-sm border ${isDark ? "bg-emerald-900/40 text-emerald-300 border-emerald-700/50" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>
+                                매출비중 {seg.revenueShare}
+                              </span>
+                            )}
+                            {seg.corporateCount && (
+                              <span className={`text-xs font-mono px-2 py-0.5 rounded-sm border ${isDark ? "bg-slate-700 text-slate-400 border-slate-600" : "bg-white text-slate-500 border-slate-300"}`}>
+                                법인 {seg.corporateCount}
+                              </span>
+                            )}
+                          </div>
+                          {/* 종속회사 */}
+                          {seg.subsidiaries && seg.subsidiaries.length > 0 && (
+                            <div className="flex gap-2 mb-2">
+                              <span className={`shrink-0 text-xs font-semibold w-16 mt-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>종속회사</span>
+                              <p className={`text-xs leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                                {seg.subsidiaries.join(", ")}
+                              </p>
+                            </div>
+                          )}
+                          {/* 주요제품 */}
+                          {seg.mainProducts && (
+                            <div className="flex gap-2 mb-2">
+                              <span className={`shrink-0 text-xs font-semibold w-16 mt-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>주요제품</span>
+                              <p className={`text-xs leading-relaxed ${isDark ? "text-slate-300" : "text-slate-600"}`}>{seg.mainProducts}</p>
+                            </div>
+                          )}
+                          {/* 설명 */}
+                          {seg.description && (
+                            <p className={`text-xs leading-relaxed mt-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>{seg.description}</p>
+                          )}
+                          {/* 시설/거점 */}
+                          {seg.facilities && (
+                            <div className={`mt-2 pt-2 border-t text-xs ${isDark ? "border-slate-600 text-slate-400" : "border-slate-200 text-slate-500"}`}>
+                              {seg.facilities}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* 경쟁사 분석 */}
+                {selected.competitors && selected.competitors.length > 0 && (
+                  <section className={card}>
+                    <SectionHeader title="경쟁사 분석 (Competitors)" badge="AI" isDark={isDark} />
+                    <div className="space-y-3">
+                      {selected.competitors.map((comp, i) => {
+                        const threat = comp.threatLevel ?? 'medium';
+                        const threatConfig = {
+                          high: { label: '위협 높음', cls: isDark ? 'bg-red-900/40 text-red-300 border-red-700/50' : 'bg-red-50 text-red-700 border-red-200' },
+                          medium: { label: '위협 중간', cls: isDark ? 'bg-yellow-900/40 text-yellow-300 border-yellow-700/50' : 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+                          low: { label: '위협 낮음', cls: isDark ? 'bg-slate-700 text-slate-400 border-slate-600' : 'bg-slate-100 text-slate-500 border-slate-200' },
+                        }[threat];
+                        return (
+                          <div key={i} className={`p-4 rounded-sm border ${isDark ? "bg-slate-700/30 border-slate-600" : "bg-slate-50 border-slate-200"}`}>
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              <p className={`text-sm font-semibold ${isDark ? "text-blue-300" : "text-blue-700"}`}>{comp.name}</p>
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-sm border ${threatConfig.cls}`}>{threatConfig.label}</span>
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="flex gap-2">
+                                <span className={`shrink-0 text-xs font-semibold w-16 ${isDark ? "text-slate-500" : "text-slate-400"}`}>경쟁 이유</span>
+                                <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{comp.reason}</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <span className={`shrink-0 text-xs font-semibold w-16 ${isDark ? "text-slate-500" : "text-slate-400"}`}>필요 역량</span>
+                                <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{comp.needed}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </section>
                 )}
 
