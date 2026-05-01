@@ -3,7 +3,14 @@
 import { useState, useEffect } from "react";
 import { WS_BASE } from "@/lib/api/base";
 import { useSummaryProgress } from "@/contexts/SummaryProgressContext";
-import { getQueueStatus, cancelSummary, QueueStatus } from "@/lib/api/queue";
+import {
+  getQueueStatus,
+  cancelSummary,
+  cancelWriteAssist,
+  cancelCompanyProfile,
+  cancelCompanyAnalysis,
+  QueueStatus,
+} from "@/lib/api/queue";
 import { stopResearchItem, cancelLightResearch } from "@/lib/api/research";
 
 const WS_URL = WS_BASE;
@@ -23,6 +30,24 @@ const STATUS_COLOR: Record<string, string> = {
   error: "text-red-500",
   stopped: "text-slate-400",
 };
+
+const PHASE_LABEL: Record<string, string> = {
+  searching: "검색 중",
+  analyzing: "분석 중",
+};
+
+function isWriteAssistTask(taskType: string) {
+  return taskType === "writeassist" || taskType.startsWith("writeassist_");
+}
+
+function getJobTitle(job: QueueStatus["jobs"][0]) {
+  return job.displayTitle || job.itemId || job.sessionId || job.jobId;
+}
+
+function getJobSubtitle(job: QueueStatus["jobs"][0]) {
+  const status = job.phase ? `${STATUS_LABEL[job.status]} · ${PHASE_LABEL[job.phase] ?? job.phase}` : STATUS_LABEL[job.status];
+  return job.displaySubtitle ? `${job.displaySubtitle} · ${status}` : status;
+}
 
 export function QueueWidget() {
   const { items: summaryItems, dismiss: dismissSummary } = useSummaryProgress();
@@ -87,6 +112,12 @@ export function QueueWidget() {
         await cancelLightResearch(job.sessionId);
       } else if (job.taskType === "summary") {
         await cancelSummary(job.sessionId);
+      } else if (isWriteAssistTask(job.taskType)) {
+        await cancelWriteAssist(job.jobId);
+      } else if (job.taskType === "companyprofile") {
+        await cancelCompanyProfile(job.jobId);
+      } else if (job.taskType === "companyanalysis") {
+        await cancelCompanyAnalysis(job.jobId);
       }
       setQueueStatus((prev) =>
         prev ? { ...prev, jobs: prev.jobs.filter((j) => j.jobId !== job.jobId) } : prev
@@ -152,19 +183,23 @@ export function QueueWidget() {
       {!collapsed && hasQueue && (
         <div className="flex flex-col gap-1 mt-1 pt-1 border-t border-indigo-100">
           {activeJobs.map((job) => (
-            <div key={job.jobId} className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 min-w-0">
+            <div key={job.jobId} className="flex items-center justify-between gap-2 rounded-md px-1 py-1">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
                 {job.status === "running" ? (
-                  <span className="text-indigo-400 animate-pulse text-2xs">●</span>
+                  <span className="text-indigo-400 animate-pulse text-xs">●</span>
                 ) : (
-                  <span className="text-yellow-400 text-2xs">○</span>
+                  <span className="text-yellow-400 text-xs">○</span>
                 )}
-                <span className="text-xs text-slate-500 truncate font-mono">{job.itemId.slice(0, 8)}…</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold text-slate-700 truncate" title={getJobTitle(job)}>
+                    {getJobTitle(job)}
+                  </div>
+                  <div className={`text-2xs font-medium truncate ${STATUS_COLOR[job.status]}`}>
+                    {getJobSubtitle(job)}
+                  </div>
+                </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <span className={`text-2xs font-medium ${STATUS_COLOR[job.status]}`}>
-                  {job.phase ? `${STATUS_LABEL[job.status]} · ${job.phase}` : STATUS_LABEL[job.status]}
-                </span>
                 <button
                   onClick={() => handleCancelJob(job)}
                   className="text-2xs text-slate-300 hover:text-red-400 px-1 transition-colors"

@@ -28,6 +28,49 @@ export interface Competitor {
   reason: string;
   needed: string;
   threatLevel: 'high' | 'medium' | 'low';
+  siteUrl: string | null;
+}
+
+export interface HrWheelArea {
+  area: string;
+  score: number;
+  evidence: string;
+}
+
+export interface CompetingValues {
+  clan: number;
+  adhocracy: number;
+  market: number;
+  hierarchy: number;
+  dominant: 'clan' | 'adhocracy' | 'market' | 'hierarchy';
+  description: string;
+}
+
+export interface UlrichModel {
+  strategicPartner: number;
+  changeAgent: number;
+  adminExpert: number;
+  employeeChampion: number;
+  dominant: string;
+  description: string;
+}
+
+export interface HarvardModel {
+  situationalFactors: string[];
+  stakeholderInterests: string[];
+  hrPolicies: string[];
+  hrOutcomes: string[];
+  longTermConsequences: string[];
+  summary: string;
+}
+
+export interface HrAnalysis {
+  hrWheel: HrWheelArea[] | null;
+  competingValues: CompetingValues | null;
+  ulrichModel: UlrichModel | null;
+  harvardModel: HarvardModel | null;
+  careerPageUrl: string | null;
+  dataCollectionNote: string | null;
 }
 
 export interface BusinessSegment {
@@ -103,6 +146,20 @@ export interface CompanyAnalysisDto {
   jobPostings: { title: string; url: string; date: string }[] | null;
   jobplanetSummary: string | null;
   missionVision: { mission: string | null; vision: string | null; coreValues: string[]; talentProfile: string | null } | null;
+  // HR 분석
+  hrAnalysis: HrAnalysis | null;
+  // 인근 아파트 시세
+  apartmentPrices: {
+    district: string;
+    avgDealPrice: number | null;
+    avgLeasePrice: number | null;
+    minDealPrice: number | null;
+    maxDealPrice: number | null;
+    minLeasePrice: number | null;
+    maxLeasePrice: number | null;
+    complexCount: number;
+    naverLandUrl: string;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
 }

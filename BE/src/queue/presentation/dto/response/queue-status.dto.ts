@@ -8,6 +8,8 @@ export class QueueJobSummaryDto {
   taskType: QueueJob.TaskType;
   status: QueueJobStatus;
   phase?: QueueJobPhase;
+  displayTitle?: string;
+  displaySubtitle?: string;
   webSources?: SearchSources;
   referenceCount?: number;
 }

@@ -1,4 +1,4 @@
-import { apiFetch, API_BASE, tokenStore } from "./base";
+import { apiFetch, API_BASE, getAuthHeaders, readSSE } from "./base";
 
 export interface CompetencyScores {
   성취지향: number;
@@ -30,6 +30,49 @@ export interface Competitor {
   reason: string;
   needed: string;
   threatLevel: 'high' | 'medium' | 'low';
+  siteUrl: string | null;
+}
+
+export interface HrWheelArea {
+  area: string;
+  score: number;
+  evidence: string;
+}
+
+export interface CompetingValues {
+  clan: number;
+  adhocracy: number;
+  market: number;
+  hierarchy: number;
+  dominant: 'clan' | 'adhocracy' | 'market' | 'hierarchy';
+  description: string;
+}
+
+export interface UlrichModel {
+  strategicPartner: number;
+  changeAgent: number;
+  adminExpert: number;
+  employeeChampion: number;
+  dominant: string;
+  description: string;
+}
+
+export interface HarvardModel {
+  situationalFactors: string[];
+  stakeholderInterests: string[];
+  hrPolicies: string[];
+  hrOutcomes: string[];
+  longTermConsequences: string[];
+  summary: string;
+}
+
+export interface HrAnalysis {
+  hrWheel: HrWheelArea[] | null;
+  competingValues: CompetingValues | null;
+  ulrichModel: UlrichModel | null;
+  harvardModel: HarvardModel | null;
+  careerPageUrl: string | null;
+  dataCollectionNote: string | null;
 }
 
 export interface BusinessSegment {
@@ -125,6 +168,18 @@ export interface CompanyAnalysis {
   jobPostings: { title: string; url: string; date: string }[] | null;
   jobplanetSummary: string | null;
   missionVision: { mission: string | null; vision: string | null; coreValues: string[]; talentProfile: string | null } | null;
+  hrAnalysis: HrAnalysis | null;
+  apartmentPrices: {
+    district: string;
+    avgDealPrice: number | null;
+    avgLeasePrice: number | null;
+    minDealPrice: number | null;
+    maxDealPrice: number | null;
+    minLeasePrice: number | null;
+    maxLeasePrice: number | null;
+    complexCount: number;
+    naverLandUrl: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -154,45 +209,18 @@ export async function analyzeCompanyStream(
   onEvent: (event: AnalyzeProgressEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const token = tokenStore.get();
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  } else if (typeof window !== "undefined") {
-    let anonId = localStorage.getItem("anon_id");
-    if (!anonId) {
-      anonId = crypto.randomUUID();
-      localStorage.setItem("anon_id", anonId);
-    }
-    headers["X-Anon-Id"] = anonId;
-  }
-
-  const res = await fetch(`${API_BASE}/company-analysis/analyze`, {
+  const { jobId } = await apiFetch<{ jobId: string }>("/queue/company-analysis", {
     method: "POST",
-    headers,
-    body: JSON.stringify({ companyName, aiModel }),
-    signal,
+    body: JSON.stringify({ companyName, model: aiModel }),
   });
 
+  const res = await fetch(`${API_BASE}/queue/company-analysis/${encodeURIComponent(jobId)}/stream`, {
+    headers: getAuthHeaders(),
+    signal,
+  });
   if (!res.ok || !res.body) {
-    throw new Error(`분석 요청 실패: ${res.status} ${res.statusText}`);
+    throw new Error(`분석 스트림 연결 실패: ${res.status} ${res.statusText}`);
   }
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      try {
-        const event = JSON.parse(line.slice(6)) as AnalyzeProgressEvent;
-        onEvent(event);
-      } catch {}
-    }
-  }
+  await readSSE<AnalyzeProgressEvent>(res, onEvent);
 }

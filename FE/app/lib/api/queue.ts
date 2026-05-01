@@ -2,7 +2,21 @@ import { apiFetch } from "./base";
 
 export type QueueJobStatus = "pending" | "running" | "done" | "error" | "stopped";
 export type QueueJobPhase = "searching" | "analyzing";
-export type QueueJobTaskType = "lightresearch" | "deepresearch" | "summary";
+export type QueueJobTaskType =
+  | "lightresearch"
+  | "deepresearch"
+  | "summary"
+  | "writeassist"
+  | "writeassist_evaluate"
+  | "writeassist_plagiarism"
+  | "writeassist_continue"
+  | "writeassist_section"
+  | "writeassist_improve"
+  | "writeassist_spellcheck"
+  | "writeassist_summarize"
+  | "writeassist_example"
+  | "companyprofile"
+  | "companyanalysis";
 
 export interface WebSources {
   tavily?: string;
@@ -19,6 +33,8 @@ export interface QueueJobSummary {
   taskType: QueueJobTaskType;
   status: QueueJobStatus;
   phase?: QueueJobPhase;
+  displayTitle?: string;
+  displaySubtitle?: string;
   webSources?: WebSources;
 }
 
@@ -37,3 +53,12 @@ export const getQueueStatus = () => apiFetch<QueueStatus>("/queue/status");
 
 export const cancelSummary = (sessionId: string) =>
   apiFetch(`/queue/sessions/${sessionId}/summary`, { method: "DELETE" });
+
+export const cancelWriteAssist = (jobId: string) =>
+  apiFetch(`/queue/write-assist/${jobId}`, { method: "DELETE" });
+
+export const cancelCompanyProfile = (jobId: string) =>
+  apiFetch(`/queue/company-profile/${jobId}`, { method: "DELETE" });
+
+export const cancelCompanyAnalysis = (jobId: string) =>
+  apiFetch(`/queue/company-analysis/${jobId}`, { method: "DELETE" });

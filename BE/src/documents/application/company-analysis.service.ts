@@ -7,19 +7,23 @@ import { CompanyAnalysisEntity } from '../domain/entity/company-analysis.entity'
 import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 import { WebSearchService } from '../../research/application/web-search.service';
 import { JobplanetScraperService } from '../infrastructure/jobplanet-scraper.service';
+import { CareerPageUrlService } from '../infrastructure/career-page-url.service';
 import { DartFinancialService, YearlyFinancial, EmployeeDetail } from '../infrastructure/dart-financial.service';
+import { NeonetRealEstatePriceService } from '../infrastructure/neonet-real-estate-price.service';
+import { ZippoomRealEstateUrlService } from '../infrastructure/zippoom-real-estate-url.service';
 import { requestContext } from '../../shared/request-context';
 
 import {
   COMPETENCY_KEYS, ZERO_SCORES,
   CompetencyScores, CompetencyReasons,
-  SwotAnalysis, Competitor, BusinessSegment, CompanyProfile,
+  SwotAnalysis, Competitor, BusinessSegment, CompanyProfile, HrAnalysis,
   CompanyAnalysisProgress, CompanyAnalysisDto,
 } from '../domain/company-analysis.types';
 import {
   SYSTEM_PROMPT_SCORING,
   SYSTEM_PROMPT_BUSINESS,
   SYSTEM_PROMPT_REPORT,
+  SYSTEM_PROMPT_HR,
 } from '../domain/company-analysis.prompts';
 import {
   parseSearchLinks, isJobPosting, isNewsArticle, isNaverBlog, repairJsonStr,
@@ -35,7 +39,10 @@ export class CompanyAnalysisService {
     private readonly aiProvider: AiProviderService,
     private readonly webSearch: WebSearchService,
     private readonly jobplanetScraper: JobplanetScraperService,
+    private readonly careerPageUrl: CareerPageUrlService,
     private readonly dartFinancial: DartFinancialService,
+    private readonly neonetRealEstatePrice: NeonetRealEstatePriceService,
+    private readonly zippoomRealEstateUrl: ZippoomRealEstateUrlService,
   ) {}
 
   // ── 조회 / 삭제 ────────────────────────────────────────────────────
@@ -126,6 +133,7 @@ export class CompanyAnalysisService {
     // 2-3. 채용 공고 검색
     yield { type: 'log', message: `📋 "${companyName}" 채용 공고 검색 중...` };
     let jobPostings: { title: string; url: string; date: string }[] = [];
+    let careerPageCandidates: { title: string; url: string }[] = [];
     try {
       const { sources: jobSrc } = await this.webSearch.runSearch(`${companyName} 채용 공고 입사지원`);
       const jobText = jobSrc?.tavily ?? jobSrc?.serper ?? jobSrc?.duckduckgo ?? jobSrc?.naver ?? jobSrc?.brave ?? '';
@@ -133,6 +141,12 @@ export class CompanyAnalysisService {
         .filter((j) => j.title && !isNaverBlog(j.url) && (isJobPosting(j.url, j.title) || !isNewsArticle(j.url)))
         .slice(0, 10)
         .map((j) => ({ ...j, date: '' }));
+
+      const { sources: careerSrc } = await this.webSearch.runSearch(`${companyName} 공식 채용 사이트 career jobs`);
+      const careerText = careerSrc?.tavily ?? careerSrc?.serper ?? careerSrc?.duckduckgo ?? careerSrc?.naver ?? careerSrc?.brave ?? '';
+      careerPageCandidates = parseSearchLinks(careerText)
+        .filter((j) => j.title && !isNaverBlog(j.url) && isJobPosting(j.url, j.title))
+        .slice(0, 10);
     } catch {}
 
     // 3. DART OpenAPI
@@ -182,8 +196,28 @@ export class CompanyAnalysisService {
       }
     }
 
-    // 6. AI 분석 (3개 병렬 호출)
-    yield { type: 'log', message: '🤖 AI 분석 시작 (3개 병렬 호출)...' };
+    // 6. 아파트 시세 조회 (DART 주소 기반, 백그라운드)
+    let apartmentPrices: CompanyAnalysisDto['apartmentPrices'] = null;
+    const dartAddress = dartData?.address ?? null;
+    if (dartAddress) {
+      yield { type: 'log', message: `🏠 인근 아파트 시세 조회 중 (${this.neonetRealEstatePrice.extractDistrict(dartAddress) ?? dartAddress})...` };
+      try {
+        apartmentPrices = await this.neonetRealEstatePrice.fetchDistrictPrices(dartAddress);
+        if (apartmentPrices) {
+          apartmentPrices = {
+            ...apartmentPrices,
+            naverLandUrl: this.zippoomRealEstateUrl.buildApartmentUrl(dartAddress),
+          };
+          yield { type: 'log', message: `✅ 시세 조회 완료 — 단지 ${apartmentPrices.complexCount}개, 평균 매매 ${apartmentPrices.avgDealPrice ? (apartmentPrices.avgDealPrice / 10000).toFixed(1) + '억' : '-'}` };
+        } else {
+          yield { type: 'log', message: '⚠️ 시세 데이터 없음 (지원 지역 외 또는 부동산뱅크 목록 없음)' };
+        }
+      } catch (err) {
+        this.logger.warn(`NeonetRealEstate: ${(err as Error).message}`);
+      }
+    }
+
+    // 7. AI 분석 (4개 병렬 호출)
     yield { type: 'scoring' };
 
     const contextParts: string[] = [];
@@ -211,17 +245,21 @@ export class CompanyAnalysisService {
     let parsedReport: string | null = null;
     let parsedCompanySize: string | null = null;
     let parsedMissionVision: { mission: string | null; vision: string | null; coreValues: string[]; talentProfile: string | null } | null = null;
+    let parsedHrAnalysis: HrAnalysis | null = null;
     let aiInputTokens: number | null = null;
     let aiOutputTokens: number | null = null;
     let aiEstimatedFees: number | null = null;
 
-    const [scoringRes, businessRes, reportRes] = await Promise.allSettled([
+    yield { type: 'log', message: '🤖 AI 분석 시작 (4개 병렬 호출)...' };
+
+    const [scoringRes, businessRes, reportRes, hrRes] = await Promise.allSettled([
       this.aiProvider.call(aiModel, SYSTEM_PROMPT_SCORING, userPrompt, { caller: 'CompanyAnalysis/scoring' }),
       this.aiProvider.call(aiModel, SYSTEM_PROMPT_BUSINESS, userPrompt, { caller: 'CompanyAnalysis/business' }),
       this.aiProvider.call(aiModel, SYSTEM_PROMPT_REPORT, userPrompt, { caller: 'CompanyAnalysis/report' }),
+      this.aiProvider.call(aiModel, SYSTEM_PROMPT_HR, userPrompt, { caller: 'CompanyAnalysis/hr' }),
     ]);
 
-    for (const r of [scoringRes, businessRes, reportRes]) {
+    for (const r of [scoringRes, businessRes, reportRes, hrRes]) {
       if (r.status === 'fulfilled') {
         aiInputTokens = (aiInputTokens ?? 0) + (r.value.inputTokens ?? 0);
         aiOutputTokens = (aiOutputTokens ?? 0) + (r.value.outputTokens ?? 0);
@@ -261,11 +299,12 @@ export class CompanyAnalysisService {
         if (Array.isArray(p.competitors)) {
           const validLevels = new Set(['high', 'medium', 'low']);
           parsedCompetitors = p.competitors
-            .map((c: { name?: string; reason?: string; needed?: string; threatLevel?: string }) => ({
+            .map((c: { name?: string; reason?: string; needed?: string; threatLevel?: string; siteUrl?: string }) => ({
               name: c.name?.trim() ?? '',
               reason: c.reason?.trim() ?? '',
               needed: c.needed?.trim() ?? '',
               threatLevel: validLevels.has(c.threatLevel ?? '') ? (c.threatLevel as 'high' | 'medium' | 'low') : 'medium',
+              siteUrl: c.siteUrl?.trim() || null,
             }))
             .filter((c: { name: string }) => c.name);
         }
@@ -335,6 +374,60 @@ export class CompanyAnalysisService {
       this.logger.error(`[AI] report 호출 실패: ${reportRes.reason}`);
     }
 
+    if (hrRes.status === 'fulfilled') {
+      const p = this.parseAiJson(hrRes.value.text, 'hr');
+      if (p) {
+        parsedHrAnalysis = {
+          hrWheel: Array.isArray(p.hrWheel)
+            ? p.hrWheel.map((w: { area?: string; score?: number; evidence?: string }) => ({
+                area: w.area?.trim() ?? '',
+                score: typeof w.score === 'number' ? Math.max(0, Math.min(100, Math.round(w.score))) : 50,
+                evidence: w.evidence?.trim() ?? '',
+              })).filter((w: { area: string }) => w.area)
+            : null,
+          competingValues: p.competingValues
+            ? {
+                clan: Number(p.competingValues.clan) || 0,
+                adhocracy: Number(p.competingValues.adhocracy) || 0,
+                market: Number(p.competingValues.market) || 0,
+                hierarchy: Number(p.competingValues.hierarchy) || 0,
+                dominant: p.competingValues.dominant ?? 'clan',
+                description: p.competingValues.description?.trim() ?? '',
+              }
+            : null,
+          ulrichModel: p.ulrichModel
+            ? {
+                strategicPartner: Number(p.ulrichModel.strategicPartner) || 0,
+                changeAgent: Number(p.ulrichModel.changeAgent) || 0,
+                adminExpert: Number(p.ulrichModel.adminExpert) || 0,
+                employeeChampion: Number(p.ulrichModel.employeeChampion) || 0,
+                dominant: p.ulrichModel.dominant?.trim() ?? '',
+                description: p.ulrichModel.description?.trim() ?? '',
+              }
+            : null,
+          harvardModel: p.harvardModel
+            ? {
+                situationalFactors: Array.isArray(p.harvardModel.situationalFactors) ? p.harvardModel.situationalFactors.filter(Boolean) : [],
+                stakeholderInterests: Array.isArray(p.harvardModel.stakeholderInterests) ? p.harvardModel.stakeholderInterests.filter(Boolean) : [],
+                hrPolicies: Array.isArray(p.harvardModel.hrPolicies) ? p.harvardModel.hrPolicies.filter(Boolean) : [],
+                hrOutcomes: Array.isArray(p.harvardModel.hrOutcomes) ? p.harvardModel.hrOutcomes.filter(Boolean) : [],
+                longTermConsequences: Array.isArray(p.harvardModel.longTermConsequences) ? p.harvardModel.longTermConsequences.filter(Boolean) : [],
+                summary: p.harvardModel.summary?.trim() ?? '',
+              }
+            : null,
+          careerPageUrl: this.careerPageUrl.normalize(
+            companyName,
+            p.careerPageUrl?.trim() || null,
+            [...careerPageCandidates.map((candidate) => candidate.url), ...jobPostings.map((posting) => posting.url)],
+            officialWebsiteUrl,
+          ),
+          dataCollectionNote: p.dataCollectionNote?.trim() || null,
+        };
+      }
+    } else {
+      this.logger.error(`[AI] hr 호출 실패: ${hrRes.reason}`);
+    }
+
     if (!parsedSummary && parsedScores === ZERO_SCORES) {
       yield { type: 'error', message: 'AI 분석 실패: scoring 호출이 결과를 반환하지 않았습니다' };
       return;
@@ -381,6 +474,8 @@ export class CompanyAnalysisService {
       recentNews: recentNews.length > 0 ? JSON.stringify(recentNews) : null,
       jobPostings: jobPostings.length > 0 ? JSON.stringify(jobPostings) : null,
       jobplanetSummary: jobplanetText || null,
+      hrAnalysis: parsedHrAnalysis ? JSON.stringify(parsedHrAnalysis) : null,
+      apartmentPrices: apartmentPrices ? JSON.stringify(apartmentPrices) : null,
     });
 
     yield { type: 'done', result: this.toDto(entity) };
@@ -481,6 +576,8 @@ export class CompanyAnalysisService {
       jobPostings: parse<{ title: string; url: string; date: string }[]>(e.jobPostings),
       jobplanetSummary: e.jobplanetSummary,
       missionVision: parse<{ mission: string | null; vision: string | null; coreValues: string[]; talentProfile: string | null }>(e.missionVision),
+      hrAnalysis: parse<HrAnalysis>(e.hrAnalysis),
+      apartmentPrices: parse<CompanyAnalysisDto['apartmentPrices']>(e.apartmentPrices),
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
     };

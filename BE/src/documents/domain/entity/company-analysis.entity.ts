@@ -133,6 +133,12 @@ export class CompanyAnalysisEntity {
   @Column({ name: 'employee_detail', type: 'text', nullable: true })
   employeeDetail: string | null;
 
+  @Column({ name: 'hr_analysis', type: 'text', nullable: true })
+  hrAnalysis: string | null;
+
+  @Column({ name: 'apartment_prices', type: 'text', nullable: true })
+  apartmentPrices: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

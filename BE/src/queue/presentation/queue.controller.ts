@@ -147,4 +147,29 @@ export class QueueController {
     if (!obs) throw new BadRequestException('진행 중인 작업이 없습니다.');
     return obs;
   }
+
+  // **************** //
+  // Company Analysis //
+  // **************** //
+  @Post('company-analysis')
+  @HttpCode(202)
+  async enqueueCompanyAnalysis(
+    @Body() body: { companyName: string; model?: string },
+  ) {
+    if (!body.companyName?.trim()) throw new BadRequestException('companyName이 필요합니다.');
+    return this.queueService.enqueueCompanyAnalysis(body.companyName, body.model ?? '');
+  }
+
+  @Delete('company-analysis/:jobId')
+  cancelCompanyAnalysis(@Param('jobId') jobId: string) {
+    this.queueService.cancelCompanyAnalysis(jobId);
+    return { ok: true };
+  }
+
+  @Sse('company-analysis/:jobId/stream')
+  streamCompanyAnalysis(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getCompanyAnalysisStream(jobId);
+    if (!obs) throw new BadRequestException('진행 중인 기업 분석 작업이 없습니다.');
+    return obs;
+  }
 }
