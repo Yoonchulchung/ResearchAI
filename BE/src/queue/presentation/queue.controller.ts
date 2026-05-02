@@ -172,4 +172,20 @@ export class QueueController {
     if (!obs) throw new BadRequestException('진행 중인 기업 분석 작업이 없습니다.');
     return obs;
   }
+
+  // *********** //
+  // Doc Parse   //
+  // *********** //
+  @Delete('doc-parse/:jobId')
+  cancelDocParse(@Param('jobId') jobId: string) {
+    this.queueService.cancelDocParse(jobId);
+    return { ok: true };
+  }
+
+  @Sse('doc-parse/:jobId/stream')
+  streamDocParse(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getDocParseStream(jobId);
+    if (!obs) throw new BadRequestException('진행 중인 문서 분석 작업이 없습니다.');
+    return obs;
+  }
 }

@@ -10,6 +10,10 @@ function chatKey(docId: string | null) {
   return `doc-write-chat:${docId ?? "new"}`;
 }
 
+function pendingJobKey(docId: string | null) {
+  return `doc-write-pending:${docId ?? "new"}`;
+}
+
 export function useAiAssist(setContent: Dispatch<SetStateAction<string>>) {
   const searchParams = useSearchParams();
   const docId = searchParams.get("docId");
@@ -17,31 +21,12 @@ export function useAiAssist(setContent: Dispatch<SetStateAction<string>>) {
   const [model, setModel] = useState(MODELS[0].id);
   const [customPrompt, setCustomPrompt] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [streamingContent, setStreamingContent] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLElement | null>(null);
-
-  // docId 변경 시 해당 채팅 히스토리 로드
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(chatKey(docId));
-      setMessages(saved ? JSON.parse(saved) : []);
-    } catch {
-      setMessages([]);
-    }
-  }, [docId]);
-
-  // messages 변경 시 localStorage 저장
-  useEffect(() => {
-    if (messages.length === 0) {
-      localStorage.removeItem(chatKey(docId));
-    } else {
-      localStorage.setItem(chatKey(docId), JSON.stringify(messages));
-    }
-  }, [messages, docId]);
+  const abortRef = useRef<AbortController | null>(null);
 
   // 스크롤 컨테이너 탐색 후 캐시
   const getScrollContainer = useCallback((): HTMLElement | null => {
@@ -58,7 +43,7 @@ export function useAiAssist(setContent: Dispatch<SetStateAction<string>>) {
     return null;
   }, []);
 
-  // 새 메시지/스트리밍 시 하단 근처일 때만 스크롤
+  // 새 메시지 시 하단 근처일 때만 스크롤
   useEffect(() => {
     const container = getScrollContainer();
     if (!container) return;
@@ -66,7 +51,81 @@ export function useAiAssist(setContent: Dispatch<SetStateAction<string>>) {
     if (distFromBottom < 80) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, streamingContent, getScrollContainer]);
+  }, [messages, getScrollContainer]);
+
+  // SSE 스트림 — chunks를 msgId에 해당하는 메시지에 누적
+  const streamIntoMessage = useCallback(async (
+    jobId: string,
+    msgId: string,
+    currentDocId: string | null,
+    resetContent: boolean,
+    signal?: AbortSignal,
+  ) => {
+    if (resetContent) {
+      setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, content: "" } : m));
+    }
+    try {
+      await streamWriteAssist(jobId, (event) => {
+        if (event.type === "chunk") {
+          setMessages((prev) => prev.map((m) =>
+            m.id === msgId ? { ...m, content: m.content + event.text } : m,
+          ));
+        } else if (event.type === "error") {
+          setAiError((event as any).message ?? "오류가 발생했습니다");
+        }
+      }, signal);
+    } finally {
+      setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, streaming: false } : m));
+      try { localStorage.removeItem(pendingJobKey(currentDocId)); } catch { /* 무시 */ }
+      setAiLoading(false);
+    }
+  }, []);
+
+  // docId 변경 시 해당 채팅 히스토리 로드 + pending job 재연결
+  useEffect(() => {
+    abortRef.current?.abort();
+    try {
+      const saved = localStorage.getItem(chatKey(docId));
+      const restored: ChatMessage[] = saved
+        ? JSON.parse(saved).map((m: ChatMessage) => ({ ...m, streaming: false }))
+        : [];
+      setMessages(restored);
+
+      const pendingRaw = localStorage.getItem(pendingJobKey(docId));
+      if (pendingRaw) {
+        const { jobId, msgId } = JSON.parse(pendingRaw) as { jobId: string; msgId: string };
+        const msgExists = restored.some((m) => m.id === msgId);
+        setAiLoading(true);
+        if (msgExists) {
+          setMessages((prev) => prev.map((m) => m.id === msgId ? { ...m, streaming: true } : m));
+        } else {
+          setMessages((prev) => [...prev, { id: msgId, role: "assistant", content: "", streaming: true }]);
+        }
+        const ctrl = new AbortController();
+        abortRef.current = ctrl;
+        streamIntoMessage(jobId, msgId, docId, msgExists, ctrl.signal).catch(() => {
+          setMessages((prev) => prev.map((m) =>
+            m.id === msgId
+              ? { ...m, content: m.content || "연결이 끊겼습니다. 다시 시도해주세요.", streaming: false }
+              : m,
+          ));
+          setAiLoading(false);
+        });
+      }
+    } catch {
+      setMessages([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docId]);
+
+  // messages 변경 시 localStorage 저장
+  useEffect(() => {
+    if (messages.length === 0) {
+      localStorage.removeItem(chatKey(docId));
+    } else {
+      localStorage.setItem(chatKey(docId), JSON.stringify(messages));
+    }
+  }, [messages, docId]);
 
   const runAssist = async (
     instruction: string,
@@ -77,55 +136,49 @@ export function useAiAssist(setContent: Dispatch<SetStateAction<string>>) {
     actionKey?: string,
   ) => {
     if (aiLoading) return;
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: userLabel ?? instruction,
-    };
-    setMessages((prev) => [...prev, userMsg]);
+
+    const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: userLabel ?? instruction };
+    const assistantMsgId = (Date.now() + 1).toString();
+    const assistantMsg: ChatMessage = { id: assistantMsgId, role: "assistant", content: "", streaming: true };
+
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setAiLoading(true);
-    setStreamingContent("");
     setAiError(null);
 
-    let accumulated = "";
     const targetContent = selectedText || content;
-
-    // 현재 메시지 전송 전 상태의 히스토리 (새 user 메시지 제외)
     const currentHistory = messages.map((m) => ({ role: m.role, content: m.content }));
+    const currentDocId = docId;
 
     try {
       let jobId: string;
       if (actionKey) {
-        // 백엔드에서 프롬프트 조립 (액션 버튼은 히스토리 불필요)
         const experiences = selectedExperiences.map((e) => ({ title: e.title, content: e.content }));
         ({ jobId } = await enqueueDocWriteAssist(actionKey, targetContent, model, experiences, instruction || undefined));
       } else {
-        // 커스텀 프롬프트: 이전 대화 히스토리 포함해 연속성 유지
         const expContext =
           selectedExperiences.length > 0
             ? `## 참고할 나의 경험\n${selectedExperiences.map((e) => `### ${e.title}\n${e.content}`).join("\n\n")}\n\n---\n\n`
             : "";
         ({ jobId } = await enqueueWriteAssist(targetContent, expContext + instruction, model, currentHistory));
       }
-      await streamWriteAssist(jobId, (event) => {
-        if (event.type === "chunk") {
-          accumulated += event.text;
-          setStreamingContent(accumulated);
-        } else if (event.type === "error") {
-          setAiError(event.message);
-        }
-      });
-      if (accumulated) {
-        setMessages((prev) => [
-          ...prev,
-          { id: (Date.now() + 1).toString(), role: "assistant", content: accumulated },
-        ]);
-      }
+
+      try { localStorage.setItem(pendingJobKey(currentDocId), JSON.stringify({ jobId, msgId: assistantMsgId })); } catch { /* 무시 */ }
+
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+      await streamIntoMessage(jobId, assistantMsgId, currentDocId, false, ctrl.signal);
     } catch (e) {
-      setAiError(e instanceof Error ? e.message : "오류가 발생했습니다");
-    } finally {
+      if ((e as Error).name !== "AbortError") {
+        setMessages((prev) => prev.map((m) =>
+          m.id === assistantMsgId
+            ? { ...m, content: m.content || "오류가 발생했습니다.", streaming: false }
+            : m,
+        ));
+        setAiError(e instanceof Error ? e.message : "오류가 발생했습니다");
+      }
+      try { localStorage.removeItem(pendingJobKey(currentDocId)); } catch { /* 무시 */ }
       setAiLoading(false);
-      setStreamingContent("");
+    } finally {
       setCustomPrompt("");
     }
   };
@@ -146,7 +199,7 @@ export function useAiAssist(setContent: Dispatch<SetStateAction<string>>) {
       );
       await streamWriteAssist(jobId, (event) => {
         if (event.type === "chunk") accumulated += event.text;
-        else if (event.type === "error") setAiError(event.message);
+        else if (event.type === "error") setAiError((event as any).message ?? "오류가 발생했습니다");
       });
       if (accumulated) onResult(accumulated.trim());
     } catch (e) {
@@ -177,7 +230,6 @@ export function useAiAssist(setContent: Dispatch<SetStateAction<string>>) {
     setCustomPrompt,
     messages,
     setMessages,
-    streamingContent,
     aiLoading,
     aiError,
     copiedId,

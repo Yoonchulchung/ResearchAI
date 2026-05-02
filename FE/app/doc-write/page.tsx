@@ -219,7 +219,6 @@ function DocWritePageInner() {
         <div style={{ "--split": `${(1 - splitRatio) * 100}%` } as any} className="w-full md:w-[var(--split)] flex-1 md:flex-none flex flex-col min-h-[50vh] md:min-h-0 overflow-hidden">
           <AiPanel
             messages={ai.messages}
-            streamingContent={ai.streamingContent}
             aiLoading={ai.aiLoading}
             aiError={ai.aiError}
             customPrompt={ai.customPrompt}

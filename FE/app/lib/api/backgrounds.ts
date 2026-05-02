@@ -1,4 +1,4 @@
-import { tokenStore, API_BASE, BE_BASE } from "./base";
+import { tokenStore, API_BASE, BE_BASE, apiFetch } from "./base";
 
 export interface BgImage {
   id: string;
@@ -16,9 +16,7 @@ function authHeaders(): Record<string, string> {
 }
 
 export async function listBgImages(): Promise<BgImage[]> {
-  const res = await fetch(`${API_BASE}/backgrounds`, { headers: authHeaders() });
-  if (!res.ok) throw new Error("배경 이미지 목록 조회 실패");
-  return res.json();
+  return apiFetch<BgImage[]>("/backgrounds", { headers: authHeaders() });
 }
 
 export async function uploadBgImage(file: File): Promise<BgImage> {
@@ -30,7 +28,12 @@ export async function uploadBgImage(file: File): Promise<BgImage> {
     body: form,
   });
   if (!res.ok) throw new Error("업로드 실패");
-  return res.json();
+  const data = await res.json();
+  const envelope = data as { isSuccess?: unknown; result?: unknown };
+  if (envelope.isSuccess === true && Object.prototype.hasOwnProperty.call(envelope, "result")) {
+    return envelope.result as BgImage;
+  }
+  return data as BgImage;
 }
 
 export async function deleteBgImage(id: string): Promise<void> {

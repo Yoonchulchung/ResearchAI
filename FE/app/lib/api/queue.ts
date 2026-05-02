@@ -16,7 +16,9 @@ export type QueueJobTaskType =
   | "writeassist_summarize"
   | "writeassist_example"
   | "companyprofile"
-  | "companyanalysis";
+  | "companyanalysis"
+  | "docparse_ask"
+  | "docparse_action";
 
 export interface WebSources {
   tavily?: string;
@@ -65,3 +67,6 @@ export const cancelCompanyProfile = (jobId: string) =>
 
 export const cancelCompanyAnalysis = (jobId: string) =>
   apiFetch(`/queue/company-analysis/${jobId}`, { method: "DELETE" });
+
+export const cancelDocParse = (jobId: string) =>
+  apiFetch(`/queue/doc-parse/${jobId}`, { method: "DELETE" });

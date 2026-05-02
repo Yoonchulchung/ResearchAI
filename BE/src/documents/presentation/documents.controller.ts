@@ -1,8 +1,7 @@
 import {
-  Body, Controller, Delete, Get, Param, Patch, Post,
-  UploadedFile, UseInterceptors, BadRequestException, Req, Res,
+  Body, Controller, Delete, Get, HttpCode, Param, Patch, Post,
+  UploadedFile, UseInterceptors, BadRequestException,
 } from '@nestjs/common';
-import type { Request, Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { DocumentsService } from '../application/documents.service';
@@ -200,23 +199,35 @@ export class DocumentsController {
   }
 
   @Post('doc-parse/ask')
-  async ask(@Body() body: { docText: string; question: string; aiModel?: string }) {
+  @HttpCode(202)
+  async enqueueAsk(@Body() body: { docText: string; question: string; aiModel?: string }) {
     if (!body.docText || !body.question) throw new BadRequestException('docText와 question이 필요합니다');
-    return this.service.ask(body.docText, body.question, body.aiModel);
+    return this.service.enqueueDocParseAsk(body.docText, body.question, body.aiModel);
   }
 
   @Post('doc-parse/quick-action')
-  async quickAction(@Body() body: { docText: string; action: 'translate' | 'summarize' | 'explain' | 'keywords'; aiModel?: string }) {
+  @HttpCode(202)
+  async enqueueQuickAction(@Body() body: { docText: string; action: string; aiModel?: string }) {
     if (!body.docText || !body.action) throw new BadRequestException('docText와 action이 필요합니다');
-    return this.service.quickAction(body.docText, body.action, body.aiModel);
+    return this.service.enqueueDocParseAction(body.action, body.docText, undefined, body.aiModel);
   }
 
-  @Post('doc-parse/evaluate')
-  async evaluate(@Body() body: { pages: string[]; aiModel?: string }) {
+  @Post('doc-parse/summarize-pages')
+  @HttpCode(202)
+  async enqueueSummarizePages(@Body() body: { pages: string[]; aiModel?: string }) {
     if (!body.pages || !Array.isArray(body.pages) || body.pages.length === 0) {
       throw new BadRequestException('pages 배열이 필요합니다');
     }
-    return this.service.evaluatePortfolio(body.pages, body.aiModel);
+    return this.service.enqueueDocParseAction('summarize', undefined, body.pages, body.aiModel);
+  }
+
+  @Post('doc-parse/evaluate')
+  @HttpCode(202)
+  async enqueueEvaluate(@Body() body: { pages: string[]; aiModel?: string }) {
+    if (!body.pages || !Array.isArray(body.pages) || body.pages.length === 0) {
+      throw new BadRequestException('pages 배열이 필요합니다');
+    }
+    return this.service.enqueueDocParseAction('evaluate', undefined, body.pages, body.aiModel);
   }
 
   // ── Experiences ─────────────────────────────────────────────────────────

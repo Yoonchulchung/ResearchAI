@@ -7,6 +7,7 @@ import { SummaryExecutorService } from './application/job/summary-executor.servi
 import { WriteAssistExecutorService } from './application/job/write-assist/write-assist-executor.service';
 import { CompanyProfileExecutorService } from './application/job/company-profile-executor.service';
 import { CompanyAnalysisExecutorService } from './application/job/company-analysis-executor.service';
+import { DocParseExecutorService } from './application/job/doc-parse-executor.service';
 import { QueueController } from './presentation/queue.controller';
 import { ResearchModule } from '../research/research.module';
 import { SessionsModule } from '../sessions/sessions.module';
@@ -34,6 +35,7 @@ import { AppConfigModule } from '../config/config.module';
     WriteAssistExecutorService,
     CompanyProfileExecutorService,
     CompanyAnalysisExecutorService,
+    DocParseExecutorService,
     QueueJobRepository,
   ],
   exports: [QueueService],

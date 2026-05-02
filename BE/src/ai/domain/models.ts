@@ -26,6 +26,8 @@ export function getProvider(model: string): AIProvider {
   return AIProvider.OPENAI;
 }
 
+export const GROQ_FREE_MAX_INPUT_CHARS = 20_000; // Groq 무료 TPM 12,000 기준 (한국어 ~2 chars/token, 출력 2,000 토큰 예약)
+
 export const MODELS = [
   {
     id: 'claude-opus-4-6',
@@ -106,5 +108,17 @@ export const MODELS = [
     outputPricePer1M: 10,
     contextWindow: 1000000,
     webSearch: true,
+  },
+  // Groq 무료 폴백 모델
+  {
+    id: 'llama-3.3-70b-versatile',
+    name: 'Llama 3.3 70B (Groq Free)',
+    provider: 'groq',
+    description: 'Groq 무료 티어 · Gemini 할당량 초과 시 자동 폴백',
+    inputPricePer1M: 0,
+    outputPricePer1M: 0,
+    contextWindow: 128000,
+    webSearch: false,
+    free: true,
   },
 ];

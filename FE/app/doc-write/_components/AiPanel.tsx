@@ -41,7 +41,6 @@ const KEY_TO_ICON: Record<string, React.ReactNode> = {
 
 interface Props {
   messages: ChatMessage[];
-  streamingContent: string;
   aiLoading: boolean;
   aiError: string | null;
   customPrompt: string;
@@ -64,7 +63,6 @@ interface Props {
 
 export function AiPanel({
   messages,
-  streamingContent,
   aiLoading,
   aiError,
   customPrompt,
@@ -147,7 +145,7 @@ export function AiPanel({
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-4">
-        {messages.length === 0 && !streamingContent && !aiError && (
+        {messages.length === 0 && !aiError && (
           <div className={`flex flex-col items-center justify-center h-full gap-3 pb-16 ${isDark ? "text-white/30" : "text-slate-300"}`}>
             <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
               <path d="M18 3L21.5 13.5L32 18L21.5 22.5L18 33L14.5 22.5L4 18L14.5 13.5L18 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -166,63 +164,56 @@ export function AiPanel({
               </div>
             ) : (
               <div className="w-full">
-                <div className={`${PROSE_CLASS} border rounded-2xl rounded-tl-sm px-4 py-3 text-sm ${isGlass 
-                  ? (isDark ? "bg-white/10 border-white/20 text-white/95 shadow-lg prose-invert backdrop-blur-md" : "bg-white/60 border-black/10 text-slate-800 shadow-sm backdrop-blur-md") 
-                  : "bg-white border-slate-200/80 shadow-sm"}`}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                <div className={`${PROSE_CLASS} border rounded-2xl rounded-tl-sm px-4 py-3 text-sm ${isGlass
+                  ? (isDark ? "bg-white/10 border-white/20 text-white/95 shadow-lg prose-invert backdrop-blur-md" : "bg-white/60 border-black/10 text-slate-800 shadow-sm backdrop-blur-md")
+                  : "bg-white border-slate-200/80 shadow-sm"} ${msg.streaming ? "opacity-80" : ""}`}>
+                  {msg.streaming && !msg.content ? (
+                    <div className="flex gap-1.5 py-1">
+                      {[0, 1, 2].map((i) => (
+                        <span key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-300 animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                      {msg.streaming && (
+                        <span className="inline-block w-1 h-3.5 bg-indigo-400 animate-pulse ml-0.5 align-text-bottom" />
+                      )}
+                    </>
+                  )}
                 </div>
-                <div className="flex items-center gap-1.5 mt-1.5 px-1">
-                  <button
-                    onClick={() => onApplyResult(msg.content, "append")}
-                    className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${
-                      isGlass && isDark ? "text-indigo-200 bg-white/10 border-white/20 hover:bg-white/20" : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
-                    }`}
-                  >
-                    <IconAppend /> 추가
-                  </button>
-                  <button
-                    onClick={() => onApplyResult(msg.content, "replace")}
-                    className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${
-                      isGlass && isDark ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10" : "text-slate-600 bg-white hover:bg-slate-50 border-slate-200/60 shadow-sm"
-                    }`}
-                  >
-                    <IconInsert /> 교체
-                  </button>
-                  <button
-                    onClick={() => onCopyText(msg.content, msg.id)}
-                    className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${
-                      isGlass && isDark ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10" : "text-slate-600 bg-white hover:bg-slate-50 border-slate-200/60 shadow-sm"
-                    }`}
-                  >
-                    <IconCopy /> {copiedId === msg.id ? "복사됨" : "복사"}
-                  </button>
-                </div>
+                {!msg.streaming && (
+                  <div className="flex items-center gap-1.5 mt-1.5 px-1">
+                    <button
+                      onClick={() => onApplyResult(msg.content, "append")}
+                      className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${
+                        isGlass && isDark ? "text-indigo-200 bg-white/10 border-white/20 hover:bg-white/20" : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
+                      }`}
+                    >
+                      <IconAppend /> 추가
+                    </button>
+                    <button
+                      onClick={() => onApplyResult(msg.content, "replace")}
+                      className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${
+                        isGlass && isDark ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10" : "text-slate-600 bg-white hover:bg-slate-50 border-slate-200/60 shadow-sm"
+                      }`}
+                    >
+                      <IconInsert /> 교체
+                    </button>
+                    <button
+                      onClick={() => onCopyText(msg.content, msg.id)}
+                      className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${
+                        isGlass && isDark ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10" : "text-slate-600 bg-white hover:bg-slate-50 border-slate-200/60 shadow-sm"
+                      }`}
+                    >
+                      <IconCopy /> {copiedId === msg.id ? "복사됨" : "복사"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         ))}
-
-        {streamingContent && (
-          <div className="flex flex-col items-start gap-1">
-            <div className={`${PROSE_CLASS} w-full bg-white border border-slate-200/80 rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm opacity-80`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
-            </div>
-          </div>
-        )}
-
-        {aiLoading && !streamingContent && (
-          <div className="flex items-start">
-            <div className="flex gap-1.5 px-4 py-3 bg-white border border-slate-200/80 rounded-2xl rounded-tl-sm shadow-sm">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className="w-1.5 h-1.5 rounded-full bg-indigo-300 animate-bounce"
-                  style={{ animationDelay: `${i * 150}ms` }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
 
         {aiError && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">

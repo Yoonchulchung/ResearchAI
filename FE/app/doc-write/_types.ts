@@ -2,6 +2,7 @@ export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  streaming?: boolean;
 };
 
 export type AssistAction = {

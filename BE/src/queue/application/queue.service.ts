@@ -21,6 +21,7 @@ import { SummaryExecutorService } from './job/summary-executor.service';
 import { WriteAssistExecutorService, WriteAssistExtras } from './job/write-assist/write-assist-executor.service';
 import { CompanyProfileExecutorService } from './job/company-profile-executor.service';
 import { CompanyAnalysisExecutorService } from './job/company-analysis-executor.service';
+import { DocParseExecutorService } from './job/doc-parse-executor.service';
 import { QueueJobRepository } from '../domain/repository/queue-job.repository';
 import { QueueJobDbStatus } from '../domain/entity/queue-job.entity';
 import { randomUUID } from 'crypto';
@@ -41,6 +42,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private companyProfileAccumulated = new Map<string, string>();
   private companyAnalysisSubjects = new Map<string, Subject<MessageEvent>>();
   private companyAnalysisAccumulated = new Map<string, CompanyAnalysisProgress[]>();
+  private docParseSubjects = new Map<string, Subject<MessageEvent>>();
+  private docParseAccumulated = new Map<string, string>();
   private cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private runningCount = 0;
 
@@ -60,6 +63,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     private readonly writeAssistExecutor: WriteAssistExecutorService,
     private readonly companyProfileExecutor: CompanyProfileExecutorService,
     private readonly companyAnalysisExecutor: CompanyAnalysisExecutorService,
+    private readonly docParseExecutor: DocParseExecutorService,
     private readonly queueJobRepository: QueueJobRepository,
     private readonly sessionGateway: SessionGateway,
     private readonly aiProvider: AiProviderService,
@@ -144,6 +148,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       subject.complete();
     }
     for (const subject of this.companyAnalysisSubjects.values()) {
+      subject.complete();
+    }
+    for (const subject of this.docParseSubjects.values()) {
       subject.complete();
     }
     for (const timer of this.cleanupTimers.values()) {
@@ -241,6 +248,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       [QueueJob.TaskType.WRITEASSIST_EXAMPLE]: '예시 생성',
       [QueueJob.TaskType.COMPANYPROFILE]: '기업 프로필',
       [QueueJob.TaskType.COMPANYANALYSIS]: '기업 분석',
+      [QueueJob.TaskType.DOCPARSE_ASK]: '문서 질문',
+      [QueueJob.TaskType.DOCPARSE_ACTION]: '문서 분석',
     };
     return labels[taskType] ?? taskType;
   }
@@ -612,6 +621,77 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     this.companyAnalysisAccumulated.delete(jobId);
   }
 
+  // *********** //
+  // Doc Parse   //
+  // *********** //
+  async enqueueDocParseAsk(docText: string, question: string, model: string): Promise<{ jobId: string }> {
+    const jobId = randomUUID();
+    this.docParseSubjects.set(jobId, new Subject<MessageEvent>());
+    this.docParseAccumulated.set(jobId, '');
+    await this.pushJob({
+      jobId,
+      sessionId: jobId,
+      itemId: '',
+      itemContent: JSON.stringify({ docText, question }),
+      taskType: QueueJob.TaskType.DOCPARSE_ASK,
+      localAIModel: '',
+      CloudAIModel: model,
+      status: QueueJobStatus.PENDING,
+    });
+    return { jobId };
+  }
+
+  async enqueueDocParseAction(
+    action: string,
+    docText: string | undefined,
+    pages: string[] | undefined,
+    model: string,
+  ): Promise<{ jobId: string }> {
+    const jobId = randomUUID();
+    this.docParseSubjects.set(jobId, new Subject<MessageEvent>());
+    this.docParseAccumulated.set(jobId, '');
+    await this.pushJob({
+      jobId,
+      sessionId: jobId,
+      itemId: '',
+      itemContent: JSON.stringify({ action, docText, pages }),
+      taskType: QueueJob.TaskType.DOCPARSE_ACTION,
+      localAIModel: '',
+      CloudAIModel: model,
+      status: QueueJobStatus.PENDING,
+    });
+    return { jobId };
+  }
+
+  getDocParseStream(jobId: string): Observable<MessageEvent> | null {
+    const subject = this.docParseSubjects.get(jobId);
+    if (!subject) return null;
+    const accumulated = this.docParseAccumulated.get(jobId) ?? '';
+    if (accumulated) {
+      return concat(
+        of({ data: { type: SseEventType.CHUNK, text: accumulated } } as MessageEvent),
+        subject.asObservable(),
+      );
+    }
+    return subject.asObservable();
+  }
+
+  cancelDocParse(jobId: string): void {
+    const job = this.jobs.find(
+      (j) => j.jobId === jobId &&
+        (j.taskType === QueueJob.TaskType.DOCPARSE_ASK || j.taskType === QueueJob.TaskType.DOCPARSE_ACTION),
+    );
+    if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
+      this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
+      this.abortControllers.get(job.jobId)?.abort();
+    }
+    const subject = this.docParseSubjects.get(jobId);
+    subject?.next({ data: { type: SseEventType.ERROR, message: '작업이 중단되었습니다.' } });
+    subject?.complete();
+    this.docParseSubjects.delete(jobId);
+    this.docParseAccumulated.delete(jobId);
+  }
+
   // ********* //
   // 큐 작업 중단 //
   // ********* //
@@ -868,6 +948,37 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.writeAssistAccumulated.delete(job.jobId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
 
+      } else if (
+        job.taskType === QueueJob.TaskType.DOCPARSE_ASK ||
+        job.taskType === QueueJob.TaskType.DOCPARSE_ACTION
+      ) {
+
+        const subject = this.docParseSubjects.get(job.jobId);
+        const payload = JSON.parse(job.itemContent) as {
+          docText?: string; question?: string; action?: string; pages?: string[];
+        };
+        const onChunk = (chunk: string) => {
+          this.docParseAccumulated.set(job.jobId, (this.docParseAccumulated.get(job.jobId) ?? '') + chunk);
+          subject?.next({ data: { type: SseEventType.CHUNK, text: chunk } });
+        };
+
+        let fullText: string;
+        if (job.taskType === QueueJob.TaskType.DOCPARSE_ASK) {
+          fullText = await this.docParseExecutor.executeAsk(
+            payload.docText ?? '', payload.question ?? '', job.CloudAIModel, onChunk, controller.signal,
+          );
+        } else {
+          fullText = await this.docParseExecutor.executeAction(
+            payload.action ?? '', payload.docText, payload.pages, job.CloudAIModel, onChunk, controller.signal,
+          );
+        }
+
+        subject?.next({ data: { type: SseEventType.DONE } });
+        subject?.complete();
+        this.docParseSubjects.delete(job.jobId);
+        this.docParseAccumulated.delete(job.jobId);
+        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
+
       } else if (job.taskType === QueueJob.TaskType.SUMMARY) {
 
         const subject = this.summarySubjects.get(job.sessionId);
@@ -938,6 +1049,17 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         subject?.complete();
         this.companyAnalysisSubjects.delete(job.jobId);
         this.companyAnalysisAccumulated.delete(job.jobId);
+
+      } else if (
+        job.taskType === QueueJob.TaskType.DOCPARSE_ASK ||
+        job.taskType === QueueJob.TaskType.DOCPARSE_ACTION
+      ) {
+
+        const subject = this.docParseSubjects.get(job.jobId);
+        subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
+        subject?.complete();
+        this.docParseSubjects.delete(job.jobId);
+        this.docParseAccumulated.delete(job.jobId);
 
       } else {
         console.log("Unsupported taskType is called");

@@ -174,37 +174,78 @@ ${pagesBlock}`;
     return { answer };
   }
 
+  private buildAskContext(docText: string, question: string) {
+    const system = `당신은 문서 분석 전문가입니다. 사용자가 제공한 문서 내용을 기반으로 질문에 답변합니다.
+답변은 한국어로 작성하고, 문서에 없는 내용은 추측하지 마세요.
+문서 내용에서 관련 부분을 인용하거나 참조하여 답변하세요.`;
+    const prompt = `=== 문서 내용 ===\n${docText.slice(0, 30000)}\n\n=== 질문 ===\n${question}`;
+    return { system, prompt };
+  }
+
   async ask(
     docText: string,
     question: string,
     aiModel = 'claude-sonnet-4-6',
   ): Promise<DocAskResult> {
-    const system = `당신은 문서 분석 전문가입니다. 사용자가 제공한 문서 내용을 기반으로 질문에 답변합니다.
-답변은 한국어로 작성하고, 문서에 없는 내용은 추측하지 마세요.
-문서 내용에서 관련 부분을 인용하거나 참조하여 답변하세요.`;
-
-    const prompt = `=== 문서 내용 ===
-${docText.slice(0, 30000)}
-
-=== 질문 ===
-${question}`;
-
+    const { system, prompt } = this.buildAskContext(docText, question);
     const { text: answer } = await this.aiProvider.call(aiModel, system, prompt);
     return { answer };
   }
 
+  async *askStream(
+    docText: string,
+    question: string,
+    aiModel = 'claude-sonnet-4-6',
+  ): AsyncGenerator<string> {
+    const { system, prompt } = this.buildAskContext(docText, question);
+    yield* this.aiProvider.stream(aiModel, system, [{ role: 'user', content: prompt }]);
+  }
+
   async quickAction(
     docText: string,
-    action: 'translate' | 'summarize' | 'explain' | 'keywords',
+    action: 'translate' | 'explain' | 'keywords',
     aiModel = 'claude-sonnet-4-6',
   ): Promise<DocAskResult> {
     const prompts: Record<string, string> = {
       translate: '이 문서의 내용을 한국어로 번역해주세요. 원문의 구조와 형식을 최대한 유지하세요.',
-      summarize: '이 문서의 핵심 내용을 3~5개의 불릿 포인트로 요약해주세요.',
       explain: '이 문서의 내용을 쉬운 말로 설명해주세요. 전문 용어가 있다면 풀어서 설명하세요.',
       keywords: '이 문서에서 핵심 키워드와 주요 개념을 추출하고 각각 간략히 설명해주세요.',
     };
     return this.ask(docText, prompts[action], aiModel);
+  }
+
+  /** 페이지별 요약 — 각 페이지를 개별 분석하여 마크다운으로 반환 */
+  async summarizeByPage(
+    pages: string[],
+    aiModel = 'claude-sonnet-4-6',
+  ): Promise<DocAskResult> {
+    if (!pages || pages.length === 0) return { answer: '요약할 페이지가 없습니다.' };
+
+    const system = `당신은 문서 요약 전문가입니다. 각 페이지의 핵심 내용을 간결하고 명확하게 요약합니다.`;
+
+    const pagesBlock = pages
+      .map((p, i) => `### 페이지 ${i + 1}\n${p.trim() || '(텍스트 없음)'}`)
+      .join('\n\n---\n\n');
+
+    const prompt = `다음은 문서의 페이지별 텍스트입니다. 각 페이지의 핵심 내용을 2~4개의 불릿으로 요약해주세요.
+
+## 출력 형식
+
+### 페이지 1
+- 핵심 내용 1
+- 핵심 내용 2
+
+### 페이지 2
+- ...
+
+---
+
+## 문서 내용 (총 ${pages.length}페이지)
+
+${pagesBlock}`;
+
+    const { text: answer } = await this.aiProvider.call(aiModel, system, prompt);
+    return { answer };
   }
 
   // ── Experiences ──────────────────────────────────────────────────────────
@@ -352,5 +393,20 @@ ${content}
     companyCtx?: string,
   ): Promise<{ jobId: string }> {
     return this.queueService.enqueueDocWriteAssist(action, content, model, experiences, companyCtx);
+  }
+
+  // ── Doc Parse (queue) ────────────────────────────────────────────────────
+
+  enqueueDocParseAsk(docText: string, question: string, model?: string): Promise<{ jobId: string }> {
+    return this.queueService.enqueueDocParseAsk(docText, question, model ?? '');
+  }
+
+  enqueueDocParseAction(
+    action: string,
+    docText: string | undefined,
+    pages: string[] | undefined,
+    model?: string,
+  ): Promise<{ jobId: string }> {
+    return this.queueService.enqueueDocParseAction(action, docText, pages, model ?? '');
   }
 }

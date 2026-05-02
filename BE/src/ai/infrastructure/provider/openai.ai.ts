@@ -18,10 +18,11 @@ export async function callOpenAI(
   messages: OpenAI.ChatCompletionMessageParam[],
   tools?: OpenAI.ChatCompletionTool[],
   signal?: AbortSignal,
+  maxOutputTokens = 4000,
 ): Promise<AiCallResult> {
   const response = await client.chat.completions.create({
     model,
-    max_tokens: 4000,
+    max_tokens: maxOutputTokens,
     messages: [{ role: 'system', content: system }, ...messages],
     ...(tools ? { tools } : {}),
   }, { signal });
@@ -49,10 +50,11 @@ export async function* streamOpenAI(
   model: string,
   system: string,
   messages: VlmMessage[],
+  maxOutputTokens = 4000,
 ): AsyncGenerator<string> {
   const completion = await client.chat.completions.create({
     model,
-    max_tokens: 4000,
+    max_tokens: maxOutputTokens,
     messages: [
       { role: 'system', content: system },
       ...messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: toOpenAIContent(m.content) } as OpenAI.ChatCompletionMessageParam)),

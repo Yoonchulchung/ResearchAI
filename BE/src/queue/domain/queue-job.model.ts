@@ -37,6 +37,8 @@ export namespace QueueJob {
     WRITEASSIST_EXAMPLE    = 'writeassist_example',
     COMPANYPROFILE         = 'companyprofile',
     COMPANYANALYSIS        = 'companyanalysis',
+    DOCPARSE_ASK           = 'docparse_ask',
+    DOCPARSE_ACTION        = 'docparse_action',
   }
 
   export function isWriteAssist(type: TaskType): boolean {
