@@ -115,7 +115,7 @@ function DocWritePageInner() {
 
         {/* 기업 분석 — 인재상 핵심역량 매핑 페이지로 이동 */}
         <button
-          onClick={() => router.push("/doc-write/company-analysis")}
+          onClick={() => router.push("/company-analysis")}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border transition-all bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">

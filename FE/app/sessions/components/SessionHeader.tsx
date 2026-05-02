@@ -21,6 +21,9 @@ interface Props {
   onFilterModelChange?: (id: string) => void;
   reEvalProgress?: { done: number; total: number } | null;
   avgConfidence?: number | null;
+  totalInputTokens?: number | null;
+  totalOutputTokens?: number | null;
+  totalFees?: number | null;
   onRunAll: (cloudAiModel?: string, webModel?: string, filterModel?: string) => void;
   onCancel: () => void;
   onExport: () => void;
@@ -54,6 +57,9 @@ export function SessionHeader({
   onFilterModelChange,
   reEvalProgress,
   avgConfidence,
+  totalInputTokens,
+  totalOutputTokens,
+  totalFees,
   onRunAll,
   onCancel,
   onExport,
@@ -200,6 +206,26 @@ export function SessionHeader({
           )}
         </div>
       </div>
+
+      {/* Token / Cost row */}
+      {(totalInputTokens || totalOutputTokens || totalFees) && (
+        <div className="flex items-center gap-3 pb-2 flex-wrap">
+          {(totalInputTokens != null || totalOutputTokens != null) && (
+            <span className="text-2xs text-slate-400 tabular-nums">
+              토큰 {((totalInputTokens ?? 0) + (totalOutputTokens ?? 0)).toLocaleString()}
+              <span className="text-slate-300 mx-1">·</span>
+              입력 {(totalInputTokens ?? 0).toLocaleString()}
+              <span className="text-slate-300 mx-1">/</span>
+              출력 {(totalOutputTokens ?? 0).toLocaleString()}
+            </span>
+          )}
+          {totalFees != null && totalFees > 0 && (
+            <span className="text-2xs text-slate-400 tabular-nums">
+              비용 <span className="text-slate-500 font-medium">${totalFees.toFixed(4)}</span>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Row 2: Model Selectors */}
       {hasRunSelectors && !allDone && (

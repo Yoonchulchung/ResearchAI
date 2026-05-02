@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { WS_BASE } from "@/lib/api/base";
 import { useSummaryProgress } from "@/contexts/SummaryProgressContext";
 import {
@@ -53,7 +54,23 @@ function getJobSubtitle(job: QueueStatus["jobs"][0]) {
   return job.displaySubtitle ? `${job.displaySubtitle} · ${status}` : status;
 }
 
+function getJobLink(job: QueueStatus["jobs"][0]): string | null {
+  if (job.taskType === "companyanalysis") {
+    const params = new URLSearchParams();
+    if (job.companyName) params.set("company", job.companyName);
+    if (job.status === "error" && (job.errorMessage || job.result)) {
+      params.set("error", job.errorMessage || job.result || "");
+    }
+    return `/company-analysis?${params.toString()}`;
+  }
+  if (job.taskType === "deepresearch" || job.taskType === "summary") {
+    return `/sessions/${job.sessionId}`;
+  }
+  return null;
+}
+
 export function QueueWidget() {
+  const router = useRouter();
   const { items: summaryItems, dismiss: dismissSummary } = useSummaryProgress();
   const [collapsed, setCollapsed] = useState(false);
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
@@ -108,7 +125,12 @@ export function QueueWidget() {
     };
   }, []);
 
-  const handleCancelJob = async (job: QueueStatus["jobs"][0]) => {
+  const handleCancelJob = async (e: React.MouseEvent, job: QueueStatus["jobs"][0]) => {
+    e.stopPropagation();
+    // 낙관적 UI 업데이트
+    setQueueStatus((prev) =>
+      prev ? { ...prev, jobs: prev.jobs.filter((j) => j.jobId !== job.jobId) } : prev,
+    );
     try {
       if (job.taskType === "deepresearch") {
         await stopResearchItem(job.sessionId, job.itemId);
@@ -123,16 +145,17 @@ export function QueueWidget() {
       } else if (job.taskType === "companyanalysis") {
         await cancelCompanyAnalysis(job.jobId);
       }
-      setQueueStatus((prev) =>
-        prev ? { ...prev, jobs: prev.jobs.filter((j) => j.jobId !== job.jobId) } : prev
-      );
     } catch { /* 취소 실패 무시 */ }
+  };
+
+  const handleJobClick = (job: QueueStatus["jobs"][0]) => {
+    const link = getJobLink(job);
+    if (link) router.push(link);
   };
 
   const visibleJobs = queueStatus?.jobs
     .filter((j) => j.status === "pending" || j.status === "running" || j.status === "error")
     .slice(0, 8) ?? [];
-  const activeJobs = visibleJobs.filter((j) => j.status === "pending" || j.status === "running");
   const hasQueue = visibleJobs.length > 0;
 
   if (summaryItems.length === 0 && !hasQueue) return null;
@@ -189,38 +212,41 @@ export function QueueWidget() {
       )}
       {!collapsed && hasQueue && (
         <div className="flex flex-col gap-1 mt-1 pt-1 border-t border-indigo-100">
-          {visibleJobs.map((job) => (
-            <div key={job.jobId} className="flex items-center justify-between gap-2 rounded-md px-1 py-1">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                {job.status === "running" ? (
-                  <span className="text-indigo-400 animate-pulse text-xs">●</span>
-                ) : job.status === "error" ? (
-                  <span className="text-red-400 text-xs">✕</span>
-                ) : (
-                  <span className="text-yellow-400 text-xs">○</span>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-semibold text-slate-700 truncate" title={getJobTitle(job)}>
-                    {getJobTitle(job)}
-                  </div>
-                  <div className={`text-2xs font-medium truncate ${STATUS_COLOR[job.status]}`}>
-                    {getJobSubtitle(job)}
+          {visibleJobs.map((job) => {
+            const clickable = !!getJobLink(job);
+            return (
+              <div
+                key={job.jobId}
+                onClick={() => handleJobClick(job)}
+                className={`flex items-center justify-between gap-2 rounded-md px-1 py-1 transition-colors ${clickable ? "cursor-pointer hover:bg-indigo-100" : ""}`}
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {job.status === "running" ? (
+                    <span className="text-indigo-400 animate-pulse text-xs">●</span>
+                  ) : job.status === "error" ? (
+                    <span className="text-red-400 text-xs">✕</span>
+                  ) : (
+                    <span className="text-yellow-400 text-xs">○</span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold text-slate-700 truncate" title={getJobTitle(job)}>
+                      {getJobTitle(job)}
+                    </div>
+                    <div className={`text-2xs font-medium truncate ${STATUS_COLOR[job.status]}`}>
+                      {getJobSubtitle(job)}
+                    </div>
                   </div>
                 </div>
+                <button
+                  onClick={(e) => handleCancelJob(e, job)}
+                  className="text-2xs text-slate-300 hover:text-red-400 px-1 transition-colors shrink-0"
+                  title={job.status === "error" ? "지우기" : "취소"}
+                >
+                  ✕
+                </button>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {activeJobs.some((activeJob) => activeJob.jobId === job.jobId) && (
-                  <button
-                    onClick={() => handleCancelJob(job)}
-                    className="text-2xs text-slate-300 hover:text-red-400 px-1 transition-colors"
-                    title="취소"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
           <div className="text-2xs text-slate-400 text-right">
             대기 {queueStatus?.pending ?? 0} · 처리 중 {queueStatus?.running_jobs ?? 0} · 오류 {queueStatus?.error ?? 0}
           </div>

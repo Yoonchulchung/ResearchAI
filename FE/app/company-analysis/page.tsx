@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, Tooltip, Legend,
@@ -757,10 +758,21 @@ function ScoreDetailTable({
   );
 }
 
-export default function CompanyAnalysisPage() {
+export default function Page() {
+  return (
+    <Suspense>
+      <CompanyAnalysisPage />
+    </Suspense>
+  );
+}
+
+function CompanyAnalysisPage() {
   const { theme, uiStyle } = useTheme();
   const isDark = theme === "dark";
   const isGlass = uiStyle === "glass";
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialUrlHandled = useRef(false);
 
   const { cloudAiModels, localAiModels, isLoading: modelsLoading } = useModels();
   const [selectedModel, setSelectedModel] = useState("");
@@ -779,7 +791,7 @@ export default function CompanyAnalysisPage() {
   const [activeAnalysisNames, setActiveAnalysisNames] = useState<string[]>([]);
   const [analysisProgress, setAnalysisProgress] = useState<Record<string, AnalysisRunProgress>>({});
   const [progressLogs, setProgressLogs] = useState<string[]>([]);
-  const [logsVisible, setLogsVisible] = useState(true);
+  const [logsVisible, setLogsVisible] = useState(false);
   const [error, setError] = useState("");
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -830,6 +842,22 @@ export default function CompanyAnalysisPage() {
 
   useEffect(() => { refreshList(); }, []);
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [progressLogs]);
+
+  // URL 파라미터: ?company=현대자동차 → 해당 기업 자동 선택 (최초 1회만)
+  useEffect(() => {
+    if (companies.length === 0 || initialUrlHandled.current) return;
+    initialUrlHandled.current = true;
+    const companyParam = searchParams.get("company");
+    const errorParam = searchParams.get("error");
+    if (errorParam) setError(decodeURIComponent(errorParam));
+    if (companyParam) {
+      const found = companies.find(
+        (c) => c.companyName === companyParam || c.companyKey === companyParam,
+      );
+      if (found) handleSelect(found.companyKey);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companies]);
 
   const filteredCompanies = useMemo(() => {
     if (!searchQuery.trim()) return companies;
@@ -1074,6 +1102,7 @@ export default function CompanyAnalysisPage() {
     try {
       const detail = await getCompanyAnalysis(companyKey);
       setSelected(detail);
+      router.replace(`/company-analysis?company=${encodeURIComponent(detail.companyName)}`, { scroll: false });
     } catch { }
   };
 
@@ -1241,14 +1270,20 @@ export default function CompanyAnalysisPage() {
                   [오류] {error}
                 </div>
               )}
-              <div className="flex items-center justify-between px-4 py-2">
-                <div>
+              <div className="flex items-center gap-3 px-4 py-2">
+                <div className="shrink-0">
                   <span className={`text-xs font-semibold uppercase tracking-widest ${isDark ? "text-slate-300" : "text-slate-700"}`}>기업 분석 진행률</span>
                   <span className="ml-2 text-[11px] opacity-60">
                     {analysisProgressItems.length > 0 ? `${analysisProgressItems.length}개 작업 평균` : "대기"}
                   </span>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className={`flex-1 h-2 overflow-hidden rounded-full ${isDark ? "bg-slate-800" : "bg-white border border-slate-200"}`}>
+                  <div
+                    className="h-full rounded-full bg-blue-600 transition-all duration-500 ease-out"
+                    style={{ width: `${Math.max(0, Math.min(100, progressPercent))}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
                   <span className={`text-lg font-bold tabular-nums ${isDark ? "text-blue-300" : "text-blue-700"}`}>
                     {Math.round(progressPercent)}%
                   </span>
@@ -1260,13 +1295,7 @@ export default function CompanyAnalysisPage() {
                   </button>
                 </div>
               </div>
-              <div className={`mx-4 mb-3 h-2 overflow-hidden rounded-full ${isDark ? "bg-slate-800" : "bg-white border border-slate-200"}`}>
-                <div
-                  className="h-full rounded-full bg-blue-600 transition-all duration-500 ease-out"
-                  style={{ width: `${Math.max(0, Math.min(100, progressPercent))}%` }}
-                />
-              </div>
-              {analysisProgressItems.length > 0 && (
+              {logsVisible && analysisProgressItems.length > 0 && (
                 <div className="px-4 pb-3 grid grid-cols-1 xl:grid-cols-2 gap-2">
                   {analysisProgressItems.map((item) => {
                     const statusText =

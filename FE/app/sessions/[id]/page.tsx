@@ -185,6 +185,10 @@ export default function SessionPage() {
     return scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
   })();
 
+  const totalInputTokens = tasks.reduce((s, t) => s + (t.inputTokens ?? 0), 0) || null;
+  const totalOutputTokens = tasks.reduce((s, t) => s + (t.outputTokens ?? 0), 0) || null;
+  const totalFees = tasks.reduce((s, t) => s + (t.estimatedFees ?? 0), 0) || null;
+
   const exportMarkdown = () => {
     const lines = [
       `# ${session.topic} - 리서치 결과`,
@@ -226,6 +230,9 @@ export default function SessionPage() {
         onFilterModelChange={setHeaderFilterModel}
         reEvalProgress={reEvalProgress}
         avgConfidence={avgConfidence}
+        totalInputTokens={totalInputTokens}
+        totalOutputTokens={totalOutputTokens}
+        totalFees={totalFees}
         onRunAll={handleRunAll}
         onCancel={handleCancelAll}
         onExport={exportMarkdown}
