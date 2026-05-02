@@ -14,6 +14,7 @@ import {
   getCompanyAnalysis,
   deleteCompanyAnalysis,
   analyzeCompanyStream,
+  streamCompanyAnalysisJob,
   type CompanyAnalysis,
   type AnalyzeProgressEvent,
   type CompetencyScores,
@@ -25,6 +26,7 @@ import {
   type CompetingValues,
   type UlrichModel,
 } from "@/lib/api/company-analysis";
+import { getQueueStatus } from "@/lib/api/queue";
 import { API_BASE, readSSE, tokenStore } from "@/lib/api/base";
 import { buildZippoomApartmentUrl } from "@/lib/real-estate-url";
 
@@ -65,7 +67,9 @@ function estimateAnalysisProgress(event: AnalyzeProgressEvent, current: number) 
     [/사업부문/, 22],
     [/직무소개/, 30],
     [/채용 공고/, 36],
-    [/DART|재무 데이터/, 44],
+    [/경쟁사 후보/, 40],
+    [/기술 조직|HRD 신호/, 43],
+    [/DART|재무 데이터/, 48],
     [/공식 웹사이트/, 52],
     [/잡플래닛/, 60],
     [/아파트 시세|시세 조회/, 68],
@@ -75,6 +79,60 @@ function estimateAnalysisProgress(event: AnalyzeProgressEvent, current: number) 
   const checkpoint = checkpoints.find(([pattern]) => pattern.test(message));
   if (checkpoint) return Math.max(current, checkpoint[1]);
   return Math.min(96, Math.max(current + 2, current));
+}
+
+type AnalysisRunStatus = "pending" | "running" | "done" | "error";
+
+interface AnalysisRunProgress {
+  key: string;
+  name: string;
+  progress: number;
+  status: AnalysisRunStatus;
+  currentStep: string;
+  lastMessage?: string;
+  updatedAt: number;
+}
+
+const ANALYSIS_DETAIL_STEPS: Array<{ label: string; threshold: number }> = [
+  { label: "요청", threshold: 2 },
+  { label: "채용·인재상", threshold: 8 },
+  { label: "뉴스", threshold: 15 },
+  { label: "사업부문", threshold: 22 },
+  { label: "직무", threshold: 30 },
+  { label: "채용공고", threshold: 36 },
+  { label: "경쟁사", threshold: 40 },
+  { label: "기술·HRD", threshold: 43 },
+  { label: "DART", threshold: 48 },
+  { label: "리뷰·시세", threshold: 68 },
+  { label: "AI 분석", threshold: 82 },
+  { label: "저장", threshold: 96 },
+  { label: "완료", threshold: 100 },
+];
+
+function getAnalysisStepLabel(event: AnalyzeProgressEvent, fallback: string) {
+  if (event.type === "done") return "완료";
+  if (event.type === "error") return "오류";
+  if (event.type === "searching") return "외부 데이터 수집";
+  if (event.type === "scoring") return "AI 병렬 분석";
+  if (event.type !== "log" || !event.message) return fallback;
+
+  const message = event.message;
+  const rules: Array<[RegExp, string]> = [
+    [/인재상|채용 정보 검색/, "인재상·채용 자료 검색"],
+    [/최근 뉴스/, "최근 뉴스 수집"],
+    [/사업부문/, "사업부문 자료 수집"],
+    [/직무소개/, "직무소개 수집"],
+    [/채용 공고/, "채용 공고 수집"],
+    [/경쟁사 후보/, "경쟁사 후보 크롤링"],
+    [/공식 웹사이트/, "공식 웹사이트 확인"],
+    [/기술 조직|HRD 신호/, "기술 조직·HRD 자료 수집"],
+    [/DART|재무 데이터/, "DART 재무·공시 수집"],
+    [/잡플래닛/, "기업 리뷰 수집"],
+    [/아파트 시세|시세 조회/, "인근 시세 조회"],
+    [/AI 분석 시작/, "AI 병렬 분석"],
+    [/결과 저장/, "분석 결과 저장"],
+  ];
+  return rules.find(([pattern]) => pattern.test(message))?.[1] ?? fallback;
 }
 
 function formatApartmentPrice(price: number | null | undefined) {
@@ -90,6 +148,28 @@ function formatApartmentPriceSummary(prices: CompanyAnalysis["apartmentPrices"])
     formatApartmentPrice(prices.avgLeasePrice) ? `전세: ${formatApartmentPrice(prices.avgLeasePrice)}` : null,
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(", ") : null;
+}
+
+function cleanNewsTitle(title: string) {
+  return title
+    .replace(/&quot;|&#34;/g, '"')
+    .replace(/&apos;|&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isDisplayableNewsTitle(title: string, url: string) {
+  const cleaned = cleanNewsTitle(title);
+  if (cleaned.length < 8) return false;
+  if (/^\[[^\]]*$/.test(cleaned)) return false;
+  if (/[�Ãìíêëûü]{2,}/.test(cleaned)) return false;
+  if (/namu\.wiki|나무위키/i.test(`${cleaned} ${url}`)) return false;
+  return true;
+}
+
+function normalizeCompanyKey(name: string) {
+  return name.trim().toLowerCase().replace(/\s+/g, "").replace(/[^\p{L}\p{N}]/gu, "");
 }
 
 function SectionHeader({ title, badge, isDark }: { title: string; badge?: string; isDark: boolean }) {
@@ -303,29 +383,40 @@ function UlrichModelChart({ model, isDark }: { model: UlrichModel; isDark: boole
 }
 
 function CvfChart({ cvf, isDark }: { cvf: CompetingValues; isDark: boolean }) {
-  const W = 430, H = 390;
+  const W = 430, H = 430;
   const gridX = 38, gridY = 34;
-  const gridW = 354, gridH = 318;
+  const gridW = 354, gridH = 354;
   const cw = gridW / 2, ch = gridH / 2;
   const gap = 10;
   const cells = [
-    { key: "clan" as const, label: "클랜", sub: "유연·내부집중", color: "#22c55e", row: 0, col: 0 },
-    { key: "adhocracy" as const, label: "아드호크라시", sub: "유연·외부집중", color: "#8b5cf6", row: 0, col: 1 },
-    { key: "hierarchy" as const, label: "위계", sub: "통제·내부집중", color: "#3b82f6", row: 1, col: 0 },
-    { key: "market" as const, label: "시장", sub: "통제·외부집중", color: "#f97316", row: 1, col: 1 },
+    { key: "clan" as const, label: "클랜", sub: "유연·내부집중", color: "#22c55e", row: 0, col: 0, evidenceY: 63 },
+    { key: "adhocracy" as const, label: "아드호크라시", sub: "유연·외부집중", color: "#8b5cf6", row: 0, col: 1, evidenceY: 63 },
+    { key: "hierarchy" as const, label: "위계", sub: "통제·내부집중", color: "#3b82f6", row: 1, col: 0, evidenceY: 64 },
+    { key: "market" as const, label: "시장", sub: "통제·외부집중", color: "#f97316", row: 1, col: 1, evidenceY: 64 },
   ];
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ maxWidth: 500 }}>
-      {cells.map(({ key, label, sub, color, row, col }) => {
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ maxWidth: 540 }}>
+      {cells.map(({ key, label, sub, color, row, col, evidenceY }) => {
         const score = cvf[key];
         const isDominant = cvf.dominant === key;
+        const evidence = cvf.evidence?.[key];
         const x = gridX + col * cw + gap / 2;
         const y = gridY + row * ch + gap / 2;
         const w = cw - gap;
         const h = ch - gap;
-        const contentH = h - 58;
+        const contentH = h - 78;
         const fillH = contentH * (score / 100);
+        const words = evidence ? evidence.split(/\s+/).filter(Boolean) : [];
+        const evidenceLines = evidence
+          ? words.reduce<string[]>((lines, word) => {
+              const current = lines.at(-1) ?? "";
+              if (!current) return [word];
+              return (current + " " + word).length > 19
+                ? [...lines, word]
+                : [...lines.slice(0, -1), `${current} ${word}`];
+            }, []).slice(0, 3)
+          : [];
         return (
           <g key={key}>
             <rect x={x} y={y} width={w} height={h} rx={4}
@@ -338,6 +429,20 @@ function CvfChart({ cvf, isDark }: { cvf: CompetingValues; isDark: boolean }) {
               fontSize={16} fontWeight="bold" fill={isDark ? "#f1f5f9" : "#1e293b"}>{label}</text>
             <text x={x + w / 2} y={y + 40} textAnchor="middle" dominantBaseline="middle"
               fontSize={11} fontWeight="600" fill={isDark ? "#94a3b8" : "#64748b"}>{sub}</text>
+            {evidenceLines.map((line, i) => (
+              <text
+                key={i}
+                x={x + w / 2}
+                y={y + evidenceY + i * 12}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={9.2}
+                fontWeight="600"
+                fill={isDark ? "#94a3b8" : "#64748b"}
+              >
+                {line}
+              </text>
+            ))}
             <text x={x + w / 2} y={y + h - 14} textAnchor="middle" dominantBaseline="middle"
               fontSize={18} fontWeight="bold" fill={color}>{score}%</text>
             {isDominant && (
@@ -408,6 +513,30 @@ function HrSection({ hr, isDark }: { hr: HrAnalysis; isDark: boolean }) {
           {hr.competingValues.description && (
             <p className={`text-sm leading-relaxed mt-4 ${isDark ? "text-slate-300" : "text-slate-700"}`}>{hr.competingValues.description}</p>
           )}
+          {hr.competingValues.evidence && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+              {([
+                ["clan", "클랜", "#22c55e"],
+                ["adhocracy", "아드호크라시", "#8b5cf6"],
+                ["hierarchy", "위계", "#3b82f6"],
+                ["market", "시장", "#f97316"],
+              ] as const).map(([key, label, color]) => {
+                const evidence = hr.competingValues?.evidence?.[key];
+                if (!evidence) return null;
+                return (
+                  <div key={key} className={`rounded-sm border px-3 py-2 ${isDark ? "border-slate-700 bg-slate-800/50" : "border-slate-200 bg-slate-50"}`}>
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+                      <span className={`text-xs font-bold ${isDark ? "text-slate-200" : "text-slate-700"}`}>
+                        {label} {hr.competingValues?.[key]}%
+                      </span>
+                    </div>
+                    <p className={`text-xs leading-relaxed ${isDark ? "text-slate-400" : "text-slate-600"}`}>{evidence}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -427,53 +556,93 @@ function FinancialChart({ data, isDark }: { data: YearlyFinancial[]; isDark: boo
     영업이익률: d.operatingMargin,
   }));
 
-  const tickStyle = { fill: isDark ? "#94a3b8" : "#64748b", fontSize: 11 };
-  const gridColor = isDark ? "#334155" : "#e2e8f0";
+  const palette = {
+    revenue: isDark ? "#9fb1c7" : "#1f3a5f",
+    operatingProfit: isDark ? "#8fb7a5" : "#3f6f5a",
+    netIncome: isDark ? "#b8a68b" : "#6f604b",
+    margin: isDark ? "#d6a04b" : "#9a5a10",
+    axis: isDark ? "#475569" : "#94a3b8",
+    tick: isDark ? "#cbd5e1" : "#475569",
+    grid: isDark ? "#334155" : "#d7dde6",
+  };
+  const tickStyle = { fill: palette.tick, fontSize: 11, fontFamily: "Georgia, 'Times New Roman', serif" };
 
   return (
-    <ResponsiveContainer width="100%" height={240}>
-      <ComposedChart data={chartData} margin={{ top: 8, right: 24, left: 8, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-        <XAxis dataKey="year" tick={tickStyle} axisLine={false} tickLine={false} />
-        <YAxis
-          yAxisId="left"
-          tick={tickStyle}
-          axisLine={false}
-          tickLine={false}
-          tickFormatter={(v) => `${v}억`}
-          width={52}
-        />
-        <YAxis
-          yAxisId="right"
-          orientation="right"
-          tick={tickStyle}
-          axisLine={false}
-          tickLine={false}
-          tickFormatter={(v) => `${v}%`}
-          width={36}
-        />
-        <Tooltip
-          contentStyle={{
-            backgroundColor: isDark ? "#1e293b" : "#ffffff",
-            borderColor: isDark ? "#334155" : "#e2e8f0",
-            color: isDark ? "#f8fafc" : "#0f172a",
-            fontSize: 12,
-            borderRadius: 2,
-          }}
-          formatter={(value, name) => {
-            const v = value as number | null | undefined;
-            return name === "영업이익률"
-              ? [`${v ?? "—"}%`, name as string]
-              : [`${v?.toLocaleString() ?? "—"}억`, name as string];
-          }}
-        />
-        <Legend wrapperStyle={{ fontSize: 11, fontFamily: "monospace", paddingTop: 8 }} />
-        <Bar yAxisId="left" dataKey="매출액" fill={isDark ? "#3b82f6" : "#1d4ed8"} opacity={0.8} radius={[2, 2, 0, 0]} maxBarSize={40} />
-        <Bar yAxisId="left" dataKey="영업이익" fill={isDark ? "#10b981" : "#059669"} opacity={0.8} radius={[2, 2, 0, 0]} maxBarSize={40} />
-        <Bar yAxisId="left" dataKey="순이익" fill={isDark ? "#8b5cf6" : "#7c3aed"} opacity={0.8} radius={[2, 2, 0, 0]} maxBarSize={40} />
-        <Line yAxisId="right" dataKey="영업이익률" stroke={isDark ? "#f59e0b" : "#d97706"} strokeWidth={2} dot={{ r: 4, fill: isDark ? "#f59e0b" : "#d97706" }} />
-      </ComposedChart>
-    </ResponsiveContainer>
+    <div className={`border-y py-4 ${isDark ? "border-slate-700 bg-slate-900/30" : "border-slate-200 bg-zinc-50/60"}`}>
+      <div className="mx-auto w-full max-w-4xl">
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart
+            data={chartData}
+            margin={{ top: 10, right: 30, left: 2, bottom: 2 }}
+            barGap={3}
+            barCategoryGap="28%"
+          >
+            <CartesianGrid stroke={palette.grid} strokeDasharray="2 4" vertical={false} />
+            <XAxis
+              dataKey="year"
+              tick={tickStyle}
+              axisLine={{ stroke: palette.axis, strokeWidth: 1 }}
+              tickLine={false}
+              padding={{ left: 12, right: 12 }}
+            />
+            <YAxis
+              yAxisId="left"
+              tick={tickStyle}
+              axisLine={{ stroke: palette.axis, strokeWidth: 1 }}
+              tickLine={false}
+              tickFormatter={(v) => `${v}억`}
+              width={56}
+            />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tick={tickStyle}
+              axisLine={{ stroke: palette.axis, strokeWidth: 1 }}
+              tickLine={false}
+              tickFormatter={(v) => `${v}%`}
+              width={40}
+            />
+            <Tooltip
+              cursor={{ fill: isDark ? "rgba(148,163,184,0.08)" : "rgba(15,23,42,0.04)" }}
+              contentStyle={{
+                backgroundColor: isDark ? "#111827" : "#fffdf8",
+                borderColor: isDark ? "#475569" : "#cbd5e1",
+                color: isDark ? "#f8fafc" : "#1f2937",
+                fontSize: 12,
+                borderRadius: 0,
+                boxShadow: "none",
+                fontFamily: "Georgia, 'Times New Roman', serif",
+              }}
+              formatter={(value, name) => {
+                const v = value as number | null | undefined;
+                return name === "영업이익률"
+                  ? [`${v ?? "—"}%`, name as string]
+                  : [`${v?.toLocaleString() ?? "—"}억`, name as string];
+              }}
+            />
+            <Legend
+              iconType="square"
+              wrapperStyle={{
+                fontSize: 11,
+                fontFamily: "Georgia, 'Times New Roman', serif",
+                paddingTop: 12,
+              }}
+            />
+            <Bar yAxisId="left" dataKey="매출액" fill={palette.revenue} radius={[0, 0, 0, 0]} maxBarSize={28} />
+            <Bar yAxisId="left" dataKey="영업이익" fill={palette.operatingProfit} radius={[0, 0, 0, 0]} maxBarSize={28} />
+            <Bar yAxisId="left" dataKey="순이익" fill={palette.netIncome} radius={[0, 0, 0, 0]} maxBarSize={28} />
+            <Line
+              yAxisId="right"
+              dataKey="영업이익률"
+              stroke={palette.margin}
+              strokeWidth={2}
+              dot={{ r: 3.5, fill: palette.margin, stroke: palette.margin }}
+              activeDot={{ r: 5, fill: palette.margin, stroke: isDark ? "#111827" : "#fffdf8", strokeWidth: 2 }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
   );
 }
 
@@ -604,9 +773,12 @@ export default function CompanyAnalysisPage() {
   const [loadingList, setLoadingList] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState<CompanyAnalysis | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
+  const [activeAnalysisKeys, setActiveAnalysisKeys] = useState<Set<string>>(() => new Set());
+  const activeAnalysisKeysRef = useRef<Set<string>>(new Set());
+  const activeAnalysisJobIdsRef = useRef<Set<string>>(new Set());
+  const [activeAnalysisNames, setActiveAnalysisNames] = useState<string[]>([]);
+  const [analysisProgress, setAnalysisProgress] = useState<Record<string, AnalysisRunProgress>>({});
   const [progressLogs, setProgressLogs] = useState<string[]>([]);
-  const [progressPercent, setProgressPercent] = useState(0);
   const [logsVisible, setLogsVisible] = useState(true);
   const [error, setError] = useState("");
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -674,39 +846,229 @@ export default function CompanyAnalysisPage() {
   }, [companies, searchQuery]);
 
   const apiModel = selectedModel === DEFAULT_FREE_MODEL_ID ? "" : selectedModel;
+  const isAnalyzing = activeAnalysisKeys.size > 0;
+  const isCompanyAnalyzing = (name: string) => activeAnalysisKeys.has(normalizeCompanyKey(name));
+  const searchCompanyIsAnalyzing = searchQuery.trim() ? isCompanyAnalyzing(searchQuery.trim()) : false;
+  const selectedCompanyIsAnalyzing = selected ? isCompanyAnalyzing(selected.companyName) : false;
+  const analysisProgressItems = useMemo(
+    () => Object.values(analysisProgress).sort((a, b) => a.updatedAt - b.updatedAt),
+    [analysisProgress],
+  );
+  const progressPercent = useMemo(() => {
+    if (analysisProgressItems.length === 0) return 0;
+    const total = analysisProgressItems.reduce((sum, item) => sum + item.progress, 0);
+    return Math.round(total / analysisProgressItems.length);
+  }, [analysisProgressItems]);
+
+  const markAnalysisStarted = (name: string, restored = false) => {
+    const normalizedKey = normalizeCompanyKey(name);
+    if (!normalizedKey || activeAnalysisKeysRef.current.has(normalizedKey)) return false;
+    const startsNewBatch = activeAnalysisKeysRef.current.size === 0;
+    if (startsNewBatch) {
+      setAnalysisProgress({});
+      setProgressLogs([]);
+    }
+    activeAnalysisKeysRef.current.add(normalizedKey);
+    setActiveAnalysisKeys((prev) => new Set(prev).add(normalizedKey));
+    setActiveAnalysisNames((prev) => prev.includes(name) ? prev : [...prev, name]);
+    setAnalysisProgress((prev) => ({
+      ...prev,
+      [normalizedKey]: {
+        key: normalizedKey,
+        name,
+        progress: restored ? 5 : 2,
+        status: restored ? "running" : "pending",
+        currentStep: restored ? "진행 상태 복원" : "요청 접수",
+        updatedAt: Date.now(),
+      },
+    }));
+    setProgressLogs((prev) => [
+      ...prev,
+      prev.length
+        ? `--- ${name} ${restored ? '분석 진행 상태 복원' : '분석 요청'} ---`
+        : `${name} ${restored ? '분석 진행 상태 복원' : '분석 요청'}`,
+    ]);
+    setError("");
+    return true;
+  };
+
+  const markAnalysisFinished = (name: string) => {
+    const normalizedKey = normalizeCompanyKey(name);
+    activeAnalysisKeysRef.current.delete(normalizedKey);
+    setActiveAnalysisKeys((prev) => {
+      const next = new Set(prev);
+      next.delete(normalizedKey);
+      return next;
+    });
+    setActiveAnalysisNames((prev) => prev.filter((activeName) => normalizeCompanyKey(activeName) !== normalizedKey));
+  };
+
+  const handleAnalysisEvent = (name: string, ev: AnalyzeProgressEvent) => {
+    const normalizedKey = normalizeCompanyKey(name);
+    setAnalysisProgress((prev) => {
+      const current = prev[normalizedKey] ?? {
+        key: normalizedKey,
+        name,
+        progress: 0,
+        status: "running" as AnalysisRunStatus,
+        currentStep: "진행 중",
+        updatedAt: Date.now(),
+      };
+      const nextProgress = estimateAnalysisProgress(ev, current.progress);
+      const nextStatus: AnalysisRunStatus =
+        ev.type === "done" ? "done" :
+        ev.type === "error" ? "error" :
+        "running";
+      return {
+        ...prev,
+        [normalizedKey]: {
+          ...current,
+          name,
+          progress: nextProgress,
+          status: nextStatus,
+          currentStep: getAnalysisStepLabel(ev, current.currentStep),
+          lastMessage: "message" in ev ? ev.message ?? current.lastMessage : current.lastMessage,
+          updatedAt: Date.now(),
+        },
+      };
+    });
+    if (ev.type === "log") {
+      setProgressLogs((p) => [...p, `[${name}] ${ev.message}`]);
+    } else if (ev.type === "searching") {
+      setProgressLogs((p) => [...p, `[${name}] 외부 데이터 수집 및 웹 검색 진행 중`]);
+    } else if (ev.type === "scoring") {
+      setProgressLogs((p) => [...p, `[${name}] 인재상 기반 역량 모델 분석 처리 중`]);
+    } else if (ev.type === "done") {
+      setSelected(ev.result);
+      setSearchQuery("");
+      refreshList();
+    } else if (ev.type === "error") {
+      setError(`[${name}] ${ev.message}`);
+    }
+  };
 
   const runAnalysis = async (name: string) => {
-    if (!name || analyzing) return;
-    setAnalyzing(true);
-    setProgressLogs([]);
-    setProgressPercent(0);
-    setError("");
+    const normalizedKey = normalizeCompanyKey(name);
+    if (!name || !normalizedKey || !markAnalysisStarted(name)) return;
     try {
-      await analyzeCompanyStream(name, apiModel || undefined, (ev) => {
-        setProgressPercent((current) => estimateAnalysisProgress(ev, current));
-        if (ev.type === "log") {
-          setProgressLogs((p) => [...p, ev.message]);
-        } else if (ev.type === "searching") {
-          setProgressLogs((p) => [...p, "외부 데이터 수집 및 웹 검색 진행 중"]);
-        } else if (ev.type === "scoring") {
-          setProgressLogs((p) => [...p, "인재상 기반 역량 모델 분석 처리 중"]);
-        } else if (ev.type === "done") {
-          setSelected(ev.result);
-          setSearchQuery("");
-          refreshList();
-        } else if (ev.type === "error") {
-          setError(ev.message);
-        }
-      });
+      await analyzeCompanyStream(name, apiModel || undefined, (ev) => handleAnalysisEvent(name, ev));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "분석 처리 중 오류가 발생했습니다.");
+      const message = e instanceof Error ? e.message : "분석 처리 중 오류가 발생했습니다.";
+      setError(`[${name}] ${message}`);
+      setAnalysisProgress((prev) => {
+        const current = prev[normalizedKey];
+        if (!current) return prev;
+        return {
+          ...prev,
+          [normalizedKey]: {
+            ...current,
+            status: "error",
+            currentStep: "오류",
+            lastMessage: message,
+            updatedAt: Date.now(),
+          },
+        };
+      });
     } finally {
-      setAnalyzing(false);
+      markAnalysisFinished(name);
     }
   };
 
   const handleAnalyze = () => runAnalysis(searchQuery.trim());
   const handleReanalyze = (companyName: string) => runAnalysis(companyName);
+
+  useEffect(() => {
+    const controllers: AbortController[] = [];
+    let cancelled = false;
+
+    getQueueStatus()
+      .then((status) => {
+        if (cancelled) return;
+        const activeCompanyJobs = status.jobs.filter(
+          (job) => job.taskType === "companyanalysis" && (job.status === "pending" || job.status === "running"),
+        );
+        const failedCompanyJobs = status.jobs.filter(
+          (job) => job.taskType === "companyanalysis" && job.status === "error",
+        );
+
+        if (failedCompanyJobs.length > 0) {
+          const latestFailed = failedCompanyJobs[failedCompanyJobs.length - 1];
+          const companyName =
+            latestFailed.companyName ||
+            latestFailed.displayTitle?.replace(/\s*기업 분석\s*$/, "").trim() ||
+            "기업";
+          const message = latestFailed.errorMessage || latestFailed.result || "분석 처리 중 오류가 발생했습니다.";
+          setError(`[${companyName}] ${message}`);
+          setProgressLogs((prev) => [...prev, `[${companyName}] 오류: ${message}`]);
+          const normalizedKey = normalizeCompanyKey(companyName);
+          if (normalizedKey) {
+            setAnalysisProgress((prev) => ({
+              ...prev,
+              [normalizedKey]: {
+                key: normalizedKey,
+                name: companyName,
+                progress: 0,
+                status: "error",
+                currentStep: "오류",
+                lastMessage: message,
+                updatedAt: Date.now(),
+              },
+            }));
+          }
+        }
+
+        for (const job of activeCompanyJobs) {
+          if (activeAnalysisJobIdsRef.current.has(job.jobId)) continue;
+
+          const companyName =
+            job.companyName ||
+            job.displayTitle?.replace(/\s*기업 분석\s*$/, "").trim() ||
+            "기업";
+          activeAnalysisJobIdsRef.current.add(job.jobId);
+          markAnalysisStarted(companyName, true);
+
+          const controller = new AbortController();
+          controllers.push(controller);
+
+          streamCompanyAnalysisJob(
+            job.jobId,
+            (event) => handleAnalysisEvent(companyName, event),
+            controller.signal,
+          )
+            .catch((e) => {
+              if (!controller.signal.aborted) {
+                const message = e instanceof Error ? e.message : "분석 스트림 복원 중 오류가 발생했습니다.";
+                setError(`[${companyName}] ${message}`);
+                const normalizedKey = normalizeCompanyKey(companyName);
+                setAnalysisProgress((prev) => {
+                  const current = prev[normalizedKey];
+                  if (!current) return prev;
+                  return {
+                    ...prev,
+                    [normalizedKey]: {
+                      ...current,
+                      status: "error",
+                      currentStep: "오류",
+                      lastMessage: message,
+                      updatedAt: Date.now(),
+                    },
+                  };
+                });
+              }
+            })
+            .finally(() => {
+              activeAnalysisJobIdsRef.current.delete(job.jobId);
+              markAnalysisFinished(companyName);
+            });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+      controllers.forEach((controller) => controller.abort());
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelect = async (companyKey: string) => {
     try {
@@ -737,6 +1099,12 @@ export default function CompanyAnalysisPage() {
     });
   }, [selected, companies]);
 
+  const recentNewsForDisplay = useMemo(() => {
+    return (selected?.recentNews ?? [])
+      .map((news) => ({ ...news, title: cleanNewsTitle(news.title) }))
+      .filter((news) => isDisplayableNewsTitle(news.title, news.url));
+  }, [selected?.recentNews]);
+
   // 기업 선택이 바뀌면 대화 초기화
   useEffect(() => {
     setChatMessages([]);
@@ -752,19 +1120,6 @@ export default function CompanyAnalysisPage() {
     if (chatOpen) setTimeout(() => chatInputRef.current?.focus(), 50);
   }, [chatOpen]);
 
-  const buildCompanyContext = (c: CompanyAnalysis): string => {
-    const parts: string[] = [`## ${c.companyName} 기업 분석 데이터`];
-    if (c.summary) parts.push(`### 인재상 요약\n${c.summary}`);
-    if (c.industry) parts.push(`업종: ${c.industry}`);
-    if (c.ceoName) parts.push(`대표이사: ${c.ceoName}`);
-    if (c.foundedDate) parts.push(`설립: ${c.foundedDate}`);
-    if (c.report) parts.push(`### 기업 보고서\n${c.report}`);
-    if (c.jobplanetSummary) parts.push(`### 잡플래닛 리뷰\n${c.jobplanetSummary}`);
-    if (c.swot) parts.push(`### SWOT\n강점: ${c.swot.S?.join(", ")}\n약점: ${c.swot.W?.join(", ")}\n기회: ${c.swot.O?.join(", ")}\n위협: ${c.swot.T?.join(", ")}`);
-    if (c.financialSummary) parts.push(`### 재무 정보\n${c.financialSummary.slice(0, 2000)}`);
-    return parts.join("\n\n");
-  };
-
   const sendChatMessage = async () => {
     if (!chatInput.trim() || chatLoading) return;
     const userMsg = chatInput.trim();
@@ -777,9 +1132,9 @@ export default function CompanyAnalysisPage() {
     let assistantContent = "";
     setChatMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
-    // 기업 컨텍스트를 system prompt에 포함
+    // 상세 컨텍스트는 백엔드가 companyAnalysisKey로 DB에서 직접 주입한다.
     const systemPrompt = selected
-      ? `당신은 ${selected.companyName} 기업 분석 AI 어시스턴트입니다. 아래 기업 분석 데이터를 바탕으로 질문에 명확하고 간결하게 한국어로 답변하세요. 이모지는 사용하지 마세요.\n\n${buildCompanyContext(selected)}`
+      ? `당신은 ${selected.companyName} 기업 분석 AI 어시스턴트입니다. 제공된 기업 분석 산출물과 작성 근거를 바탕으로 질문에 명확하고 간결하게 한국어로 답변하세요. 이모지는 사용하지 마세요.`
       : "당신은 기업 분석 AI 어시스턴트입니다. 한국어로 답변하세요. 이모지는 사용하지 마세요.";
 
     try {
@@ -792,8 +1147,9 @@ export default function CompanyAnalysisPage() {
         },
         body: JSON.stringify({
           message: userMsg,
-          model: chatModel || "",
+          model: chatModel === DEFAULT_FREE_MODEL_ID ? "" : chatModel || "",
           systemPrompt,
+          companyAnalysisKey: selected?.companyKey,
           // 직전 대화 이력 (현재 user msg 제외, 최근 20개)
           history: chatMessages.slice(-20),
         }),
@@ -839,7 +1195,7 @@ export default function CompanyAnalysisPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !analyzing && searchQuery.trim() && !exactMatch) handleAnalyze();
+                  if (e.key === "Enter" && !searchCompanyIsAnalyzing && searchQuery.trim() && !exactMatch) handleAnalyze();
                   else if (e.key === "Enter" && exactMatch) setSelected(exactMatch);
                 }}
                 placeholder="대상 기업명을 검색하거나 신규 분석을 위해 입력하십시오"
@@ -850,7 +1206,7 @@ export default function CompanyAnalysisPage() {
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
-              disabled={modelsLoading || analyzing}
+              disabled={modelsLoading}
               className={`w-full md:w-48 text-sm px-3 py-2 border rounded-sm focus:outline-none focus:ring-1 focus:ring-blue-600 appearance-none ${isDark ? "bg-slate-900 border-slate-600 text-slate-200" : "bg-white border-slate-400 text-slate-800"}`}
               style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23666%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: "no-repeat", backgroundPosition: "right .7rem top 50%", backgroundSize: ".65rem auto" }}
             >
@@ -870,48 +1226,108 @@ export default function CompanyAnalysisPage() {
             {searchQuery.trim() && !exactMatch && (
               <button
                 onClick={handleAnalyze}
-                disabled={analyzing}
+                disabled={searchCompanyIsAnalyzing}
                 className={`w-full md:w-auto px-5 py-2 text-sm font-semibold rounded-sm border shrink-0 transition-colors ${isDark ? "bg-blue-600 border-blue-600 text-white hover:bg-blue-700 disabled:opacity-50" : "bg-slate-800 border-slate-800 text-white hover:bg-slate-900 disabled:opacity-50"}`}
               >
-                {analyzing ? "처리 중..." : "분석 실행"}
+                {searchCompanyIsAnalyzing ? "이미 대기/분석 중" : "분석 실행"}
               </button>
             )}
           </div>
 
-          {(analyzing || progressLogs.length > 0 || error) && (
-            <div className={`mt-3 border rounded-sm text-sm font-mono ${error ? "bg-red-50 text-red-700 border-red-300" : isDark ? "bg-slate-900 text-slate-400 border-slate-700" : "bg-slate-100 text-slate-600 border-slate-300"}`}>
-              {error ? (
-                <div className="px-4 py-2">[오류] {error}</div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between px-4 py-1.5">
-                    <span className="text-xs opacity-60">분석 진행 로그</span>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs font-semibold tabular-nums ${isDark ? "text-blue-300" : "text-blue-700"}`}>
-                        {Math.round(progressPercent)}%
-                      </span>
-                      <button
-                        onClick={() => setLogsVisible((v) => !v)}
-                        className={`text-xs px-2 py-0.5 rounded border transition-colors ${isDark ? "border-slate-700 hover:border-slate-500 text-slate-500 hover:text-slate-300" : "border-slate-300 hover:border-slate-400 text-slate-400 hover:text-slate-600"}`}
-                      >
-                        {logsVisible ? "숨기기" : "펼치기"}
-                      </button>
-                    </div>
-                  </div>
-                  <div className={`mx-4 mb-2 h-2 overflow-hidden rounded-full ${isDark ? "bg-slate-800" : "bg-white border border-slate-200"}`}>
-                    <div
-                      className="h-full rounded-full bg-blue-600 transition-all duration-500 ease-out"
-                      style={{ width: `${Math.max(0, Math.min(100, progressPercent))}%` }}
-                    />
-                  </div>
-                  {logsVisible && (
-                    <div className="px-4 pb-2 max-h-32 overflow-y-auto flex flex-col gap-1 text-xs border-t border-current border-opacity-10">
-                      {progressLogs.map((l, i) => <div key={i}>{">"} {l}</div>)}
-                      {analyzing && <div className="text-blue-600 mt-1">{">"} 프로세싱 중입니다. 잠시만 기다려 주십시오.</div>}
-                      <div ref={logEndRef} />
+          {(isAnalyzing || analysisProgressItems.length > 0 || progressLogs.length > 0 || error) && (
+            <div className={`mt-3 border rounded-sm text-sm font-mono ${isDark ? "bg-slate-900 text-slate-400 border-slate-700" : "bg-slate-100 text-slate-600 border-slate-300"}`}>
+              {error && (
+                <div className={`px-4 py-2 border-b ${isDark ? "bg-red-950/30 text-red-300 border-red-900/60" : "bg-red-50 text-red-700 border-red-200"}`}>
+                  [오류] {error}
+                </div>
+              )}
+              <div className="flex items-center justify-between px-4 py-2">
+                <div>
+                  <span className={`text-xs font-semibold uppercase tracking-widest ${isDark ? "text-slate-300" : "text-slate-700"}`}>기업 분석 진행률</span>
+                  <span className="ml-2 text-[11px] opacity-60">
+                    {analysisProgressItems.length > 0 ? `${analysisProgressItems.length}개 작업 평균` : "대기"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-lg font-bold tabular-nums ${isDark ? "text-blue-300" : "text-blue-700"}`}>
+                    {Math.round(progressPercent)}%
+                  </span>
+                  <button
+                    onClick={() => setLogsVisible((v) => !v)}
+                    className={`text-xs px-2 py-0.5 rounded border transition-colors ${isDark ? "border-slate-700 hover:border-slate-500 text-slate-500 hover:text-slate-300" : "border-slate-300 hover:border-slate-400 text-slate-400 hover:text-slate-600"}`}
+                  >
+                    {logsVisible ? "숨기기" : "펼치기"}
+                  </button>
+                </div>
+              </div>
+              <div className={`mx-4 mb-3 h-2 overflow-hidden rounded-full ${isDark ? "bg-slate-800" : "bg-white border border-slate-200"}`}>
+                <div
+                  className="h-full rounded-full bg-blue-600 transition-all duration-500 ease-out"
+                  style={{ width: `${Math.max(0, Math.min(100, progressPercent))}%` }}
+                />
+              </div>
+              {analysisProgressItems.length > 0 && (
+                <div className="px-4 pb-3 grid grid-cols-1 xl:grid-cols-2 gap-2">
+                  {analysisProgressItems.map((item) => {
+                    const statusText =
+                      item.status === "done" ? "완료" :
+                      item.status === "error" ? "오류" :
+                      item.status === "pending" ? "대기" :
+                      "진행 중";
+                    const statusClass =
+                      item.status === "done" ? (isDark ? "text-emerald-300 border-emerald-900 bg-emerald-950/30" : "text-emerald-700 border-emerald-200 bg-emerald-50") :
+                      item.status === "error" ? (isDark ? "text-red-300 border-red-900 bg-red-950/30" : "text-red-700 border-red-200 bg-red-50") :
+                      item.status === "pending" ? (isDark ? "text-amber-300 border-amber-900 bg-amber-950/30" : "text-amber-700 border-amber-200 bg-amber-50") :
+                      (isDark ? "text-blue-300 border-blue-900 bg-blue-950/30" : "text-blue-700 border-blue-200 bg-blue-50");
+                    return (
+                      <div key={item.key} className={`rounded-sm border p-3 ${isDark ? "bg-slate-950 border-slate-800" : "bg-white border-slate-200"}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className={`text-sm font-semibold truncate ${isDark ? "text-slate-200" : "text-slate-800"}`}>{item.name}</div>
+                            <div className="mt-0.5 text-xs truncate">{item.currentStep}</div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`text-[10px] px-1.5 py-0.5 border rounded-sm ${statusClass}`}>{statusText}</span>
+                            <span className={`text-sm font-bold tabular-nums ${isDark ? "text-blue-300" : "text-blue-700"}`}>{Math.round(item.progress)}%</span>
+                          </div>
+                        </div>
+                        <div className={`mt-2 h-1.5 overflow-hidden rounded-full ${isDark ? "bg-slate-800" : "bg-slate-100"}`}>
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${item.status === "error" ? "bg-red-500" : item.status === "done" ? "bg-emerald-500" : "bg-blue-600"}`}
+                            style={{ width: `${Math.max(0, Math.min(100, item.progress))}%` }}
+                          />
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {ANALYSIS_DETAIL_STEPS.map((step) => {
+                            const reached = item.progress >= step.threshold;
+                            const current = !reached && item.progress >= step.threshold - 8;
+                            const cls = reached
+                              ? isDark ? "border-blue-800 bg-blue-950/40 text-blue-300" : "border-blue-200 bg-blue-50 text-blue-700"
+                              : current
+                              ? isDark ? "border-slate-600 bg-slate-800 text-slate-300" : "border-slate-300 bg-slate-50 text-slate-600"
+                              : isDark ? "border-slate-800 text-slate-600" : "border-slate-200 text-slate-400";
+                            return (
+                              <span key={step.label} className={`text-[10px] px-1.5 py-0.5 rounded-sm border ${cls}`}>
+                                {step.label}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {logsVisible && (
+                <div className="px-4 pb-2 max-h-36 overflow-y-auto flex flex-col gap-1 text-xs border-t border-current border-opacity-10 pt-2">
+                  {progressLogs.map((l, i) => <div key={i}>{">"} {l}</div>)}
+                  {isAnalyzing && (
+                    <div className="text-blue-600 mt-1">
+                      {">"} 대기/분석 중: {activeAnalysisNames.join(", ")}
                     </div>
                   )}
-                </>
+                  <div ref={logEndRef} />
+                </div>
               )}
             </div>
           )}
@@ -1005,10 +1421,10 @@ export default function CompanyAnalysisPage() {
                   </div>
                   <button
                     onClick={() => handleReanalyze(selected.companyName)}
-                    disabled={analyzing}
+                    disabled={selectedCompanyIsAnalyzing}
                     className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold border rounded-sm transition-colors ${isDark ? "border-slate-600 text-slate-300 hover:bg-slate-800 disabled:opacity-50" : "border-slate-400 text-slate-700 hover:bg-slate-100 disabled:opacity-50"}`}
                   >
-                    재분석 실행
+                    {selectedCompanyIsAnalyzing ? "대기/분석 중" : "재분석 실행"}
                   </button>
                 </div>
 
@@ -1422,7 +1838,7 @@ export default function CompanyAnalysisPage() {
                 {/* 경쟁사 분석 */}
                 {selected.competitors && selected.competitors.length > 0 && (
                   <section className={card}>
-                    <SectionHeader title="경쟁사 분석 (Competitors)" badge="AI" isDark={isDark} />
+                    <SectionHeader title="경쟁사 분석 (Competitors)" badge="CRAWLED" isDark={isDark} />
                     <div className="space-y-3">
                       {selected.competitors.map((comp, i) => {
                         const threat = comp.threatLevel ?? 'medium';
@@ -1436,6 +1852,11 @@ export default function CompanyAnalysisPage() {
                             <div className="flex items-center gap-2 mb-2 flex-wrap">
                               <p className={`text-sm font-semibold ${isDark ? "text-blue-300" : "text-blue-700"}`}>{comp.name}</p>
                               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-sm border ${threatConfig.cls}`}>{threatConfig.label}</span>
+                              {comp.marketScope && (
+                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-sm border ${isDark ? "bg-slate-700 text-slate-300 border-slate-600" : "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                                  {comp.marketScope === "domestic" ? "국내" : "해외·국내 영향"}
+                                </span>
+                              )}
                               {comp.siteUrl && (
                                 <a href={comp.siteUrl} target="_blank" rel="noopener noreferrer" className={`ml-auto text-xs hover:underline ${isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-400 hover:text-slate-600"}`}>
                                   사이트 ↗
@@ -1451,6 +1872,19 @@ export default function CompanyAnalysisPage() {
                                 <span className={`shrink-0 text-xs font-semibold w-16 ${isDark ? "text-slate-500" : "text-slate-400"}`}>필요 역량</span>
                                 <p className={`text-sm leading-relaxed ${isDark ? "text-slate-300" : "text-slate-700"}`}>{comp.needed}</p>
                               </div>
+                              {comp.sourceUrl && (
+                                <div className="flex gap-2">
+                                  <span className={`shrink-0 text-xs font-semibold w-16 ${isDark ? "text-slate-500" : "text-slate-400"}`}>크롤링 근거</span>
+                                  <a
+                                    href={comp.sourceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`text-sm leading-relaxed hover:underline truncate ${isDark ? "text-blue-400" : "text-blue-700"}`}
+                                  >
+                                    {comp.sourceTitle || comp.sourceUrl}
+                                  </a>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
@@ -1501,6 +1935,28 @@ export default function CompanyAnalysisPage() {
                   <section className={card}>
                     <SectionHeader title="HR 분석 (Human Resources)" badge="AI" isDark={isDark} />
                     <HrSection hr={selected.hrAnalysis} isDark={isDark} />
+                    {selected.hrTechSources && selected.hrTechSources.length > 0 && (
+                      <div className={`mt-6 pt-4 border-t ${isDark ? "border-slate-700" : "border-slate-200"}`}>
+                        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${isDark ? "text-slate-500" : "text-slate-400"}`}>기술 조직·HRD 크롤링 근거</p>
+                        <ul className="space-y-1.5">
+                          {selected.hrTechSources.slice(0, 8).map((src, i) => (
+                            <li key={i} className="flex items-center gap-2 min-w-0">
+                              <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-sm border ${isDark ? "bg-slate-700 text-slate-300 border-slate-600" : "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                                {src.category}
+                              </span>
+                              <a
+                                href={src.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`text-xs hover:underline truncate ${isDark ? "text-blue-400" : "text-blue-700"}`}
+                              >
+                                {src.title || src.url}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </section>
                 )}
 
@@ -1527,29 +1983,30 @@ export default function CompanyAnalysisPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                   <section className={`border rounded-sm p-6 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300 shadow-sm"}`}>
                     <SectionHeader title="역량 프로파일" isDark={isDark} />
-                    <ResponsiveContainer width="100%" height={380}>
-                      <RadarChart data={radarData} outerRadius="70%">
-                        <PolarGrid stroke={isDark ? "#475569" : "#cbd5e1"} />
-                        <PolarAngleAxis
-                          dataKey="subject"
-                          tick={{ fill: isDark ? "#cbd5e1" : "#475569", fontSize: 11, fontWeight: 500 }}
-                        />
-                        <PolarRadiusAxis
-                          angle={90}
-                          domain={[0, 100]}
-                          tick={{ fill: isDark ? "#64748b" : "#94a3b8", fontSize: 10 }}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: isDark ? "#1e293b" : "#ffffff",
-                            borderColor: isDark ? "#334155" : "#e2e8f0",
-                            color: isDark ? "#f8fafc" : "#0f172a",
-                            fontSize: "12px",
-                            borderRadius: "2px",
-                            boxShadow: "none",
-                          }}
-                        />
-                        {companies.length > 0 && (
+                    <div className="h-[540px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart data={radarData} outerRadius="72%">
+                          <PolarGrid stroke={isDark ? "#475569" : "#cbd5e1"} />
+                          <PolarAngleAxis
+                            dataKey="subject"
+                            tick={{ fill: isDark ? "#cbd5e1" : "#475569", fontSize: 11, fontWeight: 500 }}
+                          />
+                          <PolarRadiusAxis
+                            angle={90}
+                            domain={[0, 100]}
+                            tick={{ fill: isDark ? "#64748b" : "#94a3b8", fontSize: 10 }}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: isDark ? "#1e293b" : "#ffffff",
+                              borderColor: isDark ? "#334155" : "#e2e8f0",
+                              color: isDark ? "#f8fafc" : "#0f172a",
+                              fontSize: "12px",
+                              borderRadius: "2px",
+                              boxShadow: "none",
+                            }}
+                          />
+                          {companies.length > 0 && (
                           <Radar
                             name="시장 평균 (Market Avg)"
                             dataKey="avg"
@@ -1558,18 +2015,19 @@ export default function CompanyAnalysisPage() {
                             fill="none"
                             strokeWidth={1.5}
                           />
-                        )}
-                        <Radar
-                          name={selected.companyName}
-                          dataKey="value"
-                          stroke={isDark ? "#3b82f6" : "#1d4ed8"}
-                          fill={isDark ? "#3b82f6" : "#1d4ed8"}
-                          fillOpacity={0.15}
-                          strokeWidth={2}
-                        />
-                        <Legend wrapperStyle={{ paddingTop: 20, fontSize: 11, fontFamily: "monospace" }} />
-                      </RadarChart>
-                    </ResponsiveContainer>
+                          )}
+                          <Radar
+                            name={selected.companyName}
+                            dataKey="value"
+                            stroke={isDark ? "#3b82f6" : "#1d4ed8"}
+                            fill={isDark ? "#3b82f6" : "#1d4ed8"}
+                            fillOpacity={0.15}
+                            strokeWidth={2}
+                          />
+                          <Legend wrapperStyle={{ paddingTop: 20, fontSize: 11, fontFamily: "monospace" }} />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </section>
 
                   <div className="space-y-6">
@@ -1612,12 +2070,12 @@ export default function CompanyAnalysisPage() {
 
 
                 {/* 최근 뉴스 */}
-                {selected.recentNews && selected.recentNews.length > 0 && (
+                {recentNewsForDisplay.length > 0 && (
                   <section className={card}>
                     <SectionHeader title="최근 주요 기사 (Recent News)" badge="WEB" isDark={isDark} />
                     <ul className="space-y-3">
-                      {selected.recentNews.map((n, i) => (
-                        <li key={i} className={`pb-3 ${i < selected.recentNews!.length - 1 ? `border-b ${isDark ? "border-slate-700" : "border-slate-100"}` : ""}`}>
+                      {recentNewsForDisplay.map((n, i) => (
+                        <li key={i} className={`pb-3 ${i < recentNewsForDisplay.length - 1 ? `border-b ${isDark ? "border-slate-700" : "border-slate-100"}` : ""}`}>
                           <div className="flex items-start gap-3">
                             <span className={`text-xs font-mono mt-0.5 shrink-0 ${isDark ? "text-slate-500" : "text-slate-400"}`}>{String(i + 1).padStart(2, "0")}</span>
                             <div className="min-w-0 flex-1">

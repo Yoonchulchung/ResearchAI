@@ -29,6 +29,9 @@ export interface Competitor {
   needed: string;
   threatLevel: 'high' | 'medium' | 'low';
   siteUrl: string | null;
+  sourceTitle?: string | null;
+  sourceUrl?: string | null;
+  marketScope?: 'domestic' | 'global_affects_domestic' | null;
 }
 
 export interface HrWheelArea {
@@ -44,6 +47,12 @@ export interface CompetingValues {
   hierarchy: number;
   dominant: 'clan' | 'adhocracy' | 'market' | 'hierarchy';
   description: string;
+  evidence?: {
+    clan?: string;
+    adhocracy?: string;
+    market?: string;
+    hierarchy?: string;
+  } | null;
 }
 
 export interface UlrichModel {
@@ -119,6 +128,7 @@ export interface CompanyAnalysisDto {
   // AI 생성
   swot: SwotAnalysis | null;
   competitors: Competitor[] | null;
+  competitorSources: { title: string; url: string }[] | null;
   businessSegments: BusinessSegment[] | null;
   segmentSources: { title: string; url: string }[] | null;
   companyProfile: CompanyProfile | null;
@@ -144,6 +154,7 @@ export interface CompanyAnalysisDto {
   // 웹 수집
   recentNews: { title: string; url: string; date: string; category?: string; summary?: string }[] | null;
   jobPostings: { title: string; url: string; date: string }[] | null;
+  hrTechSources: { category: string; title: string; url: string }[] | null;
   jobplanetSummary: string | null;
   missionVision: { mission: string | null; vision: string | null; coreValues: string[]; talentProfile: string | null } | null;
   // HR 분석

@@ -45,6 +45,10 @@ function getJobTitle(job: QueueStatus["jobs"][0]) {
 }
 
 function getJobSubtitle(job: QueueStatus["jobs"][0]) {
+  if (job.status === "error") {
+    const message = job.errorMessage || job.result || "실패 원인을 확인할 수 없습니다.";
+    return `${STATUS_LABEL[job.status]} · ${message}`;
+  }
   const status = job.phase ? `${STATUS_LABEL[job.status]} · ${PHASE_LABEL[job.phase] ?? job.phase}` : STATUS_LABEL[job.status];
   return job.displaySubtitle ? `${job.displaySubtitle} · ${status}` : status;
 }
@@ -125,8 +129,11 @@ export function QueueWidget() {
     } catch { /* 취소 실패 무시 */ }
   };
 
-  const activeJobs = queueStatus?.jobs.filter((j) => j.status === "pending" || j.status === "running") ?? [];
-  const hasQueue = activeJobs.length > 0;
+  const visibleJobs = queueStatus?.jobs
+    .filter((j) => j.status === "pending" || j.status === "running" || j.status === "error")
+    .slice(0, 8) ?? [];
+  const activeJobs = visibleJobs.filter((j) => j.status === "pending" || j.status === "running");
+  const hasQueue = visibleJobs.length > 0;
 
   if (summaryItems.length === 0 && !hasQueue) return null;
 
@@ -182,11 +189,13 @@ export function QueueWidget() {
       )}
       {!collapsed && hasQueue && (
         <div className="flex flex-col gap-1 mt-1 pt-1 border-t border-indigo-100">
-          {activeJobs.map((job) => (
+          {visibleJobs.map((job) => (
             <div key={job.jobId} className="flex items-center justify-between gap-2 rounded-md px-1 py-1">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 {job.status === "running" ? (
                   <span className="text-indigo-400 animate-pulse text-xs">●</span>
+                ) : job.status === "error" ? (
+                  <span className="text-red-400 text-xs">✕</span>
                 ) : (
                   <span className="text-yellow-400 text-xs">○</span>
                 )}
@@ -200,18 +209,20 @@ export function QueueWidget() {
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => handleCancelJob(job)}
-                  className="text-2xs text-slate-300 hover:text-red-400 px-1 transition-colors"
-                  title="취소"
-                >
-                  ✕
-                </button>
+                {activeJobs.some((activeJob) => activeJob.jobId === job.jobId) && (
+                  <button
+                    onClick={() => handleCancelJob(job)}
+                    className="text-2xs text-slate-300 hover:text-red-400 px-1 transition-colors"
+                    title="취소"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             </div>
           ))}
           <div className="text-2xs text-slate-400 text-right">
-            대기 {queueStatus?.pending ?? 0} · 처리 중 {queueStatus?.running_jobs ?? 0}
+            대기 {queueStatus?.pending ?? 0} · 처리 중 {queueStatus?.running_jobs ?? 0} · 오류 {queueStatus?.error ?? 0}
           </div>
         </div>
       )}

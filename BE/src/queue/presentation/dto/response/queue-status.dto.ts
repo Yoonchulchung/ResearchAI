@@ -10,6 +10,9 @@ export class QueueJobSummaryDto {
   phase?: QueueJobPhase;
   displayTitle?: string;
   displaySubtitle?: string;
+  companyName?: string;
+  result?: string;
+  errorMessage?: string;
   webSources?: SearchSources;
   referenceCount?: number;
 }

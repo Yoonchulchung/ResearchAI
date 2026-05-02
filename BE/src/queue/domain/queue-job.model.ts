@@ -56,6 +56,7 @@ export interface QueueJob {
   phase?: QueueJobPhase;
   webSources?: SearchSources;
   result?: string;
+  errorMessage?: string;
   webModel?: SearchEngine;
   searchMode?: string;
   filterModel?: string;

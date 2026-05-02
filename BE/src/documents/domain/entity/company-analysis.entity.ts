@@ -58,6 +58,9 @@ export class CompanyAnalysisEntity {
   @Column({ type: 'text', nullable: true })
   competitors: string | null;
 
+  @Column({ name: 'competitor_sources', type: 'text', nullable: true })
+  competitorSources: string | null;
+
   @Column({ name: 'business_segments', type: 'text', nullable: true })
   businessSegments: string | null;
 
@@ -117,6 +120,9 @@ export class CompanyAnalysisEntity {
   @Column({ name: 'job_postings', type: 'text', nullable: true })
   jobPostings: string | null;
 
+  @Column({ name: 'hr_tech_sources', type: 'text', nullable: true })
+  hrTechSources: string | null;
+
   @Column({ name: 'jobplanet_summary', type: 'text', nullable: true })
   jobplanetSummary: string | null;
 
@@ -138,6 +144,9 @@ export class CompanyAnalysisEntity {
 
   @Column({ name: 'apartment_prices', type: 'text', nullable: true })
   apartmentPrices: string | null;
+
+  @Column({ name: 'source_context', type: 'text', nullable: true })
+  sourceContext: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -1,16 +1,53 @@
-const NEWS_SITE_PATTERNS = ['news', 'media', 'press', 'yna.co.kr', 'yonhap', 'kbs', 'mbc', 'sbs', 'jtbc', 'chosun', 'joongang', 'hani', 'khan', 'donga', 'heraldcorp', 'edaily', 'etnews', 'zdnet'];
+const NEWS_SITE_PATTERNS = [
+  'news', 'media', 'press', 'newswire', 'yna.co.kr', 'yonhap', 'kbs', 'mbc', 'sbs',
+  'jtbc', 'chosun', 'joongang', 'hani', 'khan', 'donga', 'heraldcorp', 'edaily',
+  'etnews', 'zdnet', 'mk.co.kr', 'hankyung', 'sedaily', 'mt.co.kr', 'asiae',
+  'fnnews', 'newspim', 'bizwatch', 'thebell',
+];
 const JOB_BOARD_PATTERNS = ['saramin', 'jobkorea', 'wanted', 'incruit', 'linkareer', 'catch.co', 'jumpit', 'rallit', 'programmers', 'rocketpunch', 'recruit', 'career', 'job', 'employ', 'hiring', '채용'];
 
 /** 검색 엔진이 반환하는 "[제목]\n내용\n출처: url" 형식에서 링크를 추출 */
 export function parseSearchLinks(text: string): { title: string; url: string }[] {
   if (!text) return [];
   const results: { title: string; url: string }[] = [];
-  const re = /\[([^\]]+)\][\s\S]*?출처:\s*(https?:\/\/[^\s]+)/g;
+  const re = /^\[(.+)]\s*\n[\s\S]*?^출처:\s*(https?:\/\/[^\s]+)/gm;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
-    results.push({ title: m[1].trim(), url: m[2].trim() });
+    const title = cleanSearchTitle(m[1]);
+    const url = m[2].trim();
+    if (title && url) results.push({ title, url });
   }
   return results;
+}
+
+export function cleanSearchTitle(title: string): string {
+  return decodeHtmlEntities(title)
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+-\s+[^-]{1,30}$/g, (suffix) => {
+      const source = suffix.slice(3).trim().toLowerCase();
+      return /^(namu\.wiki|나무위키)$/i.test(source) ? '' : suffix;
+    })
+    .trim();
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&#34;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+export function isBadNewsTitle(title: string): boolean {
+  const cleaned = cleanSearchTitle(title);
+  if (cleaned.length < 8) return true;
+  if (/^\[[^\]]*$/.test(cleaned)) return true;
+  if (/[�Ãìíêëûü]{2,}/.test(cleaned)) return true;
+  return false;
 }
 
 export function isJobPosting(url: string, title: string): boolean {
@@ -20,6 +57,11 @@ export function isJobPosting(url: string, title: string): boolean {
 
 export function isNewsArticle(url: string): boolean {
   return NEWS_SITE_PATTERNS.some((p) => url.toLowerCase().includes(p));
+}
+
+export function isLikelyNewsArticle(url: string, title: string): boolean {
+  const combined = `${url} ${title}`.toLowerCase();
+  return isNewsArticle(url) || /뉴스|보도자료|보도 자료|press|newsroom|media/.test(combined);
 }
 
 export function isNaverBlog(url: string): boolean {

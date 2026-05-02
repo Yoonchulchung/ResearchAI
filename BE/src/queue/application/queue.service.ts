@@ -25,6 +25,7 @@ import { QueueJobRepository } from '../domain/repository/queue-job.repository';
 import { QueueJobDbStatus } from '../domain/entity/queue-job.entity';
 import { randomUUID } from 'crypto';
 import { CompanyAnalysisProgress } from '../../documents/domain/company-analysis.types';
+import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 
 @Injectable()
 export class QueueService implements OnModuleInit, OnModuleDestroy {
@@ -61,6 +62,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     private readonly companyAnalysisExecutor: CompanyAnalysisExecutorService,
     private readonly queueJobRepository: QueueJobRepository,
     private readonly sessionGateway: SessionGateway,
+    private readonly aiProvider: AiProviderService,
   ) {}
 
   // ************* //
@@ -161,7 +163,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       done: this.jobs.filter((j) => j.status === QueueJobStatus.DONE).length,
       error: this.jobs.filter((j) => j.status === QueueJobStatus.ERROR).length,
       stopped: this.jobs.filter((j) => j.status === QueueJobStatus.STOPPED).length,
-      jobs: this.jobs.map(({ jobId, sessionId, itemId, itemContent, taskType, status, phase, result, webSources }) => ({
+      jobs: this.jobs.map(({ jobId, sessionId, itemId, itemContent, taskType, status, phase, result, errorMessage, webSources }) => ({
         jobId,
         sessionId,
         itemId,
@@ -170,7 +172,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         phase,
         displayTitle: this.getJobDisplayTitle({ jobId, sessionId, itemId, itemContent, taskType }),
         displaySubtitle: this.getJobDisplaySubtitle({ taskType, itemContent }),
+        companyName: this.getJobCompanyName({ taskType, itemContent }),
         result,
+        errorMessage: errorMessage ?? (status === QueueJobStatus.ERROR ? result : undefined),
         webSources,
         referenceCount: result ? (result.match(/\[.+?\]\(https?:\/\/[^)]+\)/g) ?? []).length : undefined,
       })),
@@ -202,6 +206,14 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     }
 
     return job.itemId || job.sessionId || job.jobId;
+  }
+
+  private getJobCompanyName(job: Pick<QueueJob, 'taskType' | 'itemContent'>): string | undefined {
+    if (job.taskType !== QueueJob.TaskType.COMPANYPROFILE && job.taskType !== QueueJob.TaskType.COMPANYANALYSIS) {
+      return undefined;
+    }
+    const parsed = this.parseJobContent<{ companyName?: string }>(job.itemContent);
+    return parsed?.companyName;
   }
 
   private getJobDisplaySubtitle(job: Pick<QueueJob, 'taskType' | 'itemContent'>): string {
@@ -540,6 +552,20 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   // Company Analysis //
   // **************** //
   async enqueueCompanyAnalysis(companyName: string, model: string): Promise<{ jobId: string }> {
+    const effectiveModel = this.aiProvider.resolveEffectiveModel(this.aiProvider.resolveEffectiveModel(model));
+    const key = this.normalizeCompanyName(companyName);
+    const existing = this.jobs.find((job) => {
+      if (job.taskType !== QueueJob.TaskType.COMPANYANALYSIS) return false;
+      if (job.status !== QueueJobStatus.PENDING && job.status !== QueueJobStatus.RUNNING) return false;
+      try {
+        const parsed = JSON.parse(job.itemContent) as { companyName?: string };
+        return this.normalizeCompanyName(parsed.companyName ?? '') === key;
+      } catch {
+        return false;
+      }
+    });
+    if (existing) return { jobId: existing.jobId };
+
     const jobId = randomUUID();
     this.companyAnalysisSubjects.set(jobId, new Subject<MessageEvent>());
     this.companyAnalysisAccumulated.set(jobId, []);
@@ -550,10 +576,14 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       itemContent: JSON.stringify({ companyName }),
       taskType: QueueJob.TaskType.COMPANYANALYSIS,
       localAIModel: '',
-      CloudAIModel: model,
+      CloudAIModel: effectiveModel,
       status: QueueJobStatus.PENDING,
     });
     return { jobId };
+  }
+
+  private normalizeCompanyName(name: string): string {
+    return name.trim().toLowerCase().replace(/\s+/g, '').replace(/[^\p{L}\p{N}]/gu, '');
   }
 
   getCompanyAnalysisStream(jobId: string): Observable<MessageEvent> | null {
@@ -861,7 +891,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       // AbortError: cancelByItem/cancelBySession에서 이미 STOPPED 처리됨
       if (controller.signal.aborted) return;
       const msg = e instanceof Error ? e.message : '오류';
-      this.updateJob(job.jobId, { status: QueueJobStatus.ERROR, phase: undefined, result: msg });
+      this.updateJob(job.jobId, { status: QueueJobStatus.ERROR, phase: undefined, result: msg, errorMessage: msg });
       if (job.taskType === QueueJob.TaskType.SUMMARY) {
 
         const subject = this.summarySubjects.get(job.sessionId);

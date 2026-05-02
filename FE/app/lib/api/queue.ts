@@ -35,6 +35,9 @@ export interface QueueJobSummary {
   phase?: QueueJobPhase;
   displayTitle?: string;
   displaySubtitle?: string;
+  companyName?: string;
+  result?: string;
+  errorMessage?: string;
   webSources?: WebSources;
 }
 

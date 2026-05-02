@@ -5,12 +5,14 @@ import { ChatMessageDto } from './dto/request/chat-message.dto';
 import { ChatHistoryResponseDto } from './dto/response/chat-history.response.dto';
 import { ClearHistoryResponseDto } from './dto/response/clear-history.response.dto';
 import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
+import { CompanyAnalysisService } from '../../documents/application/company-analysis.service';
 
 @Controller('chat')
 export class ChatController {
   constructor(
     private readonly chatService: ChatService,
     private readonly aiProvider: AiProviderService,
+    private readonly companyAnalysisService: CompanyAnalysisService,
   ) { }
 
   /** 세션 없이 동작하는 직접 스트리밍 채팅 (기업 분석 등 컨텍스트 기반 채팅용) */
@@ -20,6 +22,7 @@ export class ChatController {
       message: string;
       model: string;
       systemPrompt?: string;
+      companyAnalysisKey?: string;
       history?: { role: string; content: string }[];
     },
     @Req() req: Request,
@@ -37,14 +40,33 @@ export class ChatController {
 
     const system = body.systemPrompt?.trim() ||
       '당신은 기업 분석 AI 어시스턴트입니다. 제공된 기업 데이터를 바탕으로 명확하고 간결하게 한국어로 답변하세요. 이모지는 사용하지 마세요.';
-
-    const messages = [
-      ...(body.history ?? []).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-      { role: 'user' as const, content: body.message },
-    ];
+    let finalSystem = system;
 
     try {
-      for await (const chunk of this.aiProvider.stream(body.model || '', system, messages)) {
+      const companyContext = body.companyAnalysisKey?.trim()
+        ? await this.companyAnalysisService.buildChatContext(body.companyAnalysisKey.trim())
+        : '';
+      finalSystem = companyContext
+        ? `${system}
+
+---
+[기업 분석 산출물 및 작성 근거]
+${companyContext}
+
+---
+[근거 답변 규칙]
+- 점수, 비율, HRD/HRM 분류, 보고서 문장에 대한 "왜/근거" 질문은 위 산출물과 원자료 묶음에서 확인되는 항목만 근거로 설명하세요.
+- HRD/HRM 평균이나 비율은 HR Wheel의 개별 항목 점수와 분류별 평균을 기준으로 설명하세요.
+- 저장된 원자료에 없는 내용은 추측하지 말고 "저장된 자료에서는 확인되지 않는다"고 말하세요.
+- 출처를 말할 때는 위 출처 목록이나 원자료에 있는 제목·URL만 사용하세요.`
+        : system;
+
+      const messages = [
+        ...(body.history ?? []).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+        { role: 'user' as const, content: body.message },
+      ];
+
+      for await (const chunk of this.aiProvider.stream(body.model || '', finalSystem, messages)) {
         if (res.writableEnded) break;
         res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
       }

@@ -17,6 +17,9 @@ export class CompanyAnalysisExecutorService {
     for await (const event of this.companyAnalysisService.analyzeStream(companyName, model)) {
       if (signal?.aborted) break;
       onEvent(event);
+      if (event.type === 'error') {
+        throw new Error(event.message || '기업 분석 중 오류가 발생했습니다.');
+      }
       if (event.type === 'done') result = event.result ?? null;
     }
 
