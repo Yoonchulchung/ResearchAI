@@ -5,7 +5,9 @@ import { WsAdapter } from '@nestjs/platform-ws';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { AppModule } from './app.module';
+import { Reflector } from '@nestjs/core';
 import { GlobalExceptionFilter } from './shared/filters/global-exception.filter';
+import { ResponseInterceptor } from './shared/interceptors/response.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -14,6 +16,7 @@ async function bootstrap() {
   app.useWebSocketAdapter(new WsAdapter(app));
   app.useGlobalPipes(new ValidationPipe());
   app.useGlobalFilters(new GlobalExceptionFilter());
+  app.useGlobalInterceptors(new ResponseInterceptor(new Reflector()));
 
   // Electron 패키징 시 MEDIA_PATH 환경변수로 경로 주입, 없으면 CWD 기준
   const mediaBase = process.env.MEDIA_PATH ?? join(process.cwd(), 'media');

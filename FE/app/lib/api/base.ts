@@ -96,17 +96,21 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
     }
   }
   if (!res.ok) {
-    const msg = (data as { message?: unknown }).message;
-    const errStr = Array.isArray(msg)
-      ? msg.join(", ")
-      : typeof msg === "string"
-      ? msg
-      : typeof (msg as { message?: unknown })?.message === "string"
-      ? (msg as { message: string }).message
-      : typeof (data as { error?: unknown }).error === "string"
-      ? (data as { error: string }).error
-      : `API 오류 (${res.status})`;
+    const body = data as { message?: unknown };
+    const msg = body.message;
+    const errStr =
+      typeof msg === "string"
+        ? msg
+        : Array.isArray(msg)
+        ? (msg as string[]).join(", ")
+        : `API 오류 (${res.status})`;
     throw new Error(errStr);
+  }
+
+  // ApiResponse 엔벨로프 { isSuccess: true, result: T } 언래핑
+  const envelope = data as { isSuccess?: unknown; result?: unknown };
+  if (envelope.isSuccess === true && Object.prototype.hasOwnProperty.call(envelope, "result")) {
+    return envelope.result as T;
   }
   return data as T;
 }
