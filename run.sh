@@ -1,19 +1,82 @@
 #!/bin/bash
 
-# 종료 시 자식 프로세스 모두 정리
 trap 'kill $(jobs -p) 2>/dev/null; exit' INT TERM EXIT
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
-MODE="${1:-prod}"
-if [ "$MODE" != "dev" ] && [ "$MODE" != "prod" ]; then
-  echo "사용법: $0 [dev|prod]"
+MODE="${1:-dev}"
+if [[ "$MODE" != "dev" && "$MODE" != "prod" && "$MODE" != "deploy" ]]; then
+  echo "사용법: $0 [dev|prod|deploy]"
+  echo "  dev    — 개발 모드 (watch)"
+  echo "  prod   — 프로덕션 빌드 + HAProxy(port 80) + Fail2Ban"
+  echo "  deploy — Docker 이미지 빌드 후 k3s 배포"
   exit 1
 fi
 
+# ── Deploy 모드 (k3s) ────────────────────────────────────────────────────────
+if [ "$MODE" = "deploy" ]; then
+  echo "🚀 k3s 배포 시작..."
+
+  if command -v kubectl &>/dev/null; then
+    KUBECTL="kubectl"
+  elif command -v k3s &>/dev/null; then
+    KUBECTL="k3s kubectl"
+  else
+    echo "❌ kubectl 또는 k3s 가 필요합니다"
+    exit 1
+  fi
+
+  command -v docker &>/dev/null || { echo "❌ docker 가 필요합니다"; exit 1; }
+
+  TAG="${2:-latest}"
+  BE_IMAGE="research-ai/be:${TAG}"
+  FE_IMAGE="research-ai/fe:${TAG}"
+
+  echo "🔨 BE 이미지 빌드 ($BE_IMAGE)..."
+  docker build -t "$BE_IMAGE" "$ROOT/BE" || { echo "❌ BE 빌드 실패"; exit 1; }
+
+  echo "🔨 FE 이미지 빌드 ($FE_IMAGE)..."
+  docker build -t "$FE_IMAGE" "$ROOT/FE" || { echo "❌ FE 빌드 실패"; exit 1; }
+
+  echo "📦 k3s 에 이미지 주입 중..."
+  docker save "$BE_IMAGE" | sudo k3s ctr images import - || { echo "❌ BE 이미지 주입 실패"; exit 1; }
+  docker save "$FE_IMAGE" | sudo k3s ctr images import - || { echo "❌ FE 이미지 주입 실패"; exit 1; }
+
+  SECRET_FILE="$ROOT/deploy/k8s/11-secret.yaml"
+  if [ ! -f "$SECRET_FILE" ]; then
+    echo "⚠️  $SECRET_FILE 없음 — 11-secret.example.yaml 을 복사해서 값을 채워주세요"
+    echo "   cp deploy/k8s/11-secret.example.yaml deploy/k8s/11-secret.yaml"
+  fi
+
+  echo "📋 k8s 매니페스트 적용 중..."
+  for f in $(ls "$ROOT/deploy/k8s/"[0-9]*.yaml | sort); do
+    [[ "$f" == *"secret.example"* ]] && continue
+    echo "   → $(basename "$f")"
+    $KUBECTL apply -f "$f"
+  done
+
+  if [ "$TAG" != "latest" ]; then
+    $KUBECTL set image deployment/be be="$BE_IMAGE" -n research-ai
+    $KUBECTL set image deployment/fe fe="$FE_IMAGE" -n research-ai
+  else
+    $KUBECTL rollout restart deployment/be deployment/fe -n research-ai
+  fi
+
+  echo "⏳ 롤아웃 대기 중..."
+  $KUBECTL rollout status deployment/be -n research-ai --timeout=120s
+  $KUBECTL rollout status deployment/fe -n research-ai --timeout=120s
+
+  NODE_IP=$($KUBECTL get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null || echo "<node-ip>")
+  echo ""
+  echo "✅ 배포 완료 — http://${NODE_IP} 에서 접속"
+  exit 0
+fi
+
+# ── 이하 dev / prod 모드 ─────────────────────────────────────────────────────
+
 echo "🚀 AI 리서치 시스템 시작 중... (${MODE} 모드)"
 
-# ── Qdrant 벡터 DB ───────────────────────────────────────────────────────────
+# ── Qdrant 벡터 DB ────────────────────────────────────────────────────────────
 QDRANT_BIN="$ROOT/data/qdrant-bin/qdrant"
 QDRANT_PID=""
 
@@ -61,7 +124,6 @@ if command -v ollama &>/dev/null; then
   if ! curl -sf http://localhost:11434 >/dev/null 2>&1; then
     echo "🦙 Ollama 서버 시작 중..."
     ollama serve &>/dev/null &
-    # 준비 대기 (최대 10초)
     for i in $(seq 1 10); do
       if curl -sf http://localhost:11434 >/dev/null 2>&1; then break; fi
       sleep 1
@@ -71,7 +133,6 @@ if command -v ollama &>/dev/null; then
     echo "🦙 Ollama 이미 실행 중"
   fi
 
-  # ── 임베딩 모델 (nomic-embed-text) ─────────────────────────────────────────
   if ! ollama list 2>/dev/null | grep -q 'nomic-embed-text'; then
     echo "⬇️  임베딩 모델 다운로드 중 (nomic-embed-text, 약 274MB)..."
     ollama pull nomic-embed-text
@@ -118,9 +179,265 @@ else
   FE_PID=$!
 fi
 
+# ── HAProxy 보안 파일 생성 ────────────────────────────────────────────────────
+_write_security_lists() {
+  # 악성 봇 / 스캐너 User-Agent (substring 매칭)
+  cat > /tmp/haproxy-bad-ua.lst << 'EOF'
+python-requests
+python-urllib
+go-http-client
+masscan
+nikto
+sqlmap
+nmap
+zgrab
+nuclei
+dirsearch
+gobuster
+wfuzz
+hydra
+burpsuite
+metasploit
+scrapy
+semrushbot
+ahrefsbot
+dotbot
+mj12bot
+petalbot
+bingbot/2
+yandexbot
+EOF
+
+  # 스캐너가 자주 노리는 경로 (path_beg 매칭)
+  cat > /tmp/haproxy-scanner-paths.lst << 'EOF'
+/wp-admin
+/wp-login
+/phpmyadmin
+/.env
+/.git
+/.svn
+/etc/
+/config.php
+/admin.php
+/xmlrpc.php
+/cgi-bin
+/actuator
+/console
+/.well-known/security
+/autodiscover
+/owa/
+EOF
+
+  # 스캐너가 자주 노리는 확장자 (path_end 매칭)
+  cat > /tmp/haproxy-scanner-ext.lst << 'EOF'
+.php
+.asp
+.aspx
+.jsp
+.cgi
+.sh
+.bash
+.exe
+.dll
+EOF
+}
+
+# ── Fail2Ban 설정 ─────────────────────────────────────────────────────────────
+_setup_fail2ban() {
+  local log_file="$1"
+
+  # fail2ban 설정 경로 탐지
+  if [ -d /etc/fail2ban ]; then
+    FB_CFG=/etc/fail2ban
+  elif [ -d /opt/homebrew/etc/fail2ban ]; then
+    FB_CFG=/opt/homebrew/etc/fail2ban
+  elif [ -d /usr/local/etc/fail2ban ]; then
+    FB_CFG=/usr/local/etc/fail2ban
+  else
+    echo "   ⚠️  fail2ban 설정 경로 없음 — 'brew install fail2ban' 또는 'apt install fail2ban'"
+    return 1
+  fi
+
+  mkdir -p "$FB_CFG/filter.d" "$FB_CFG/jail.d"
+
+  # 필터 1: 요청 속도 초과 (429)
+  cat > "$FB_CFG/filter.d/haproxy-req-limit.conf" << 'EOF'
+[Definition]
+failregex = ^<HOST>:\d+ \[.+?\] \S+ \S+ \S+ 429 .*$
+ignoreregex =
+datepattern = \[%%d/%%b/%%Y:%%H:%%M:%%S
+EOF
+
+  # 필터 2: 스캐너 경로 탐지 (403/404)
+  cat > "$FB_CFG/filter.d/haproxy-scanner.conf" << 'EOF'
+[Definition]
+failregex = ^<HOST>:\d+ \[.+?\] \S+ \S+ \S+ (?:403|404) .* "(?:GET|POST|HEAD|PUT|DELETE) (?:/wp-admin|/wp-login|/phpmyadmin|/\.env|/\.git|/etc/|/xmlrpc|/actuator|/console).*".*$
+ignoreregex =
+datepattern = \[%%d/%%b/%%Y:%%H:%%M:%%S
+EOF
+
+  # 필터 3: 로그인 브루트포스 (401)
+  cat > "$FB_CFG/filter.d/haproxy-auth.conf" << 'EOF'
+[Definition]
+failregex = ^<HOST>:\d+ \[.+?\] \S+ \S+ \S+ 401 .* "POST /api/auth/login.*".*$
+ignoreregex =
+datepattern = \[%%d/%%b/%%Y:%%H:%%M:%%S
+EOF
+
+  # Jail 설정
+  cat > "$FB_CFG/jail.d/haproxy-research-ai.conf" << EOF
+# 생성: run.sh (prod 모드)
+
+[haproxy-req-limit]
+enabled  = true
+filter   = haproxy-req-limit
+logpath  = ${log_file}
+maxretry = 10
+findtime = 60
+bantime  = 1800
+
+[haproxy-scanner]
+enabled  = true
+filter   = haproxy-scanner
+logpath  = ${log_file}
+maxretry = 5
+findtime = 60
+bantime  = 86400
+
+[haproxy-auth]
+enabled  = true
+filter   = haproxy-auth
+logpath  = ${log_file}
+maxretry = 10
+findtime = 300
+bantime  = 3600
+EOF
+
+  # Fail2Ban 재시작/리로드
+  if command -v fail2ban-client &>/dev/null; then
+    if fail2ban-client ping &>/dev/null 2>&1; then
+      fail2ban-client reload &>/dev/null && echo "   🛡️  Fail2Ban 재로드 완료"
+    else
+      if command -v systemctl &>/dev/null && systemctl is-active fail2ban &>/dev/null 2>&1; then
+        systemctl restart fail2ban &>/dev/null && echo "   🛡️  Fail2Ban 재시작 완료"
+      else
+        fail2ban-server -b -s /var/run/fail2ban/fail2ban.sock &>/dev/null \
+          && echo "   🛡️  Fail2Ban 시작 완료" \
+          || echo "   ⚠️  Fail2Ban 시작 실패 — sudo 권한이 필요할 수 있습니다"
+      fi
+    fi
+  fi
+}
+
+# ── HAProxy (prod 모드 전용) ─────────────────────────────────────────────────
+HAPROXY_PID=""
+
+if [ "$MODE" = "prod" ] && command -v haproxy &>/dev/null; then
+  HAPROXY_PORT="${HAPROXY_PORT:-80}"
+  HAPROXY_CFG="/tmp/haproxy-research-ai.cfg"
+  HAPROXY_LOG="/tmp/haproxy-research-ai.log"
+
+  _write_security_lists
+
+  cat > "$HAPROXY_CFG" << EOF
+global
+  log stderr local0 info
+  maxconn 2048
+
+defaults
+  mode http
+  log global
+  option httplog
+  option forwardfor
+  timeout connect  5s
+  timeout client  60s
+  timeout server  60s
+  timeout tunnel   1h
+
+frontend research_ai
+  bind *:${HAPROXY_PORT}
+
+  # ── Rate Limiting (stick table) ──────────────────────────────
+  # 동일 IP 에서 10초 내 200 req 초과 → 429
+  # 동일 IP 동시 연결 50개 초과 → 429
+  stick-table type ip size 200k expire 10s store http_req_rate(10s),conn_cur
+  http-request track-sc0 src
+  http-request deny deny_status 429 if { sc_http_req_rate(0) gt 200 }
+  http-request deny deny_status 429 if { sc_conn_cur(0) gt 50 }
+
+  # ── Bot / Scanner UA 차단 ─────────────────────────────────────
+  acl bad_ua    req.hdr(User-Agent) -i -m sub -f /tmp/haproxy-bad-ua.lst
+  http-request deny deny_status 403 if bad_ua
+
+  # ── Scanner 경로 / 확장자 차단 ───────────────────────────────
+  acl scan_path path_beg -f /tmp/haproxy-scanner-paths.lst
+  acl scan_ext  path_end -f /tmp/haproxy-scanner-ext.lst
+  http-request deny deny_status 404 if scan_path OR scan_ext
+
+  # ── 보안 응답 헤더 ────────────────────────────────────────────
+  http-response set-header X-Content-Type-Options  "nosniff"
+  http-response set-header X-Frame-Options         "SAMEORIGIN"
+  http-response set-header Referrer-Policy         "strict-origin-when-cross-origin"
+  http-response set-header X-XSS-Protection        "1; mode=block"
+
+  # ── 서버 정보 노출 제거 ───────────────────────────────────────
+  http-response del-header Server
+  http-response del-header X-Powered-By
+
+  # ── 백엔드 라우팅 ─────────────────────────────────────────────
+  acl is_ws_upgrade hdr(Upgrade) -i websocket
+  acl is_api        path_beg /api
+  acl is_ws         path_beg /ws
+  acl is_bg         path_beg /backgrounds
+  use_backend be if is_ws_upgrade
+  use_backend be if is_api
+  use_backend be if is_ws
+  use_backend be if is_bg
+  default_backend fe
+
+backend be
+  http-request set-header X-Forwarded-Proto http
+  server be1 127.0.0.1:3001 check
+
+backend fe
+  http-request set-header X-Forwarded-Proto http
+  server fe1 127.0.0.1:3000 check
+EOF
+
+  echo "🔀 HAProxy 시작 (port ${HAPROXY_PORT})..."
+  # daemon 없이 실행 → stderr(=access log) 를 파일로 리디렉션
+  haproxy -f "$HAPROXY_CFG" 2>>"$HAPROXY_LOG" &
+  HAPROXY_PID=$!
+  sleep 1
+
+  if kill -0 "$HAPROXY_PID" 2>/dev/null; then
+    echo "🔀 HAProxy 실행 중 (http://localhost:${HAPROXY_PORT})"
+    echo "   📄 액세스 로그: $HAPROXY_LOG"
+
+    # Fail2Ban 연동
+    if command -v fail2ban-client &>/dev/null; then
+      echo "🛡️  Fail2Ban 설정 중..."
+      _setup_fail2ban "$HAPROXY_LOG"
+    else
+      echo "   ℹ️  Fail2Ban 미설치 — 'brew install fail2ban' 또는 'apt install fail2ban'"
+    fi
+  else
+    echo "⚠️  HAProxy 시작 실패 — port ${HAPROXY_PORT} 권한 문제일 수 있습니다"
+    echo "   → HAPROXY_PORT=8080 ./run.sh prod"
+    HAPROXY_PID=""
+  fi
+elif [ "$MODE" = "prod" ]; then
+  echo "⚠️  haproxy 미설치 — FE: http://localhost:3000, BE: http://localhost:3001"
+  echo "   → brew install haproxy"
+fi
+
 echo ""
-echo "✅ 실행 중 — http://localhost:3000 에서 접속하세요"
+if [ "$MODE" = "prod" ] && [ -n "$HAPROXY_PID" ]; then
+  echo "✅ 실행 중 — http://localhost:${HAPROXY_PORT} 에서 접속하세요"
+else
+  echo "✅ 실행 중 — http://localhost:3000 에서 접속하세요"
+fi
 echo "   종료하려면 Ctrl+C"
 echo ""
 
-wait $BE_PID $FE_PID ${QDRANT_PID}
+wait $BE_PID $FE_PID ${QDRANT_PID} ${HAPROXY_PID}
