@@ -1,7 +1,8 @@
 import {
   Body, Controller, Delete, Get, HttpCode, Param, Patch, Post,
-  UploadedFile, UseInterceptors, BadRequestException,
+  UploadedFile, UseInterceptors, BadRequestException, Req, Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { DocumentsService } from '../application/documents.service';

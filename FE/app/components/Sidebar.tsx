@@ -337,7 +337,7 @@ export function Sidebar() {
       {/* Header */}
       <div className="px-4 pt-5 pb-3 flex items-center justify-between">
         <button
-          onClick={() => router.push("/")}
+          onClick={() => router.push("/main/")}
           className="flex items-center gap-2.5 group min-w-0"
         >
           <LogoMark size={26} />

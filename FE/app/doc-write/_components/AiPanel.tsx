@@ -16,11 +16,11 @@ import { useTheme } from "@/contexts/ThemeContext";
 // ─── Icon mapping ─────────────────────────────────────────────────────────────
 
 const FALLBACK_ACTIONS: DocWriteAction[] = [
-  { key: "continue", label: "계속 작성" },
-  { key: "section", label: "섹션 추가" },
+  // { key: "continue", label: "계속 작성" },
+  // { key: "section", label: "섹션 추가" },
   { key: "improve", label: "내용 개선" },
   { key: "spellcheck", label: "맞춤법 교정", skipCompanyCtx: true },
-  { key: "summarize", label: "요약" },
+  // { key: "summarize", label: "요약" },
   { key: "example", label: "예시 생성" },
   { key: "plagiarism", label: "AI 표절률 검사", skipCompanyCtx: true },
   { key: "evaluate", label: "글 평가", skipCompanyCtx: true },

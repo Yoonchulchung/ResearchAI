@@ -4,6 +4,8 @@ interface AnalyticsSummary {
   totalCost: number;
   totalCalls: number;
   models: string[];
+  chartData: Record<string, string | number>[];
+  byModel: Record<string, { cost: number; calls: number }>;
 }
 
 export function TokenUsageCard({

@@ -22,6 +22,8 @@ interface AnalyticsSummary {
   totalCost: number;
   totalCalls: number;
   models: string[];
+  chartData: Record<string, string | number>[];
+  byModel: Record<string, { cost: number; calls: number }>;
 }
 
 function CloudModelConfigCard({
@@ -170,7 +172,7 @@ export default function OverviewPage() {
     setLoading(true);
     Promise.allSettled([
       getTavilyOverview(),
-      fetch(`${API_BASE}/overview/analytics?range=30d`).then((r) => r.json()),
+      fetch(`${API_BASE}/overview/analytics?range=30d`).then((r) => r.json()).then((d) => d.result),
       getModels(),
     ]).then(([tavilyRes, analyticsRes, modelsRes]) => {
       if (tavilyRes.status === "fulfilled") setTavily(tavilyRes.value);

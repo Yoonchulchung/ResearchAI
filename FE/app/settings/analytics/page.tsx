@@ -68,7 +68,7 @@ export default function AnalyticsPage() {
     setError(null);
     fetch(`${API_BASE}/overview/analytics?range=${range}&granularity=${granularity}`)
       .then((r) => r.json())
-      .then(setData)
+      .then((d) => setData(d.result))
       .catch(() => setError("데이터를 불러오지 못했습니다."))
       .finally(() => setLoading(false));
   }, [range, granularity]);
