@@ -18,6 +18,9 @@ concurrency:
   group: build-deploy-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  IMAGE_PLATFORMS: linux/amd64
+
 jobs:
   build-and-update:
     name: Build Docker images
@@ -57,7 +60,7 @@ jobs:
         with:
           context: ./BE
           file: ./BE/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ env.IMAGE_PLATFORMS }}
           push: true
           tags: |
             ${{ steps.meta.outputs.be_image }}
@@ -71,7 +74,7 @@ jobs:
         with:
           context: ./FE
           file: ./FE/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ env.IMAGE_PLATFORMS }}
           push: true
           tags: |
             ${{ steps.meta.outputs.fe_image }}

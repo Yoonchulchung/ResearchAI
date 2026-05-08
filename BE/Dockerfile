@@ -1,18 +1,23 @@
 # --- BE: NestJS (pnpm) ---
 
 # ========== Builder ==========
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
-RUN apk add --no-cache python3 make g++ git
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # pnpm 활성화
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.29.1 --activate
+
+ENV PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # 의존성 캐시 최적화 (Puppeteer 번들 Chrome 다운로드 스킵 — ARM에서 미지원)
 COPY package.json pnpm-lock.yaml* ./
-RUN PUPPETEER_SKIP_DOWNLOAD=true pnpm install --frozen-lockfile=false
+RUN pnpm install --frozen-lockfile=false
 
 # 소스 복사 + 빌드
 COPY . .
@@ -20,11 +25,13 @@ RUN pnpm run build \
  && pnpm prune --prod
 
 # ========== Runtime ==========
-FROM node:20-alpine AS runtime
+FROM node:20-bookworm-slim AS runtime
 
-RUN apk add --no-cache tini dumb-init chromium \
- && addgroup -g 1001 -S nodejs \
- && adduser -S nestjs -u 1001 -G nodejs
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tini chromium ca-certificates fonts-liberation \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd -g 1001 nodejs \
+ && useradd -u 1001 -g nodejs -m -s /usr/sbin/nologin nestjs
 
 WORKDIR /app
 
@@ -42,8 +49,9 @@ ENV NODE_ENV=production \
     PORT=3001 \
     DATABASE_URL=file:/app/data/sessions.db \
     MEDIA_PATH=/app/media \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
-    PUPPETEER_SKIP_DOWNLOAD=true
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 EXPOSE 3001
 
