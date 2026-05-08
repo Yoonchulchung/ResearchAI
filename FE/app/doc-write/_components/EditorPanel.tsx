@@ -245,7 +245,7 @@ export function EditorPanel({
               onKeyUp={onTextareaSelect}
               onContextMenu={onContextMenu}
               placeholder="내용을 작성하세요..."
-              className={`flex-1 w-full px-8 py-6 text-lg font-sans leading-loose !bg-transparent !border-0 focus:outline-none resize-none ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
+              className={`flex-1 w-full px-8 pt-3 pb-6 text-lg font-sans leading-loose !bg-transparent !border-0 focus:outline-none resize-none ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
             />
           </div>
         ) : (

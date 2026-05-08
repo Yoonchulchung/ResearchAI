@@ -103,69 +103,67 @@ function DocWritePageInner() {
     <div className={`h-full flex flex-col overflow-hidden ${isGlass ? "p-3 pr-4 pb-4 bg-transparent" : "bg-slate-100"}`}>
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl border border-white/20" : ""}`}>
       {/* ── Topbar ─────────────────────────────────────────────────────────── */}
-      <div className={`flex flex-wrap items-center gap-3 px-5 py-2.5 shrink-0 transition-all ${isGlass ? `border-b ${isDark ? "border-white/20" : "border-black/10"}` : `bg-white border-b ${isDark ? "border-slate-700/50" : "border-slate-200/60"}`}`}>
-        <input
-          value={docSave.savedDocTitle}
-          onChange={(e) => docSave.setSavedDocTitle(e.target.value)}
-          placeholder="제목 없음"
-          className={`text-base font-semibold !bg-transparent !border-0 focus:outline-none min-w-0 w-full md:w-72 ${isDark ? "text-white placeholder-white/40" : "text-slate-800 placeholder-slate-400"}`}
-        />
-
-        <div className="flex-1" />
-
-        {/* 채용 공고 */}
-        <button
-          onClick={() => router.push("/job-posting")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
-            isGlass && isDark
-              ? "text-white/80 border-white/20 hover:bg-white/10 hover:text-white hover:border-white/30"
-              : "text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm"
-          }`}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <rect x="1" y="2" width="10" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
-            <path d="M4 1v2M8 1v2M1 5h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-          </svg>
-          채용 공고
-        </button>
-
-        {/* 참고 자소서 */}
-        <button
-          onClick={() => router.push("/cover-letter")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
-            isGlass && isDark
-              ? "text-white/80 border-white/20 hover:bg-white/10 hover:text-white hover:border-white/30"
-              : "text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm"
-          }`}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M2 1h8v10H2V1z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M4 4h4M4 6.5h4M4 9h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-          </svg>
-          참고 자소서
-        </button>
-
-        {/* 기업 분석 — 인재상 핵심역량 매핑 페이지로 이동 */}
-        <button
-          onClick={() => router.push("/company-analysis")}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border transition-all bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M2 10V5M5 10V2M8 10V7M11 10V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          기업 분석
-        </button>
-
-        <button
-          onClick={editor.handleExport}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-all ${
-            isGlass && isDark
-              ? "text-white/80 border-white/20 hover:bg-white/10 hover:text-white hover:border-white/30"
-              : "text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm"
-          }`}
-        >
-          <IconDownload /> 내보내기
-        </button>
+      <div className={`shrink-0 transition-all ${isGlass ? `border-b ${isDark ? "border-white/20" : "border-black/10"}` : `bg-white border-b ${isDark ? "border-slate-700/50" : "border-slate-200/60"}`}`}>
+        {/* Row 1: title + all nav buttons */}
+        <div className="flex items-center gap-1.5 px-5 py-2">
+          <input
+            value={docSave.savedDocTitle}
+            onChange={(e) => docSave.setSavedDocTitle(e.target.value)}
+            placeholder="제목 없음"
+            className={`flex-1 min-w-0 text-base font-semibold !bg-transparent !border-0 focus:outline-none ${isDark ? "text-white placeholder-white/40" : "text-slate-800 placeholder-slate-400"}`}
+          />
+          <button
+            onClick={() => router.push("/job-posting")}
+            title="채용공고"
+            className={`shrink-0 flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border transition-all ${
+              isGlass && isDark
+                ? "text-white/70 border-white/20 hover:bg-white/10 hover:text-white"
+                : "text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
+            }`}
+          >
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <rect x="1" y="2" width="10" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
+              <path d="M4 1v2M8 1v2M1 5h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+            채용공고
+          </button>
+          <button
+            onClick={() => router.push("/cover-letter")}
+            title="참고 자소서"
+            className={`shrink-0 flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border transition-all ${
+              isGlass && isDark
+                ? "text-white/70 border-white/20 hover:bg-white/10 hover:text-white"
+                : "text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
+            }`}
+          >
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path d="M2 1h8v10H2V1z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M4 4h4M4 6.5h4M4 9h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            참고 자소서
+          </button>
+          <button
+            onClick={() => router.push("/company-analysis")}
+            title="기업 분석"
+            className="shrink-0 flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md border transition-all bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+          >
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path d="M2 10V5M5 10V2M8 10V7M11 10V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            기업 분석
+          </button>
+          <button
+            onClick={editor.handleExport}
+            title="내보내기"
+            className={`shrink-0 flex items-center justify-center w-7 h-7 rounded-md border transition-all ${
+              isGlass && isDark
+                ? "text-white/70 border-white/20 hover:bg-white/10 hover:text-white"
+                : "text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
+            }`}
+          >
+            <IconDownload />
+          </button>
+        </div>
       </div>
 
 
@@ -217,7 +215,7 @@ function DocWritePageInner() {
         ref={containerRef}
         className={`flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden ${isDragging ? "select-none cursor-col-resize" : ""} ${isGlass ? "" : "bg-white"}`}
       >
-        <div style={{ "--split": `${splitRatio * 100}%` } as any} className="w-full lg:w-(--split) flex-1 lg:flex-none flex flex-col min-h-[50vh] lg:min-h-0 overflow-hidden">
+        <div style={{ "--split": `${splitRatio * 100}%` } as any} className="w-full lg:w-(--split) flex-1 lg:flex-none flex flex-col min-h-[30vh] lg:min-h-0 overflow-hidden">
           <EditorPanel
             content={editor.content}
             setContent={editor.setContent}
@@ -248,7 +246,7 @@ function DocWritePageInner() {
 
         <div className="hidden lg:flex"><ResizeDivider onMouseDown={startResize} isDragging={isDragging} /></div>
 
-        <div style={{ "--split": `${(1 - splitRatio) * 100}%` } as any} className="w-full lg:w-(--split) flex-1 lg:flex-none flex flex-col min-h-[50vh] lg:min-h-0 overflow-hidden">
+        <div style={{ "--split": `${(1 - splitRatio) * 100}%` } as any} className="w-full lg:w-(--split) flex-1 lg:flex-none flex flex-col min-h-0 overflow-hidden">
           <AiPanel
             messages={ai.messages}
             aiLoading={ai.aiLoading}

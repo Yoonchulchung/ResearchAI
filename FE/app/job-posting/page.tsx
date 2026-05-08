@@ -417,7 +417,7 @@ export default function JobPostingPage() {
               수집 중 {status.totalCollected.toLocaleString()}건 · p.{status.currentPage}
             </div>
           ) : (
-            <div className="flex items-center gap-2 mt-2 overflow-x-auto pb-0.5 scrollbar-hide">
+            <div className="hidden md:flex items-center gap-2 mt-2 overflow-x-auto pb-0.5 scrollbar-hide">
               {scrapeSource === "linkareer" && (
                 <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs font-semibold bg-white shrink-0">
                   {(["INTERN", "RECRUIT"] as const).map((jt) => (
@@ -463,8 +463,8 @@ export default function JobPostingPage() {
             {/* Search + filters */}
             <div className="shrink-0 p-4 border-b border-slate-200/80 flex flex-col gap-3 bg-slate-50/50">
 
-              {/* Source tabs */}
-              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+              {/* Source tabs — desktop only */}
+              <div className="hidden md:flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
                 {(["", "linkareer", "jobkorea", "catch", "jobplanet", "jobda"] as const).map((src) => (
                   <button
                     key={src}

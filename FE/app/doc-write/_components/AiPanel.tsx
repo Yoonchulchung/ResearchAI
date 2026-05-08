@@ -5,7 +5,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { MODELS, PROSE_CLASS } from "../_constants";
 import type { ChatMessage } from "../_types";
-import type { DocWriteAction } from "@/lib/api/doc-write";
 import type { ExperienceSearchResult } from "@/lib/api/experiences";
 import {
   IconAppend, IconContinue, IconCopy, IconEvaluate, IconExample,
@@ -15,12 +14,9 @@ import { useTheme } from "@/contexts/ThemeContext";
 
 // ─── Icon mapping ─────────────────────────────────────────────────────────────
 
-const FALLBACK_ACTIONS: DocWriteAction[] = [
-  // { key: "continue", label: "계속 작성" },
-  // { key: "section", label: "섹션 추가" },
+const FALLBACK_ACTIONS: { key: string; label: string; skipCompanyCtx?: boolean }[] = [
   { key: "improve", label: "내용 개선" },
   { key: "spellcheck", label: "맞춤법 교정", skipCompanyCtx: true },
-  // { key: "summarize", label: "요약" },
   { key: "example", label: "예시 생성" },
   { key: "plagiarism", label: "AI 표절률 검사", skipCompanyCtx: true },
   { key: "evaluate", label: "글 평가", skipCompanyCtx: true },
@@ -99,7 +95,56 @@ export function AiPanel({
     <div className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-colors ${isGlass ? "bg-transparent" : "bg-slate-50"}`}>
       {/* Header */}
       <div className={`shrink-0 flex items-center gap-2 px-4 py-2 border-b transition-colors ${isGlass ? (isDark ? "bg-transparent border-white/10" : "bg-transparent border-black/10") : "bg-white border-slate-200/60"}`}>
-        <span className={`text-sm font-semibold uppercase tracking-wider ${isDark ? "text-white/60" : "text-slate-500"}`}>AI 어시스턴트</span>
+        <span className={`text-sm font-semibold uppercase tracking-wider shrink-0 ${isDark ? "text-white/60" : "text-slate-500"}`}>AI 어시스턴트</span>
+        {/* Mobile: evaluate only */}
+        <button
+          onClick={() => onRunAssist("", "글 평가", true, "evaluate")}
+          disabled={aiLoading}
+          title="글 평가"
+          className={`lg:hidden flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold border transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0 ${
+            isGlass && isDark
+              ? "text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/30"
+              : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
+          }`}
+        >
+          {KEY_TO_ICON["evaluate"]}
+          <span>글 평가</span>
+        </button>
+        {/* PC: all quick action buttons inline */}
+        <div className="hidden lg:flex items-center gap-1 flex-wrap">
+          {actions.filter((a) => a.key !== "evaluate" && a.key !== "plagiarism").map((action) => (
+            <button
+              key={action.key}
+              onClick={() => onRunAssist("", action.label, action.skipCompanyCtx, action.key)}
+              disabled={aiLoading}
+              title={action.label}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border disabled:opacity-40 disabled:cursor-not-allowed transition-all ${
+                isGlass && isDark
+                  ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10 hover:text-white"
+                  : "text-slate-600 bg-white shadow-sm hover:bg-indigo-50 hover:text-indigo-700 border-slate-200 hover:border-indigo-200"
+              }`}
+            >
+              {KEY_TO_ICON[action.key]}
+              <span>{action.label}</span>
+            </button>
+          ))}
+          {actions.filter((a) => a.key === "evaluate" || a.key === "plagiarism").map((action) => (
+            <button
+              key={action.key}
+              onClick={() => onRunAssist("", action.label, action.skipCompanyCtx, action.key)}
+              disabled={aiLoading}
+              title={action.label}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold border disabled:opacity-40 disabled:cursor-not-allowed transition-all ${
+                isGlass && isDark
+                  ? "text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/30"
+                  : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
+              }`}
+            >
+              {KEY_TO_ICON[action.key]}
+              <span>{action.label}</span>
+            </button>
+          ))}
+        </div>
         <div className="flex-1" />
         {messages.length > 0 && (
           <button
@@ -225,45 +270,7 @@ export function AiPanel({
       </div>
 
       {/* Bottom input area */}
-      <div className={`shrink-0 border-t px-4 pt-3 pb-4 space-y-2.5 transition-colors ${isGlass ? (isDark ? "bg-transparent border-white/10" : "bg-transparent border-black/10") : "bg-white border-slate-200/60"}`}>
-        {/* Quick actions */}
-        <div className="space-y-1.5">
-          <div className="grid grid-cols-3 gap-1.5">
-            {actions.filter((a) => a.key !== "evaluate" && a.key !== "plagiarism").map((action) => (
-              <button
-                key={action.key}
-                onClick={() => onRunAssist("", action.label, action.skipCompanyCtx, action.key)}
-                disabled={aiLoading}
-                className={`flex items-center justify-center gap-1 px-1.5 py-2 rounded-lg text-xs font-medium border disabled:opacity-40 disabled:cursor-not-allowed transition-all ${
-                    isGlass && isDark
-                    ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10 hover:text-white hover:border-white/30"
-                    : "text-slate-600 bg-white shadow-sm hover:bg-indigo-50 hover:text-indigo-700 border-slate-200 hover:border-indigo-200"
-                  }`}
-              >
-                {KEY_TO_ICON[action.key]}
-                <span>{action.label}</span>
-              </button>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {actions.filter((a) => a.key === "evaluate" || a.key === "plagiarism").map((action) => (
-              <button
-                key={action.key}
-                onClick={() => onRunAssist("", action.label, action.skipCompanyCtx, action.key)}
-                disabled={aiLoading}
-                className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm ${
-                  isGlass && isDark
-                    ? "text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30"
-                    : "text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200"
-                }`}
-              >
-                {KEY_TO_ICON[action.key]}
-                <span>{action.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
+      <div className={`shrink-0 border-t px-4 pt-3 pb-4 transition-colors ${isGlass ? (isDark ? "bg-transparent border-white/10" : "bg-transparent border-black/10") : "bg-white border-slate-200/60"}`}>
         {/* Custom prompt */}
         <div className="flex gap-2">
           <textarea

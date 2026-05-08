@@ -74,16 +74,16 @@ export function SessionHeader({
   const isNonBuiltinWebEngine = !!webEngines?.find((e) => e.id === selectedWebModel && !e.builtin);
 
   const containerClasses = uiStyle === "glass"
-    ? "m-3 rounded-2xl glass-panel shadow-sm sticky top-3 z-30 px-6 pt-4 pb-0"
-    : "px-6 pt-5 pb-0 bg-white/95 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-20";
+    ? "m-3 rounded-2xl glass-panel shadow-sm sticky top-3 z-30 px-3 sm:px-6 pt-4 pb-0"
+    : "px-3 sm:px-6 pt-3 sm:pt-5 pb-0 bg-white/95 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-20";
 
   return (
     <div className={containerClasses}>
-      {/* Row 1: Title + Badges + Actions */}
-      <div className="flex items-start gap-3 mb-3.5">
+      {/* Row 1: Title + Badges + Model Selectors + Actions */}
+      <div className="flex items-center gap-3 mb-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="font-bold text-slate-900 leading-tight text-base truncate">
+          <div className="flex items-center gap-2 flex-nowrap min-w-0">
+            <h1 className="font-bold text-slate-900 leading-tight text-base truncate min-w-0">
               {topic}
             </h1>
             <span
@@ -95,10 +95,13 @@ export function SessionHeader({
                 color: avgConfidence >= 71 ? "#047857" : avgConfidence >= 41 ? "#b45309" : "#dc2626",
               } : { background: "#f1f5f9", color: "#64748b" }}
             >
-              {model}
+              <span className="hidden sm:inline">{model}</span>
               {avgConfidence != null && (
-                <span className="font-bold tabular-nums opacity-80">· {avgConfidence}%</span>
+                <span className="font-bold tabular-nums opacity-80">
+                  <span className="hidden sm:inline">· </span>{avgConfidence}%
+                </span>
               )}
+              {avgConfidence == null && <span className="sm:hidden">{model}</span>}
             </span>
             {isRunning && (
               <span className="inline-flex items-center gap-1.5 text-2xs text-indigo-500 font-medium shrink-0">
@@ -110,23 +113,63 @@ export function SessionHeader({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+        <div className="flex flex-nowrap items-center gap-1.5 shrink-0 justify-end overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          {/* Model selectors — shown inline before run button */}
+          {hasRunSelectors && !allDone && (
+            <>
+              {cloudAiModels && cloudAiModels.length > 0 && (
+                <select
+                  value={selectedCloudAiModel ?? ""}
+                  onChange={(e) => onCloudAiModelChange?.(e.target.value)}
+                  className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-36 truncate cursor-pointer"
+                >
+                  {cloudAiModels.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              )}
+              {webEngines && webEngines.length > 0 && (
+                <select
+                  value={selectedWebModel ?? ""}
+                  onChange={(e) => onWebModelChange?.(e.target.value)}
+                  className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-36 truncate cursor-pointer"
+                >
+                  {webEngines.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+              )}
+              {isNonBuiltinWebEngine && filterModels && filterModels.length > 0 && (
+                <select
+                  value={selectedFilterModel ?? ""}
+                  onChange={(e) => onFilterModelChange?.(e.target.value)}
+                  className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-36 truncate cursor-pointer"
+                >
+                  {filterModels.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              )}
+            </>
+          )}
+
           {/* Export */}
           {allDone && (
             <button
               onClick={onExport}
-              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all"
+              title="내보내기"
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all"
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M6 1V8M3 5L6 8L9 5M2 10H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-              내보내기
+              <span className="hidden sm:inline">내보내기</span>
             </button>
           )}
 
           {/* Re-evaluate all */}
           {hasDoneTasks && onReEvaluateAll && (
-            <div className="flex items-center gap-1">
+            <div className="hidden sm:flex items-center gap-1">
               {models && models.length > 0 ? (
                 <select
                   value={reEvalModel}
@@ -227,49 +270,6 @@ export function SessionHeader({
         </div>
       )}
 
-      {/* Row 2: Model Selectors */}
-      {hasRunSelectors && !allDone && (
-        <div className="flex items-center gap-2 pb-3 flex-wrap">
-          <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">실행 모델</span>
-          {cloudAiModels && cloudAiModels.length > 0 && (
-            <select
-              value={selectedCloudAiModel ?? ""}
-              onChange={(e) => onCloudAiModelChange?.(e.target.value)}
-              className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-44 truncate cursor-pointer"
-            >
-              {cloudAiModels.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-          )}
-          {webEngines && webEngines.length > 0 && (
-            <select
-              value={selectedWebModel ?? ""}
-              onChange={(e) => onWebModelChange?.(e.target.value)}
-              className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-44 truncate cursor-pointer"
-            >
-              {webEngines.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-          )}
-          {isNonBuiltinWebEngine && filterModels && filterModels.length > 0 && (
-            <>
-              <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">필터</span>
-              <select
-                value={selectedFilterModel ?? ""}
-                onChange={(e) => onFilterModelChange?.(e.target.value)}
-                className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-44 truncate cursor-pointer"
-              >
-                {filterModels.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-            </>
-          )}
-          <span className="text-2xs text-slate-300">각 태스크에서 개별 변경 가능</span>
-        </div>
-      )}
     </div>
   );
 }

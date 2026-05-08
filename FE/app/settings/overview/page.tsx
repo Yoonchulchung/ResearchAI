@@ -50,15 +50,15 @@ function CloudModelConfigCard({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-5">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 sm:px-6 py-5 overflow-hidden">
       <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
         클라우드 AI 모델 기본값
       </p>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <select
           value={selected}
           onChange={(e) => setSelected(e.target.value)}
-          className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300"
+          className="flex-1 min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300"
         >
           {cloudModels.length === 0 ? (
             <option value="">클라우드 모델 없음</option>
@@ -71,7 +71,7 @@ function CloudModelConfigCard({
         <button
           onClick={handleSave}
           disabled={saving || cloudModels.length === 0}
-          className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="shrink-0 whitespace-nowrap px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {saving ? "저장 중..." : saved ? "저장됨 ✓" : "저장"}
         </button>
@@ -107,15 +107,15 @@ function LocalModelConfigCard({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-5">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 sm:px-6 py-5 overflow-hidden">
       <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
         로컬 모델 기본값
       </p>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <select
           value={selected}
           onChange={(e) => setSelected(e.target.value)}
-          className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300"
+          className="flex-1 min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300"
         >
           {ollamaModels.length === 0 ? (
             <option value="">Ollama 모델 없음</option>
@@ -128,7 +128,7 @@ function LocalModelConfigCard({
         <button
           onClick={handleSave}
           disabled={saving || ollamaModels.length === 0}
-          className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="shrink-0 whitespace-nowrap px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {saving ? "저장 중..." : saved ? "저장됨 ✓" : "저장"}
         </button>

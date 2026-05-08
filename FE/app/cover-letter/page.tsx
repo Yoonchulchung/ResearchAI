@@ -128,55 +128,57 @@ export default function CoverLetterPage() {
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl border border-white/20" : ""}`}>
 
         {/* Topbar */}
-        <div className={`shrink-0 flex items-center gap-3 px-5 py-2.5 border-b transition-all ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : "bg-white border-slate-200/60"}`}>
-          <button
-            onClick={() => router.back()}
-            className={`flex items-center gap-1.5 text-sm transition-colors ${isDark ? "text-white/50 hover:text-white" : "text-slate-400 hover:text-slate-700"}`}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M9 11L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            돌아가기
-          </button>
-          <span className={`text-base font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>합격 자소서</span>
-          <span className={`text-sm ${isDark ? "text-white/40" : "text-slate-400"}`}>{total.toLocaleString()}건</span>
-          <div className="flex-1" />
-
-          {/* Scrape status badge */}
-          {status?.running && (
-            <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full ${isDark ? "bg-emerald-500/15 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              수집 중 {status.totalCollected.toLocaleString()}건 · p.{status.currentPage}
-            </div>
-          )}
-
-          {/* Start / Stop button */}
-          {status?.running ? (
+        <div className={`shrink-0 flex flex-col border-b transition-all ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : "bg-white border-slate-200/60"}`}>
+          {/* Row 1: title + action */}
+          <div className="flex items-center gap-2 px-4 sm:px-5 pt-2.5 pb-1.5">
             <button
-              onClick={handleStop}
-              disabled={scrapeLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-all disabled:opacity-50 bg-red-500 text-white border-red-500 hover:bg-red-600"
+              onClick={() => router.back()}
+              className={`shrink-0 flex items-center gap-1 text-sm transition-colors ${isDark ? "text-white/50 hover:text-white" : "text-slate-400 hover:text-slate-700"}`}
             >
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <rect x="1.5" y="1.5" width="7" height="7" rx="1" fill="currentColor"/>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M9 11L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-              수집 중단
             </button>
-          ) : (
-            <button
-              onClick={handleStart}
-              disabled={scrapeLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg border transition-all disabled:opacity-50 bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
-            >
-              {scrapeLoading ? (
-                <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              ) : (
-                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                  <path d="M2 1.5L9.5 5.5L2 9.5V1.5Z" fill="currentColor"/>
+            <span className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>합격 자소서</span>
+            <span className={`text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>{total.toLocaleString()}건</span>
+            <div className="flex-1" />
+            {/* Start / Stop button */}
+            {status?.running ? (
+              <button
+                onClick={handleStop}
+                disabled={scrapeLoading}
+                className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-all disabled:opacity-50 bg-red-500 text-white border-red-500 hover:bg-red-600"
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <rect x="1.5" y="1.5" width="7" height="7" rx="1" fill="currentColor"/>
                 </svg>
-              )}
-              크롤링 시작
-            </button>
+                중단
+              </button>
+            ) : (
+              <button
+                onClick={handleStart}
+                disabled={scrapeLoading}
+                className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all disabled:opacity-50 bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+              >
+                {scrapeLoading ? (
+                  <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <svg width="10" height="10" viewBox="0 0 11 11" fill="none">
+                    <path d="M2 1.5L9.5 5.5L2 9.5V1.5Z" fill="currentColor"/>
+                  </svg>
+                )}
+                크롤링 시작
+              </button>
+            )}
+          </div>
+          {/* Row 2: status badge (only when running) */}
+          {status?.running && (
+            <div className="flex items-center px-4 sm:px-5 pb-2">
+              <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full ${isDark ? "bg-emerald-500/15 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                수집 중 {status.totalCollected.toLocaleString()}건 · p.{status.currentPage}
+              </div>
+            </div>
           )}
         </div>
 

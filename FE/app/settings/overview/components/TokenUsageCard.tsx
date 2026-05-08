@@ -21,18 +21,19 @@ export function TokenUsageCard({
       gradient="linear-gradient(135deg, #1e1b3a 0%, #2a1f3d 30%, #1e2040 60%, #1a1e38 100%)"
       blob="radial-gradient(ellipse at 40% 70%, #3b1f6e 0%, transparent 60%), radial-gradient(ellipse at 75% 25%, #2d2060 0%, transparent 50%)"
     >
-      <div className="grid grid-cols-3 gap-3">
+      <div className="text-[10px] text-white/30 font-medium mb-2 uppercase tracking-widest">최근 30일</div>
+      <div className="grid grid-cols-3 gap-2">
         {[
-          { label: "총 비용 (30일)", value: loading || !analytics ? null : `$${analytics.totalCost.toFixed(4)}` },
-          { label: "총 호출 수 (30일)", value: loading || !analytics ? null : analytics.totalCalls.toLocaleString() },
-          { label: "사용 모델 수 (30일)", value: loading || !analytics ? null : String(analytics.models.length) },
+          { label: "총 비용", value: loading || !analytics ? null : `$${analytics.totalCost.toFixed(4)}` },
+          { label: "총 호출 수", value: loading || !analytics ? null : analytics.totalCalls.toLocaleString() },
+          { label: "모델 수", value: loading || !analytics ? null : String(analytics.models.length) },
         ].map((item) => (
-          <div key={item.label} className="bg-white/10 rounded-xl px-4 py-3">
-            <p className="text-xs text-white/50 font-medium mb-1">{item.label}</p>
+          <div key={item.label} className="bg-white/10 rounded-xl px-3 py-3">
+            <p className="text-[10px] text-white/50 font-medium mb-1 whitespace-nowrap">{item.label}</p>
             {item.value === null ? (
-              <span className="inline-block w-16 h-5 bg-white/20 rounded animate-pulse" />
+              <span className="inline-block w-12 h-5 bg-white/20 rounded animate-pulse" />
             ) : (
-              <p className="text-base font-bold text-white">{item.value}</p>
+              <p className="text-sm sm:text-base font-bold text-white break-all">{item.value}</p>
             )}
           </div>
         ))}

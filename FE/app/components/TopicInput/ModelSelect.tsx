@@ -19,7 +19,7 @@ export function ModelSelect({
     <select
       value={isSelected ? selectedModel : ""}
       onChange={(e) => onChange(e.target.value)}
-      className="text-sm text-slate-500 !bg-transparent focus:outline-none cursor-pointer max-w-36 truncate"
+      className="text-xs text-slate-500 !bg-transparent focus:outline-none cursor-pointer max-w-28 truncate"
     >
       {!isSelected && (
         <option value="" disabled>

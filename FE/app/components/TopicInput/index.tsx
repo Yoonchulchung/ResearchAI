@@ -84,7 +84,7 @@ export function TopicInput({
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      className={`relative rounded-2xl px-4 pt-4 pb-3 transition-colors border shadow-sm ${
+      className={`relative rounded-xl px-3 pt-3 pb-2.5 transition-colors border shadow-sm ${
         isDragOver
           ? "border-indigo-400 bg-indigo-50/60"
           : isDark
@@ -133,7 +133,7 @@ export function TopicInput({
         }}
         placeholder={placeholder}
         rows={1}
-        className={`w-full border-none focus:ring-0 resize-none text-sm !outline-none !bg-transparent leading-relaxed mb-3 min-h-8 ${
+        className={`w-full border-none focus:ring-0 resize-none text-xs !outline-none !bg-transparent leading-relaxed mb-2 min-h-6 ${
           isDark ? "text-white placeholder:text-white/40" : "text-slate-800 placeholder:text-slate-300"
         }`}
       />
@@ -143,7 +143,7 @@ export function TopicInput({
           <button
             type="button"
             onClick={() => setShowDropdown((v) => !v)}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-xl leading-none ${
+            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors text-lg leading-none ${
               showDropdown
                 ? "bg-slate-100 text-slate-600"
                 : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
@@ -189,7 +189,7 @@ export function TopicInput({
             <select
               value={selectedWebModel}
               onChange={(e) => onWebModelChange?.(e.target.value)}
-              className="text-sm text-slate-500 !bg-transparent focus:outline-none cursor-pointer max-w-36 truncate min-w-0"
+              className="text-xs text-slate-500 !bg-transparent focus:outline-none cursor-pointer max-w-28 truncate min-w-0"
             >
               {webEngines.map((e) => (
                 <option key={e.id} value={e.id}>
@@ -203,7 +203,7 @@ export function TopicInput({
         {generating && onAbort ? (
           <button
             onClick={onAbort}
-            className="w-9 h-9 shrink-0 bg-red-500 hover:bg-red-600 text-white rounded-xl flex items-center justify-center transition-colors"
+            className="w-8 h-8 shrink-0 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center justify-center transition-colors"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
               <rect x="2" y="2" width="8" height="8" rx="1.5" />
@@ -213,7 +213,7 @@ export function TopicInput({
           <button
             onClick={onGenerate}
             disabled={!value.trim() || generating}
-            className="w-9 h-9 shrink-0 bg-brand-primary hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center transition-all shadow-md shadow-brand-primary/30"
+            className="w-8 h-8 shrink-0 bg-brand-primary hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg flex items-center justify-center transition-all shadow-md shadow-brand-primary/30"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path

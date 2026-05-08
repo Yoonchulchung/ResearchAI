@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -109,6 +109,14 @@ function SessionsDrawer({ open, onClose }: { open: boolean; onClose: () => void 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    window.history.pushState({ drawerOpen: true }, "");
+    const handlePopState = () => onClose();
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [open, onClose]);
 
   const fetchSessions = useCallback(() => {
     getSessions().then(setSessions).catch(() => {});
@@ -366,11 +374,62 @@ function getActiveTab(pathname: string): NavTab {
   return "home";
 }
 
+// Swipe-navigable route order (sessions is a drawer, not a route)
+const SWIPE_ROUTES = ["/main", "/doc-write", "/settings/overview"];
+
+function getSwipeIndex(pathname: string): number {
+  if (pathname.startsWith("/main") || pathname === "/" || pathname.startsWith("/sessions")) return 0;
+  if (pathname.startsWith("/doc-write") || pathname.startsWith("/doc-parse")) return 1;
+  if (pathname.startsWith("/settings")) return 2;
+  return 0;
+}
+
 export function MobileShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { isDark } = useMobileTheme();
   const { openModal } = useNewSessionModal();
   const [sessionsOpen, setSessionsOpen] = useState(false);
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
+
+  const handleGestureStart = useCallback((x: number, y: number) => {
+    dragStart.current = { x, y };
+  }, []);
+
+  const handleGestureEnd = useCallback((x: number, y: number) => {
+    if (!dragStart.current) return;
+    const deltaX = x - dragStart.current.x;
+    const deltaY = y - dragStart.current.y;
+    dragStart.current = null;
+
+    // Must be clearly horizontal (≥80px, at least 1.5× more horizontal than vertical)
+    if (Math.abs(deltaX) < 80 || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return;
+
+    const idx = getSwipeIndex(pathname);
+    if (deltaX < 0) {
+      const next = SWIPE_ROUTES[idx + 1];
+      if (next) router.push(next);
+    } else {
+      const prev = SWIPE_ROUTES[idx - 1];
+      if (prev) router.push(prev);
+    }
+  }, [pathname, router]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    handleGestureStart(e.touches[0].clientX, e.touches[0].clientY);
+  }, [handleGestureStart]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    handleGestureEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  }, [handleGestureEnd]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    handleGestureStart(e.clientX, e.clientY);
+  }, [handleGestureStart]);
+
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    handleGestureEnd(e.clientX, e.clientY);
+  }, [handleGestureEnd]);
 
   const bg = isDark ? "bg-slate-950" : "bg-slate-50";
 
@@ -382,7 +441,10 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
       />
       <main
         className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
-        style={{ paddingBottom: "calc(3.5rem + env(safe-area-inset-bottom))" }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
       >
         {children}
       </main>

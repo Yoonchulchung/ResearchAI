@@ -104,9 +104,9 @@ function ApiKeyRowComp({ row, onUpdated }: { row: ApiKeyRow; onUpdated: () => vo
     : null;
 
   return (
-    <div className="border-b border-slate-100 last:border-0 px-6 py-4">
-      <div className="flex items-center gap-4">
-        <div className="w-28 shrink-0">
+    <div className="border-b border-slate-100 last:border-0 px-4 py-3">
+      <div className="flex items-center gap-3">
+        <div className="w-20 shrink-0">
           <p className="text-sm font-semibold text-slate-700">{row.service}</p>
           <span className={`inline-flex items-center gap-1 text-xs mt-0.5 font-medium ${row.keyValue ? "text-emerald-600" : "text-slate-400"}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${row.keyValue ? "bg-emerald-500" : "bg-slate-300"}`} />
@@ -173,9 +173,9 @@ function IdPwRowComp({ row, onUpdated }: { row: IdPwRow; onUpdated: () => void }
   const isPartial = !!(row.idValue || row.pwValue) && !isConfigured;
 
   return (
-    <div className="border-b border-slate-100 last:border-0 px-6 py-4">
-      <div className="flex items-start gap-4">
-        <div className="w-28 shrink-0 pt-1">
+    <div className="border-b border-slate-100 last:border-0 px-4 py-3">
+      <div className="flex items-start gap-3">
+        <div className="w-20 shrink-0 pt-1">
           <p className="text-sm font-semibold text-slate-700">{row.service}</p>
           <span className={`inline-flex items-center gap-1 text-xs mt-0.5 font-medium ${isConfigured ? "text-emerald-600" : isPartial ? "text-amber-500" : "text-slate-400"}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${isConfigured ? "bg-emerald-500" : isPartial ? "bg-amber-400" : "bg-slate-300"}`} />

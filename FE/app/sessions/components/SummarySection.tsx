@@ -168,13 +168,13 @@ export function SummarySection({ sessionId, topic, cloudAiModels, allDone, summa
           )}
         </button>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 max-w-[55%]">
           {cloudAiModels.length > 0 && (
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
               disabled={summaryStatus === "running"}
-              className="text-xs text-slate-500 bg-transparent focus:outline-none cursor-pointer max-w-36 truncate disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-xs text-slate-500 bg-transparent focus:outline-none cursor-pointer w-28 min-w-0 truncate disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {cloudAiModels.map((m) => (
                 <option key={m.id} value={m.id}>{m.name}</option>

@@ -41,8 +41,8 @@ function KeyRow({
 
   return (
     <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-100 transition-colors">
-      <td className="px-6 py-4 text-slate-700 font-medium whitespace-nowrap">{entry.label}</td>
-      <td className="px-4 py-4 font-mono text-slate-500 text-xs">
+      <td className="px-4 py-3 text-slate-700 font-medium whitespace-nowrap text-sm">{entry.label}</td>
+      <td className="px-3 py-3 font-mono text-slate-500 text-xs max-w-0 w-full">
         {editing ? (
           <div className="flex items-center gap-2">
             <input
@@ -57,25 +57,25 @@ function KeyRow({
             <button
               onClick={handleSave}
               disabled={saving || !inputValue.trim()}
-              className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="shrink-0 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {saving ? "저장 중..." : "저장"}
             </button>
             <button
               onClick={handleCancel}
-              className="px-3 py-1.5 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-100 transition-colors"
+              className="shrink-0 px-3 py-1.5 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-100 transition-colors"
             >
               취소
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-3">
-            <span className={entry.masked ? "text-slate-600" : "text-slate-300"}>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`truncate ${entry.masked ? "text-slate-600" : "text-slate-300"}`}>
               {entry.masked ?? "미설정"}
             </span>
             <button
               onClick={() => setEditing(true)}
-              className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
+              className="shrink-0 text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors whitespace-nowrap"
             >
               수정
             </button>
@@ -83,7 +83,7 @@ function KeyRow({
         )}
         {error && <p className="mt-1 text-red-500 text-xs">{error}</p>}
       </td>
-      <td className="px-4 py-4">
+      <td className="px-3 py-3 hidden sm:table-cell">
         <StatusBadge active={entry.configured} />
       </td>
     </tr>
@@ -110,7 +110,7 @@ export function ApiKeysTable({
             {["Service", "Key", "Status"].map((h) => (
               <th
                 key={h}
-                className="text-left px-6 py-3 text-xs font-semibold tracking-widest text-slate-400 uppercase first:px-6 not-first:px-4"
+                className={`text-left px-4 py-3 text-xs font-semibold tracking-widest text-slate-400 uppercase${h === "Status" ? " hidden sm:table-cell" : ""}`}
               >
                 {h}
               </th>
