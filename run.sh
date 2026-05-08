@@ -6,16 +6,28 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 MODE="${1:-dev}"
 if [[ "$MODE" != "dev" && "$MODE" != "prod" && "$MODE" != "deploy" ]]; then
-  echo "사용법: $0 [dev|prod|deploy]"
+  echo "사용법: $0 [dev|prod|deploy [build [tag]]]"
   echo "  dev    — 개발 모드 (watch)"
   echo "  prod   — 프로덕션 빌드 + HAProxy(port 80) + Fail2Ban"
-  echo "  deploy — Docker 이미지 빌드 후 k3s 배포"
+  echo "  deploy — k3s/ArgoCD/Grafana 설정 및 GitOps 매니페스트 적용"
+  echo "  deploy build [tag] — Docker 이미지 로컬 빌드 후 k3s 에 직접 주입"
   exit 1
 fi
 
 # ── Deploy 모드 (k3s) ────────────────────────────────────────────────────────
 if [ "$MODE" = "deploy" ]; then
   echo "🚀 k3s 배포 시작..."
+
+  DEPLOY_BUILD=false
+  TAG="${3:-latest}"
+  if [ "${2:-}" = "build" ]; then
+    DEPLOY_BUILD=true
+  elif [ -n "${2:-}" ]; then
+    echo "사용법: $0 deploy [build [tag]]"
+    echo "  기본 deploy 는 로컬 Docker 빌드를 하지 않습니다."
+    echo "  로컬 빌드가 필요하면: $0 deploy build [tag]"
+    exit 1
+  fi
 
   if [ -f "$HOME/.kube/config" ]; then
     _KUBECONFIG_FLAG="--kubeconfig $HOME/.kube/config"
@@ -34,7 +46,9 @@ if [ "$MODE" = "deploy" ]; then
     exit 1
   fi
 
-  command -v docker &>/dev/null || { echo "❌ docker 가 필요합니다"; exit 1; }
+  if [ "$DEPLOY_BUILD" = true ]; then
+    command -v docker &>/dev/null || { echo "❌ docker 가 필요합니다"; exit 1; }
+  fi
 
   ARGOCD_VERSION="${ARGOCD_VERSION:-v2.11.3}"
   ARGOCD_NODEPORT_HTTP="${ARGOCD_NODEPORT_HTTP:-32080}"
@@ -115,40 +129,43 @@ if [ "$MODE" = "deploy" ]; then
     echo "   ✅ ArgoCD Application 등록 (${repo_url} @ ${target_revision})"
   }
 
-  TAG="${2:-latest}"
   BE_IMAGE="research-ai/be:${TAG}"
   FE_IMAGE="research-ai/fe:${TAG}"
 
-  echo "🔨 BE 이미지 빌드 ($BE_IMAGE)..."
-  docker build -t "$BE_IMAGE" "$ROOT/BE" || { echo "❌ BE 빌드 실패"; exit 1; }
+  if [ "$DEPLOY_BUILD" = true ]; then
+    echo "🔨 BE 이미지 빌드 ($BE_IMAGE)..."
+    docker build -t "$BE_IMAGE" "$ROOT/BE" || { echo "❌ BE 빌드 실패"; exit 1; }
 
-  echo "🔨 FE 이미지 빌드 ($FE_IMAGE)..."
-  docker build -t "$FE_IMAGE" "$ROOT/FE" || { echo "❌ FE 빌드 실패"; exit 1; }
+    echo "🔨 FE 이미지 빌드 ($FE_IMAGE)..."
+    docker build -t "$FE_IMAGE" "$ROOT/FE" || { echo "❌ FE 빌드 실패"; exit 1; }
 
-  echo "📦 이미지 tar 저장 중..."
-  TMP_TAR="/tmp/research-ai-images-$$.tar"
-  docker save "$BE_IMAGE" "$FE_IMAGE" -o "$TMP_TAR" || { echo "❌ 이미지 저장 실패"; exit 1; }
+    echo "📦 이미지 tar 저장 중..."
+    TMP_TAR="/tmp/research-ai-images-$$.tar"
+    docker save "$BE_IMAGE" "$FE_IMAGE" -o "$TMP_TAR" || { echo "❌ 이미지 저장 실패"; exit 1; }
 
-  # master 노드에 import
-  echo "📦 [master] k3s containerd 에 이미지 주입 중..."
-  sudo k3s ctr images import "$TMP_TAR" || { echo "❌ master 이미지 주입 실패"; rm -f "$TMP_TAR"; exit 1; }
+    # master 노드에 import
+    echo "📦 [master] k3s containerd 에 이미지 주입 중..."
+    sudo k3s ctr images import "$TMP_TAR" || { echo "❌ master 이미지 주입 실패"; rm -f "$TMP_TAR"; exit 1; }
 
-  # worker 노드들에 SSH로 배포
-  WORKER_NODES=(192.168.0.2 192.168.0.62)
-  WORKER_USER="${WORKER_USER:-yoonchul}"
-  for NODE in "${WORKER_NODES[@]}"; do
-    echo "📦 [$NODE] 이미지 배포 중..."
-    if ssh -o ConnectTimeout=5 -o BatchMode=yes "$WORKER_USER@$NODE" "echo ok" &>/dev/null; then
-      scp -q "$TMP_TAR" "$WORKER_USER@$NODE:/tmp/research-ai-images.tar" \
-        && ssh "$WORKER_USER@$NODE" "sudo k3s ctr images import /tmp/research-ai-images.tar && rm -f /tmp/research-ai-images.tar" \
-        && echo "   ✅ $NODE 완료" \
-        || echo "   ⚠️  $NODE 이미지 주입 실패 (계속 진행)"
-    else
-      echo "   ⚠️  $NODE SSH 접속 불가 — 건너뜀 (pod 가 이 노드에 스케줄링되면 실패할 수 있음)"
-    fi
-  done
+    # worker 노드들에 SSH로 배포
+    WORKER_NODES=(192.168.0.2 192.168.0.62)
+    WORKER_USER="${WORKER_USER:-yoonchul}"
+    for NODE in "${WORKER_NODES[@]}"; do
+      echo "📦 [$NODE] 이미지 배포 중..."
+      if ssh -o ConnectTimeout=5 -o BatchMode=yes "$WORKER_USER@$NODE" "echo ok" &>/dev/null; then
+        scp -q "$TMP_TAR" "$WORKER_USER@$NODE:/tmp/research-ai-images.tar" \
+          && ssh "$WORKER_USER@$NODE" "sudo k3s ctr images import /tmp/research-ai-images.tar && rm -f /tmp/research-ai-images.tar" \
+          && echo "   ✅ $NODE 완료" \
+          || echo "   ⚠️  $NODE 이미지 주입 실패 (계속 진행)"
+      else
+        echo "   ⚠️  $NODE SSH 접속 불가 — 건너뜀 (pod 가 이 노드에 스케줄링되면 실패할 수 있음)"
+      fi
+    done
 
-  rm -f "$TMP_TAR"
+    rm -f "$TMP_TAR"
+  else
+    echo "⏭️  로컬 Docker 이미지 빌드 생략 — GitHub Actions/ArgoCD 이미지 태그를 사용합니다"
+  fi
 
   SECRET_FILE="$ROOT/deploy/k8s/secret.yaml"
   LEGACY_SECRET_FILE="$ROOT/deploy/k8s/11-secret.yaml"
@@ -173,16 +190,16 @@ if [ "$MODE" = "deploy" ]; then
     $KUBECTL apply -f "$f"
   done
 
-  if [ "$TAG" != "latest" ]; then
+  if [ "$DEPLOY_BUILD" = true ]; then
     $KUBECTL set image deployment/be be="$BE_IMAGE" -n research-ai
     $KUBECTL set image deployment/fe fe="$FE_IMAGE" -n research-ai
-  else
-    $KUBECTL rollout restart deployment/be deployment/fe -n research-ai
-  fi
 
-  echo "⏳ 롤아웃 대기 중..."
-  $KUBECTL rollout status deployment/be -n research-ai --timeout=120s
-  $KUBECTL rollout status deployment/fe -n research-ai --timeout=120s
+    echo "⏳ 앱 롤아웃 대기 중..."
+    $KUBECTL rollout status deployment/be -n research-ai --timeout=120s
+    $KUBECTL rollout status deployment/fe -n research-ai --timeout=120s
+  else
+    echo "⏭️  앱 롤아웃 대기는 생략 — ArgoCD 가 Git 기준으로 동기화합니다"
+  fi
 
   echo "⏳ Grafana 롤아웃 대기 중..."
   $KUBECTL rollout status deployment/grafana -n monitoring --timeout=180s || true
