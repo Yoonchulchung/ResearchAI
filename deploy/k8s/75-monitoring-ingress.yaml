@@ -1,0 +1,91 @@
+# ── Monitoring Ingress (경로 기반) ─────────────────────────────────────────────
+# 도메인/grafana/    → Grafana   (내장 로그인으로 보호)
+# 도메인/prometheus/ → Prometheus (BasicAuth 로 보호)
+#
+# 사전 준비:
+#   deploy/argocd/install.sh 를 실행하면 prometheus-basic-auth Secret 이 생성됩니다.
+#   또는 직접 생성:
+#     htpasswd -nb admin YOUR_PASSWORD | kubectl create secret generic \
+#       prometheus-basic-auth --from-file=users=/dev/stdin -n monitoring
+
+# ── Grafana: StripPrefix 미들웨어 (/grafana 제거 후 전달) ─────────────────────
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: grafana-stripprefix
+  namespace: monitoring
+spec:
+  stripPrefix:
+    prefixes:
+      - /grafana
+
+---
+# ── Prometheus: BasicAuth 미들웨어 ────────────────────────────────────────────
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: prometheus-auth
+  namespace: monitoring
+spec:
+  basicAuth:
+    secret: prometheus-basic-auth   # install.sh 또는 수동으로 생성
+
+---
+# ── Prometheus: StripPrefix 미들웨어 ──────────────────────────────────────────
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: prometheus-stripprefix
+  namespace: monitoring
+spec:
+  stripPrefix:
+    prefixes:
+      - /prometheus
+
+---
+# ── Grafana Ingress ────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+  annotations:
+    traefik.ingress.kubernetes.io/router.priority: "50"
+    traefik.ingress.kubernetes.io/router.middlewares: >-
+      monitoring-grafana-stripprefix@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - http:
+        paths:
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+
+---
+# ── Prometheus Ingress ─────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prometheus
+  namespace: monitoring
+  annotations:
+    traefik.ingress.kubernetes.io/router.priority: "50"
+    traefik.ingress.kubernetes.io/router.middlewares: >-
+      monitoring-prometheus-auth@kubernetescrd,monitoring-prometheus-stripprefix@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - http:
+        paths:
+          - path: /prometheus
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus
+                port:
+                  number: 9090

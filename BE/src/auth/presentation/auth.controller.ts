@@ -1,8 +1,23 @@
-import { Controller, Post, Get, Patch, Body, Req, Param, UseGuards, HttpCode } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Req, Param, UseGuards, HttpCode, BadRequestException } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from '../application/auth.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { UserEntity } from '../domain/entity/user.entity';
+
+const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+
+async function verifyTurnstile(token: string): Promise<boolean> {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!secret) return true; // dev 환경: 키 없으면 통과
+
+  const res = await fetch(TURNSTILE_VERIFY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ secret, response: token }),
+  });
+  const data = await res.json() as { success: boolean };
+  return data.success === true;
+}
 
 @Controller('auth')
 export class AuthController {
@@ -16,7 +31,17 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(201)
-  register(@Body() body: { username: string; password: string }, @Req() req: Request) {
+  async register(
+    @Body() body: { username: string; password: string; turnstileToken?: string; registerCode?: string },
+    @Req() req: Request,
+  ) {
+    if (!(await verifyTurnstile(body.turnstileToken ?? ''))) {
+      throw new BadRequestException('봇 인증에 실패했습니다. 다시 시도해주세요.');
+    }
+    const requiredCode = process.env.REGISTER_CODE;
+    if (requiredCode && body.registerCode !== requiredCode) {
+      throw new BadRequestException('초대 코드가 올바르지 않습니다.');
+    }
     const ip = this.getIp(req);
     const ua = req.headers['user-agent'];
     return this.authService.register(body.username, body.password, ip, ua);
@@ -24,7 +49,10 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
-  login(@Body() body: { username: string; password: string }, @Req() req: Request) {
+  async login(@Body() body: { username: string; password: string; turnstileToken?: string }, @Req() req: Request) {
+    if (!(await verifyTurnstile(body.turnstileToken ?? ''))) {
+      throw new BadRequestException('봇 인증에 실패했습니다. 다시 시도해주세요.');
+    }
     const ip = this.getIp(req);
     const ua = req.headers['user-agent'];
     return this.authService.login(body.username, body.password, ip, ua);

@@ -25,17 +25,17 @@ export async function checkUsernameApi(username: string): Promise<{ available: b
   return apiFetch(`/auth/check-username/${encodeURIComponent(username)}`);
 }
 
-export async function loginApi(username: string, password: string): Promise<{ accessToken: string }> {
+export async function loginApi(username: string, password: string, turnstileToken?: string): Promise<{ accessToken: string }> {
   return apiFetch("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, turnstileToken }),
   });
 }
 
-export async function registerApi(username: string, password: string): Promise<{ accessToken: string }> {
+export async function registerApi(username: string, password: string, turnstileToken?: string, registerCode?: string): Promise<{ accessToken: string }> {
   return apiFetch("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, turnstileToken, registerCode }),
   });
 }
 

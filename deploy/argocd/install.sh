@@ -34,7 +34,31 @@ log "ArgoCD 파드 Ready 대기 (최대 3분)..."
 kubectl rollout status deployment/argocd-server -n argocd --timeout=180s
 ok "ArgoCD 서버 준비 완료"
 
-# ── 4. application.yaml 의 repoURL 확인 ──────────────────────────────────────
+# ── 4. Prometheus BasicAuth Secret 생성 ──────────────────────────────────────
+# monitoring 네임스페이스가 없으면 먼저 생성
+kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+if kubectl get secret prometheus-basic-auth -n monitoring &>/dev/null; then
+  ok "prometheus-basic-auth Secret 이미 존재 — 건너뜀"
+else
+  if ! command -v htpasswd &>/dev/null; then
+    warn "htpasswd 없음 — apache2-utils / httpd-tools 설치 필요"
+    warn "  Ubuntu: sudo apt-get install -y apache2-utils"
+    warn "  직접 생성 후 재실행하세요."
+  else
+    log "Prometheus BasicAuth Secret 생성 (기본: admin / admin123)"
+    warn "보안을 위해 나중에 비밀번호를 변경하세요:"
+    warn "  htpasswd -nb admin NEW_PASSWORD | kubectl create secret generic \\"
+    warn "    prometheus-basic-auth --from-file=users=/dev/stdin -n monitoring --dry-run=client -o yaml | kubectl apply -f -"
+    HTPASSWD=$(htpasswd -nbB admin admin123)
+    kubectl create secret generic prometheus-basic-auth \
+      --from-literal=users="${HTPASSWD}" \
+      -n monitoring
+    ok "prometheus-basic-auth Secret 생성 완료"
+  fi
+fi
+
+# ── 5. application.yaml 의 repoURL 확인 ──────────────────────────────────────
 APP_YAML="${ROOT}/deploy/argocd/application.yaml"
 if grep -q "YOUR_USERNAME" "${APP_YAML}"; then
   warn "deploy/argocd/application.yaml 의 repoURL을 실제 Git 저장소 URL로 변경 후"

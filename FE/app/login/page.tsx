@@ -2,9 +2,12 @@
 
 import { useState, FormEvent, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { checkUsernameApi } from "@/lib/api/auth";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 const USERNAME_RE = /^[a-z0-9_]{1,30}$/;
 const PASSWORD_RE = /^[a-zA-Z0-9@!_\-\.]{8,}$/;
@@ -37,6 +40,8 @@ export default function LoginPage() {
   const [checkState, setCheckState] = useState<CheckState>("idle");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [registerCode, setRegisterCode] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   const handleUsernameChange = (raw: string) => {
     setUsername(sanitizeUsername(raw));
@@ -95,9 +100,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       if (mode === "login") {
-        await login(username, password);
+        await login(username, password, turnstileToken || undefined);
       } else {
-        await register(username, password);
+        await register(username, password, turnstileToken || undefined, registerCode || undefined);
       }
       router.push("/main");
     } catch (err) {
@@ -140,7 +145,7 @@ export default function LoginPage() {
             {(["login", "register"] as const).map((m) => (
               <button
                 key={m}
-                onClick={() => { setMode(m); setError(""); setCheckState("idle"); }}
+                onClick={() => { setMode(m); setError(""); setCheckState("idle"); setTurnstileToken(""); setRegisterCode(""); }}
                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                   mode === m
                     ? "bg-indigo-600 text-white shadow"
@@ -277,6 +282,34 @@ export default function LoginPage() {
               </div>
             )}
 
+            {mode === "register" && (
+              <div>
+                <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
+                  초대 코드
+                </label>
+                <input
+                  type="password"
+                  value={registerCode}
+                  onChange={(e) => setRegisterCode(e.target.value)}
+                  placeholder="초대 코드를 입력하세요"
+                  autoComplete="off"
+                  className={`w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-1 transition-colors ${inputCls}`}
+                />
+              </div>
+            )}
+
+            {TURNSTILE_SITE_KEY && (
+              <div className="flex justify-center">
+                <Turnstile
+                  siteKey={TURNSTILE_SITE_KEY}
+                  onSuccess={setTurnstileToken}
+                  onError={() => setTurnstileToken("")}
+                  onExpire={() => setTurnstileToken("")}
+                  options={{ theme: isDark ? "dark" : "light" }}
+                />
+              </div>
+            )}
+
             {error && (
               <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
                 {error}
@@ -285,7 +318,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading || !username || !password}
+              disabled={loading || !username || !password || (!!TURNSTILE_SITE_KEY && !turnstileToken)}
               className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-indigo-500/20"
             >
               {loading ? "처리 중..." : mode === "login" ? "로그인" : "가입하기"}

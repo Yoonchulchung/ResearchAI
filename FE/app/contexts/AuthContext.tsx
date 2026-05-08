@@ -7,8 +7,8 @@ import { getMeApi, loginApi, registerApi, AuthUser } from "@/lib/api/auth";
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, turnstileToken?: string) => Promise<void>;
+  register: (username: string, password: string, turnstileToken?: string, registerCode?: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -37,16 +37,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [refreshUser]);
 
-  const login = async (username: string, password: string) => {
-    const { accessToken } = await loginApi(username, password);
+  const login = async (username: string, password: string, turnstileToken?: string) => {
+    const { accessToken } = await loginApi(username, password, turnstileToken);
     tokenStore.set(accessToken);
-    // 토큰 발급 후 /me 호출로 유저 확인 — 실패 시 에러 전파
     const me = await getMeApi();
     setUser(me);
   };
 
-  const register = async (username: string, password: string) => {
-    const { accessToken } = await registerApi(username, password);
+  const register = async (username: string, password: string, turnstileToken?: string, registerCode?: string) => {
+    const { accessToken } = await registerApi(username, password, turnstileToken, registerCode);
     tokenStore.set(accessToken);
     const me = await getMeApi();
     setUser(me);
