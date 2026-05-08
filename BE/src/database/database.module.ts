@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { mkdirSync } from 'fs';
+import { dirname } from 'path';
 import { SessionEntity } from '../sessions/domain/entity/session.entity';
 import { SessionItemEntity } from '../sessions/domain/entity/session-item.entity';
 import { ChatEntity } from '../chat/domain/entity/chat.entity';
@@ -19,11 +21,26 @@ import { UserEntity } from '../auth/domain/entity/user.entity';
 import { LoginHistoryEntity } from '../auth/domain/entity/login-history.entity';
 import { SessionJobEntity } from '../sessions/domain/entity/session-job.entity';
 
+function resolveSqlitePath(): string {
+  const explicitPath = process.env.DATABASE_PATH;
+  if (explicitPath) return explicitPath;
+
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl?.startsWith('file:')) {
+    return databaseUrl.slice('file:'.length);
+  }
+
+  return 'data/sessions.db';
+}
+
+const databasePath = resolveSqlitePath();
+mkdirSync(dirname(databasePath), { recursive: true });
+
 @Module({
   imports: [
     TypeOrmModule.forRoot({
       type: 'better-sqlite3',
-      database: process.env.DATABASE_PATH ?? 'data/sessions.db',
+      database: databasePath,
       entities: [SessionEntity, SessionItemEntity,
                  ChatEntity, ResearchRecruitEntity,
                  LightResearchEntity, SearchListEntity,
@@ -36,7 +53,8 @@ import { SessionJobEntity } from '../sessions/domain/entity/session-job.entity';
       // WAL 모드: 동시 읽기/쓰기 성능 향상 (다중 기기 동시 접속 대응)
       prepareDatabase: (db: { pragma: (s: string) => void }) => {
         db.pragma('journal_mode = WAL');
-        db.pragma('busy_timeout = 5000');
+        db.pragma('busy_timeout = 30000');
+        db.pragma('synchronous = NORMAL');
       },
     }),
   ],

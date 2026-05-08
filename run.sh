@@ -36,6 +36,85 @@ if [ "$MODE" = "deploy" ]; then
 
   command -v docker &>/dev/null || { echo "❌ docker 가 필요합니다"; exit 1; }
 
+  ARGOCD_VERSION="${ARGOCD_VERSION:-v2.11.3}"
+  ARGOCD_NODEPORT_HTTP="${ARGOCD_NODEPORT_HTTP:-32080}"
+  ARGOCD_NODEPORT_HTTPS="${ARGOCD_NODEPORT_HTTPS:-32443}"
+  PROMETHEUS_BASIC_AUTH_USER="${PROMETHEUS_BASIC_AUTH_USER:-admin}"
+  PROMETHEUS_BASIC_AUTH_PASS="${PROMETHEUS_BASIC_AUTH_PASS:-admin123}"
+
+  _repo_url_for_argocd() {
+    local remote="${ARGOCD_REPO_URL:-$(git -C "$ROOT" config --get remote.origin.url 2>/dev/null || true)}"
+    if [ -z "$remote" ]; then
+      remote="https://github.com/Yoonchulchung/ResearchAI.git"
+    fi
+    if [[ "$remote" =~ ^git@([^:]+):(.+)$ ]]; then
+      remote="https://${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+    fi
+    echo "$remote"
+  }
+
+  _ensure_prometheus_basic_auth() {
+    echo "🔐 Prometheus BasicAuth Secret 확인..."
+    $KUBECTL create namespace monitoring --dry-run=client -o yaml | $KUBECTL apply -f -
+
+    if $KUBECTL get secret prometheus-basic-auth -n monitoring &>/dev/null; then
+      echo "   ✅ prometheus-basic-auth 이미 존재"
+      return 0
+    fi
+
+    if command -v htpasswd &>/dev/null; then
+      local htpasswd_value
+      htpasswd_value="$(htpasswd -nbB "$PROMETHEUS_BASIC_AUTH_USER" "$PROMETHEUS_BASIC_AUTH_PASS")"
+      $KUBECTL create secret generic prometheus-basic-auth \
+        --from-literal=users="$htpasswd_value" \
+        -n monitoring
+      echo "   ✅ prometheus-basic-auth 생성 (${PROMETHEUS_BASIC_AUTH_USER}/${PROMETHEUS_BASIC_AUTH_PASS})"
+    else
+      echo "   ⚠️  htpasswd 없음 — Prometheus Ingress BasicAuth Secret 을 만들지 못했습니다"
+      echo "      Ubuntu: sudo apt-get install -y apache2-utils"
+      echo "      macOS:  brew install httpd"
+    fi
+  }
+
+  _ensure_argocd() {
+    echo "🧭 ArgoCD 설치/등록 확인..."
+    $KUBECTL create namespace argocd --dry-run=client -o yaml | $KUBECTL apply -f -
+    $KUBECTL apply -n argocd \
+      -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
+
+    $KUBECTL wait --for condition=Established crd/applications.argoproj.io --timeout=120s
+
+    echo "🧭 ArgoCD Server NodePort(${ARGOCD_NODEPORT_HTTP}/${ARGOCD_NODEPORT_HTTPS}) 노출..."
+    $KUBECTL patch svc argocd-server -n argocd \
+      -p "{\"spec\":{\"type\":\"NodePort\",\"ports\":[{\"port\":80,\"targetPort\":8080,\"nodePort\":${ARGOCD_NODEPORT_HTTP},\"name\":\"http\"},{\"port\":443,\"targetPort\":8080,\"nodePort\":${ARGOCD_NODEPORT_HTTPS},\"name\":\"https\"}]}}" \
+      >/dev/null
+
+    echo "🧭 ArgoCD /argocd subpath 설정..."
+    $KUBECTL patch deployment argocd-server -n argocd --type='json' \
+      -p='[
+        {"op":"replace","path":"/spec/template/spec/containers/0/args","value":["/usr/local/bin/argocd-server","--staticassets","/shared/app","--basehref","/argocd","--rootpath","/argocd","--insecure"]}
+      ]' \
+      >/dev/null
+
+    $KUBECTL rollout status deployment/argocd-server -n argocd --timeout=180s
+
+    local repo_url target_revision app_tmp
+    repo_url="$(_repo_url_for_argocd)"
+    target_revision="${ARGOCD_TARGET_REVISION:-$(git -C "$ROOT" branch --show-current 2>/dev/null || echo main)}"
+    [ -n "$target_revision" ] || target_revision="main"
+
+    app_tmp="/tmp/research-ai-argocd-application-$$.yaml"
+    sed \
+      -e "s#https://github.com/Yoonchulchung/ResearchAI.git#${repo_url}#g" \
+      -e "s#targetRevision: main#targetRevision: ${target_revision}#g" \
+      "$ROOT/deploy/argocd/application.yaml" > "$app_tmp"
+
+    $KUBECTL apply -f "$app_tmp"
+    rm -f "$app_tmp"
+    $KUBECTL apply -f "$ROOT/deploy/argocd/ingress.yaml"
+    echo "   ✅ ArgoCD Application 등록 (${repo_url} @ ${target_revision})"
+  }
+
   TAG="${2:-latest}"
   BE_IMAGE="research-ai/be:${TAG}"
   FE_IMAGE="research-ai/fe:${TAG}"
@@ -71,15 +150,25 @@ if [ "$MODE" = "deploy" ]; then
 
   rm -f "$TMP_TAR"
 
-  SECRET_FILE="$ROOT/deploy/k8s/11-secret.yaml"
-  if [ ! -f "$SECRET_FILE" ]; then
-    echo "⚠️  $SECRET_FILE 없음 — 11-secret.example.yaml 을 복사해서 값을 채워주세요"
-    echo "   cp deploy/k8s/11-secret.example.yaml deploy/k8s/11-secret.yaml"
+  SECRET_FILE="$ROOT/deploy/k8s/secret.yaml"
+  LEGACY_SECRET_FILE="$ROOT/deploy/k8s/11-secret.yaml"
+  if [ -f "$SECRET_FILE" ]; then
+    echo "🔑 Secret 적용: $(basename "$SECRET_FILE")"
+    $KUBECTL apply -f "$SECRET_FILE"
+  elif [ -f "$LEGACY_SECRET_FILE" ]; then
+    echo "🔑 Secret 적용: $(basename "$LEGACY_SECRET_FILE")"
+    $KUBECTL apply -f "$LEGACY_SECRET_FILE"
+  else
+    echo "⚠️  secret.yaml 없음 — 11-secret.example.yaml 을 복사해서 값을 채워주세요"
+    echo "   cp deploy/k8s/11-secret.example.yaml deploy/k8s/secret.yaml"
   fi
+
+  _ensure_prometheus_basic_auth
 
   echo "📋 k8s 매니페스트 적용 중..."
   for f in $(ls "$ROOT/deploy/k8s/"[0-9]*.yaml | sort); do
     [[ "$f" == *"secret.example"* ]] && continue
+    [[ "$f" == "$LEGACY_SECRET_FILE" ]] && continue
     echo "   → $(basename "$f")"
     $KUBECTL apply -f "$f"
   done
@@ -95,9 +184,17 @@ if [ "$MODE" = "deploy" ]; then
   $KUBECTL rollout status deployment/be -n research-ai --timeout=120s
   $KUBECTL rollout status deployment/fe -n research-ai --timeout=120s
 
+  echo "⏳ Grafana 롤아웃 대기 중..."
+  $KUBECTL rollout status deployment/grafana -n monitoring --timeout=180s || true
+
+  _ensure_argocd
+
   NODE_IP=$($KUBECTL get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' 2>/dev/null || echo "<node-ip>")
   echo ""
   echo "✅ 배포 완료 — http://${NODE_IP} 에서 접속"
+  echo "   Grafana: https://researches.uk/grafana/  또는  http://${NODE_IP}:32030"
+  echo "   ArgoCD:  https://researches.uk/argocd/  또는  http://${NODE_IP}:${ARGOCD_NODEPORT_HTTP}"
+  echo "   ArgoCD 초기 PW: $KUBECTL -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d"
   exit 0
 fi
 

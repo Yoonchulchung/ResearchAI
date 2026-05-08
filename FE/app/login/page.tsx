@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent, useCallback } from "react";
+import { useState, FormEvent, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,6 +42,13 @@ export default function LoginPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [registerCode, setRegisterCode] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mode") === "register") {
+      setMode("register");
+    }
+  }, []);
 
   const handleUsernameChange = (raw: string) => {
     setUsername(sanitizeUsername(raw));
@@ -124,21 +131,21 @@ export default function LoginPage() {
     : "bg-slate-50 border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-indigo-400 focus:ring-indigo-400";
 
   return (
-    <div className={`min-h-screen flex items-center justify-center transition-colors ${
+    <div className={`min-h-dvh overflow-x-hidden flex items-center justify-center px-4 py-8 transition-colors ${
       isDark
         ? "bg-linear-to-br from-slate-900 via-indigo-950 to-slate-900"
         : "bg-linear-to-br from-slate-100 via-indigo-50 to-slate-100"
     }`}>
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-600 mb-4 shadow-lg shadow-indigo-500/30">
+      <div className="w-full max-w-[calc(100vw-2rem)] sm:max-w-sm">
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-indigo-600 mb-4 shadow-lg shadow-indigo-500/30">
             <span className="text-2xl">◈</span>
           </div>
           <h1 className={`text-2xl font-bold tracking-tight ${isDark ? "text-white" : "text-slate-800"}`}>ResearchAI</h1>
           <p className="text-slate-400 text-sm mt-1">AI 기반 리서치 시스템</p>
         </div>
 
-        <div className={`rounded-2xl p-8 shadow-xl backdrop-blur-sm ${
+        <div className={`rounded-2xl p-5 sm:p-8 shadow-xl backdrop-blur-sm ${
           isDark ? "bg-white/5 border border-white/10" : "bg-white border border-slate-200"
         }`}>
           <div className={`flex rounded-xl p-1 mb-6 ${isDark ? "bg-white/5" : "bg-slate-100"}`}>
@@ -163,7 +170,7 @@ export default function LoginPage() {
               <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
                 사용자명 <span className="text-slate-400">(소문자·숫자·_ 허용)</span>
               </label>
-              <div className="flex gap-2">
+              <div className="flex min-w-0 gap-2">
                 <input
                   type="text"
                   value={username}
@@ -176,14 +183,14 @@ export default function LoginPage() {
                   inputMode="text"
                   lang="en"
                   style={{ imeMode: "disabled" } as React.CSSProperties}
-                  className={`flex-1 px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-1 transition-colors ${inputCls}`}
+                  className={`min-w-0 flex-1 px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-1 transition-colors ${inputCls}`}
                 />
                 {mode === "register" && (
                   <button
                     type="button"
                     onClick={handleCheckUsername}
                     disabled={!username || checkState === "checking"}
-                    className={`px-3 py-2 text-xs font-medium rounded-xl border disabled:opacity-40 transition-colors whitespace-nowrap ${
+                    className={`shrink-0 px-3 py-2 text-xs font-medium rounded-xl border disabled:opacity-40 transition-colors whitespace-nowrap ${
                       isDark
                         ? "bg-white/10 border-white/15 text-slate-300 hover:bg-white/20"
                         : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200"
@@ -201,7 +208,7 @@ export default function LoginPage() {
             {/* 비밀번호 */}
             <div>
               <label className={`block text-xs font-medium mb-1.5 ${isDark ? "text-slate-400" : "text-slate-600"}`}>
-                비밀번호{mode === "register" && <span className="text-slate-400"> (8자 이상, 영문/숫자/@!_-. 허용)</span>}
+                비밀번호{mode === "register" && <span className="text-slate-400 break-keep"> (8자 이상, 영문/숫자/@!_-. 허용)</span>}
               </label>
               <div className="relative">
                 <input
@@ -299,7 +306,7 @@ export default function LoginPage() {
             )}
 
             {TURNSTILE_SITE_KEY && (
-              <div className="flex justify-center">
+              <div className="flex max-w-full justify-center overflow-hidden">
                 <Turnstile
                   siteKey={TURNSTILE_SITE_KEY}
                   onSuccess={setTurnstileToken}

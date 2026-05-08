@@ -13,10 +13,11 @@ spec:
   project: default
 
   source:
-    # TODO: 본인 Git 저장소 URL 로 변경
-    repoURL: https://github.com/YOUR_USERNAME/ResearchAI.git
+    repoURL: https://github.com/Yoonchulchung/ResearchAI.git
     targetRevision: main
     path: deploy/k8s
+    directory:
+      exclude: "{7*.yaml,11-secret.example.yaml}"
 
   destination:
     server: https://kubernetes.default.svc
@@ -45,11 +46,11 @@ spec:
   project: default
 
   source:
-    repoURL: https://github.com/YOUR_USERNAME/ResearchAI.git
+    repoURL: https://github.com/Yoonchulchung/ResearchAI.git
     targetRevision: main
     path: deploy/k8s
     directory:
-      include: "7*.yaml"   # 70-monitoring-ns ~ 74-grafana
+      include: "7*.yaml"   # 70-monitoring-ns ~ 75-monitoring-ingress
 
   destination:
     server: https://kubernetes.default.svc

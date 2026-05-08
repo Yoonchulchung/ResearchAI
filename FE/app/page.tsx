@@ -2,10 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function LandingPage() {
-  const router = useRouter();
+  const { user, loading } = useAuth();
   const [query, setQuery] = useState("");
   const [demoStarted, setDemoStarted] = useState(false);
   const [chatLog, setChatLog] = useState<{ role: "user" | "ai"; content: string; isTyping?: boolean }[]>([]);
@@ -23,12 +23,13 @@ export default function LandingPage() {
   }, []);
 
   const navClasses = scrollY > 50 
-    ? "fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200 shadow-sm py-4"
-    : "fixed top-0 left-0 right-0 z-50 bg-transparent py-6 border-b border-transparent";
+    ? "fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200 shadow-sm py-3 sm:py-4"
+    : "fixed top-0 left-0 right-0 z-50 bg-transparent py-4 sm:py-6 border-b border-transparent";
 
   const heroOpacity = Math.max(0, 1 - scrollY / 400);
   const heroTranslateY = scrollY * 0.4;
   const bgTranslateY = scrollY * 0.15;
+  const dashboardCtaClass = "whitespace-nowrap px-3 py-1.5 sm:px-5 sm:py-2 rounded-full transition-transform active:scale-95 shadow-md";
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,35 +75,58 @@ export default function LandingPage() {
 
       {/* Navigation */}
       <nav className={`${navClasses} transition-all duration-300`}>
-        <div className="w-full max-w-7xl mx-auto px-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 flex items-center justify-center rounded-md bg-indigo-600 text-white font-black text-lg tracking-tighter shadow-md shadow-indigo-200">
+        <div className="w-full max-w-[100vw] sm:max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between gap-2 sm:gap-3">
+          <div className="min-w-0 flex items-center gap-1.5 sm:gap-3">
+            <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-md bg-indigo-600 text-white font-black text-base sm:text-lg tracking-tighter shadow-md shadow-indigo-200">
               R
             </div>
-            <span className="font-bold text-xl tracking-tight text-slate-800">
+            <span className="truncate font-bold text-sm sm:text-xl tracking-tight text-slate-800">
               ResearchAI
             </span>
           </div>
-          <div className="flex items-center gap-6 text-sm font-medium">
-            <Link href="/login" className="text-slate-600 hover:text-indigo-600 transition-colors">
-              로그인
-            </Link>
-            <Link 
-              href="/main" 
-              className="px-5 py-2.5 rounded-full bg-slate-900 text-white hover:bg-slate-800 transition-transform active:scale-95 shadow-md shadow-slate-300"
-            >
-              대시보드 접속
-            </Link>
+          <div className="shrink-0 flex items-center gap-1.5 sm:gap-4 text-xs sm:text-sm font-medium">
+            {!user && (
+              <>
+                <Link href="/login" className="whitespace-nowrap rounded-full px-2.5 py-1.5 text-slate-600 hover:text-indigo-600 sm:px-0 sm:py-0 transition-colors">
+                  로그인
+                </Link>
+                <Link
+                  href="/login?mode=register"
+                  className="whitespace-nowrap px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-indigo-600 text-white hover:bg-indigo-500 transition-transform active:scale-95 shadow-md shadow-indigo-200"
+                >
+                  회원가입
+                </Link>
+              </>
+            )}
+            {user ? (
+              <Link 
+                href="/main" 
+                className={`${dashboardCtaClass} inline-flex bg-slate-900 text-white hover:bg-slate-800 shadow-slate-300`}
+              >
+                <span className="sm:hidden">대시보드</span>
+                <span className="hidden sm:inline">대시보드 접속</span>
+              </Link>
+            ) : (
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                title="로그인 후 대시보드에 접속할 수 있습니다."
+                className={`${dashboardCtaClass} hidden sm:inline-flex cursor-not-allowed bg-slate-200 text-slate-400 shadow-slate-200 ${loading ? "opacity-60" : "opacity-80"}`}
+              >
+                대시보드 접속
+              </button>
+            )}
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
       <main 
-        className="relative z-10 flex flex-col items-center pt-32 px-6 w-full max-w-4xl mx-auto min-h-[85vh]"
+        className="relative z-10 flex flex-col items-center overflow-hidden pt-28 sm:pt-32 px-4 sm:px-6 w-full max-w-[100vw] sm:max-w-4xl mx-auto min-h-[85vh]"
       >
         <div 
-          className="transition-all duration-700 w-full flex flex-col items-center"
+          className="transition-all duration-700 w-full min-w-0 flex flex-col items-center"
           style={{ 
             opacity: demoStarted ? 0 : heroOpacity, 
             transform: demoStarted ? 'translateY(-20px) scale(0.95)' : `translateY(${heroTranslateY}px)`,
@@ -112,26 +136,29 @@ export default function LandingPage() {
           }}
         >
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold uppercase tracking-widest mb-8">
+          <div className="inline-flex w-[calc(100vw-2rem)] max-w-full items-center justify-center gap-2 overflow-hidden px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-[0.68rem] sm:w-auto sm:text-xs font-semibold uppercase tracking-[0.18em] sm:tracking-widest mb-6 sm:mb-8">
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-            Powered by Advanced Generative AI
+            <span className="min-w-0 truncate">Powered by Advanced Generative AI</span>
           </div>
 
-          <h1 className="text-5xl md:text-[5.5rem] font-extrabold tracking-tight text-slate-900 mb-8 leading-[1.1] text-center">
-            Unleash the Power of<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-cyan-500">
-              Automated Research
+          <h1 className="w-full max-w-[calc(100vw-2rem)] text-[2.6rem] sm:text-6xl md:text-[5.5rem] font-extrabold tracking-tight text-slate-900 mb-6 sm:mb-8 leading-[1.08] sm:leading-[1.1] text-center">
+            <span className="block sm:inline">Unleash the</span>{" "}
+            <span className="block sm:inline">Power of</span>
+            <br className="hidden sm:block" />
+            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-cyan-500 sm:inline">
+              <span className="block sm:inline">Automated</span>{" "}
+              <span className="block sm:inline">Research</span>
             </span>
           </h1>
           
-          <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto mb-14 font-light leading-relaxed text-center">
+          <p className="w-full max-w-[calc(100vw-2rem)] sm:max-w-2xl mx-auto mb-10 sm:mb-14 text-base sm:text-lg md:text-xl text-slate-500 font-light leading-relaxed text-center">
             웹 브라우징, 문서 분석, 기업 프로파일링까지.<br />
             ResearchAI가 당신의 리서치를 단 몇 초 만에 완성합니다.
           </p>
         </div>
 
         {/* Interactive Experience Bar / Demo Interface */}
-        <div className={`w-full max-w-2xl mx-auto transition-all duration-700 ${demoStarted ? 'pt-8' : 'pt-0'}`}>
+        <div className={`w-full max-w-[calc(100vw-2rem)] sm:max-w-2xl mx-auto transition-all duration-700 ${demoStarted ? 'pt-8' : 'pt-0'}`}>
           {/* Chat Interface (Shows up after first prompt) */}
           {demoStarted && (
             <div className="w-full bg-white border border-slate-200 rounded-3xl shadow-xl mb-6 overflow-hidden flex flex-col h-[60vh] max-h-[600px]">
@@ -174,14 +201,14 @@ export default function LandingPage() {
           >
             <div className={`absolute inset-0 bg-gradient-to-r from-indigo-500 to-cyan-500 rounded-2xl blur-lg transition-opacity duration-500 ${demoStarted ? 'opacity-10' : 'opacity-15 group-hover:opacity-25'}`} />
             <div className={`relative flex items-center bg-white border border-slate-300 hover:border-slate-400 rounded-2xl overflow-hidden shadow-xl transition-all focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/10 ${demoStarted ? 'shadow-md' : 'shadow-2xl hover:-translate-y-0.5'}`}>
-              <span className="pl-6 text-slate-400 text-xl font-mono">/</span>
+              <span className="pl-4 sm:pl-6 text-slate-400 text-xl font-mono">/</span>
               <input
                 ref={inputRef}
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={demoStarted ? "추가로 궁금한 점을 입력하세요..." : "분석할 주제나 기업명을 입력해보세요..."}
-                className="w-full bg-transparent text-slate-900 placeholder-slate-400 text-lg px-4 py-5 focus:outline-none focus:ring-0 peer"
+                className="w-full min-w-0 bg-transparent text-slate-900 placeholder-slate-400 text-base sm:text-lg px-3 sm:px-4 py-4 sm:py-5 focus:outline-none focus:ring-0 peer"
                 autoComplete="off"
               />
               <button
@@ -197,9 +224,9 @@ export default function LandingPage() {
 
           {/* Suggestion Chips */}
           {!demoStarted && (
-            <div className="mt-8 text-sm text-slate-500 flex items-center justify-center gap-4">
-              <span className="hover:text-indigo-600 cursor-pointer transition-colors px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200" onClick={() => setQuery("2024년 모바일 AI 시장 동향")}>💡 "모바일 AI 시장 동향"</span>
-              <span className="hover:text-indigo-600 cursor-pointer transition-colors px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200" onClick={() => setQuery("테슬라 최신 어닝 콜 요약")}>💡 "테슬라 어닝 콜 요약"</span>
+            <div className="mt-6 sm:mt-8 text-sm text-slate-500 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+              <span className="hover:text-indigo-600 cursor-pointer transition-colors px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200" onClick={() => setQuery("2024년 모바일 AI 시장 동향")}>모바일 AI 시장 동향</span>
+              <span className="hover:text-indigo-600 cursor-pointer transition-colors px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200" onClick={() => setQuery("테슬라 최신 어닝 콜 요약")}>테슬라 어닝 콜 요약</span>
             </div>
           )}
         </div>

@@ -56,7 +56,8 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - http:
+    - host: researches.uk
+      http:
         paths:
           - path: /grafana
             pathType: Prefix
@@ -80,7 +81,8 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - http:
+    - host: researches.uk
+      http:
         paths:
           - path: /prometheus
             pathType: Prefix

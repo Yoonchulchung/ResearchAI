@@ -9,6 +9,7 @@ data:
   PORT: "3001"
   HOST: "0.0.0.0"
   DATABASE_URL: "file:/app/data/sessions.db"
+  DATABASE_PATH: "/app/data/sessions.db"
   MEDIA_PATH: "/app/media"
 
   # ── 벡터 DB (같은 네임스페이스 내부 서비스 이름) ─────────────
