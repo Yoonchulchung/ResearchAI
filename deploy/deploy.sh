@@ -106,7 +106,7 @@ else
 fi
 
 # ────────────────────────────────────────────────────────────
-log "4/4 PVC·Qdrant·BE·FE·Ingress 적용"
+log "4/5 PVC·Qdrant·BE·FE·Ingress 적용"
 
 $KUBECTL_CMD apply -f "$ROOT/deploy/k8s/20-pvc.yaml"
 $KUBECTL_CMD apply -f "$ROOT/deploy/k8s/30-qdrant.yaml"
@@ -117,6 +117,16 @@ $KUBECTL_CMD apply -f "$ROOT/deploy/k8s/60-ingress.yaml"
 # Pod 재기동 (이미지 업데이트 반영)
 log "이미지 업데이트 반영 위해 롤링 재시작"
 $KUBECTL_CMD -n "$NS" rollout restart deployment/be deployment/fe
+
+# ────────────────────────────────────────────────────────────
+log "5/5 모니터링 스택 적용 (Prometheus · Loki · Promtail · Grafana)"
+
+$KUBECTL_CMD apply -f "$ROOT/deploy/k8s/70-monitoring-ns.yaml"
+$KUBECTL_CMD apply -f "$ROOT/deploy/k8s/71-prometheus.yaml"
+$KUBECTL_CMD apply -f "$ROOT/deploy/k8s/72-loki.yaml"
+$KUBECTL_CMD apply -f "$ROOT/deploy/k8s/73-promtail.yaml"
+$KUBECTL_CMD apply -f "$ROOT/deploy/k8s/74-grafana.yaml"
+$KUBECTL_CMD apply -f "$ROOT/deploy/k8s/75-monitoring-ingress.yaml"
 
 # ────────────────────────────────────────────────────────────
 log "배포 완료 — 상태 확인"
@@ -131,14 +141,15 @@ cat <<EOF
 ✅ 배포가 완료되었습니다.
 
 접속:
-  http://${NODE_IP}/     (또는 http://<노드IP>/)
+  http://${NODE_IP}/          (앱)
+  http://${NODE_IP}/grafana/  (Grafana — admin/admin123, 첫 로그인 후 변경)
 
 상태 확인:
   kubectl -n ${NS} get pods
+  kubectl -n monitoring get pods
   kubectl -n ${NS} logs -l app=be -f
-  kubectl -n ${NS} logs -l app=fe -f
 
 제거:
-  kubectl delete ns ${NS}
+  kubectl delete ns ${NS} monitoring
 
 EOF
