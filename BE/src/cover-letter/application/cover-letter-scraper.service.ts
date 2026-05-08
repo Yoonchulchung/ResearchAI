@@ -5,7 +5,7 @@ import * as readline from 'readline';
 import { CoverLetter, ScrapeOptions, ScrapeStatus } from '../domain/cover-letter.model';
 import { LinkareerCrawler } from '../infrastructure/linkareer.crawler';
 
-const DATA_DIR = path.resolve(__dirname, '../../../../data/cover-letters');
+const DATA_DIR = path.resolve(__dirname, '../../../data/cover-letters');
 const JSONL_FILE = path.join(DATA_DIR, 'cover-letters.jsonl');
 const IDS_FILE = path.join(DATA_DIR, 'collected-ids.json');
 

@@ -17,7 +17,7 @@ import { CatchJobCrawler } from '../infrastructure/catch-job.crawler';
 import { JobplanetJobCrawler } from '../infrastructure/jobplanet-job.crawler';
 import { JobdaJobCrawler } from '../infrastructure/jobda-job.crawler';
 
-const DATA_DIR = path.resolve(__dirname, '../../../../data/job-postings');
+const DATA_DIR = path.resolve(__dirname, '../../../data/job-postings');
 const JSONL_FILE = path.join(DATA_DIR, 'job-postings.jsonl');
 const IDS_FILE = path.join(DATA_DIR, 'collected-ids.json');
 const COMPANY_PROFILES_FILE = path.join(DATA_DIR, 'company-profiles.json');
