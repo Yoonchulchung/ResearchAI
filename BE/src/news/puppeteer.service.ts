@@ -7,11 +7,17 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
   private browser: Browser | null = null;
 
   async onModuleInit() {
-    this.browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    });
-    this.logger.log('Puppeteer browser launched');
+    try {
+      this.browser = await puppeteer.launch({
+        headless: true,
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'],
+      });
+      this.logger.log('Puppeteer browser launched');
+    } catch (e) {
+      this.logger.warn(`Puppeteer 초기화 실패 — 웹 크롤링 비활성화: ${(e as Error).message}`);
+      this.browser = null;
+    }
   }
 
   async onModuleDestroy() {
