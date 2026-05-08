@@ -15,6 +15,8 @@ import { AppConfigModule } from './config/config.module';
 import { GmailModule } from './gmail/gmail.module';
 import { DocumentsModule } from './documents/documents.module';
 import { BackgroundsModule } from './backgrounds/backgrounds.module';
+import { CoverLetterModule } from './cover-letter/cover-letter.module';
+import { JobPostingModule } from './job-posting/job-posting.module';
 
 @Module({
   imports: [
@@ -34,6 +36,8 @@ import { BackgroundsModule } from './backgrounds/backgrounds.module';
     GmailModule,
     DocumentsModule,
     BackgroundsModule,
+    CoverLetterModule,
+    JobPostingModule,
   ],
 })
 export class AppModule {}

@@ -463,6 +463,135 @@ function CvfChart({ cvf, isDark }: { cvf: CompetingValues; isDark: boolean }) {
   );
 }
 
+// ─── 신뢰도 평가 ──────────────────────────────────────────────────────────────
+
+interface ReliabilityCheck {
+  label: string;
+  ok: boolean;
+  category: "official" | "web" | "ai";
+}
+
+function computeReliability(a: CompanyAnalysis): { score: number; checks: ReliabilityCheck[]; categoryScores: Record<string, number> } {
+  const checks: ReliabilityCheck[] = [
+    // 공식 데이터
+    { label: "DART 연결", ok: !!a.dartUrl, category: "official" },
+    { label: "다년간 재무", ok: (a.multiYearFinancials?.length ?? 0) >= 2, category: "official" },
+    { label: "공시 자료", ok: (a.disclosures?.length ?? 0) > 0, category: "official" },
+    { label: "직원 정보", ok: !!(a.employees || a.employeeHistory?.length), category: "official" },
+    // 웹 데이터
+    { label: "최근 뉴스 5+", ok: (a.recentNews?.length ?? 0) >= 5, category: "web" },
+    { label: "채용 공고", ok: (a.jobPostings?.length ?? 0) > 0, category: "web" },
+    { label: "기업 리뷰", ok: !!a.jobplanetSummary, category: "web" },
+    { label: "기업 프로필", ok: !!a.companyProfile, category: "web" },
+    { label: "미션·비전", ok: !!(a.missionVision?.mission || a.missionVision?.vision), category: "web" },
+    // AI 분석
+    { label: "역량 근거", ok: (a.evidence?.length ?? 0) >= 2, category: "ai" },
+    { label: "SWOT", ok: !!a.swot, category: "ai" },
+    { label: "경쟁사 분석", ok: (a.competitors?.length ?? 0) > 0, category: "ai" },
+    { label: "사업부문", ok: (a.businessSegments?.length ?? 0) > 0, category: "ai" },
+  ];
+
+  const byCategory = (cat: ReliabilityCheck["category"]) => {
+    const sub = checks.filter((c) => c.category === cat);
+    return sub.length === 0 ? 0 : Math.round((sub.filter((c) => c.ok).length / sub.length) * 100);
+  };
+
+  const categoryScores = {
+    official: byCategory("official"),
+    web: byCategory("web"),
+    ai: byCategory("ai"),
+  };
+
+  const overall = Math.round(checks.filter((c) => c.ok).length / checks.length * 100);
+  return { score: overall, checks, categoryScores };
+}
+
+const RELIABILITY_META = {
+  official: { label: "공식 데이터 (DART)", color: "#3b82f6", desc: "상장·재무·공시 정보" },
+  web: { label: "웹 수집 데이터", color: "#22c55e", desc: "뉴스·공고·리뷰·프로필" },
+  ai: { label: "AI 분석 품질", color: "#a855f7", desc: "근거·SWOT·경쟁사·사업부문" },
+} as const;
+
+function ReliabilityModal({ analysis, isDark, onClose }: { analysis: CompanyAnalysis; isDark: boolean; onClose: () => void }) {
+  const { score, checks, categoryScores } = computeReliability(analysis);
+
+  const grade =
+    score >= 85 ? { label: "A", color: "#10b981" }
+    : score >= 65 ? { label: "B", color: "#3b82f6" }
+    : score >= 45 ? { label: "C", color: "#f59e0b" }
+    : { label: "D", color: "#ef4444" };
+
+  const bg = isDark ? "#1e293b" : "#ffffff";
+  const border = isDark ? "#334155" : "#e2e8f0";
+  const textMuted = isDark ? "#94a3b8" : "#64748b";
+  const textBase = isDark ? "#e2e8f0" : "#1e293b";
+  const barBg = isDark ? "#334155" : "#f1f5f9";
+  const overlayBg = isDark ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.4)";
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 9999, background: overlayBg, display: "flex", alignItems: "center", justifyContent: "center" }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: 24, width: 420, maxWidth: "90vw", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 헤더 */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 36, fontWeight: 900, color: grade.color, fontVariantNumeric: "tabular-nums" }}>{grade.label}</span>
+            <div>
+              <p style={{ fontSize: 15, fontWeight: 700, color: textBase, margin: 0 }}>데이터 신뢰도 {score}%</p>
+              <p style={{ fontSize: 12, color: textMuted, margin: 0 }}>수집된 데이터 출처 기반 품질 평가</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: textMuted, padding: "4px 8px" }}>✕</button>
+        </div>
+
+        {/* 카테고리 바 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+          {(Object.entries(categoryScores) as [keyof typeof RELIABILITY_META, number][]).map(([cat, pct]) => {
+            const meta = RELIABILITY_META[cat];
+            return (
+              <div key={cat}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: textMuted }}>{meta.label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: textBase, fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
+                </div>
+                <div style={{ height: 6, borderRadius: 3, background: barBg }}>
+                  <div style={{ height: 6, borderRadius: 3, width: `${pct}%`, background: meta.color, transition: "width 0.4s" }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 세부 체크리스트 */}
+        <div style={{ borderTop: `1px solid ${border}`, paddingTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          {(["official", "web", "ai"] as const).map((cat) => {
+            const meta = RELIABILITY_META[cat];
+            const catChecks = checks.filter((c) => c.category === cat);
+            return (
+              <div key={cat}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: meta.color, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>{meta.label}</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
+                  {catChecks.map((c) => (
+                    <span key={c.label} style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4, color: c.ok ? textBase : (isDark ? "#475569" : "#cbd5e1") }}>
+                      <span style={{ color: c.ok ? "#22c55e" : (isDark ? "#475569" : "#cbd5e1") }}>{c.ok ? "✓" : "✗"}</span>
+                      {c.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HrSection({ hr, isDark }: { hr: HrAnalysis; isDark: boolean }) {
   return (
     <div className="space-y-10">
@@ -794,6 +923,7 @@ function CompanyAnalysisPage() {
   const [logsVisible, setLogsVisible] = useState(false);
   const [error, setError] = useState("");
   const logEndRef = useRef<HTMLDivElement>(null);
+  const [reliabilityOpen, setReliabilityOpen] = useState(false);
 
   // ── 플로팅 채팅 ──────────────────────────────────────────────────────────
   const [chatOpen, setChatOpen] = useState(false);
@@ -1364,8 +1494,8 @@ function CompanyAnalysisPage() {
 
         {/* 본문 */}
         <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
-          {/* 좌측 목록 */}
-          <div className={`w-full md:w-72 h-40 md:h-auto shrink-0 overflow-y-auto border-b md:border-b-0 md:border-r ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300"}`}>
+          {/* 좌측 목록 — 모바일에서 선택 시 숨김 */}
+          <div className={`w-full md:w-72 shrink-0 overflow-y-auto border-b md:border-b-0 md:border-r ${selected ? "hidden md:block" : "flex-1 md:flex-none"} ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300"}`}>
             {loadingList ? (
               <div className={`p-5 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>데이터 불러오는 중...</div>
             ) : filteredCompanies.length === 0 ? (
@@ -1393,8 +1523,8 @@ function CompanyAnalysisPage() {
                           ✕
                         </div>
                       </div>
-                      <p className={`text-xs mt-1 font-mono ${isDark ? "text-slate-500" : "text-slate-500"}`}>
-                        {new Date(c.updatedAt).toISOString().split("T")[0]}
+                      <p className={`text-xs mt-0.5 ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                        {new Date(c.updatedAt).toLocaleDateString("ko-KR")}
                       </p>
                     </button>
                   </li>
@@ -1418,43 +1548,93 @@ function CompanyAnalysisPage() {
               <div className="max-w-5xl mx-auto space-y-6">
 
                 {/* 헤더 */}
-                <div className={`flex items-end justify-between border-b pb-4 ${isDark ? "border-slate-700" : "border-slate-300"}`}>
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <h2 className={`text-3xl font-bold tracking-tight ${isDark ? "text-slate-100" : "text-slate-900"}`}>
-                        {selected.companyName}
-                      </h2>
-                      {selected.homeUrl && (
-                        <a
-                          href={selected.homeUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="공식 홈페이지"
-                          className={`flex items-center gap-1 px-2 py-0.5 text-xs font-medium border rounded-sm transition-colors ${isDark ? "border-slate-600 text-blue-400 hover:bg-slate-800" : "border-slate-300 text-blue-600 hover:bg-slate-50"}`}
-                        >
-                          홈페이지 ↗
-                        </a>
-                      )}
-                    </div>
-                    <p className={`text-sm mt-2 font-mono ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-                      DATE: {new Date(selected.updatedAt).toLocaleString("en-US", { hour12: false })} | MODEL: {selected.aiModel || "Unknown"}
-                      {(selected.inputTokens != null || selected.outputTokens != null) && (
-                        <span className="ml-3">
-                          | IN: {(selected.inputTokens ?? 0).toLocaleString()} / OUT: {(selected.outputTokens ?? 0).toLocaleString()} tokens
-                          {selected.estimatedFees != null && selected.estimatedFees > 0 && (
-                            <span className="ml-2 text-amber-500">${selected.estimatedFees.toFixed(4)}</span>
-                          )}
-                        </span>
-                      )}
-                    </p>
-                  </div>
+                <div className={`border-b pb-4 ${isDark ? "border-slate-700" : "border-slate-300"}`}>
+                  {/* 모바일 뒤로가기 */}
                   <button
-                    onClick={() => handleReanalyze(selected.companyName)}
-                    disabled={selectedCompanyIsAnalyzing}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold border rounded-sm transition-colors ${isDark ? "border-slate-600 text-slate-300 hover:bg-slate-800 disabled:opacity-50" : "border-slate-400 text-slate-700 hover:bg-slate-100 disabled:opacity-50"}`}
+                    className={`md:hidden flex items-center gap-1 text-sm mb-3 ${isDark ? "text-slate-400 hover:text-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+                    onClick={() => setSelected(null)}
                   >
-                    {selectedCompanyIsAnalyzing ? "대기/분석 중" : "재분석 실행"}
+                    ← 목록
                   </button>
+
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      {/* 회사명 + 링크 */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className={`text-2xl sm:text-3xl font-bold tracking-tight break-words ${isDark ? "text-slate-100" : "text-slate-900"}`}>
+                          {selected.companyName}
+                        </h2>
+                        {selected.homeUrl && (
+                          <a
+                            href={selected.homeUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="공식 홈페이지"
+                            className={`flex items-center gap-1 px-2 py-0.5 text-xs font-medium border rounded-sm transition-colors shrink-0 ${isDark ? "border-slate-600 text-blue-400 hover:bg-slate-800" : "border-slate-300 text-blue-600 hover:bg-slate-50"}`}
+                          >
+                            홈페이지 ↗
+                          </a>
+                        )}
+                      </div>
+
+                      {/* 모바일: 간략 정보 줄 */}
+                      <div className={`mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 sm:hidden text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                        <span>{new Date(selected.updatedAt).toLocaleDateString("ko-KR")}</span>
+                        <span className="truncate max-w-[140px]">{selected.aiModel?.split("-").slice(0, 3).join("-") || "Unknown"}</span>
+                        {selected.estimatedFees != null && selected.estimatedFees > 0 && (
+                          <span className="text-amber-500 font-semibold">${selected.estimatedFees.toFixed(4)}</span>
+                        )}
+                        {(() => {
+                          const { score } = computeReliability(selected);
+                          const gradeLabel = score >= 85 ? "A" : score >= 65 ? "B" : score >= 45 ? "C" : "D";
+                          return (
+                            <button
+                              onClick={() => setReliabilityOpen(true)}
+                              className={`inline-flex items-center gap-0.5 text-xs font-semibold transition-opacity hover:opacity-70 ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                            >
+                              신뢰도 {gradeLabel} · {score}%
+                              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0"><path d="M2 8L8 2M8 2H3M8 2V7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            </button>
+                          );
+                        })()}
+                      </div>
+
+                      {/* 데스크탑: 풀 정보 줄 */}
+                      <p className={`hidden sm:block text-sm mt-2 font-mono ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                        DATE: {new Date(selected.updatedAt).toLocaleString("en-US", { hour12: false })} | MODEL: {selected.aiModel || "Unknown"}
+                        {(selected.inputTokens != null || selected.outputTokens != null) && (
+                          <span className="ml-3">
+                            | IN: {(selected.inputTokens ?? 0).toLocaleString()} / OUT: {(selected.outputTokens ?? 0).toLocaleString()} tokens
+                            {selected.estimatedFees != null && selected.estimatedFees > 0 && (
+                              <span className="ml-2 text-amber-500">${selected.estimatedFees.toFixed(4)}</span>
+                            )}
+                          </span>
+                        )}
+                        {(() => {
+                          const { score } = computeReliability(selected);
+                          const gradeLabel = score >= 85 ? "A" : score >= 65 ? "B" : score >= 45 ? "C" : "D";
+                          return (
+                            <button
+                              onClick={() => setReliabilityOpen(true)}
+                              className={`ml-3 inline-flex items-center gap-0.5 text-xs font-semibold transition-opacity hover:opacity-70 ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                            >
+                              신뢰도 {gradeLabel} · {score}%
+                              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0"><path d="M2 8L8 2M8 2H3M8 2V7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            </button>
+                          );
+                        })()}
+                      </p>
+                    </div>
+
+                    {/* 재분석 버튼 — nowrap 고정 */}
+                    <button
+                      onClick={() => handleReanalyze(selected.companyName)}
+                      disabled={selectedCompanyIsAnalyzing}
+                      className={`shrink-0 whitespace-nowrap px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold border rounded-sm transition-colors ${isDark ? "border-slate-600 text-slate-300 hover:bg-slate-800 disabled:opacity-50" : "border-slate-400 text-slate-700 hover:bg-slate-100 disabled:opacity-50"}`}
+                    >
+                      {selectedCompanyIsAnalyzing ? "분석 중" : "재분석"}
+                    </button>
+                  </div>
                 </div>
 
                 {/* 요약 */}
@@ -2220,6 +2400,11 @@ function CompanyAnalysisPage() {
         </svg>
       )}
     </button>
+
+    {/* ── 신뢰도 모달 ─────────────────────────────────────────────── */}
+    {reliabilityOpen && selected && (
+      <ReliabilityModal analysis={selected} isDark={isDark} onClose={() => setReliabilityOpen(false)} />
+    )}
 
     {/* ── 채팅 패널 ──────────────────────────────────────────────── */}
     {chatOpen && (

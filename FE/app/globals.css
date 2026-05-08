@@ -520,3 +520,17 @@ html[data-theme="dark"] .prose blockquote {
   color: #94a3b8;
   border-color: #4d9ade;
 }
+/* 채용공고 상세 HTML 렌더링 */
+.job-detail-html img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 8px 0;
+}
+.job-detail-html p {
+  margin: 4px 0;
+}
+.job-detail-html br {
+  display: block;
+  margin: 2px 0;
+}

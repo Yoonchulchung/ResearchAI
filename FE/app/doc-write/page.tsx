@@ -26,7 +26,7 @@ function DocWritePageInner() {
   const docSave = useDocSave(editor.setContent, setCompanyName);
   const ai = useAiAssist(editor.setContent);
   const rag = useRag();
-  const { splitRatio, containerRef, startResize, isDragging } = useResize();
+  const { splitRatio, containerRef, startResize, isDragging } = useResize(0.3);
   const [pendingImprovement, setPendingImprovement] = useState<{
     original: string;
     improved: string;
@@ -112,6 +112,38 @@ function DocWritePageInner() {
         />
 
         <div className="flex-1" />
+
+        {/* 채용 공고 */}
+        <button
+          onClick={() => router.push("/job-posting")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
+            isGlass && isDark
+              ? "text-white/80 border-white/20 hover:bg-white/10 hover:text-white hover:border-white/30"
+              : "text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm"
+          }`}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <rect x="1" y="2" width="10" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
+            <path d="M4 1v2M8 1v2M1 5h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+          </svg>
+          채용 공고
+        </button>
+
+        {/* 참고 자소서 */}
+        <button
+          onClick={() => router.push("/cover-letter")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
+            isGlass && isDark
+              ? "text-white/80 border-white/20 hover:bg-white/10 hover:text-white hover:border-white/30"
+              : "text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm"
+          }`}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 1h8v10H2V1z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M4 4h4M4 6.5h4M4 9h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
+          참고 자소서
+        </button>
 
         {/* 기업 분석 — 인재상 핵심역량 매핑 페이지로 이동 */}
         <button
