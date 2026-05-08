@@ -53,6 +53,9 @@ if [ "$MODE" = "deploy" ]; then
   ARGOCD_VERSION="${ARGOCD_VERSION:-v2.11.3}"
   ARGOCD_NODEPORT_HTTP="${ARGOCD_NODEPORT_HTTP:-32080}"
   ARGOCD_NODEPORT_HTTPS="${ARGOCD_NODEPORT_HTTPS:-32443}"
+  ARGOCD_CRD_TIMEOUT="${ARGOCD_CRD_TIMEOUT:-300s}"
+  ARGOCD_ROLLOUT_TIMEOUT="${ARGOCD_ROLLOUT_TIMEOUT:-600s}"
+  GRAFANA_ROLLOUT_TIMEOUT="${GRAFANA_ROLLOUT_TIMEOUT:-300s}"
   PROMETHEUS_BASIC_AUTH_USER="${PROMETHEUS_BASIC_AUTH_USER:-admin}"
   PROMETHEUS_BASIC_AUTH_PASS="${PROMETHEUS_BASIC_AUTH_PASS:-admin123}"
 
@@ -96,7 +99,7 @@ if [ "$MODE" = "deploy" ]; then
     $KUBECTL apply -n argocd \
       -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
 
-    $KUBECTL wait --for condition=Established crd/applications.argoproj.io --timeout=120s
+    $KUBECTL wait --for condition=Established crd/applications.argoproj.io --timeout="$ARGOCD_CRD_TIMEOUT"
 
     echo "🧭 ArgoCD Server NodePort(${ARGOCD_NODEPORT_HTTP}/${ARGOCD_NODEPORT_HTTPS}) 노출..."
     $KUBECTL patch svc argocd-server -n argocd \
@@ -110,7 +113,7 @@ if [ "$MODE" = "deploy" ]; then
       ]' \
       >/dev/null
 
-    $KUBECTL rollout status deployment/argocd-server -n argocd --timeout=180s
+    $KUBECTL rollout status deployment/argocd-server -n argocd --timeout="$ARGOCD_ROLLOUT_TIMEOUT"
 
     local repo_url target_revision app_tmp
     repo_url="$(_repo_url_for_argocd)"
@@ -202,7 +205,7 @@ if [ "$MODE" = "deploy" ]; then
   fi
 
   echo "⏳ Grafana 롤아웃 대기 중..."
-  $KUBECTL rollout status deployment/grafana -n monitoring --timeout=180s || true
+  $KUBECTL rollout status deployment/grafana -n monitoring --timeout="$GRAFANA_ROLLOUT_TIMEOUT" || true
 
   _ensure_argocd
 
