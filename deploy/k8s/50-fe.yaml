@@ -33,7 +33,7 @@ spec:
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: fe
-          image: ghcr.io/yoonchulchung/researchai/fe:211698a46990b7c9458ebdb87ed55ce1e9771043
+          image: ghcr.io/yoonchulchung/researchai/fe:6ebbadd9332b39fecf6041bc1f2bf68a73e1c284
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
