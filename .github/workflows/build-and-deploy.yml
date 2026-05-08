@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE_PLATFORMS: linux/amd64
+  IMAGE_PLATFORMS: linux/amd64,linux/arm64
 
 jobs:
   build-and-update:
