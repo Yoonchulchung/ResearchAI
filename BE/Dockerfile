@@ -55,5 +55,5 @@ ENV NODE_ENV=production \
 
 EXPOSE 3001
 
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "dist/main.js"]
