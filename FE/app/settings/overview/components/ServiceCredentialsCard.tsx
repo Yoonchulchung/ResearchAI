@@ -140,8 +140,8 @@ function ApiKeyRowComp({ row, onUpdated }: { row: ApiKeyRow; onUpdated: () => vo
           )}
         </div>
       </div>
-      {error && <p className="text-red-500 text-xs mt-1 ml-32">{error}</p>}
-      <p className="text-xs text-slate-400 mt-2 ml-32">{row.description}</p>
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+      <p className="text-xs text-slate-400 mt-2">{row.description}</p>
     </div>
   );
 }
@@ -233,7 +233,7 @@ function IdPwRowComp({ row, onUpdated }: { row: IdPwRow; onUpdated: () => void }
           {error && <p className="text-red-500 text-xs">{error}</p>}
         </div>
       </div>
-      <p className="text-xs text-slate-400 mt-2 ml-32">{row.description}</p>
+      <p className="text-xs text-slate-400 mt-2">{row.description}</p>
     </div>
   );
 }

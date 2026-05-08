@@ -518,10 +518,10 @@ export function NewSessionModal() {
         onClick={closeModal}
       />
 
-      {/* Floating Panel — 왼쪽에서 슬라이드, 사이드바 너비만큼 offset */}
+      {/* Floating Panel — 모바일: 전체화면, 데스크탑: 사이드바 너비만큼 offset */}
       <div
-        style={{ left: collapsed ? "4.5rem" : "16.5rem" }}
-        className={`fixed top-4 bottom-4 z-50 w-160 max-w-[calc(100vw-5rem)] glass-panel rounded-2xl shadow-2xl shadow-black/15 flex flex-col transition-all duration-300 ease-out overflow-hidden ${
+        style={{ "--panel-left": collapsed ? "4.5rem" : "16.5rem" } as React.CSSProperties}
+        className={`fixed top-0 bottom-0 left-0 md:top-4 md:bottom-4 md:left-(--panel-left) z-50 w-full md:w-160 md:max-w-[calc(100vw-5rem)] glass-panel md:rounded-2xl shadow-2xl shadow-black/15 flex flex-col transition-all duration-300 ease-out overflow-hidden ${
           isOpen ? "opacity-100 translate-x-0 scale-100 pointer-events-auto" : "opacity-0 -translate-x-4 scale-95 pointer-events-none"
         }`}
       >

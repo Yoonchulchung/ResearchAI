@@ -27,7 +27,7 @@ export function TavilyCard({ loading, tavily }: { loading: boolean; tavily: Tavi
       gradient="linear-gradient(135deg, #1e293b 0%, #0f2a2a 30%, #0f2233 60%, #1a2436 100%)"
       blob="radial-gradient(ellipse at 60% 80%, #134e4a 0%, transparent 60%), radial-gradient(ellipse at 80% 30%, #1e3a5f 0%, transparent 50%)"
     >
-      <h2 className="text-4xl font-bold text-white mb-8">
+      <h2 className="text-2xl sm:text-4xl font-bold text-white mb-4 sm:mb-8">
         {loading ? (
           <span className="inline-block w-40 h-9 bg-white/40 rounded-xl animate-pulse" />
         ) : tavily?.configured ? (

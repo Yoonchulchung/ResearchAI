@@ -234,7 +234,7 @@ export function AiPanel({
                 key={action.key}
                 onClick={() => onRunAssist("", action.label, action.skipCompanyCtx, action.key)}
                 disabled={aiLoading}
-                className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-sm font-medium border disabled:opacity-40 disabled:cursor-not-allowed transition-all ${
+                className={`flex items-center justify-center gap-1 px-1.5 py-2 rounded-lg text-xs font-medium border disabled:opacity-40 disabled:cursor-not-allowed transition-all ${
                     isGlass && isDark
                     ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10 hover:text-white hover:border-white/30"
                     : "text-slate-600 bg-white shadow-sm hover:bg-indigo-50 hover:text-indigo-700 border-slate-200 hover:border-indigo-200"

@@ -153,10 +153,11 @@ function parseUA(ua: string | null): string {
 
 function formatLoginDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString("ko-KR", {
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit",
-  });
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${mm}/${dd} ${hh}:${min}`;
 }
 
 function LoginHistoryCard() {
@@ -199,7 +200,7 @@ function LoginHistoryCard() {
                   <span className="text-xs text-slate-400 truncate font-mono">{h.ipAddress}</span>
                 )}
               </div>
-              <span className="shrink-0 text-xs text-slate-400">{formatLoginDate(h.createdAt)}</span>
+              <span className="shrink-0 text-xs text-slate-400 tabular-nums">{formatLoginDate(h.createdAt)}</span>
             </div>
           ))}
         </div>
@@ -211,7 +212,7 @@ function LoginHistoryCard() {
 export default function OverviewPage() {
   const { uiStyle } = useTheme();
   const isGlass = uiStyle === "glass";
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
 
   const [tavily, setTavily] = useState<TavilyOverview | null>(null);
   const [apiKeys, setApiKeys] = useState<ApiKeyEntry[]>([]);
@@ -280,7 +281,7 @@ export default function OverviewPage() {
       <div className={`flex-1 flex flex-col transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl overflow-hidden" : ""}`}>
         <PageHeader loading={loading} isGlass={isGlass} />
 
-        <div className="px-8 py-8 space-y-6 max-w-4xl mx-auto w-full">
+        <div className="px-4 sm:px-8 py-4 sm:py-8 space-y-6 max-w-4xl mx-auto w-full">
           <TavilyCard loading={loading} tavily={tavily} />
           <TokenUsageCard loading={loading} analytics={analytics} />
           <CloudModelConfigCard
@@ -316,6 +317,16 @@ export default function OverviewPage() {
               Contact us
             </a>
           </div>
+
+          <button
+            onClick={logout}
+            className="md:hidden w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl border border-red-200 text-red-500 text-sm font-semibold bg-white hover:bg-red-50 transition-colors shadow-sm"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 2H3C2.45 2 2 2.45 2 3v10c0 .55.45 1 1 1h3M11 11l3-3-3-3M14 8H6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            로그아웃
+          </button>
         </div>
       </div>
     </div>

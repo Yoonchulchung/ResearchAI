@@ -1,12 +1,11 @@
 # ── Monitoring Ingress (경로 기반) ─────────────────────────────────────────────
 # 도메인/grafana/    → Grafana   (내장 로그인으로 보호)
 # 도메인/prometheus/ → Prometheus (BasicAuth 로 보호)
+# 도메인/argocd/    → ArgoCD    (내장 로그인으로 보호)
 #
-# 사전 준비:
-#   deploy/argocd/install.sh 를 실행하면 prometheus-basic-auth Secret 이 생성됩니다.
-#   또는 직접 생성:
-#     htpasswd -nb admin YOUR_PASSWORD | kubectl create secret generic \
-#       prometheus-basic-auth --from-file=users=/dev/stdin -n monitoring
+# Prometheus BasicAuth Secret 사전 생성 필요:
+#   htpasswd -nbB admin YOUR_PASSWORD | kubectl create secret generic \
+#     prometheus-basic-auth --from-literal=users="$(cat -)" -n monitoring
 
 # ── Prometheus: BasicAuth 미들웨어 ────────────────────────────────────────────
 apiVersion: traefik.io/v1alpha1
@@ -16,7 +15,7 @@ metadata:
   namespace: monitoring
 spec:
   basicAuth:
-    secret: prometheus-basic-auth   # install.sh 또는 수동으로 생성
+    secret: prometheus-basic-auth
 
 ---
 # ── Prometheus: StripPrefix 미들웨어 ──────────────────────────────────────────
@@ -32,6 +31,8 @@ spec:
 
 ---
 # ── Grafana Ingress ────────────────────────────────────────────────────────────
+# GF_SERVER_SERVE_FROM_SUB_PATH=true 로 Grafana 자체가 /grafana/ 처리
+# StripPrefix 불필요 — Traefik이 /grafana/... 를 그대로 전달
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -77,3 +78,28 @@ spec:
                 name: prometheus
                 port:
                   number: 9090
+
+---
+# ── ArgoCD Ingress ─────────────────────────────────────────────────────────────
+# ArgoCD Server는 --insecure 모드로 실행됨 (TLS는 Cloudflare가 처리)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    traefik.ingress.kubernetes.io/router.priority: "50"
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: researches.uk
+      http:
+        paths:
+          - path: /argocd
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80

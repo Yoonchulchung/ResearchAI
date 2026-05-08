@@ -152,65 +152,81 @@ function WeatherModal({ weather, onClose }: { weather: WeatherData; onClose: () 
 // ── WeatherCard ────────────────────────────────────────────────
 export function WeatherCard() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [open, setOpen] = useState(false);
+  const [permitted, setPermitted] = useState(false);
 
-  useEffect(() => {
-    const fetchWeather = async (lat: number, lon: number) => {
-      try {
-        const [weatherRes, geoRes] = await Promise.all([
-          fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-            `&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m` +
-            `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max` +
-            `&timezone=auto&forecast_days=7`,
-          ),
-          fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
-            { headers: { "Accept-Language": "ko" } },
-          ),
-        ]);
+  const fetchWeather = async (lat: number, lon: number) => {
+    try {
+      const [weatherRes, geoRes] = await Promise.all([
+        fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+          `&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m` +
+          `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max` +
+          `&timezone=auto&forecast_days=7`,
+        ),
+        fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+          { headers: { "Accept-Language": "ko" } },
+        ),
+      ]);
+      const [w, g] = await Promise.all([weatherRes.json(), geoRes.json()]);
+      const c = w.current;
+      const d = w.daily;
+      const city = g.address?.city || g.address?.town || g.address?.county || g.address?.state || "현재 위치";
+      const forecast: DayForecast[] = (d.time as string[]).map((date: string, i: number) => ({
+        date,
+        weatherCode: d.weather_code[i],
+        tempMax: Math.round(d.temperature_2m_max[i]),
+        tempMin: Math.round(d.temperature_2m_min[i]),
+        precipProb: d.precipitation_probability_max[i] ?? 0,
+        windSpeed: Math.round(d.wind_speed_10m_max[i]),
+      }));
+      setWeather({
+        temp: Math.round(c.temperature_2m),
+        tempMax: Math.round(d.temperature_2m_max[0]),
+        tempMin: Math.round(d.temperature_2m_min[0]),
+        weatherCode: c.weather_code,
+        windSpeed: Math.round(c.wind_speed_10m),
+        humidity: c.relative_humidity_2m,
+        city,
+        forecast,
+      });
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        const [w, g] = await Promise.all([weatherRes.json(), geoRes.json()]);
-        const c = w.current;
-        const d = w.daily;
-
-        const city =
-          g.address?.city || g.address?.town || g.address?.county || g.address?.state || "현재 위치";
-
-        const forecast: DayForecast[] = (d.time as string[]).map((date: string, i: number) => ({
-          date,
-          weatherCode: d.weather_code[i],
-          tempMax: Math.round(d.temperature_2m_max[i]),
-          tempMin: Math.round(d.temperature_2m_min[i]),
-          precipProb: d.precipitation_probability_max[i] ?? 0,
-          windSpeed: Math.round(d.wind_speed_10m_max[i]),
-        }));
-
-        setWeather({
-          temp: Math.round(c.temperature_2m),
-          tempMax: Math.round(d.temperature_2m_max[0]),
-          tempMin: Math.round(d.temperature_2m_min[0]),
-          weatherCode: c.weather_code,
-          windSpeed: Math.round(c.wind_speed_10m),
-          humidity: c.relative_humidity_2m,
-          city,
-          forecast,
-        });
-      } catch {
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-
+  const handlePermit = () => {
+    setPermitted(true);
+    setLoading(true);
+    setError(false);
     navigator.geolocation.getCurrentPosition(
       (pos) => fetchWeather(pos.coords.latitude, pos.coords.longitude),
       () => fetchWeather(37.5665, 126.978),
       { timeout: 5000 },
     );
-  }, []);
+  };
+
+  if (!permitted) {
+    return (
+      <button
+        onClick={handlePermit}
+        className="w-full bg-white rounded-2xl border border-slate-200 px-5 py-4 hover:border-sky-300 hover:shadow-sm transition-all text-left"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🌤️</span>
+          <div>
+            <div className="text-sm font-semibold text-slate-700">날씨 보기</div>
+            <div className="text-xs text-slate-400 mt-0.5">클릭하여 현재 날씨를 확인하세요</div>
+          </div>
+        </div>
+      </button>
+    );
+  }
 
   if (loading) {
     return (

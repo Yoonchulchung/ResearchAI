@@ -24,10 +24,16 @@ kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -n argocd \
   -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
 
-# ── 2. ArgoCD Server NodePort 노출 (32080) ───────────────────────────────────
-log "ArgoCD Server → NodePort 32080 패치..."
+# ── 2. ArgoCD Server: insecure 모드 + rootpath 설정 ──────────────────────────
+log "ArgoCD Server --insecure + --rootpath=/argocd 패치..."
+kubectl patch deployment argocd-server -n argocd --type='json' -p='[
+  {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--insecure"},
+  {"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--rootpath=/argocd"}
+]' 2>/dev/null || true
+
+# NodePort도 유지 (직접 IP:32080 접근 용)
 kubectl patch svc argocd-server -n argocd \
-  -p '{"spec":{"type":"NodePort","ports":[{"port":80,"targetPort":8080,"nodePort":32080,"name":"http"},{"port":443,"targetPort":8080,"nodePort":32443,"name":"https"}]}}'
+  -p '{"spec":{"type":"NodePort","ports":[{"port":80,"targetPort":8080,"nodePort":32080,"name":"http"},{"port":443,"targetPort":8080,"nodePort":32443,"name":"https"}]}}' 2>/dev/null || true
 
 # ── 3. ArgoCD 준비 대기 ───────────────────────────────────────────────────────
 log "ArgoCD 파드 Ready 대기 (최대 3분)..."

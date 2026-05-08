@@ -2410,7 +2410,7 @@ function CompanyAnalysisPage() {
     {chatOpen && (
       <div
         ref={chatPanelRef}
-        className={`fixed bottom-24 right-6 z-50 w-96 h-[520px] flex flex-col rounded-lg border shadow-2xl overflow-hidden ${
+        className={`fixed bottom-24 left-3 right-3 sm:left-auto sm:right-6 sm:w-96 z-50 h-[520px] flex flex-col rounded-lg border shadow-2xl overflow-hidden ${
           isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"
         }`}
       >

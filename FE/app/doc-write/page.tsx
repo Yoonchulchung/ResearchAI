@@ -215,9 +215,9 @@ function DocWritePageInner() {
       {/* ── Split View ─────────────────────────────────────────────────────── */}
       <div
         ref={containerRef}
-        className={`flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden ${isDragging ? "select-none cursor-col-resize" : ""} ${isGlass ? "" : "bg-white"}`}
+        className={`flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden ${isDragging ? "select-none cursor-col-resize" : ""} ${isGlass ? "" : "bg-white"}`}
       >
-        <div style={{ "--split": `${splitRatio * 100}%` } as any} className="w-full md:w-[var(--split)] flex-1 md:flex-none flex flex-col min-h-[50vh] md:min-h-0 overflow-hidden">
+        <div style={{ "--split": `${splitRatio * 100}%` } as any} className="w-full lg:w-(--split) flex-1 lg:flex-none flex flex-col min-h-[50vh] lg:min-h-0 overflow-hidden">
           <EditorPanel
             content={editor.content}
             setContent={editor.setContent}
@@ -246,9 +246,9 @@ function DocWritePageInner() {
           />
         </div>
 
-        <div className="hidden md:flex"><ResizeDivider onMouseDown={startResize} isDragging={isDragging} /></div>
+        <div className="hidden lg:flex"><ResizeDivider onMouseDown={startResize} isDragging={isDragging} /></div>
 
-        <div style={{ "--split": `${(1 - splitRatio) * 100}%` } as any} className="w-full md:w-[var(--split)] flex-1 md:flex-none flex flex-col min-h-[50vh] md:min-h-0 overflow-hidden">
+        <div style={{ "--split": `${(1 - splitRatio) * 100}%` } as any} className="w-full lg:w-(--split) flex-1 lg:flex-none flex flex-col min-h-[50vh] lg:min-h-0 overflow-hidden">
           <AiPanel
             messages={ai.messages}
             aiLoading={ai.aiLoading}

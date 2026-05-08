@@ -305,7 +305,7 @@ function MoreDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
 
 type NavTab = "home" | "sessions" | "write" | "settings" | "more";
 
-function BottomNav({ active, onSessions, onMore }: { active: NavTab; onSessions: () => void; onMore: () => void }) {
+function BottomNav({ active, onSessions }: { active: NavTab; onSessions: () => void }) {
   const router = useRouter();
   const { isDark } = useMobileTheme();
   const bg = isDark ? "bg-slate-900/95 border-white/10" : "bg-white/95 border-slate-200";
@@ -315,7 +315,6 @@ function BottomNav({ active, onSessions, onMore }: { active: NavTab; onSessions:
     { id: "sessions", icon: <IconSearch />, label: "세션", action: onSessions },
     { id: "write", icon: <IconPencil />, label: "문서 작성", action: () => router.push("/doc-write") },
     { id: "settings", icon: <IconSettings />, label: "설정", action: () => router.push("/settings/overview") },
-    { id: "more", icon: <IconGrid />, label: "더 보기", action: onMore },
   ];
 
   return (
@@ -371,10 +370,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isDark } = useMobileTheme();
   const { openModal } = useNewSessionModal();
-  const { user } = useAuth();
   const [sessionsOpen, setSessionsOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
-  void user;
 
   const bg = isDark ? "bg-slate-950" : "bg-slate-50";
 
@@ -393,10 +389,8 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
       <BottomNav
         active={getActiveTab(pathname)}
         onSessions={() => setSessionsOpen(true)}
-        onMore={() => setMoreOpen(true)}
       />
       <SessionsDrawer open={sessionsOpen} onClose={() => setSessionsOpen(false)} />
-      <MoreDrawer open={moreOpen} onClose={() => setMoreOpen(false)} />
     </div>
   );
 }

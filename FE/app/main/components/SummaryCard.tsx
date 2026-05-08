@@ -129,21 +129,21 @@ export function SummaryCard() {
   return (
     <div className="glass-panel rounded-2xl p-5">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-bold text-slate-700">AI 트렌드 브리핑</h2>
-          <span className="text-2xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-semibold">AI</span>
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <h2 className="text-sm font-bold text-slate-700 whitespace-nowrap">AI 트렌드 브리핑</h2>
+          <span className="text-2xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-semibold shrink-0">AI</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 shrink-0">
           {active.lastUpdated && (
-            <span className="text-xs font-medium text-slate-400">
+            <span className="hidden sm:inline text-xs font-medium text-slate-400">
               {active.lastUpdated.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 기준
             </span>
           )}
           <button
             onClick={active.refresh}
             disabled={active.loading}
-            className="text-xs2 font-medium text-slate-400 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-40"
+            className="text-xs2 font-medium text-slate-400 hover:text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors disabled:opacity-40 whitespace-nowrap"
           >
             {active.loading ? "⟳ 갱신 중..." : "⟳ 새로고침"}
           </button>

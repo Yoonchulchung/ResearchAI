@@ -150,6 +150,21 @@ export default function SessionPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showTaskPanel, showDetail, id]);
 
+  // 모바일 뒤로 가기 — 팝업이 열려 있으면 닫고, 없으면 실제 뒤로 이동
+  useEffect(() => {
+    if (!showDetail && !showTaskPanel) return;
+    window.history.pushState({ panelOpen: true }, "");
+    const handlePopState = () => {
+      if (showTaskPanel) { setShowTaskPanel(false); return; }
+      if (showDetail) {
+        try { sessionStorage.setItem(`detail-open:${id}`, "0"); sessionStorage.setItem(`detail-expanded:${id}`, "0"); } catch {}
+        setShowDetail(false); setExpandedDetail(false);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [showDetail, showTaskPanel, id]);
+
   useEffect(() => { setDeletedItemIds(new Set()); }, [id]);
   useEffect(() => {
     try {
@@ -246,7 +261,7 @@ export default function SessionPage() {
       <div className="flex flex-1 min-h-0">
         {/* 왼쪽: 태스크 목록 + 채팅 */}
         <div className={`flex flex-col flex-1 min-w-0 overflow-hidden relative transition-[padding-right] duration-300 ease-in-out ${expandedDetail ? "hidden" : (showDetail || showTaskPanel) ? "md:pr-[52%]" : "pr-0"}`}>
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 py-6">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 sm:px-8 py-6">
             <SummarySection
               sessionId={id}
               topic={session.topic}
@@ -262,7 +277,7 @@ export default function SessionPage() {
                 </span>
               </div>
               <div className="p-6">
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-5 items-start">
+                <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5 items-start">
               {tasks.map((task) => {
                 const mergedTask = confidenceOverrides[task.itemId]
                   ? { ...task, confidence: confidenceOverrides[task.itemId] }
@@ -327,7 +342,7 @@ export default function SessionPage() {
 
           <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black_40%,transparent)]" />
 
-          <div className="px-8 relative z-10 pb-4">
+          <div className="px-4 sm:px-8 relative z-10 pb-4">
             <ChatInputArea
               onSend={(msg, model, attachedTexts) => handleChatSend(msg, model, attachedTexts)}
               onAbort={handleChatAbort}
