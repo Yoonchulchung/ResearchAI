@@ -53,7 +53,6 @@ export class JobkoreaJobCrawler {
       profile: '0',
     });
 
-    console.log(`[JobKorea] POST _GI_List page=${page}`);
     const html = await this.postHtml('/Recruit/Home/_GI_List/', body);
     const $ = load(html);
 

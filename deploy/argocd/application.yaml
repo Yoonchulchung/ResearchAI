@@ -1,0 +1,64 @@
+# ── ArgoCD Application ────────────────────────────────────────────────────────
+# kubectl apply -f deploy/argocd/application.yaml
+#
+# ArgoCD가 deploy/k8s/ 디렉터리를 감시하다가 Git push 시 자동 sync
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: research-ai
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    # TODO: 본인 Git 저장소 URL 로 변경
+    repoURL: https://github.com/YOUR_USERNAME/ResearchAI.git
+    targetRevision: main
+    path: deploy/k8s
+
+  destination:
+    server: https://kubernetes.default.svc
+    # 여러 네임스페이스에 걸쳐 있으므로 빈 문자열 (매니페스트의 namespace 사용)
+    namespace: ""
+
+  syncPolicy:
+    automated:
+      prune: true       # Git 에서 삭제된 리소스 자동 제거
+      selfHeal: true    # 클러스터 상태가 Git 과 달라지면 자동 복구
+    syncOptions:
+      - CreateNamespace=true   # namespace 자동 생성
+      - ServerSideApply=true   # 대용량 ConfigMap(Grafana 대시보드) 지원
+
+---
+# ── ArgoCD Application: monitoring stack ──────────────────────────────────────
+# 모니터링 스택은 앱과 분리해서 독립 관리
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: research-ai-monitoring
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/YOUR_USERNAME/ResearchAI.git
+    targetRevision: main
+    path: deploy/k8s
+    directory:
+      include: "7*.yaml"   # 70-monitoring-ns ~ 74-grafana
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ""
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
