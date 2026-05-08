@@ -45,6 +45,17 @@ function IconSettings() {
   );
 }
 
+function IconGrid() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="12" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="3" y="12" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="12" y="12" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
 function IconPlus() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
@@ -234,11 +245,67 @@ function MobileHeader({ title, onNewResearch }: { title: string; onNewResearch: 
   );
 }
 
+// ─── More Drawer ──────────────────────────────────────────────────────────────
+
+function MoreDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const router = useRouter();
+  const { isDark } = useMobileTheme();
+  const bg = isDark ? "bg-slate-900 text-white" : "bg-white text-slate-800";
+  const border = isDark ? "border-white/10" : "border-slate-200";
+
+  const items = [
+    { label: "기업 분석", desc: "AI 기업 리서치", path: "/company-analysis", emoji: "🏢" },
+    { label: "채용 공고", desc: "잡사이트 크롤링", path: "/job-posting", emoji: "💼" },
+    { label: "자기소개서", desc: "AI 자소서 스크래핑", path: "/cover-letter", emoji: "📝" },
+    { label: "문서 보관함", desc: "저장된 문서 관리", path: "/doc-store", emoji: "🗂️" },
+    { label: "설정", desc: "계정 및 API 키", path: "/settings/overview", emoji: "⚙️" },
+  ];
+
+  return (
+    <>
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        onClick={onClose}
+      />
+      <div className={`fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl ${bg} shadow-2xl transition-transform duration-300 ${open ? "translate-y-0" : "translate-y-full"}`}>
+        <div className="flex justify-center pt-3 pb-1">
+          <div className={`w-10 h-1 rounded-full ${isDark ? "bg-white/20" : "bg-slate-200"}`} />
+        </div>
+        <div className={`flex items-center justify-between px-5 py-3 border-b ${border}`}>
+          <span className="font-semibold text-sm">더 보기</span>
+          <button onClick={onClose} className={isDark ? "text-white/50 hover:text-white" : "text-slate-400 hover:text-slate-600"}>
+            <IconClose />
+          </button>
+        </div>
+        <div className="px-3 py-3 pb-safe" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
+          {items.map((item) => (
+            <button
+              key={item.path}
+              onClick={() => { router.push(item.path); onClose(); }}
+              className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all mb-1 ${
+                isDark ? "hover:bg-white/5 active:bg-white/10" : "hover:bg-slate-50 active:bg-slate-100"
+              }`}
+            >
+              <span className="text-2xl w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 shrink-0">
+                {item.emoji}
+              </span>
+              <div className="text-left">
+                <div className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>{item.label}</div>
+                <div className={`text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>{item.desc}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Bottom Navigation ────────────────────────────────────────────────────────
 
-type NavTab = "home" | "sessions" | "write" | "settings";
+type NavTab = "home" | "sessions" | "write" | "settings" | "more";
 
-function BottomNav({ active, onSessions }: { active: NavTab; onSessions: () => void }) {
+function BottomNav({ active, onSessions, onMore }: { active: NavTab; onSessions: () => void; onMore: () => void }) {
   const router = useRouter();
   const { isDark } = useMobileTheme();
   const bg = isDark ? "bg-slate-900/95 border-white/10" : "bg-white/95 border-slate-200";
@@ -248,10 +315,11 @@ function BottomNav({ active, onSessions }: { active: NavTab; onSessions: () => v
     { id: "sessions", icon: <IconSearch />, label: "세션", action: onSessions },
     { id: "write", icon: <IconPencil />, label: "문서 작성", action: () => router.push("/doc-write") },
     { id: "settings", icon: <IconSettings />, label: "설정", action: () => router.push("/settings/overview") },
+    { id: "more", icon: <IconGrid />, label: "더 보기", action: onMore },
   ];
 
   return (
-    <nav className={`fixed bottom-0 left-0 right-0 z-20 border-t backdrop-blur-md ${bg}`}
+    <nav className={`border-t backdrop-blur-md ${bg}`}
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="flex">
         {items.map((item) => {
@@ -278,20 +346,25 @@ function BottomNav({ active, onSessions }: { active: NavTab; onSessions: () => v
 
 // ─── Mobile Shell ─────────────────────────────────────────────────────────────
 
+function getPageTitle(pathname: string): string {
+  if (pathname.startsWith("/sessions/")) return "리서치 세션";
+  if (pathname.startsWith("/doc-write")) return "문서 작성";
+  if (pathname.startsWith("/doc-parse")) return "문서 파싱";
+  if (pathname.startsWith("/doc-store")) return "문서 보관함";
+  if (pathname.startsWith("/company-analysis")) return "기업 분석";
+  if (pathname.startsWith("/job-posting")) return "채용 공고";
+  if (pathname.startsWith("/cover-letter")) return "자기소개서";
+  if (pathname.startsWith("/settings")) return "설정";
+  return "ResearchAI";
+}
+
 function getActiveTab(pathname: string): NavTab {
   if (pathname.startsWith("/main") || pathname === "/") return "home";
   if (pathname.startsWith("/sessions")) return "sessions";
   if (pathname.startsWith("/doc-write") || pathname.startsWith("/doc-parse")) return "write";
   if (pathname.startsWith("/settings")) return "settings";
+  if (pathname.startsWith("/company-analysis") || pathname.startsWith("/job-posting") || pathname.startsWith("/cover-letter") || pathname.startsWith("/doc-store")) return "more";
   return "home";
-}
-
-function getPageTitle(pathname: string): string {
-  if (pathname.startsWith("/sessions/")) return "리서치 세션";
-  if (pathname.startsWith("/doc-write")) return "문서 작성";
-  if (pathname.startsWith("/doc-parse")) return "문서 파싱";
-  if (pathname.startsWith("/settings")) return "설정";
-  return "ResearchAI";
 }
 
 export function MobileShell({ children }: { children: React.ReactNode }) {
@@ -300,24 +373,30 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   const { openModal } = useNewSessionModal();
   const { user } = useAuth();
   const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   void user;
 
   const bg = isDark ? "bg-slate-950" : "bg-slate-50";
 
   return (
-    <div className={`flex flex-col h-screen ${bg}`}>
+    <div className={`flex flex-col overflow-hidden ${bg}`} style={{ height: '100dvh' }}>
       <MobileHeader
         title={getPageTitle(pathname)}
         onNewResearch={openModal}
       />
-      <main className="flex-1 min-h-0 overflow-x-hidden" style={{ paddingBottom: "calc(3.5rem + env(safe-area-inset-bottom))" }}>
+      <main
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+        style={{ paddingBottom: "calc(3.5rem + env(safe-area-inset-bottom))" }}
+      >
         {children}
       </main>
       <BottomNav
         active={getActiveTab(pathname)}
         onSessions={() => setSessionsOpen(true)}
+        onMore={() => setMoreOpen(true)}
       />
       <SessionsDrawer open={sessionsOpen} onClose={() => setSessionsOpen(false)} />
+      <MoreDrawer open={moreOpen} onClose={() => setMoreOpen(false)} />
     </div>
   );
 }

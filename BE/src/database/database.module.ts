@@ -16,6 +16,7 @@ import { DocumentEntity } from '../documents/domain/entity/document.entity';
 import { CompanyAnalysisEntity } from '../documents/domain/entity/company-analysis.entity';
 import { AiCallLogEntity } from '../ai/domain/entity/ai-call-log.entity';
 import { UserEntity } from '../auth/domain/entity/user.entity';
+import { LoginHistoryEntity } from '../auth/domain/entity/login-history.entity';
 import { SessionJobEntity } from '../sessions/domain/entity/session-job.entity';
 
 @Module({
@@ -30,8 +31,13 @@ import { SessionJobEntity } from '../sessions/domain/entity/session-job.entity';
                  NewsBriefingEntity, AppConfigEntity,
                  GmailTokenEntity, ExperienceEntity, DocumentEntity,
                  CompanyAnalysisEntity, SessionJobEntity,
-                 AiCallLogEntity, UserEntity],
+                 AiCallLogEntity, UserEntity, LoginHistoryEntity],
       synchronize: true,
+      // WAL 모드: 동시 읽기/쓰기 성능 향상 (다중 기기 동시 접속 대응)
+      prepareDatabase: (db: { pragma: (s: string) => void }) => {
+        db.pragma('journal_mode = WAL');
+        db.pragma('busy_timeout = 5000');
+      },
     }),
   ],
   exports: [TypeOrmModule],

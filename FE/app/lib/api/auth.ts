@@ -59,3 +59,15 @@ export async function updateDefaultModelsApi(
     body: JSON.stringify({ cloudModel, localModel }),
   });
 }
+
+export interface LoginHistory {
+  id: string;
+  action: "login" | "register";
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export async function getLoginHistoryApi(): Promise<LoginHistory[]> {
+  return apiFetch("/auth/login-history");
+}

@@ -6,7 +6,7 @@ import { getTavilyOverview, type ApiKeyEntry } from "@/lib/api";
 import { getModels } from "@/lib/api/research";
 import { useAuth } from "@/contexts/AuthContext";
 import { LoginRequired } from "@/components/LoginRequired";
-import { updateDefaultModelsApi } from "@/lib/api/auth";
+import { updateDefaultModelsApi, getLoginHistoryApi, type LoginHistory } from "@/lib/api/auth";
 import { ModelDefinition } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
@@ -140,6 +140,74 @@ function LocalModelConfigCard({
   );
 }
 
+function parseUA(ua: string | null): string {
+  if (!ua) return "알 수 없는 기기";
+  if (/iPhone/.test(ua)) return "iPhone";
+  if (/iPad/.test(ua)) return "iPad";
+  if (/Android/.test(ua)) return "Android";
+  if (/Macintosh|Mac OS X/.test(ua)) return "Mac";
+  if (/Windows/.test(ua)) return "Windows";
+  if (/Linux/.test(ua)) return "Linux";
+  return "기타";
+}
+
+function formatLoginDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString("ko-KR", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function LoginHistoryCard() {
+  const [history, setHistory] = useState<LoginHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getLoginHistoryApi()
+      .then(setHistory)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-5">
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
+        로그인 기록
+      </p>
+      {loading ? (
+        <div className="flex items-center gap-2 text-slate-400 text-sm py-2">
+          <span className="w-4 h-4 border-2 border-slate-200 border-t-slate-400 rounded-full animate-spin" />
+          불러오는 중...
+        </div>
+      ) : history.length === 0 ? (
+        <p className="text-sm text-slate-400 py-2">로그인 기록이 없습니다.</p>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {history.map((h) => (
+            <div key={h.id} className="flex items-center justify-between py-2.5 gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold ${
+                  h.action === "register"
+                    ? "bg-emerald-50 text-emerald-600"
+                    : "bg-indigo-50 text-indigo-600"
+                }`}>
+                  {h.action === "register" ? "가입" : "로그인"}
+                </span>
+                <span className="text-sm font-medium text-slate-700 shrink-0">{parseUA(h.userAgent)}</span>
+                {h.ipAddress && (
+                  <span className="text-xs text-slate-400 truncate font-mono">{h.ipAddress}</span>
+                )}
+              </div>
+              <span className="shrink-0 text-xs text-slate-400">{formatLoginDate(h.createdAt)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function OverviewPage() {
   const { uiStyle } = useTheme();
   const isGlass = uiStyle === "glass";
@@ -235,6 +303,7 @@ export default function OverviewPage() {
             jobkoreaPassword={user?.jobkoreaPassword ?? null}
             onRefresh={refreshUser}
           />
+          <LoginHistoryCard />
 
           <div className={`rounded-2xl border px-6 py-5 flex items-center justify-between ${isGlass ? "border-white/20 bg-white/5" : "bg-white border-slate-200 shadow-sm"}`}>
             <p className={`text-sm ${isGlass ? "text-white/60" : "text-slate-500"}`}>

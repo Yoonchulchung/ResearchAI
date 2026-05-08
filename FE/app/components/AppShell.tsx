@@ -48,8 +48,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   const bgStyle = bg !== DEFAULT_BG ? { background: bg } : undefined;
 
+  // 100dvh: iPad Safari에서 동적 뷰포트 높이 사용 (주소창 포함 overflow 방지)
+  const containerStyle: React.CSSProperties = { height: '100dvh', ...bgStyle };
+
   return (
-    <div className="flex h-screen overflow-hidden mesh-bg" style={bgStyle}>
+    <div className="flex overflow-hidden mesh-bg" style={containerStyle}>
       <Sidebar />
       <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">{children}</main>
     </div>

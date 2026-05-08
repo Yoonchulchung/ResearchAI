@@ -7,7 +7,7 @@ import { ExperienceEntity } from '../domain/entity/experience.entity';
 import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 import { VectorService } from '../../vector/vector.service';
 import { QueueService } from '../../queue/application/queue.service';
-import { PDFParse } from 'pdf-parse';
+import pdfParse from 'pdf-parse';
 
 export interface DocAskResult {
   answer: string;
@@ -69,21 +69,22 @@ export class DocumentsService {
     mimetype: string,
   ): Promise<{ text: string; pageCount: number; pages: string[] }> {
     if (mimetype === 'application/pdf' || mimetype === 'application/octet-stream') {
-      // pdf-parse v2: PDFParse 클래스 사용, 페이지별 분리는 라이브러리가 제공
-      const parser = new PDFParse({ data: new Uint8Array(buffer) });
-      try {
-        const result = await parser.getText();
-        const pages = (result.pages ?? []).map((p) => p.text ?? '');
-        const text = result.text ?? pages.join('\n\n');
-        const pageCount = result.total ?? pages.length ?? 1;
-        return {
-          text,
-          pageCount,
-          pages: pages.length > 0 ? pages : [text],
-        };
-      } finally {
-        await parser.destroy().catch(() => {});
-      }
+      const pages: string[] = [];
+      const result = await pdfParse(buffer, {
+        pagerender: (pageData: any) =>
+          pageData.getTextContent().then((content: any) => {
+            const text = content.items.map((i: any) => i.str).join(' ');
+            pages.push(text);
+            return text;
+          }),
+      });
+      const text = result.text ?? pages.join('\n\n');
+      const pageCount = result.numpages ?? pages.length ?? 1;
+      return {
+        text,
+        pageCount,
+        pages: pages.length > 0 ? pages : [text],
+      };
     }
     const text = buffer.toString('utf-8');
     return { text, pageCount: 1, pages: [text] };

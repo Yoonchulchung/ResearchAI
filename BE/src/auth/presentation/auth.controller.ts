@@ -1,4 +1,5 @@
 import { Controller, Post, Get, Patch, Body, Req, Param, UseGuards, HttpCode } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthService } from '../application/auth.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { UserEntity } from '../domain/entity/user.entity';
@@ -15,14 +16,18 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(201)
-  register(@Body() body: { username: string; password: string }) {
-    return this.authService.register(body.username, body.password);
+  register(@Body() body: { username: string; password: string }, @Req() req: Request) {
+    const ip = this.getIp(req);
+    const ua = req.headers['user-agent'];
+    return this.authService.register(body.username, body.password, ip, ua);
   }
 
   @Post('login')
   @HttpCode(200)
-  login(@Body() body: { username: string; password: string }) {
-    return this.authService.login(body.username, body.password);
+  login(@Body() body: { username: string; password: string }, @Req() req: Request) {
+    const ip = this.getIp(req);
+    const ua = req.headers['user-agent'];
+    return this.authService.login(body.username, body.password, ip, ua);
   }
 
   @Get('me')
@@ -31,6 +36,18 @@ export class AuthController {
     const { passwordHash, ...safe } = req.user;
     void passwordHash;
     return safe;
+  }
+
+  @Get('login-history')
+  @UseGuards(JwtAuthGuard)
+  getLoginHistory(@Req() req: { user: UserEntity }) {
+    return this.authService.getLoginHistory(req.user.id);
+  }
+
+  private getIp(req: Request): string | undefined {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) return (Array.isArray(forwarded) ? forwarded[0] : forwarded).split(',')[0].trim();
+    return req.socket?.remoteAddress;
   }
 
   @Patch('default-models')

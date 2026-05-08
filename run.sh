@@ -17,10 +17,18 @@ fi
 if [ "$MODE" = "deploy" ]; then
   echo "🚀 k3s 배포 시작..."
 
+  if [ -f "$HOME/.kube/config" ]; then
+    _KUBECONFIG_FLAG="--kubeconfig $HOME/.kube/config"
+  elif [ -r /etc/rancher/k3s/k3s.yaml ]; then
+    _KUBECONFIG_FLAG="--kubeconfig /etc/rancher/k3s/k3s.yaml"
+  else
+    _KUBECONFIG_FLAG=""
+  fi
+
   if command -v kubectl &>/dev/null; then
-    KUBECTL="kubectl"
+    KUBECTL="kubectl $_KUBECONFIG_FLAG"
   elif command -v k3s &>/dev/null; then
-    KUBECTL="k3s kubectl"
+    KUBECTL="k3s kubectl $_KUBECONFIG_FLAG"
   else
     echo "❌ kubectl 또는 k3s 가 필요합니다"
     exit 1
@@ -38,9 +46,30 @@ if [ "$MODE" = "deploy" ]; then
   echo "🔨 FE 이미지 빌드 ($FE_IMAGE)..."
   docker build -t "$FE_IMAGE" "$ROOT/FE" || { echo "❌ FE 빌드 실패"; exit 1; }
 
-  echo "📦 k3s 에 이미지 주입 중..."
-  docker save "$BE_IMAGE" | sudo k3s ctr images import - || { echo "❌ BE 이미지 주입 실패"; exit 1; }
-  docker save "$FE_IMAGE" | sudo k3s ctr images import - || { echo "❌ FE 이미지 주입 실패"; exit 1; }
+  echo "📦 이미지 tar 저장 중..."
+  TMP_TAR="/tmp/research-ai-images-$$.tar"
+  docker save "$BE_IMAGE" "$FE_IMAGE" -o "$TMP_TAR" || { echo "❌ 이미지 저장 실패"; exit 1; }
+
+  # master 노드에 import
+  echo "📦 [master] k3s containerd 에 이미지 주입 중..."
+  sudo k3s ctr images import "$TMP_TAR" || { echo "❌ master 이미지 주입 실패"; rm -f "$TMP_TAR"; exit 1; }
+
+  # worker 노드들에 SSH로 배포
+  WORKER_NODES=(192.168.0.2 192.168.0.62)
+  WORKER_USER="${WORKER_USER:-yoonchul}"
+  for NODE in "${WORKER_NODES[@]}"; do
+    echo "📦 [$NODE] 이미지 배포 중..."
+    if ssh -o ConnectTimeout=5 -o BatchMode=yes "$WORKER_USER@$NODE" "echo ok" &>/dev/null; then
+      scp -q "$TMP_TAR" "$WORKER_USER@$NODE:/tmp/research-ai-images.tar" \
+        && ssh "$WORKER_USER@$NODE" "sudo k3s ctr images import /tmp/research-ai-images.tar && rm -f /tmp/research-ai-images.tar" \
+        && echo "   ✅ $NODE 완료" \
+        || echo "   ⚠️  $NODE 이미지 주입 실패 (계속 진행)"
+    else
+      echo "   ⚠️  $NODE SSH 접속 불가 — 건너뜀 (pod 가 이 노드에 스케줄링되면 실패할 수 있음)"
+    fi
+  done
+
+  rm -f "$TMP_TAR"
 
   SECRET_FILE="$ROOT/deploy/k8s/11-secret.yaml"
   if [ ! -f "$SECRET_FILE" ]; then

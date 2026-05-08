@@ -101,12 +101,20 @@
   /* 48px */
 }
 
+html {
+  /* iPad/iOS Safari 에서 바운스 스크롤(rubber-band) 방지 */
+  overscroll-behavior: none;
+  height: 100%;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+  height: 100%;
 }
 
 /* ─── Scroll reveal animation ───────────────────────────────────────────── */

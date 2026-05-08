@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.6
 # --- BE: NestJS (pnpm) ---
 
 # ========== Builder ==========
@@ -11,9 +10,9 @@ WORKDIR /app
 # pnpm 활성화
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# 의존성 캐시 최적화
+# 의존성 캐시 최적화 (Puppeteer 번들 Chrome 다운로드 스킵 — ARM에서 미지원)
 COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile=false
+RUN PUPPETEER_SKIP_DOWNLOAD=true pnpm install --frozen-lockfile=false
 
 # 소스 복사 + 빌드
 COPY . .
@@ -23,7 +22,7 @@ RUN pnpm run build \
 # ========== Runtime ==========
 FROM node:20-alpine AS runtime
 
-RUN apk add --no-cache tini dumb-init \
+RUN apk add --no-cache tini dumb-init chromium \
  && addgroup -g 1001 -S nodejs \
  && adduser -S nestjs -u 1001 -G nodejs
 
@@ -42,7 +41,9 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3001 \
     DATABASE_URL=file:/app/data/sessions.db \
-    MEDIA_PATH=/app/media
+    MEDIA_PATH=/app/media \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    PUPPETEER_SKIP_DOWNLOAD=true
 
 EXPOSE 3001
 

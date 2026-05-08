@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
 import { UserEntity } from '../domain/entity/user.entity';
+import { LoginHistoryEntity } from '../domain/entity/login-history.entity';
 import { UserApiKeys } from '../../shared/request-context';
 
 const TOKEN_EXPIRY_SECONDS = 3 * 24 * 60 * 60; // 3 days
@@ -15,10 +16,17 @@ export class AuthService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
+    @InjectRepository(LoginHistoryEntity)
+    private readonly loginHistoryRepo: Repository<LoginHistoryEntity>,
     private readonly jwtService: JwtService,
   ) {}
 
-  async register(username: string, password: string): Promise<{ accessToken: string }> {
+  async register(
+    username: string,
+    password: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<{ accessToken: string }> {
     const existing = await this.userRepo.findOne({ where: { username } });
     if (existing) throw new ConflictException('이미 사용 중인 사용자명입니다.');
 
@@ -28,17 +36,49 @@ export class AuthService {
       username,
       passwordHash,
     });
+    void this.saveLoginHistory(user.id, 'register', ipAddress, userAgent);
     return { accessToken: this.signToken(user) };
   }
 
-  async login(username: string, password: string): Promise<{ accessToken: string }> {
+  async login(
+    username: string,
+    password: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<{ accessToken: string }> {
     const user = await this.userRepo.findOne({ where: { username } });
     if (!user) throw new UnauthorizedException('사용자명 또는 비밀번호가 올바르지 않습니다.');
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('사용자명 또는 비밀번호가 올바르지 않습니다.');
 
+    void this.saveLoginHistory(user.id, 'login', ipAddress, userAgent);
     return { accessToken: this.signToken(user) };
+  }
+
+  async getLoginHistory(userId: string, limit = 30): Promise<LoginHistoryEntity[]> {
+    return this.loginHistoryRepo.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+      take: limit,
+    });
+  }
+
+  private async saveLoginHistory(
+    userId: string,
+    action: 'login' | 'register',
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<void> {
+    try {
+      await this.loginHistoryRepo.save({
+        id: randomUUID(),
+        userId,
+        action,
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ? userAgent.slice(0, 300) : null,
+      });
+    } catch { /* 기록 실패해도 로그인은 정상 처리 */ }
   }
 
   async findById(id: string): Promise<UserEntity | null> {

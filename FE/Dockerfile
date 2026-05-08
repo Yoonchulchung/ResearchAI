@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.6
 # --- FE: Next.js 14 (standalone build) ---
 
 # ========== Builder ==========

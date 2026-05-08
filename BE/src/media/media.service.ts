@@ -87,10 +87,8 @@ export class MediaService {
     buffer: Buffer,
   ): Promise<ParsedMedia> {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { PDFParse } = require('pdf-parse');
-    const parser = new PDFParse({ data: buffer });
-    const result = await parser.getText();
-    await parser.destroy();
+    const pdfParse = require('pdf-parse');
+    const result = await pdfParse(buffer);
     return {
       fileId,
       filename,
@@ -98,7 +96,7 @@ export class MediaService {
       size,
       type: MediaType.PDF,
       text: result.text ?? '',
-      pageCount: result.total ?? 0,
+      pageCount: result.numpages ?? 0,
     };
   }
 

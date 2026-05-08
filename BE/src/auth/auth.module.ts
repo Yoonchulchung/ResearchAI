@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserEntity } from './domain/entity/user.entity';
+import { LoginHistoryEntity } from './domain/entity/login-history.entity';
 import { AuthService } from './application/auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -11,7 +12,7 @@ import { AuthContextMiddleware } from '../shared/middleware/auth-context.middlew
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity]),
+    TypeOrmModule.forFeature([UserEntity, LoginHistoryEntity]),
     PassportModule,
     JwtModule.registerAsync({
       useFactory: () => ({
