@@ -29,10 +29,12 @@ if [ "$MODE" = "deploy" ]; then
     exit 1
   fi
 
-  if [ -f "$HOME/.kube/config" ]; then
-    _KUBECONFIG_FLAG="--kubeconfig $HOME/.kube/config"
+  if [ -n "${KUBECONFIG:-}" ]; then
+    _KUBECONFIG_FLAG="--kubeconfig $KUBECONFIG"
   elif [ -r /etc/rancher/k3s/k3s.yaml ]; then
     _KUBECONFIG_FLAG="--kubeconfig /etc/rancher/k3s/k3s.yaml"
+  elif [ -f "$HOME/.kube/config" ]; then
+    _KUBECONFIG_FLAG="--kubeconfig $HOME/.kube/config"
   else
     _KUBECONFIG_FLAG=""
   fi
@@ -45,6 +47,23 @@ if [ "$MODE" = "deploy" ]; then
     echo "❌ kubectl 또는 k3s 가 필요합니다"
     exit 1
   fi
+
+  _current_kube_context() {
+    $KUBECTL config current-context 2>/dev/null || echo "<unknown>"
+  }
+
+  _ensure_cluster_reachable() {
+    echo "🔎 Kubernetes 클러스터 연결 확인..."
+    if ! $KUBECTL version --request-timeout=8s >/dev/null 2>&1; then
+      echo "❌ Kubernetes API 서버에 연결할 수 없습니다"
+      echo "   현재 context: $(_current_kube_context)"
+      echo "   로컬 k3d/k3s 클러스터가 꺼져 있거나 kubeconfig 가 다른 클러스터를 가리키고 있습니다."
+      echo "   실제 서버에서 실행하거나 KUBECONFIG 를 서버의 k3s kubeconfig 로 지정해 주세요."
+      echo "   예: KUBECONFIG=/etc/rancher/k3s/k3s.yaml ./run.sh deploy"
+      exit 1
+    fi
+    echo "   ✅ 연결됨 ($(_current_kube_context))"
+  }
 
   if [ "$DEPLOY_BUILD" = true ]; then
     command -v docker &>/dev/null || { echo "❌ docker 가 필요합니다"; exit 1; }
@@ -72,7 +91,10 @@ if [ "$MODE" = "deploy" ]; then
 
   _ensure_prometheus_basic_auth() {
     echo "🔐 Prometheus BasicAuth Secret 확인..."
-    $KUBECTL create namespace monitoring --dry-run=client -o yaml | $KUBECTL apply -f -
+    $KUBECTL create namespace monitoring --dry-run=client -o yaml | $KUBECTL apply -f - || {
+      echo "❌ monitoring namespace 확인/생성 실패"
+      exit 1
+    }
 
     if $KUBECTL get secret prometheus-basic-auth -n monitoring &>/dev/null; then
       echo "   ✅ prometheus-basic-auth 이미 존재"
@@ -82,10 +104,14 @@ if [ "$MODE" = "deploy" ]; then
     if command -v htpasswd &>/dev/null; then
       local htpasswd_value
       htpasswd_value="$(htpasswd -nbB "$PROMETHEUS_BASIC_AUTH_USER" "$PROMETHEUS_BASIC_AUTH_PASS")"
-      $KUBECTL create secret generic prometheus-basic-auth \
+      if $KUBECTL create secret generic prometheus-basic-auth \
         --from-literal=users="$htpasswd_value" \
-        -n monitoring
-      echo "   ✅ prometheus-basic-auth 생성 (${PROMETHEUS_BASIC_AUTH_USER}/${PROMETHEUS_BASIC_AUTH_PASS})"
+        -n monitoring; then
+        echo "   ✅ prometheus-basic-auth 생성 (${PROMETHEUS_BASIC_AUTH_USER}/${PROMETHEUS_BASIC_AUTH_PASS})"
+      else
+        echo "❌ prometheus-basic-auth 생성 실패"
+        exit 1
+      fi
     else
       echo "   ⚠️  htpasswd 없음 — Prometheus Ingress BasicAuth Secret 을 만들지 못했습니다"
       echo "      Ubuntu: sudo apt-get install -y apache2-utils"
@@ -131,6 +157,8 @@ if [ "$MODE" = "deploy" ]; then
     $KUBECTL apply -f "$ROOT/deploy/argocd/ingress.yaml"
     echo "   ✅ ArgoCD Application 등록 (${repo_url} @ ${target_revision})"
   }
+
+  _ensure_cluster_reachable
 
   BE_IMAGE="research-ai/be:${TAG}"
   FE_IMAGE="research-ai/fe:${TAG}"
