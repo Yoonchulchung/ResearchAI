@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
+  getCoverLetter,
   listCoverLetters,
   startScraping,
   stopScraping,
@@ -11,11 +12,14 @@ import {
   type ScrapeStatus,
 } from "@/lib/api/cover-letter";
 import { useTheme } from "@/contexts/ThemeContext";
+import { isNearScrollBottom } from "@/lib/scroll-guards";
 
 const PAGE_SIZE = 30;
 
-export default function CoverLetterPage() {
+function CoverLetterPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const coverId = searchParams.get("cover");
   const { theme, uiStyle } = useTheme();
   const isDark = theme === "dark";
   const isGlass = uiStyle === "glass";
@@ -57,6 +61,34 @@ export default function CoverLetterPage() {
     getScrapingStatus().then(setStatus).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!coverId) {
+      setSelected(null);
+      return;
+    }
+
+    const existing = items.find((item) => item.id === coverId);
+    if (existing) {
+      setSelected(existing);
+      return;
+    }
+
+    let cancelled = false;
+    getCoverLetter(coverId)
+      .then((item) => {
+        if (cancelled) return;
+        setSelected(item);
+        setItems((prev) => prev.some((x) => x.id === item.id) ? prev : [item, ...prev]);
+      })
+      .catch(() => {
+        if (!cancelled) setSelected(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [coverId, items]);
+
   // Poll status while running
   useEffect(() => {
     if (status?.running) {
@@ -76,7 +108,12 @@ export default function CoverLetterPage() {
 
   const handleListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (typeof window !== "undefined" && window.innerWidth >= 768) return;
-    const scrollTop = e.currentTarget.scrollTop;
+    const el = e.currentTarget;
+    const scrollTop = el.scrollTop;
+    if (isNearScrollBottom(el)) {
+      listScrollTopRef.current = scrollTop;
+      return;
+    }
     const delta = scrollTop - listScrollTopRef.current;
     listScrollTopRef.current = scrollTop;
     if (Math.abs(delta) < 4) return;
@@ -86,7 +123,12 @@ export default function CoverLetterPage() {
 
   const handleDetailScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (typeof window !== "undefined" && window.innerWidth >= 768) return;
-    const scrollTop = e.currentTarget.scrollTop;
+    const el = e.currentTarget;
+    const scrollTop = el.scrollTop;
+    if (isNearScrollBottom(el)) {
+      detailScrollTopRef.current = scrollTop;
+      return;
+    }
     const delta = scrollTop - detailScrollTopRef.current;
     detailScrollTopRef.current = scrollTop;
     if (Math.abs(delta) < 4) return;
@@ -115,6 +157,20 @@ export default function CoverLetterPage() {
     } finally {
       setScrapeLoading(false);
     }
+  };
+
+  const handleSelect = (cl: CoverLetter) => {
+    setSelected(cl);
+    router.push(`/cover-letter?cover=${encodeURIComponent(cl.id)}`);
+  };
+
+  const handleBack = () => {
+    if (selected) {
+      setSelected(null);
+      router.push("/cover-letter");
+      return;
+    }
+    router.back();
   };
 
   // Infinite scroll
@@ -160,7 +216,7 @@ export default function CoverLetterPage() {
           {/* Row 1: title + action */}
           <div className="flex items-center gap-2 px-4 sm:px-5 pt-2.5 pb-1.5">
             <button
-              onClick={() => { if (selected) setSelected(null); else router.back(); }}
+              onClick={handleBack}
               className={`shrink-0 flex items-center gap-1 text-sm transition-colors ${isDark ? "text-white/50 hover:text-white" : "text-slate-400 hover:text-slate-700"}`}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -250,7 +306,7 @@ export default function CoverLetterPage() {
               {filtered.map((cl) => (
                 <button
                   key={cl.id}
-                  onClick={() => setSelected(cl)}
+                  onClick={() => handleSelect(cl)}
                   className={`w-full text-left px-4 py-3.5 border-b transition-colors ${
                     selected?.id === cl.id
                       ? isGlass
@@ -351,5 +407,13 @@ export default function CoverLetterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CoverLetterPage() {
+  return (
+    <Suspense fallback={<div className="h-full bg-slate-100" />}>
+      <CoverLetterPageContent />
+    </Suspense>
   );
 }

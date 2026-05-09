@@ -20,6 +20,7 @@ import { useChatHandler } from "./hooks/useChatHandler";
 import { useCompaction } from "./hooks/useCompaction";
 import { TaskPanel, TaskPanelTab } from "@/sessions/components/TaskPanel";
 import { RecruitView } from "./components/RecruitView";
+import { isNearScrollBottom } from "@/lib/scroll-guards";
 
 export default function SessionPage() {
   const { id } = useParams<{ id: string }>();
@@ -30,7 +31,9 @@ export default function SessionPage() {
   const { statuses, phases, aiResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [hideSessionHeader, setHideSessionHeader] = useState(false);
+  const [hideChatInput, setHideChatInput] = useState(false);
   const lastScrollTopRef = useRef(0);
+  const chatInputRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 세션별 스크롤 위치 — 비율 기반으로 저장/복원 (데스크탑↔모바일 reflow 대응)
   useEffect(() => {
@@ -44,26 +47,41 @@ export default function SessionPage() {
 
     const saveRatio = () => {
       lastScrollTime = performance.now();
+      const scrollTop = el.scrollTop;
       if (performance.now() < ignoreScrollUntil) {
-        lastScrollTopRef.current = el.scrollTop;
+        lastScrollTopRef.current = scrollTop;
         return;
       }
+
+      const nearBottom = isNearScrollBottom(el);
+      if (chatInputRevealTimerRef.current) clearTimeout(chatInputRevealTimerRef.current);
+      if (nearBottom) {
+        setHideChatInput(false);
+      } else {
+        setHideChatInput(true);
+        chatInputRevealTimerRef.current = setTimeout(() => setHideChatInput(false), 180);
+      }
+
       const max = el.scrollHeight - el.clientHeight;
       if (max > 0) {
-        lastRatio = el.scrollTop / max;
+        lastRatio = scrollTop / max;
         if (ratioSaveTimer) clearTimeout(ratioSaveTimer);
         ratioSaveTimer = setTimeout(() => {
           sessionStorage.setItem(`scroll-ratio:${id}`, String(lastRatio));
         }, 150);
       }
       if (typeof window !== "undefined" && window.innerWidth < 768) {
-        const delta = el.scrollTop - lastScrollTopRef.current;
+        if (nearBottom) {
+          lastScrollTopRef.current = scrollTop;
+          return;
+        }
+        const delta = scrollTop - lastScrollTopRef.current;
         if (Math.abs(delta) >= 4) {
-          if (delta > 0 && el.scrollTop > 10) setHideSessionHeader(true);
+          if (delta > 0 && scrollTop > 10) setHideSessionHeader(true);
           else if (delta < 0) setHideSessionHeader(false);
         }
       }
-      lastScrollTopRef.current = el.scrollTop;
+      lastScrollTopRef.current = scrollTop;
     };
 
     const restoreToRatio = () => {
@@ -91,6 +109,7 @@ export default function SessionPage() {
       el.removeEventListener("scroll", saveRatio);
       ro.disconnect();
       if (ratioSaveTimer) clearTimeout(ratioSaveTimer);
+      if (chatInputRevealTimerRef.current) clearTimeout(chatInputRevealTimerRef.current);
     };
   }, [id, loading]);
 
@@ -296,7 +315,7 @@ export default function SessionPage() {
       <div className="flex flex-1 min-h-0">
         {/* 왼쪽: 태스크 목록 + 채팅 */}
         <div className={`flex flex-col flex-1 min-w-0 overflow-hidden relative transition-[padding-right] duration-300 ease-in-out ${expandedDetail ? "hidden" : (showDetail || showTaskPanel) ? "md:pr-[52%]" : "pr-0"}`}>
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-1.5 sm:px-8 py-2 sm:py-6">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain px-1.5 sm:px-8 py-2 sm:py-6">
             <SummarySection
               sessionId={id}
               topic={session.topic}
@@ -379,9 +398,11 @@ export default function SessionPage() {
             />
           </div>
 
-          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black_40%,transparent)]" />
-
-          <div className="px-1.5 sm:px-8 relative z-10 pb-2 sm:pb-4">
+          <div className={`px-1.5 sm:px-8 relative z-10 pb-2 sm:pb-4 transition-opacity duration-200 ease-out ${
+            hideChatInput
+              ? "opacity-0 pointer-events-none"
+              : "opacity-100"
+          }`}>
             <ChatInputArea
               onSend={(msg, model, attachedTexts) => handleChatSend(msg, model, attachedTexts)}
               onAbort={handleChatAbort}

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
+  getJobPosting,
   listJobPostings,
   startJobScraping,
   stopJobScraping,
@@ -13,6 +14,7 @@ import {
   type JobPostingListParams,
   type JobScrapingStatus,
 } from "@/lib/api/job-posting";
+import { isNearScrollBottom } from "@/lib/scroll-guards";
 
 const PAGE_SIZE = 30;
 const SOURCE_LABELS: Record<string, string> = {
@@ -114,8 +116,10 @@ const getDdayLabel = (posting: JobPosting) => {
   return `D-${diffDays}`;
 };
 
-export default function JobPostingPage() {
+function JobPostingPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const jobId = searchParams.get("job");
 
   const [items, setItems] = useState<JobPosting[]>([]);
   const [total, setTotal] = useState(0);
@@ -167,6 +171,16 @@ export default function JobPostingPage() {
   itemsRef.current = items;
   selectedRef.current = selected;
 
+  const selectPosting = useCallback((posting: JobPosting) => {
+    setSelected(posting);
+    router.push(`/job-posting?job=${encodeURIComponent(posting.id)}`);
+  }, [router]);
+
+  const clearSelected = useCallback(() => {
+    setSelected(null);
+    router.push("/job-posting");
+  }, [router]);
+
   const loadItems = async (p: number, reset: boolean, filters: JobPostingListParams) => {
     if (!reset && loadingRef.current) return;
     const requestSeq = ++requestSeqRef.current;
@@ -182,14 +196,12 @@ export default function JobPostingPage() {
         ...res.filterOptions,
         types: res.filterOptions.types.length > 0 ? res.filterOptions.types : DEFAULT_FILTER_OPTIONS.types,
       });
-      setItems((prev) => {
-        if (reset) return res.items;
-        if (selectFirstNewItemAfterLoadRef.current && res.items.length > 0) {
-          setSelected(res.items[0]);
-          selectFirstNewItemAfterLoadRef.current = false;
-        }
-        return [...prev, ...res.items];
-      });
+      const firstNewItem = !reset && selectFirstNewItemAfterLoadRef.current ? res.items[0] : undefined;
+      setItems((prev) => reset ? res.items : [...prev, ...res.items]);
+      if (firstNewItem) {
+        selectFirstNewItemAfterLoadRef.current = false;
+        selectPosting(firstNewItem);
+      }
       const more = res.items.length === PAGE_SIZE;
       setHasMore(more);
       hasMoreRef.current = more;
@@ -219,13 +231,16 @@ export default function JobPostingPage() {
 
   const handleListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (typeof window !== "undefined" && window.innerWidth >= 768) return;
-    const scrollTop = e.currentTarget.scrollTop;
-    const maxScroll = e.currentTarget.scrollHeight - e.currentTarget.clientHeight;
+    const el = e.currentTarget;
+    const scrollTop = el.scrollTop;
+    if (isNearScrollBottom(el)) {
+      listScrollTopRef.current = scrollTop;
+      return;
+    }
     const delta = scrollTop - listScrollTopRef.current;
     listScrollTopRef.current = scrollTop;
     if (Math.abs(delta) < 4) return;
-    const atBottom = maxScroll > 0 && maxScroll - scrollTop < 60;
-    if (atBottom || delta < 0) {
+    if (delta < 0) {
       setIsHeaderHidden(false);
       setIsFiltersHidden(false);
     } else if (delta > 0 && scrollTop > 10) {
@@ -236,7 +251,12 @@ export default function JobPostingPage() {
 
   const handleDetailScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (typeof window !== "undefined" && window.innerWidth >= 768) return;
-    const scrollTop = e.currentTarget.scrollTop;
+    const el = e.currentTarget;
+    const scrollTop = el.scrollTop;
+    if (isNearScrollBottom(el)) {
+      detailScrollTopRef.current = scrollTop;
+      return;
+    }
     const delta = scrollTop - detailScrollTopRef.current;
     detailScrollTopRef.current = scrollTop;
     if (Math.abs(delta) < 4) return;
@@ -260,6 +280,34 @@ export default function JobPostingPage() {
     hasMoreRef.current = true;
     loadRef.current(1, true, filters);
   }, [isReady, buildFilters, sourceFilter, search, companyTypeFilter, typeFilter, categoryFilter]);
+
+  useEffect(() => {
+    if (!jobId) {
+      setSelected(null);
+      return;
+    }
+
+    const existing = items.find((item) => item.id === jobId);
+    if (existing) {
+      setSelected(existing);
+      return;
+    }
+
+    let cancelled = false;
+    getJobPosting(jobId)
+      .then((posting) => {
+        if (cancelled) return;
+        setSelected(posting);
+        setItems((prev) => prev.some((item) => item.id === posting.id) ? prev : [posting, ...prev]);
+      })
+      .catch(() => {
+        if (!cancelled) setSelected(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, items]);
 
   useEffect(() => {
     if (status?.running) {
@@ -337,12 +385,12 @@ export default function JobPostingPage() {
         ? Math.max(0, currentIndex <= 0 ? 0 : currentIndex - 1)
         : Math.min(currentItems.length - 1, currentIndex < 0 ? 0 : currentIndex + 1);
 
-      setSelected(currentItems[nextIndex]);
+      selectPosting(currentItems[nextIndex]);
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [selectPosting]);
 
   const handleStart = async () => {
     setScrapeLoading(true);
@@ -406,7 +454,7 @@ export default function JobPostingPage() {
             <button
               onClick={() => {
                 if (selected) {
-                  setSelected(null);
+                  clearSelected();
                   return;
                 }
                 router.back();
@@ -618,7 +666,7 @@ export default function JobPostingPage() {
               {items.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => setSelected(p)}
+                  onClick={() => selectPosting(p)}
                   className={`w-full text-left p-4 border-b transition-all group ${
                     selected?.id === p.id
                       ? "bg-indigo-50/60 border-indigo-100 shadow-[inset_3px_0_0_0_#4f46e5]"
@@ -822,5 +870,13 @@ export default function JobPostingPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function JobPostingPage() {
+  return (
+    <Suspense fallback={<div className="h-full bg-[#F4F5F7]" />}>
+      <JobPostingPageContent />
+    </Suspense>
   );
 }

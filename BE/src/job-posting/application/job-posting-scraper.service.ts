@@ -462,13 +462,7 @@ export class JobPostingScraperService implements OnModuleInit {
     limit: number,
     filters: JobPostingListFilters = {},
   ): Promise<{ items: JobPosting[]; total: number; filterOptions: JobPostingFilterOptions }> {
-    const all = (await this.readAllFromJsonl()).map((posting) => ({
-      ...posting,
-      source: this.getPostingSource(posting),
-      url: this.getPostingUrl(posting),
-      type: this.normalizeJobType(posting.type),
-      companyType: this.resolveCompanyType(posting) ?? this.normalizeCompanyType(posting.companyType) ?? posting.companyType,
-    }));
+    const all = (await this.readAllFromJsonl()).map((posting) => this.normalizePostingForView(posting));
 
     const visible = all.filter((p) => !this.isIgnoredPosting(p));
     const sourceFiltered = filters.source ? visible.filter((p) => p.source === filters.source) : visible;
@@ -478,6 +472,12 @@ export class JobPostingScraperService implements OnModuleInit {
       total: filtered.length,
       filterOptions: this.getFilterOptions(sourceFiltered),
     };
+  }
+
+  async getPostingById(id: string): Promise<JobPosting | null> {
+    const all = await this.readAllFromJsonl();
+    const posting = all.find((p) => p.id === id);
+    return posting ? this.normalizePostingForView(posting) : null;
   }
 
   // ────────────────────────────────────────────────
@@ -742,6 +742,16 @@ export class JobPostingScraperService implements OnModuleInit {
       : new URL(p.url).searchParams.get('RecruitID');
 
     return recruitId ? `https://www.catch.co.kr/NCS/RecruitInfoDetails/${recruitId}` : p.url;
+  }
+
+  private normalizePostingForView(posting: JobPosting): JobPosting {
+    return {
+      ...posting,
+      source: this.getPostingSource(posting),
+      url: this.getPostingUrl(posting),
+      type: this.normalizeJobType(posting.type),
+      companyType: this.resolveCompanyType(posting) ?? this.normalizeCompanyType(posting.companyType) ?? posting.companyType,
+    };
   }
 
   private resolveCompanyType(p: JobPosting): string | undefined {

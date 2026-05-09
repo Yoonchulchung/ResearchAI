@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { JobPostingScraperService } from '../application/job-posting-scraper.service';
 import type { JobPostingListFilters, JobPostingScrapeOptions } from '../domain/job-posting.model';
 
@@ -43,5 +43,12 @@ export class JobPostingScraperController {
   ) {
     const filters: JobPostingListFilters = { source, search, job, companyType, type, category };
     return this.service.getData(Number(page), Number(limit), filters);
+  }
+
+  @Get('data/:id')
+  async dataById(@Param('id') id: string) {
+    const posting = await this.service.getPostingById(id);
+    if (!posting) throw new NotFoundException('채용 공고를 찾을 수 없습니다.');
+    return posting;
   }
 }

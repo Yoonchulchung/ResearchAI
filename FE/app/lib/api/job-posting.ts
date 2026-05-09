@@ -75,6 +75,9 @@ export const listJobPostings = ({
   return apiFetch<JobPostingListResponse>(`/job-posting-scraper/data?${params}`);
 };
 
+export const getJobPosting = (id: string) =>
+  apiFetch<JobPosting>(`/job-posting-scraper/data/${encodeURIComponent(id)}`);
+
 export const startJobScraping = (opts: { jobType?: "INTERN" | "RECRUIT"; fetchDetail?: boolean; source?: "linkareer" | "jobkorea" | "catch" | "jobplanet" | "jobda" | "all" } = {}) =>
   apiFetch<{ message: string }>("/job-posting-scraper/start", { method: "POST", body: JSON.stringify(opts) });
 

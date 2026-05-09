@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useNewSessionModal } from "@/contexts/NewSessionModalContext";
 import { getSessions, deleteSession } from "@/lib/api";
+import { isNearScrollBottom } from "@/lib/scroll-guards";
 import { Session } from "@/types";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -292,6 +293,8 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/doc-parse")) return "문서 파싱";
   if (pathname.startsWith("/doc-store")) return "문서 보관함";
   if (pathname.startsWith("/company-analysis")) return "기업 분석";
+  if (pathname.startsWith("/tech-blogs")) return "기술 블로그";
+  if (pathname.startsWith("/hot-papers")) return "핫한 논문";
   if (pathname.startsWith("/job-posting")) return "채용 공고";
   if (pathname.startsWith("/cover-letter")) return "자기소개서";
   if (pathname.startsWith("/settings")) return "설정";
@@ -303,7 +306,7 @@ function getActiveTab(pathname: string): NavTab {
   if (pathname.startsWith("/sessions")) return "sessions";
   if (pathname.startsWith("/doc-write") || pathname.startsWith("/doc-parse")) return "write";
   if (pathname.startsWith("/settings")) return "settings";
-  if (pathname.startsWith("/company-analysis") || pathname.startsWith("/job-posting") || pathname.startsWith("/cover-letter") || pathname.startsWith("/doc-store")) return "more";
+  if (pathname.startsWith("/company-analysis") || pathname.startsWith("/tech-blogs") || pathname.startsWith("/hot-papers") || pathname.startsWith("/job-posting") || pathname.startsWith("/cover-letter") || pathname.startsWith("/doc-store")) return "more";
   return "home";
 }
 
@@ -337,6 +340,10 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
     if (!el || !pathname.startsWith("/main")) return;
     const handleScroll = () => {
       const scrollTop = el.scrollTop;
+      if (isNearScrollBottom(el)) {
+        lastScrollTopRef.current = scrollTop;
+        return;
+      }
       const delta = scrollTop - lastScrollTopRef.current;
       lastScrollTopRef.current = scrollTop;
       if (Math.abs(delta) < 4) return;
@@ -347,15 +354,24 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
     return () => el.removeEventListener("scroll", handleScroll);
   }, [pathname]);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (refreshing || isInteractiveTarget(e.target)) return;
+  const isMainScrolledToTop = useCallback(() => {
     const el = mainRef.current;
-    if (!el || el.scrollTop > 0) return;
+    return !!el && el.scrollTop <= 1;
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchPullStart.current = null;
+    if (refreshing || isInteractiveTarget(e.target) || !isMainScrolledToTop()) return;
     touchPullStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  }, [refreshing]);
+  }, [isMainScrolledToTop, refreshing]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!touchPullStart.current || refreshing) return;
+    if (!isMainScrolledToTop()) {
+      touchPullStart.current = null;
+      setPullDistance(0);
+      return;
+    }
     const deltaX = e.touches[0].clientX - touchPullStart.current.x;
     const deltaY = e.touches[0].clientY - touchPullStart.current.y;
     if (deltaY <= 0 || Math.abs(deltaX) > deltaY * 0.8) {
@@ -363,14 +379,15 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
       return;
     }
     setPullDistance(Math.min(96, deltaY * 0.45));
-  }, [refreshing]);
+  }, [isMainScrolledToTop, refreshing]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     if (!touchPullStart.current) return;
     const deltaY = e.changedTouches[0].clientY - touchPullStart.current.y;
+    const canRefresh = isMainScrolledToTop();
     touchPullStart.current = null;
 
-    if (pullDistance >= 64 && deltaY > 0) {
+    if (canRefresh && pullDistance >= 64 && deltaY > 0) {
       setRefreshing(true);
       setPullDistance(48);
       router.refresh();
@@ -381,7 +398,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
       return;
     }
     setPullDistance(0);
-  }, [pullDistance, router]);
+  }, [isMainScrolledToTop, pullDistance, router]);
 
   const bg = isDark ? "bg-slate-950" : "bg-slate-50";
   const hideHeader =
@@ -390,6 +407,8 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/job-posting") ||
     pathname.startsWith("/cover-letter") ||
     pathname.startsWith("/company-analysis") ||
+    pathname.startsWith("/tech-blogs") ||
+    pathname.startsWith("/hot-papers") ||
     pathname.startsWith("/settings");
 
   return (

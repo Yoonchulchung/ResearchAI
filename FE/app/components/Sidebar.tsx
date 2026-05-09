@@ -97,6 +97,26 @@ function IconChart() {
   );
 }
 
+function IconFeed() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+      <circle cx="4" cy="12" r="1.2" fill="currentColor" />
+      <path d="M3 8C5.76 8 8 10.24 8 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M3 4C7.97 4 12 8.03 12 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconPaper() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+      <path d="M4.5 2H9.5L12 4.5V13.5C12 14.05 11.55 14.5 11 14.5H4.5C3.95 14.5 3.5 14.05 3.5 13.5V3C3.5 2.45 3.95 2 4.5 2Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M9.5 2V4.5H12" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M5.8 8H10M5.8 10.5H8.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function IconPlus() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
@@ -296,6 +316,28 @@ export function Sidebar() {
           >
             <IconChart />
           </button>
+          <button
+            onClick={() => router.push("/tech-blogs")}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+              pathname?.startsWith("/tech-blogs")
+                ? "bg-brand-primary/10 text-brand-primary"
+                : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
+            }`}
+            title="기술 블로그"
+          >
+            <IconFeed />
+          </button>
+          <button
+            onClick={() => router.push("/hot-papers")}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+              pathname?.startsWith("/hot-papers")
+                ? "bg-brand-primary/10 text-brand-primary"
+                : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
+            }`}
+            title="핫한 논문"
+          >
+            <IconPaper />
+          </button>
         </div>
         {/* Session dots */}
         <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1 py-2 px-2 min-h-0">
@@ -396,6 +438,28 @@ export function Sidebar() {
         >
           <IconChart />
           기업 분석
+        </button>
+        <button
+          onClick={() => router.push("/tech-blogs")}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            pathname?.startsWith("/tech-blogs")
+              ? "bg-brand-primary/10 text-brand-primary"
+              : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
+          }`}
+        >
+          <IconFeed />
+          기술 블로그
+        </button>
+        <button
+          onClick={() => router.push("/hot-papers")}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            pathname?.startsWith("/hot-papers")
+              ? "bg-brand-primary/10 text-brand-primary"
+              : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
+          }`}
+        >
+          <IconPaper />
+          핫한 논문
         </button>
       </div>
 

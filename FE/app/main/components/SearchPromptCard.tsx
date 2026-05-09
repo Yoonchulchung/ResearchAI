@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { isNearScrollBottom } from "@/lib/scroll-guards";
 
 export function SearchPromptCard() {
   const router = useRouter();
@@ -26,14 +27,16 @@ export function SearchPromptCard() {
     const handleScroll = () => {
       if (window.innerWidth >= 768) return;
       const scrollTop = scrollEl.scrollTop;
-      const maxScroll = scrollEl.scrollHeight - scrollEl.clientHeight;
+      if (isNearScrollBottom(scrollEl)) {
+        lastScrollTopRef.current = scrollTop;
+        return;
+      }
       const delta = scrollTop - lastScrollTopRef.current;
       lastScrollTopRef.current = scrollTop;
 
       if (Math.abs(delta) < 4) return;
 
-      const atBottom = maxScroll > 0 && maxScroll - scrollTop < 50;
-      if (atBottom || delta < 0) setIsHidden(false);
+      if (delta < 0) setIsHidden(false);
       else if (delta > 0 && scrollTop > 60) setIsHidden(true);
     };
 

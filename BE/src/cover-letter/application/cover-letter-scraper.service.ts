@@ -72,6 +72,11 @@ export class CoverLetterScraperService implements OnModuleInit {
     return { items, total };
   }
 
+  async getById(id: string): Promise<CoverLetter | null> {
+    const all = await this.readAllFromJsonl();
+    return all.find((item) => item.id === id) ?? null;
+  }
+
   // ────────────────────────────────────────────────────────
   // private
   // ────────────────────────────────────────────────────────

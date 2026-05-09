@@ -11,6 +11,7 @@ import {
   IconImprove, IconInsert, IconPlagiarism, IconSection, IconSpellcheck, IconSummarize,
 } from "./icons";
 import { useTheme } from "@/contexts/ThemeContext";
+import { isNearScrollBottom } from "@/lib/scroll-guards";
 
 // ─── Icon mapping ─────────────────────────────────────────────────────────────
 
@@ -91,6 +92,10 @@ export function AiPanel({
   const handleMsgScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const scrollTop = el.scrollTop;
+    if (isNearScrollBottom(el)) {
+      lastMsgScrollTopRef.current = scrollTop;
+      return;
+    }
     const delta = scrollTop - lastMsgScrollTopRef.current;
     lastMsgScrollTopRef.current = scrollTop;
     if (Math.abs(delta) < 4) return;

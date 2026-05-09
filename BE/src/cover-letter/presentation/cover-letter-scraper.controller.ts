@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { CoverLetterScraperService } from '../application/cover-letter-scraper.service';
 import type { ScrapeOptions } from '../domain/cover-letter.model';
 
@@ -46,5 +46,12 @@ export class CoverLetterScraperController {
     @Query('limit') limit = '20',
   ) {
     return this.service.getData(Number(page), Number(limit));
+  }
+
+  @Get('data/:id')
+  async detail(@Param('id') id: string) {
+    const item = await this.service.getById(id);
+    if (!item) throw new NotFoundException('자소서를 찾을 수 없습니다.');
+    return item;
   }
 }

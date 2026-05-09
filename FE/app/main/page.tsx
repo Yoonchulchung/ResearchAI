@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { SearchPromptCard } from "./components/SearchPromptCard";
 import { NewsSection } from "./components/NewsSection";
 import { CalendarSection } from "./components/CalendarSection";
@@ -6,7 +5,8 @@ import { SummaryCard } from "./components/SummaryCard";
 import { WorldMapCard } from "./components/WorldMapCard";
 import { MarketCard } from "./components/MarketCard";
 import { WeatherCard } from "./components/WeatherCard";
-import { EmailCard } from "./components/EmailCard";
+import { TechBlogCard } from "./components/TechBlogCard";
+import { HotPapersCard } from "./components/HotPapersCard";
 
 export default function MainPage() {
   return (
@@ -19,9 +19,8 @@ export default function MainPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
           <div className="md:col-span-2 flex flex-col gap-4">
             <WorldMapCard />
-            <Suspense>
-              <EmailCard />
-            </Suspense>
+            <TechBlogCard />
+            <HotPapersCard />
           </div>
           <div className="md:col-span-1 flex flex-col gap-4">
             <WeatherCard />

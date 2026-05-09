@@ -35,6 +35,9 @@ export interface ScrapeStatus {
 export const listCoverLetters = (page = 1, limit = 20) =>
   apiFetch<CoverLetterListResponse>(`/cover-letter-scraper/data?page=${page}&limit=${limit}`);
 
+export const getCoverLetter = (id: string) =>
+  apiFetch<CoverLetter>(`/cover-letter-scraper/data/${encodeURIComponent(id)}`);
+
 export const startScraping = (opts: { company?: string; role?: string; keyword?: string } = {}) =>
   apiFetch<{ message: string }>("/cover-letter-scraper/start", { method: "POST", body: JSON.stringify(opts) });
 
