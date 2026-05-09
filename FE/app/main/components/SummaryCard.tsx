@@ -106,23 +106,23 @@ export function SummaryCard() {
   const hf = useSummary(`/news/hf-summary?category=${hfCategory}`);
 
   // 첫 탭(뉴스)은 마운트 시 자동 로드
-  useEffect(() => { news.refresh(); }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { news.refresh(); }, []);   
 
   // 탭 전환 시 미로드된 탭만 fetch
   useEffect(() => {
     if (tab === "github" && !github.attempted && !github.loading) github.refresh();
     if (tab === "hf" && !hf.attempted && !hf.loading) hf.refresh();
-  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tab]);  
 
   // GitHub since 변경 시 재요청
   useEffect(() => {
     if (tab === "github") github.refresh();
-  }, [githubSince]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [githubSince]);  
 
   // HF category 변경 시 재요청
   useEffect(() => {
     if (tab === "hf") hf.refresh();
-  }, [hfCategory]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hfCategory]);  
 
   const active = tab === "news" ? news : tab === "github" ? github : hf;
 

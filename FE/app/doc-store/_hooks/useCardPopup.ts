@@ -60,7 +60,7 @@ export function useCardPopup() {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("click", onClick);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [activePopup]);
 
   return { activePopup, popupVisible, openPopup, closePopup };

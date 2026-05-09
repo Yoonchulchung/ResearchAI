@@ -80,7 +80,7 @@ export function useNewSession(models: ModelDefinition[]) {
     const firstLocal = models.find((m) => m.provider === "ollama" || m.provider === "llama-cpp");
     const firstCloud = models.find((m) => m.provider !== "ollama" && m.provider !== "llama-cpp");
     setSelectedLocalAiModel(firstLocal?.id ?? firstCloud?.id ?? DEFAULT_FREE_MODEL_ID);
-  }, [models]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [models]);  
 
   // 검색 엔진 목록 로드
   useEffect(() => {
@@ -164,7 +164,7 @@ export function useNewSession(models: ModelDefinition[]) {
     }).catch(() => {});
 
     setInitialized(true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   // Draft 저장 (복원 완료 후부터)
   useEffect(() => {

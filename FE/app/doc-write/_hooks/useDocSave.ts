@@ -34,7 +34,7 @@ export function useDocSave(
         setCompanyName(doc.companyName ?? "");
       })
       .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [docId]);
 
   const handleSave = async (content: string, companyName: string, title?: string) => {

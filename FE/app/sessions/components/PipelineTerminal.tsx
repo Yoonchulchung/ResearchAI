@@ -79,7 +79,7 @@ export function PipelineTerminal({ logs, progressStep, onCancel }: PipelineTermi
         const charsPerTick =
           pending > 400 ? 16 : pending > 150 ? 8 : pending > 50 ? 4 : 1;
 
-        let completed = [...prev.completedLines];
+        const completed = [...prev.completedLines];
         let currentLine = prev.currentLine;
         let charPos = prev.charPos;
         let lineIndex = prev.lineIndex;

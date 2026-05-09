@@ -34,14 +34,18 @@ interface Props {
   expanded?: boolean;
   selectedTaskId?: number | null;
   instantScroll?: boolean;
+  aiResults?: Record<string, string>;
   onExpand?: () => void;
   onClose: () => void;
 }
 
-export function DetailPanel({ session, sessionId, expanded, selectedTaskId, instantScroll, onExpand, onClose }: Props) {
+export function DetailPanel({ session, sessionId, expanded, selectedTaskId, instantScroll, aiResults, onExpand, onClose }: Props) {
   const { theme } = useTheme();
-  const doneTasks = (session.items ?? []).filter((t) => t.aiResult);
+  const doneTasks = (session.items ?? [])
+    .map((t) => ({ ...t, aiResult: aiResults?.[String(t.id)] ?? t.aiResult }))
+    .filter((t) => t.aiResult);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollRatioRef = useRef(0); // 두 effect가 공유하는 스크롤 비율
   const [fontSizeIdx, setFontSizeIdx] = useState(() => {
     try {
       const v = localStorage.getItem("viewer_font_size_idx");
@@ -69,35 +73,60 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
   // selectedTaskId 변경 시 해당 섹션으로 스크롤
   useEffect(() => {
     if (!selectedTaskId) return;
-    const delay = instantScroll ? 0 : 320;
+    const delay = instantScroll ? 0 : 380;
     const timer = setTimeout(() => {
-      const el = document.getElementById(`detail-task-${selectedTaskId}`);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      const scrollEl = scrollRef.current;
+      const targetEl = document.getElementById(`detail-task-${selectedTaskId}`);
+      if (!scrollEl || !targetEl) return;
+
+      const newTop = Math.max(
+        0,
+        targetEl.getBoundingClientRect().top -
+          scrollEl.getBoundingClientRect().top +
+          scrollEl.scrollTop -
+          8,
+      );
+
+      scrollEl.scrollTo({ top: newTop, behavior: instantScroll ? "auto" : "smooth" });
+
+      // ratio ref 업데이트 — 이후 ResizeObserver 복원이 덮어쓰지 않도록
+      const max = scrollEl.scrollHeight - scrollEl.clientHeight;
+      if (max > 0) {
+        scrollRatioRef.current = newTop / max;
+        sessionStorage.setItem(`detail-scroll-ratio:${sessionId}`, String(scrollRatioRef.current));
+      }
     }, delay);
     return () => clearTimeout(timer);
-  }, [selectedTaskId, instantScroll]);
+  }, [selectedTaskId, instantScroll, doneTasks.length, sessionId]);
 
   // 스크롤 위치를 비율(ratio)로 저장/복원 — 폭이 달라져 reflow돼도 같은 지점을 가리킴
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
 
-    let lastRatio = 0;
     let ignoreScrollUntil = 0;
+    let lastScrollTime = 0;
+    let ratioSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
     const saveRatio = () => {
+      lastScrollTime = performance.now();
       if (performance.now() < ignoreScrollUntil) return;
       const max = el.scrollHeight - el.clientHeight;
       if (max > 0) {
-        lastRatio = el.scrollTop / max;
-        sessionStorage.setItem(`detail-scroll-ratio:${sessionId}`, String(lastRatio));
+        scrollRatioRef.current = el.scrollTop / max;
+        if (ratioSaveTimer) clearTimeout(ratioSaveTimer);
+        ratioSaveTimer = setTimeout(() => {
+          sessionStorage.setItem(`detail-scroll-ratio:${sessionId}`, String(scrollRatioRef.current));
+        }, 150);
       }
     };
 
     const restoreToRatio = () => {
+      // 사용자가 스크롤 중이면 건너뜀
+      if (performance.now() - lastScrollTime < 300) return;
       ignoreScrollUntil = performance.now() + 200;
       const max = el.scrollHeight - el.clientHeight;
-      el.scrollTop = lastRatio * max;
+      el.scrollTop = scrollRatioRef.current * max;
     };
 
     el.addEventListener("scroll", saveRatio, { passive: true });
@@ -105,7 +134,7 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
     // 초기 복원 — 콘텐츠(ReactMarkdown) 렌더 완료 후
     const saved = sessionStorage.getItem(`detail-scroll-ratio:${sessionId}`);
     if (saved) {
-      lastRatio = Number(saved);
+      scrollRatioRef.current = Number(saved);
       requestAnimationFrame(() => { requestAnimationFrame(restoreToRatio); });
     }
 
@@ -118,6 +147,7 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
     return () => {
       el.removeEventListener("scroll", saveRatio);
       ro.disconnect();
+      if (ratioSaveTimer) clearTimeout(ratioSaveTimer);
     };
   }, [sessionId]);
 

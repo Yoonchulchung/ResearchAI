@@ -502,7 +502,7 @@ export function WorldMapCard() {
                 if (geoData.length === 0 && geographies.length > 0) {
                   const centroids = geographies.map((g) => ({
                     id: String(g.id),
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                     
                     centroid: geoCentroid(g as any) as [number, number],
                   }));
                   // render 단계 setState 방지 — 다음 마이크로태스크로 지연

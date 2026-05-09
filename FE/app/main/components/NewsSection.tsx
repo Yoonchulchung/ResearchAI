@@ -111,10 +111,11 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
     setFetchFailed(false);
     fetch(`${API_BASE}/news/article?url=${encodeURIComponent(item.link)}`)
       .then((r) => r.json())
-      .then((data: { title: string; content: string; image?: string; finalUrl?: string }) => {
-        setContent(data.content || item.description || "");
-        setImage(data.image || "");
-        setArticleUrl(data.finalUrl || item.link);
+      .then((raw) => {
+        const data = raw?.isSuccess ? raw.result : raw;
+        setContent(data?.content || item.description || "");
+        setImage(data?.image || "");
+        setArticleUrl(data?.finalUrl || item.link);
       })
       .catch(() => {
         setContent(item.description || "");
@@ -162,7 +163,7 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
           ) : (
             <>
               {image && (
-                // eslint-disable-next-line @next/next/no-img-element
+                 
                 <img src={image} alt="" className="w-full rounded-xl object-cover max-h-52 mb-4" />
               )}
               {fetchFailed && (
@@ -219,7 +220,11 @@ function GoogleNewsPanel() {
 
     fetch(`${API_BASE}/news/google?category=${category}`, { signal: ctrl.signal })
       .then((r) => r.json())
-      .then((data: GoogleNewsItem[]) => { if (!ctrl.signal.aborted) setItems(Array.isArray(data) ? data : []); })
+      .then((data) => {
+        if (ctrl.signal.aborted) return;
+        const items = data?.isSuccess ? (data.result ?? []) : (Array.isArray(data) ? data : []);
+        setItems(items);
+      })
       .catch(() => { if (!ctrl.signal.aborted) setError(true); })
       .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
 

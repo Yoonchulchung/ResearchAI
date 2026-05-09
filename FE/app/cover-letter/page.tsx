@@ -33,6 +33,10 @@ export default function CoverLetterPage() {
   const [scrapeLoading, setScrapeLoading] = useState(false);
   const statusTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [isHeaderHidden, setIsHeaderHidden] = useState(false);
+  const listScrollTopRef = useRef(0);
+  const detailScrollTopRef = useRef(0);
+
   const loaderRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (p: number, reset = false) => {
@@ -69,6 +73,26 @@ export default function CoverLetterPage() {
     }
     return () => { if (statusTimerRef.current) clearInterval(statusTimerRef.current); };
   }, [status?.running]);
+
+  const handleListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (typeof window !== "undefined" && window.innerWidth >= 768) return;
+    const scrollTop = e.currentTarget.scrollTop;
+    const delta = scrollTop - listScrollTopRef.current;
+    listScrollTopRef.current = scrollTop;
+    if (Math.abs(delta) < 4) return;
+    if (delta > 0 && scrollTop > 10) setIsHeaderHidden(true);
+    else if (delta < 0) setIsHeaderHidden(false);
+  }, []);
+
+  const handleDetailScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (typeof window !== "undefined" && window.innerWidth >= 768) return;
+    const scrollTop = e.currentTarget.scrollTop;
+    const delta = scrollTop - detailScrollTopRef.current;
+    detailScrollTopRef.current = scrollTop;
+    if (Math.abs(delta) < 4) return;
+    if (delta > 0 && scrollTop > 10) setIsHeaderHidden(true);
+    else if (delta < 0) setIsHeaderHidden(false);
+  }, []);
 
   const handleStart = async () => {
     setScrapeLoading(true);
@@ -128,11 +152,15 @@ export default function CoverLetterPage() {
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl border border-white/20" : ""}`}>
 
         {/* Topbar */}
-        <div className={`shrink-0 flex flex-col border-b transition-all ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : "bg-white border-slate-200/60"}`}>
+        <div className={`shrink-0 flex flex-col border-b transition-all duration-200 ease-out overflow-hidden ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : "bg-white border-slate-200/60"} ${
+          isHeaderHidden
+            ? "max-md:max-h-0 max-md:opacity-0 max-md:-translate-y-2 max-md:pointer-events-none max-md:border-b-0"
+            : "max-md:max-h-28 max-md:opacity-100 max-md:translate-y-0"
+        }`}>
           {/* Row 1: title + action */}
           <div className="flex items-center gap-2 px-4 sm:px-5 pt-2.5 pb-1.5">
             <button
-              onClick={() => router.back()}
+              onClick={() => { if (selected) setSelected(null); else router.back(); }}
               className={`shrink-0 flex items-center gap-1 text-sm transition-colors ${isDark ? "text-white/50 hover:text-white" : "text-slate-400 hover:text-slate-700"}`}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -209,7 +237,7 @@ export default function CoverLetterPage() {
             </div>
 
             {/* List items */}
-            <div className="flex-1 overflow-y-auto">
+            <div onScroll={handleListScroll} className="flex-1 overflow-y-auto">
               {filtered.length === 0 && !loading && (
                 <div className={`flex flex-col items-center justify-center h-full gap-2 ${isDark ? "text-white/30" : "text-slate-300"}`}>
                   <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
@@ -264,7 +292,7 @@ export default function CoverLetterPage() {
           </div>
 
           {/* Right: detail */}
-          <div className={`flex-1 overflow-y-auto ${selected ? "flex" : "hidden md:flex"} flex-col`}>
+          <div onScroll={handleDetailScroll} className={`flex-1 overflow-y-auto ${selected ? "flex" : "hidden md:flex"} flex-col`}>
             {!selected ? (
               <div className={`flex flex-col items-center justify-center h-full gap-3 ${isDark ? "text-white/25" : "text-slate-300"}`}>
                 <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
@@ -274,24 +302,13 @@ export default function CoverLetterPage() {
                 <p className="text-sm">자소서를 선택하세요</p>
               </div>
             ) : (
-              <div className="px-8 py-6 max-w-3xl w-full mx-auto">
-                {/* Mobile back */}
-                <button
-                  onClick={() => setSelected(null)}
-                  className={`md:hidden flex items-center gap-1.5 text-sm mb-4 transition-colors ${isDark ? "text-white/50 hover:text-white" : "text-slate-400 hover:text-slate-700"}`}
-                >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M9 11L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  목록
-                </button>
-
+              <div className="px-3 py-3 sm:px-8 sm:py-6 sm:max-w-3xl w-full mx-auto">
                 {/* Header */}
-                <div className="mb-6">
+                <div className="mb-5 sm:mb-6">
                   <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-3 ${isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
                     합격 자소서
                   </span>
-                  <h1 className={`text-2xl font-bold mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>
+                  <h1 className={`text-[28px] sm:text-2xl font-bold mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>
                     {selected.company}
                   </h1>
                   <div className={`flex flex-wrap gap-2 text-sm ${isDark ? "text-white/50" : "text-slate-500"}`}>
@@ -300,7 +317,7 @@ export default function CoverLetterPage() {
                     {selected.season && <span>{selected.season}</span>}
                   </div>
                   {selected.spec && (
-                    <p className={`mt-2 text-sm ${isDark ? "text-white/40" : "text-slate-400"}`}>
+                    <p className={`mt-2 text-[15px] leading-relaxed ${isDark ? "text-white/40" : "text-slate-400"}`}>
                       {selected.spec}
                     </p>
                   )}
@@ -312,16 +329,16 @@ export default function CoverLetterPage() {
                 {selected.questions.length === 0 ? (
                   <p className={`text-sm ${isDark ? "text-white/40" : "text-slate-400"}`}>내용이 없습니다.</p>
                 ) : (
-                  <div className="space-y-8">
+                  <div className="space-y-7 sm:space-y-8">
                     {selected.questions.map((q, i) => (
                       <div key={i}>
-                        <p className={`text-sm font-semibold mb-3 leading-relaxed ${isDark ? "text-white/80" : "text-slate-700"}`}>
+                        <p className={`text-[15px] sm:text-sm font-semibold mb-3 leading-relaxed ${isDark ? "text-white/80" : "text-slate-700"}`}>
                           <span className={`inline-block w-5 h-5 rounded-full text-xs font-bold text-center leading-5 mr-2 shrink-0 ${isDark ? "bg-white/10 text-white/70" : "bg-slate-100 text-slate-500"}`}>
                             {q.number}
                           </span>
                           {q.question}
                         </p>
-                        <p className={`text-sm leading-7 whitespace-pre-wrap pl-7 ${isDark ? "text-white/70" : "text-slate-600"}`}>
+                        <p className={`text-[15px] sm:text-sm leading-8 sm:leading-7 whitespace-pre-wrap pl-0 sm:pl-7 ${isDark ? "text-white/70" : "text-slate-600"}`}>
                           {q.answer}
                         </p>
                       </div>

@@ -255,10 +255,10 @@ export default function OverviewPage() {
     });
   }, []);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setApiKeys(buildApiKeys(user));
     if (user?.defaultCloudModel) setDefaultCloudModel(user.defaultCloudModel);
     if (user?.defaultLocalModel) setDefaultLocalModel(user.defaultLocalModel);

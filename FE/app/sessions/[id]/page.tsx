@@ -29,6 +29,8 @@ export default function SessionPage() {
   const { session, loading, models } = useSessionData(id);
   const { statuses, phases, aiResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [hideSessionHeader, setHideSessionHeader] = useState(false);
+  const lastScrollTopRef = useRef(0);
 
   // 세션별 스크롤 위치 — 비율 기반으로 저장/복원 (데스크탑↔모바일 reflow 대응)
   useEffect(() => {
@@ -37,17 +39,36 @@ export default function SessionPage() {
 
     let lastRatio = 0;
     let ignoreScrollUntil = 0;
+    let lastScrollTime = 0;
+    let ratioSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
     const saveRatio = () => {
-      if (performance.now() < ignoreScrollUntil) return;
+      lastScrollTime = performance.now();
+      if (performance.now() < ignoreScrollUntil) {
+        lastScrollTopRef.current = el.scrollTop;
+        return;
+      }
       const max = el.scrollHeight - el.clientHeight;
       if (max > 0) {
         lastRatio = el.scrollTop / max;
-        sessionStorage.setItem(`scroll-ratio:${id}`, String(lastRatio));
+        if (ratioSaveTimer) clearTimeout(ratioSaveTimer);
+        ratioSaveTimer = setTimeout(() => {
+          sessionStorage.setItem(`scroll-ratio:${id}`, String(lastRatio));
+        }, 150);
       }
+      if (typeof window !== "undefined" && window.innerWidth < 768) {
+        const delta = el.scrollTop - lastScrollTopRef.current;
+        if (Math.abs(delta) >= 4) {
+          if (delta > 0 && el.scrollTop > 10) setHideSessionHeader(true);
+          else if (delta < 0) setHideSessionHeader(false);
+        }
+      }
+      lastScrollTopRef.current = el.scrollTop;
     };
 
     const restoreToRatio = () => {
+      // 사용자가 스크롤 중이면 건너뜀 (모바일 스크롤 끊김 방지)
+      if (performance.now() - lastScrollTime < 300) return;
       ignoreScrollUntil = performance.now() + 200;
       const max = el.scrollHeight - el.clientHeight;
       el.scrollTop = lastRatio * max;
@@ -69,8 +90,9 @@ export default function SessionPage() {
     return () => {
       el.removeEventListener("scroll", saveRatio);
       ro.disconnect();
+      if (ratioSaveTimer) clearTimeout(ratioSaveTimer);
     };
-  }, [id]);
+  }, [id, loading]);
 
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const [showDetail, setShowDetail] = useState(() => {
@@ -120,21 +142,21 @@ export default function SessionPage() {
     if (!headerCloudAiModel && models.length > 0) {
       setHeaderCloudAiModel(session?.researchCloudAIModel ?? models[0].id);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [models.length]);
 
   useEffect(() => {
     if (!headerWebModel && webEngines.length > 0) {
       setHeaderWebModel(session?.researchWebModel ?? webEngines[0].id);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [webEngines.length]);
 
   useEffect(() => {
     if (!headerFilterModel && models.length > 0) {
       setHeaderFilterModel(models[0].id);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [models.length]);
 
   useEffect(() => {
@@ -151,10 +173,21 @@ export default function SessionPage() {
   }, [showTaskPanel, showDetail, id]);
 
   // 모바일 뒤로 가기 — 팝업이 열려 있으면 닫고, 없으면 실제 뒤로 이동
+  // 모바일만 pushState (데스크탑은 앞으로 가기 히스토리 파괴 방지)
+  // 패널이 열려 있는 동안 한 번만 pushState (ref로 중복 방지)
+  const hasPushedPanelStateRef = useRef(false);
   useEffect(() => {
-    if (!showDetail && !showTaskPanel) return;
-    window.history.pushState({ panelOpen: true }, "");
+    const panelOpen = showDetail || showTaskPanel;
+    if (!panelOpen) {
+      hasPushedPanelStateRef.current = false;
+      return;
+    }
+    if (typeof window !== "undefined" && window.innerWidth < 768 && !hasPushedPanelStateRef.current) {
+      window.history.pushState({ panelOpen: true }, "");
+      hasPushedPanelStateRef.current = true;
+    }
     const handlePopState = () => {
+      hasPushedPanelStateRef.current = false;
       if (showTaskPanel) { setShowTaskPanel(false); return; }
       if (showDetail) {
         try { sessionStorage.setItem(`detail-open:${id}`, "0"); sessionStorage.setItem(`detail-expanded:${id}`, "0"); } catch {}
@@ -226,90 +259,44 @@ export default function SessionPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative font-system">
-      <div className="hidden md:block">
-        <SessionHeader
-          topic={session.topic}
-          model={session.researchCloudAIModel}
-          isRunning={isRunning}
-          allDone={allDone}
-          hasDoneTasks={hasDoneTasks}
-          showDetail={showDetail}
-          models={models}
-          cloudAiModels={models}
-          filterModels={models}
-          webEngines={webEngines}
-          selectedCloudAiModel={headerCloudAiModel}
-          selectedWebModel={headerWebModel}
-          selectedFilterModel={headerFilterModel}
-          onCloudAiModelChange={setHeaderCloudAiModel}
-          onWebModelChange={setHeaderWebModel}
-          onFilterModelChange={setHeaderFilterModel}
-          reEvalProgress={reEvalProgress}
-          avgConfidence={avgConfidence}
-          totalInputTokens={totalInputTokens}
-          totalOutputTokens={totalOutputTokens}
-          totalFees={totalFees}
-          onRunAll={handleRunAll}
-          onCancel={handleCancelAll}
-          onExport={exportMarkdown}
-          onToggleDetail={() => setShowDetail((v) => {
-            try { sessionStorage.setItem(`detail-open:${id}`, v ? "0" : "1"); } catch {}
-            return !v;
-          })}
-          onReEvaluateAll={handleReEvaluateAll}
-        />
-      </div>
+      <SessionHeader
+        topic={session.topic}
+        model={session.researchCloudAIModel}
+        isRunning={isRunning}
+        allDone={allDone}
+        hasDoneTasks={hasDoneTasks}
+        showDetail={showDetail}
+        models={models}
+        cloudAiModels={models}
+        filterModels={models}
+        webEngines={webEngines}
+        selectedCloudAiModel={headerCloudAiModel}
+        selectedWebModel={headerWebModel}
+        selectedFilterModel={headerFilterModel}
+        onCloudAiModelChange={setHeaderCloudAiModel}
+        onWebModelChange={setHeaderWebModel}
+        onFilterModelChange={setHeaderFilterModel}
+        reEvalProgress={reEvalProgress}
+        avgConfidence={avgConfidence}
+        totalInputTokens={totalInputTokens}
+        totalOutputTokens={totalOutputTokens}
+        totalFees={totalFees}
+        hideMetrics={false}
+        hideHeader={hideSessionHeader}
+        onRunAll={handleRunAll}
+        onCancel={handleCancelAll}
+        onExport={exportMarkdown}
+        onToggleDetail={() => setShowDetail((v) => {
+          try { sessionStorage.setItem(`detail-open:${id}`, v ? "0" : "1"); } catch {}
+          return !v;
+        })}
+        onReEvaluateAll={handleReEvaluateAll}
+      />
 
       <div className="flex flex-1 min-h-0">
         {/* 왼쪽: 태스크 목록 + 채팅 */}
         <div className={`flex flex-col flex-1 min-w-0 overflow-hidden relative transition-[padding-right] duration-300 ease-in-out ${expandedDetail ? "hidden" : (showDetail || showTaskPanel) ? "md:pr-[52%]" : "pr-0"}`}>
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-2.5 sm:px-8 py-3 sm:py-6">
-            <div className="md:hidden mb-3 flex items-center gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-              {cloudAiModels.length > 0 && !allDone && (
-                <select
-                  value={headerCloudAiModel}
-                  onChange={(e) => setHeaderCloudAiModel(e.target.value)}
-                  className={`min-w-[9rem] max-w-[11rem] rounded-lg border px-2.5 py-2 text-xs ${isDark ? "bg-white/10 border-white/10 text-slate-200" : "bg-white border-slate-200 text-slate-700"}`}
-                >
-                  {cloudAiModels.map((m) => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))}
-                </select>
-              )}
-              {webEngines.length > 0 && !allDone && (
-                <select
-                  value={headerWebModel}
-                  onChange={(e) => setHeaderWebModel(e.target.value)}
-                  className={`min-w-[9rem] max-w-[11rem] rounded-lg border px-2.5 py-2 text-xs ${isDark ? "bg-white/10 border-white/10 text-slate-200" : "bg-white border-slate-200 text-slate-700"}`}
-                >
-                  {webEngines.map((e) => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
-                  ))}
-                </select>
-              )}
-              {isRunning ? (
-                <button
-                  onClick={handleCancelAll}
-                  className="shrink-0 rounded-lg border border-red-300 px-3 py-2 text-xs font-semibold text-red-500"
-                >
-                  중단
-                </button>
-              ) : !allDone ? (
-                <button
-                  onClick={() => handleRunAll(headerCloudAiModel, headerWebModel)}
-                  className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white"
-                >
-                  전체 실행
-                </button>
-              ) : hasDoneTasks ? (
-                <button
-                  onClick={exportMarkdown}
-                  className="shrink-0 rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-white"
-                >
-                  내보내기
-                </button>
-              ) : null}
-            </div>
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-1.5 sm:px-8 py-2 sm:py-6">
             <SummarySection
               sessionId={id}
               topic={session.topic}
@@ -318,14 +305,14 @@ export default function SessionPage() {
               summaryState={session.summaryState}
             />
             <div className={`bg-transparent sm:bg-white sm:dark:bg-black/20 sm:border ${isDark ? "sm:border-slate-800" : "sm:border-slate-200"} rounded-none sm:rounded-sm shadow-none sm:shadow-sm mb-5 sm:mb-8`}>
-              <div className={`px-1 sm:px-6 py-2 sm:py-4 flex items-center justify-between sm:border-b ${isDark ? "sm:border-slate-800" : "sm:border-slate-100"}`}>
-                <h2 className={`text-sm sm:text-[15px] font-bold tracking-wide ${isDark ? "text-slate-200" : "text-slate-800"} uppercase`}>수행 중인 리서치</h2>
+              <div className={`px-2 sm:px-6 py-2 sm:py-4 flex items-center justify-between sm:border-b ${isDark ? "sm:border-slate-800" : "sm:border-slate-100"}`}>
+                <h2 className={`text-base sm:text-[15px] font-bold tracking-wide ${isDark ? "text-slate-200" : "text-slate-800"} uppercase`}>수행 중인 리서치</h2>
                 <span className={`text-[10px] uppercase font-bold tracking-widest border px-1.5 py-0.5 rounded-sm ${isDark ? "border-slate-700 text-slate-400" : "border-slate-300 text-slate-500"}`}>
                   TOTAL {total}
                 </span>
               </div>
-              <div className="px-1 sm:p-6 py-2">
-                <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5 items-start">
+              <div className="px-2 sm:p-6 py-2">
+                <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3 sm:gap-5 items-start">
               {tasks.length === 0 ? (
                 <div className={`rounded-xl border px-4 py-5 text-sm ${isDark ? "border-slate-800 text-slate-400 bg-white/5" : "border-slate-200 text-slate-500 bg-white"}`}>
                   아직 생성된 리서치 항목이 없습니다.
@@ -394,7 +381,7 @@ export default function SessionPage() {
 
           <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black_40%,transparent)]" />
 
-          <div className="px-2.5 sm:px-8 relative z-10 pb-2.5 sm:pb-4">
+          <div className="px-1.5 sm:px-8 relative z-10 pb-2 sm:pb-4">
             <ChatInputArea
               onSend={(msg, model, attachedTexts) => handleChatSend(msg, model, attachedTexts)}
               onAbort={handleChatAbort}
@@ -440,6 +427,7 @@ export default function SessionPage() {
             expanded={expandedDetail}
             selectedTaskId={selectedTaskId}
             instantScroll={prevShowDetailRef.current}
+            aiResults={aiResult}
             onExpand={() => setExpandedDetail((v) => {
               try { sessionStorage.setItem(`detail-expanded:${id}`, v ? "0" : "1"); } catch {}
               return !v;

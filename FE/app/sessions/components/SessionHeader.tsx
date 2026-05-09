@@ -24,6 +24,8 @@ interface Props {
   totalInputTokens?: number | null;
   totalOutputTokens?: number | null;
   totalFees?: number | null;
+  hideMetrics?: boolean;
+  hideHeader?: boolean;
   onRunAll: (cloudAiModel?: string, webModel?: string, filterModel?: string) => void;
   onCancel: () => void;
   onExport: () => void;
@@ -60,6 +62,8 @@ export function SessionHeader({
   totalInputTokens,
   totalOutputTokens,
   totalFees,
+  hideMetrics = false,
+  hideHeader = false,
   onRunAll,
   onCancel,
   onExport,
@@ -74,20 +78,24 @@ export function SessionHeader({
   const isNonBuiltinWebEngine = !!webEngines?.find((e) => e.id === selectedWebModel && !e.builtin);
 
   const containerClasses = uiStyle === "glass"
-    ? "m-3 rounded-2xl glass-panel shadow-sm sticky top-3 z-30 px-3 sm:px-6 pt-4 pb-0"
-    : "px-3 sm:px-6 pt-3 sm:pt-5 pb-0 bg-white/95 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-20";
+    ? `mx-1.5 mt-1.5 mb-2 sm:m-3 rounded-xl sm:rounded-2xl glass-panel shadow-sm sticky top-0 sm:top-3 z-30 px-2.5 sm:px-6 sm:pt-4 pb-0 transition-all duration-200 ease-out overflow-hidden ${
+        hideHeader ? "max-md:max-h-0 max-md:pt-0 max-md:mb-0 max-md:opacity-0 max-md:-translate-y-2 max-md:pointer-events-none" : "max-md:max-h-28 max-md:pt-2 max-md:opacity-100 max-md:translate-y-0"
+      }`
+    : `px-2.5 sm:px-6 sm:pt-5 pb-0 bg-white/95 backdrop-blur-sm border-b border-slate-200/60 sticky top-0 z-20 transition-all duration-200 ease-out overflow-hidden ${
+        hideHeader ? "max-md:max-h-0 max-md:pt-0 max-md:opacity-0 max-md:-translate-y-2 max-md:pointer-events-none max-md:border-b-0" : "max-md:max-h-28 max-md:pt-2 max-md:opacity-100 max-md:translate-y-0"
+      }`;
 
   return (
     <div className={containerClasses}>
       {/* Row 1: Title + Badges + Model Selectors + Actions */}
-      <div className="flex items-center gap-3 mb-2">
+      <div className="flex items-center gap-2 sm:gap-3 mb-1.5 sm:mb-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-nowrap min-w-0">
-            <h1 className="font-bold text-slate-900 leading-tight text-base truncate min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap min-w-0">
+            <h1 className="font-bold text-slate-900 leading-tight text-[15px] sm:text-base truncate min-w-0">
               {topic}
             </h1>
             <span
-              className="inline-flex items-center gap-1.5 text-2xs px-2 py-0.5 rounded-full font-medium shrink-0 transition-all"
+              className="hidden sm:inline-flex items-center gap-1.5 text-2xs px-2 py-0.5 rounded-full font-medium shrink-0 transition-all"
               style={avgConfidence != null ? {
                 background: `linear-gradient(to right, ${
                   avgConfidence >= 71 ? "#d1fae5" : avgConfidence >= 41 ? "#fef3c7" : "#fee2e2"
@@ -113,7 +121,7 @@ export function SessionHeader({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-nowrap items-center gap-1.5 shrink-0 justify-end overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+        <div className="w-auto flex flex-nowrap items-center gap-1.5 shrink-0 justify-end overflow-x-auto" style={{ scrollbarWidth: "none" }}>
           {/* Model selectors — shown inline before run button */}
           {hasRunSelectors && !allDone && (
             <>
@@ -121,7 +129,7 @@ export function SessionHeader({
                 <select
                   value={selectedCloudAiModel ?? ""}
                   onChange={(e) => onCloudAiModelChange?.(e.target.value)}
-                  className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-36 truncate cursor-pointer"
+                  className="flex-1 sm:flex-none min-w-0 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-2 sm:py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-none sm:max-w-36 truncate cursor-pointer"
                 >
                   {cloudAiModels.map((m) => (
                     <option key={m.id} value={m.id}>{m.name}</option>
@@ -132,7 +140,7 @@ export function SessionHeader({
                 <select
                   value={selectedWebModel ?? ""}
                   onChange={(e) => onWebModelChange?.(e.target.value)}
-                  className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-36 truncate cursor-pointer"
+                  className="flex-1 sm:flex-none min-w-0 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-2 sm:py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-none sm:max-w-36 truncate cursor-pointer"
                 >
                   {webEngines.map((e) => (
                     <option key={e.id} value={e.id}>{e.name}</option>
@@ -143,7 +151,7 @@ export function SessionHeader({
                 <select
                   value={selectedFilterModel ?? ""}
                   onChange={(e) => onFilterModelChange?.(e.target.value)}
-                  className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-36 truncate cursor-pointer"
+                  className="flex-1 sm:flex-none min-w-0 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-2 sm:py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-none sm:max-w-36 truncate cursor-pointer"
                 >
                   {filterModels.map((m) => (
                     <option key={m.id} value={m.id}>{m.name}</option>
@@ -158,7 +166,7 @@ export function SessionHeader({
             <button
               onClick={onExport}
               title="내보내기"
-              className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all"
+              className="inline-flex items-center justify-center gap-1.5 text-xs font-medium w-9 sm:w-auto px-0 sm:px-2.5 py-2 sm:py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all whitespace-nowrap"
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path d="M6 1V8M3 5L6 8L9 5M2 10H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -206,7 +214,7 @@ export function SessionHeader({
           {isRunning && (
             <button
               onClick={onCancel}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 transition-all"
+              className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 sm:py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 transition-all whitespace-nowrap"
             >
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                 <rect x="1" y="1" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
@@ -219,7 +227,7 @@ export function SessionHeader({
           {hasDoneTasks && (
             <button
               onClick={onToggleDetail}
-              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
+              className={`inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 sm:py-1.5 rounded-lg transition-all whitespace-nowrap ${
                 showDetail
                   ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
                   : "bg-slate-800 text-white hover:bg-slate-900"
@@ -234,17 +242,17 @@ export function SessionHeader({
             <button
               onClick={() => onRunAll(selectedCloudAiModel, selectedWebModel, isNonBuiltinWebEngine ? selectedFilterModel || undefined : undefined)}
               disabled={isRunning}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm shadow-indigo-200"
+              className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 sm:px-4 py-2 sm:py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm shadow-indigo-200 whitespace-nowrap"
             >
-              {isRunning ? <><RunningSpinner /> 실행 중</> : "전체 실행"}
+              {isRunning ? <><RunningSpinner /> 실행 중</> : <><span className="sm:hidden">실행</span><span className="hidden sm:inline">전체 실행</span></>}
             </button>
           )}
           {hasDoneTasks && !isRunning && !allDone && (
             <button
               onClick={() => onRunAll(selectedCloudAiModel, selectedWebModel, isNonBuiltinWebEngine ? selectedFilterModel || undefined : undefined)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm shadow-indigo-200"
+              className="inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 sm:px-4 py-2 sm:py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm shadow-indigo-200 whitespace-nowrap"
             >
-              나머지 실행
+              <span className="sm:hidden">실행</span><span className="hidden sm:inline">나머지 실행</span>
             </button>
           )}
         </div>
@@ -252,9 +260,9 @@ export function SessionHeader({
 
       {/* Token / Cost row */}
       {(totalInputTokens || totalOutputTokens || totalFees) && (
-        <div className="flex items-center gap-3 pb-2 flex-wrap">
+        <div className={`items-center gap-2 sm:gap-3 flex-nowrap sm:flex-wrap transition-all duration-200 overflow-hidden ${hideMetrics ? "max-md:hidden sm:flex sm:pb-2" : "flex pb-1.5 sm:pb-2"}`}>
           {(totalInputTokens != null || totalOutputTokens != null) && (
-            <span className="text-2xs text-slate-400 tabular-nums">
+            <span className="text-[10px] sm:text-2xs text-slate-400 tabular-nums whitespace-nowrap overflow-hidden text-ellipsis">
               토큰 {((totalInputTokens ?? 0) + (totalOutputTokens ?? 0)).toLocaleString()}
               <span className="text-slate-300 mx-1">·</span>
               입력 {(totalInputTokens ?? 0).toLocaleString()}
@@ -263,7 +271,7 @@ export function SessionHeader({
             </span>
           )}
           {totalFees != null && totalFees > 0 && (
-            <span className="text-2xs text-slate-400 tabular-nums">
+            <span className="text-[10px] sm:text-2xs text-slate-400 tabular-nums whitespace-nowrap">
               비용 <span className="text-slate-500 font-medium">${totalFees.toFixed(4)}</span>
             </span>
           )}

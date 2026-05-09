@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   listJobPostings,
@@ -142,6 +142,9 @@ export default function JobPostingPage() {
   }, []);
   const [selected, setSelected] = useState<JobPosting | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [isHeaderHidden, setIsHeaderHidden] = useState(false);
+  const listScrollTopRef = useRef(0);
+  const detailScrollTopRef = useRef(0);
   const detailCacheRef = useRef<Map<string, Partial<JobPosting>>>(new Map());
   const itemsRef = useRef<JobPosting[]>([]);
   const selectedRef = useRef<JobPosting | null>(null);
@@ -201,17 +204,37 @@ export default function JobPostingPage() {
   const loadRef = useRef(loadItems);
   loadRef.current = loadItems;
 
-  const buildFilters = (): JobPostingListParams => ({
+  const buildFilters = useCallback((): JobPostingListParams => ({
     source: sourceFilter || undefined,
     search: search.trim() || undefined,
     companyType: companyTypeFilter || undefined,
     type: typeFilter === "신입/인턴" ? "신입,인턴" : (typeFilter || undefined),
     category: categoryFilter || undefined,
-  });
+  }), [categoryFilter, companyTypeFilter, search, sourceFilter, typeFilter]);
 
   const handleSourceChange = (src: string) => {
     setSourceFilter(src);
   };
+
+  const handleListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (typeof window !== "undefined" && window.innerWidth >= 768) return;
+    const scrollTop = e.currentTarget.scrollTop;
+    const delta = scrollTop - listScrollTopRef.current;
+    listScrollTopRef.current = scrollTop;
+    if (Math.abs(delta) < 4) return;
+    if (delta > 0 && scrollTop > 10) setIsHeaderHidden(true);
+    else if (delta < 0) setIsHeaderHidden(false);
+  }, []);
+
+  const handleDetailScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (typeof window !== "undefined" && window.innerWidth >= 768) return;
+    const scrollTop = e.currentTarget.scrollTop;
+    const delta = scrollTop - detailScrollTopRef.current;
+    detailScrollTopRef.current = scrollTop;
+    if (Math.abs(delta) < 4) return;
+    if (delta > 0 && scrollTop > 10) setIsHeaderHidden(true);
+    else if (delta < 0) setIsHeaderHidden(false);
+  }, []);
 
   useEffect(() => {
     getJobScrapingStatus().then(setStatus).catch(() => {});
@@ -228,7 +251,7 @@ export default function JobPostingPage() {
     setHasMore(true);
     hasMoreRef.current = true;
     loadRef.current(1, true, filters);
-  }, [sourceFilter, search, companyTypeFilter, typeFilter, categoryFilter]);
+  }, [isReady, buildFilters, sourceFilter, search, companyTypeFilter, typeFilter, categoryFilter]);
 
   useEffect(() => {
     if (status?.running) {
@@ -365,17 +388,27 @@ export default function JobPostingPage() {
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
         {/* Topbar */}
-        <div className="shrink-0 flex flex-col px-4 sm:px-6 py-3 bg-white border-b border-slate-200/80 shadow-sm z-10">
+        <div className={`shrink-0 flex flex-col px-4 sm:px-6 sm:py-3 bg-white border-b border-slate-200/80 shadow-sm z-10 transition-all duration-200 ease-out overflow-hidden ${
+          isHeaderHidden
+            ? "max-md:max-h-0 max-md:py-0 max-md:opacity-0 max-md:-translate-y-2 max-md:pointer-events-none max-md:border-b-0"
+            : "max-md:max-h-28 max-md:py-3 max-md:opacity-100 max-md:translate-y-0"
+        }`}>
           {/* Title row */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => router.back()}
+              onClick={() => {
+                if (selected) {
+                  setSelected(null);
+                  return;
+                }
+                router.back();
+              }}
               className="flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors shrink-0"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M9 11L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-              돌아가기
+              <span className="hidden sm:inline">돌아가기</span>
             </button>
             <div className="w-px h-4 bg-slate-200 mx-1 shrink-0" />
             <span className="text-base font-bold text-slate-800 tracking-tight shrink-0">채용 공고</span>
@@ -557,7 +590,7 @@ export default function JobPostingPage() {
             </div>
 
             {/* List */}
-            <div className="flex-1 overflow-y-auto bg-slate-50/30">
+            <div onScroll={handleListScroll} className="flex-1 overflow-y-auto bg-slate-50/30">
               {items.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400">
                   <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
@@ -628,7 +661,7 @@ export default function JobPostingPage() {
           </div>
 
           {/* Right: detail */}
-          <div className={`flex-1 overflow-y-auto ${selected ? "flex" : "hidden md:flex"} flex-col bg-[#F8F9FA]`}>
+          <div onScroll={handleDetailScroll} className={`flex-1 overflow-y-auto ${selected ? "flex" : "hidden md:flex"} flex-col bg-[#F8F9FA]`}>
             {!selected ? (
               <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-400">
                 <div className="w-16 h-16 rounded-2xl bg-white shadow-sm border border-slate-200 flex items-center justify-center mb-2">
@@ -640,22 +673,11 @@ export default function JobPostingPage() {
                 <p className="text-base font-medium text-slate-500">공고를 선택하시면 상세 정보를 볼 수 있습니다</p>
               </div>
             ) : (
-              <div className="p-8 max-w-3xl w-full mx-auto">
-                {/* Mobile back */}
-                <button
-                  onClick={() => setSelected(null)}
-                  className="md:hidden flex items-center gap-1.5 text-sm mb-6 text-slate-500 hover:text-slate-800 font-medium transition-colors bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm w-fit"
-                >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M9 11L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  목록으로 돌아가기
-                </button>
-
-                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+              <div className="p-0 sm:p-8 sm:max-w-3xl w-full mx-auto">
+                <div className="bg-white sm:rounded-2xl sm:border sm:border-slate-200/80 sm:shadow-sm overflow-hidden">
                   {/* Header */}
-                  <div className="p-8 border-b border-slate-100">
-                    <div className="flex items-center gap-2 mb-4">
+                  <div className="p-4 sm:p-8 border-b border-slate-100">
+                    <div className="flex items-center gap-2 mb-3 sm:mb-4">
                       {selected.type && (
                         <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
                           {normalizeType(selected.type)}
@@ -674,11 +696,11 @@ export default function JobPostingPage() {
                       )}
                     </div>
                     <p className="text-sm font-bold text-slate-500 mb-2 tracking-wide">{selected.company}</p>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold leading-tight mb-5 text-slate-900 tracking-tight">
+                    <h1 className="text-[26px] sm:text-3xl font-extrabold leading-tight mb-4 sm:mb-5 text-slate-900 tracking-tight">
                       {selected.title}
                     </h1>
                     
-                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-[15px] font-medium text-slate-600">
+                    <div className="flex flex-wrap gap-x-4 sm:gap-x-6 gap-y-2 text-[15px] font-medium text-slate-600">
                       {selected.location && (
                         <span className="flex items-center gap-1.5">
                           <svg className="text-slate-400" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5c-3.3 0-6 2.7-6 6 0 3.8 6 7.5 6 7.5s6-3.7 6-7.5c0-3.3-2.7-6-6-6zm0 8.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" fill="currentColor"/></svg>
@@ -699,10 +721,10 @@ export default function JobPostingPage() {
                     </div>
                   </div>
 
-                  <div className="p-8">
+                  <div className="p-4 sm:p-8">
                     {/* Info grid */}
                     {(selected.companyType || selected.jobs || selected.homepage) && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 p-5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 sm:mb-8 p-4 sm:p-5 rounded-xl bg-slate-50 border border-slate-100">
                         {selected.companyType && (
                           <div>
                             <p className="text-[13px] font-semibold text-slate-400 mb-1">기업형태</p>
@@ -738,7 +760,7 @@ export default function JobPostingPage() {
                     )}
 
                     {/* Detail content */}
-                    <div className="mb-10">
+                    <div className="mb-8 sm:mb-10">
                       <p className="text-[15px] font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100">상세내용</p>
                       {detailLoading ? (
                         <div className="flex items-center gap-2 text-slate-400 text-sm py-4">

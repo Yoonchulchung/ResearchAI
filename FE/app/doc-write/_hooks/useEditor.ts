@@ -37,7 +37,7 @@ export function useEditor() {
     } else {
       setContent(localStorage.getItem(DRAFT_KEY) ?? "");
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [isExistingDoc]);
 
   // highlight 파라미터: 내용이 로드되면 해당 단락으로 스크롤 + 선택 + 애니메이션
@@ -58,7 +58,7 @@ export function useEditor() {
       setHighlightFlash(true);
       setTimeout(() => setHighlightFlash(false), 2500);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [content, highlightParam]);
 
   // 새 문서일 때만 draft 자동저장

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -927,6 +927,13 @@ function CompanyAnalysisPage() {
 
   // ── 플로팅 채팅 ──────────────────────────────────────────────────────────
   const [chatOpen, setChatOpen] = useState(false);
+  const [isChatBtnVisible, setIsChatBtnVisible] = useState(true);
+  const scrollHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleDetailScroll = useCallback(() => {
+    setIsChatBtnVisible(false);
+    if (scrollHideTimerRef.current) clearTimeout(scrollHideTimerRef.current);
+    scrollHideTimerRef.current = setTimeout(() => setIsChatBtnVisible(true), 800);
+  }, []);
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -944,7 +951,7 @@ function CompanyAnalysisPage() {
   useEffect(() => {
     if (chatModel || !haikuModelId) return;
     setChatModel(haikuModelId);
-  }, [haikuModelId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [haikuModelId]);  
 
   // 채팅 패널 외부 클릭 시 닫기
   useEffect(() => {
@@ -973,6 +980,25 @@ function CompanyAnalysisPage() {
   useEffect(() => { refreshList(); }, []);
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [progressLogs]);
 
+  // 모바일 뒤로 가기 — detail 열려 있으면 목록으로
+  const hasPushedDetailStateRef = useRef(false);
+  useEffect(() => {
+    if (!selected) {
+      hasPushedDetailStateRef.current = false;
+      return;
+    }
+    if (typeof window !== "undefined" && window.innerWidth < 768 && !hasPushedDetailStateRef.current) {
+      window.history.pushState({ detailOpen: true }, "");
+      hasPushedDetailStateRef.current = true;
+    }
+    const handlePopState = () => {
+      hasPushedDetailStateRef.current = false;
+      setSelected(null);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [selected]);
+
   // URL 파라미터: ?company=현대자동차 → 해당 기업 자동 선택 (최초 1회만)
   useEffect(() => {
     if (companies.length === 0 || initialUrlHandled.current) return;
@@ -986,7 +1012,7 @@ function CompanyAnalysisPage() {
       );
       if (found) handleSelect(found.companyKey);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [companies]);
 
   const filteredCompanies = useMemo(() => {
@@ -1226,7 +1252,7 @@ function CompanyAnalysisPage() {
       cancelled = true;
       controllers.forEach((controller) => controller.abort());
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const handleSelect = async (companyKey: string) => {
     try {
@@ -1534,7 +1560,7 @@ function CompanyAnalysisPage() {
           </div>
 
           {/* 우측 상세 */}
-          <div className={`flex-1 overflow-y-auto px-4 py-6 md:px-10 md:py-8 ${!selected ? "hidden md:block" : ""} ${isGlass ? "" : isDark ? "bg-slate-900" : "bg-[#f4f5f7]"}`}>
+          <div onScroll={handleDetailScroll} className={`flex-1 overflow-y-auto px-4 py-6 md:px-10 md:py-8 ${!selected ? "hidden md:block" : ""} ${isGlass ? "" : isDark ? "bg-slate-900" : "bg-[#f4f5f7]"}`}>
             {!selected ? (
               <div className="h-full" />
             ) : (
@@ -2381,7 +2407,7 @@ function CompanyAnalysisPage() {
         chatOpen
           ? isDark ? "bg-slate-600 hover:bg-slate-500 text-white" : "bg-slate-500 hover:bg-slate-400 text-white"
           : isDark ? "bg-blue-600 hover:bg-blue-500 text-white" : "bg-slate-800 hover:bg-slate-700 text-white"
-      }`}
+      } ${!isChatBtnVisible && !chatOpen ? "opacity-0 pointer-events-none scale-90" : "opacity-100 scale-100"}`}
     >
       {chatOpen ? (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2403,7 +2429,7 @@ function CompanyAnalysisPage() {
     {chatOpen && (
       <div
         ref={chatPanelRef}
-        className={`fixed bottom-20 left-3 right-3 sm:left-auto sm:right-6 sm:w-96 z-50 h-[calc(100dvh-9rem)] sm:h-[520px] max-h-[520px] flex flex-col rounded-lg border shadow-2xl overflow-hidden ${
+        className={`fixed bottom-20 left-3 right-3 sm:left-auto sm:right-6 sm:w-96 z-50 h-[46dvh] min-h-[18rem] max-h-[24rem] sm:h-[520px] sm:max-h-[520px] flex flex-col rounded-lg border shadow-2xl overflow-hidden ${
           isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-300"
         }`}
       >
@@ -2450,7 +2476,7 @@ function CompanyAnalysisPage() {
         {/* 메시지 목록 */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
           {chatMessages.length === 0 && (
-            <div className={`text-center text-xs mt-8 leading-relaxed ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+            <div className={`text-center text-xs mt-3 sm:mt-8 leading-relaxed ${isDark ? "text-slate-500" : "text-slate-400"}`}>
               {selected
                 ? `${selected.companyName}에 대해 궁금한 점을 물어보세요.\n인재상, 재무, 문화 등을 분석해 드립니다.`
                 : "좌측에서 기업을 선택하면 해당 기업의\n분석 데이터를 바탕으로 답변합니다."}
@@ -2487,7 +2513,7 @@ function CompanyAnalysisPage() {
               onChange={(e) => {
                 setChatInput(e.target.value);
                 e.target.style.height = "auto";
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 72)}px`;
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -2499,7 +2525,7 @@ function CompanyAnalysisPage() {
               disabled={chatLoading}
               rows={1}
               className={`flex-1 text-sm bg-transparent focus:outline-none resize-none overflow-hidden leading-relaxed ${isDark ? "text-slate-200 placeholder-slate-500" : "text-slate-800 placeholder-slate-400"}`}
-              style={{ minHeight: "24px", maxHeight: "120px" }}
+              style={{ minHeight: "22px", maxHeight: "72px" }}
             />
             <button
               onClick={sendChatMessage}

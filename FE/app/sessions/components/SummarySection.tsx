@@ -48,7 +48,7 @@ export function SummarySection({ sessionId, topic, cloudAiModels, allDone, summa
       if (saved) setSummary(saved);
       if (summaryState) setSummaryStatus(summaryState as SummaryStatus);
     }).catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [sessionId, summaryState]);
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export function SummarySection({ sessionId, topic, cloudAiModels, allDone, summa
       .finally(() => { abortRef.current = null; });
 
     return () => controller.abort();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []);
 
   const { register, update, dismiss } = useSummaryProgress();
@@ -143,9 +143,9 @@ export function SummarySection({ sessionId, topic, cloudAiModels, allDone, summa
   };
 
   return (
-    <div className={`bg-white dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-sm shadow-sm overflow-hidden mb-8`}>
+    <div className="bg-white dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-sm shadow-sm overflow-hidden mb-3 sm:mb-8">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 gap-3">
+      <div className="flex items-center justify-between px-3.5 sm:px-4 py-3 sm:py-3 gap-2 sm:gap-3">
         <button
           onClick={() => setExpanded((v) => !v)}
           className="flex items-center gap-2 min-w-0 text-left"
@@ -153,7 +153,7 @@ export function SummarySection({ sessionId, topic, cloudAiModels, allDone, summa
           <span className={`text-indigo-500 ${summaryStatus === "running" ? "animate-pulse" : ""}`}>
             <SparkleIcon />
           </span>
-          <span className="text-sm font-semibold text-slate-800">AI 서머리</span>
+          <span className="text-sm font-semibold text-slate-800 whitespace-nowrap">AI 서머리</span>
           {summaryStatus === "running" && (
             <span className="text-xs text-indigo-500 font-medium flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
@@ -168,13 +168,13 @@ export function SummarySection({ sessionId, topic, cloudAiModels, allDone, summa
           )}
         </button>
 
-        <div className="flex items-center gap-1 shrink-0 max-w-[55%]">
+        <div className="flex items-center gap-1 shrink-0 min-w-0 max-w-[58%] sm:max-w-[55%]">
           {cloudAiModels.length > 0 && (
             <select
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
               disabled={summaryStatus === "running"}
-              className="text-xs text-slate-500 bg-transparent focus:outline-none cursor-pointer w-28 min-w-0 truncate disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-xs text-slate-500 bg-transparent focus:outline-none cursor-pointer w-24 sm:w-28 min-w-0 truncate disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {cloudAiModels.map((m) => (
                 <option key={m.id} value={m.id}>{m.name}</option>
@@ -224,20 +224,20 @@ export function SummarySection({ sessionId, topic, cloudAiModels, allDone, summa
       {expanded && (
         <div className="border-t border-slate-100">
           {summaryStatus === "error" ? (
-            <div className="flex flex-col gap-1.5 px-5 py-4">
+            <div className="flex flex-col gap-1.5 px-4 sm:px-5 py-4">
               <p className="text-sm text-red-500 font-medium">서머리 생성 중 오류가 발생했습니다.</p>
               {errorMessage && <p className="text-xs text-red-400 font-mono bg-red-50 px-3 py-2 rounded-lg">{errorMessage}</p>}
             </div>
           ) : summaryStatus === "stopped" ? (
-            <div className="px-5 py-4">
+            <div className="px-4 sm:px-5 py-4">
               <p className="text-sm text-slate-400">서머리 생성이 중단되었습니다.</p>
             </div>
           ) : summary || summaryStatus === "running" ? (
-            <div className="px-5 py-4 prose prose-sm prose-slate max-w-none
+            <div className="px-4 sm:px-5 py-4 prose prose-sm prose-slate max-w-none max-h-[36dvh] sm:max-h-none overflow-y-auto
               [&_h1]:text-base [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:text-slate-800
               [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h2]:text-slate-800
               [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2.5 [&_h3]:mb-1 [&_h3]:text-slate-700
-              [&_p]:my-2 [&_p]:leading-relaxed [&_p]:text-slate-700
+              [&_p]:my-1.5 sm:[&_p]:my-2 [&_p]:leading-relaxed [&_p]:text-slate-700
               [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2
               [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2
               [&_li]:my-0.5 [&_li]:text-slate-700
@@ -252,11 +252,11 @@ export function SummarySection({ sessionId, topic, cloudAiModels, allDone, summa
               )}
             </div>
           ) : cloudAiModels.length === 0 ? (
-            <div className="px-5 py-4">
+            <div className="px-4 sm:px-5 py-4">
               <p className="text-sm text-slate-400">클라우드 LLM 모델이 없어 서머리를 생성할 수 없습니다.</p>
             </div>
           ) : (
-            <div className="px-5 py-4">
+            <div className="px-4 sm:px-5 py-4">
               <p className="text-sm text-slate-400">
                 {allDone ? "서머리 생성 중..." : "리서치가 완료되면 AI 서머리가 자동으로 생성됩니다."}
               </p>

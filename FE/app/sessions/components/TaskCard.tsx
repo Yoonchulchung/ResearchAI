@@ -209,7 +209,7 @@ export function TaskCard({
     if (expanded) {
       cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [activeTab]);
 
   const availableSources = SOURCE_LABELS.filter((s) => webModel?.[s.key]);
@@ -222,7 +222,7 @@ export function TaskCard({
         setActiveTab(availableSources[0].key);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [availableSources.length]);
 
   useEffect(() => {

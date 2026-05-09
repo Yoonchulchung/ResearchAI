@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { CSSProperties, Suspense, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEditor } from "./_hooks/useEditor";
 import { useDocSave } from "./_hooks/useDocSave";
@@ -72,7 +72,7 @@ function DocWritePageInner() {
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [editor.content, docSave]);
+  }, [companyName, editor.content, docSave]);
 
   const handleRunAssist = (instruction: string, userLabel?: string, skipCompanyCtx?: boolean, actionKey?: string) => {
     // 기업 정보 + Job Description 컨텍스트 조립 — JD 가 있으면 평가/개선의 핵심 기준으로 항상 첨부
@@ -100,22 +100,22 @@ function DocWritePageInner() {
   };
 
   return (
-    <div className={`h-full flex flex-col overflow-hidden ${isGlass ? "p-3 pr-4 pb-4 bg-transparent" : "bg-slate-100"}`}>
-      <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl border border-white/20" : ""}`}>
+    <div className={`h-full flex flex-col overflow-hidden ${isGlass ? "p-1.5 sm:p-3 sm:pr-4 sm:pb-4 bg-transparent" : "bg-slate-100"}`}>
+      <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-xl sm:rounded-2xl shadow-xl border border-white/20" : ""}`}>
       {/* ── Topbar ─────────────────────────────────────────────────────────── */}
       <div className={`shrink-0 transition-all ${isGlass ? `border-b ${isDark ? "border-white/20" : "border-black/10"}` : `bg-white border-b ${isDark ? "border-slate-700/50" : "border-slate-200/60"}`}`}>
         {/* Row 1: title + all nav buttons */}
-        <div className="flex items-center gap-1.5 px-5 py-2">
+        <div className="flex flex-wrap items-center gap-1.5 px-2 py-2 sm:px-5">
           <input
             value={docSave.savedDocTitle}
             onChange={(e) => docSave.setSavedDocTitle(e.target.value)}
             placeholder="제목 없음"
-            className={`flex-1 min-w-0 text-base font-semibold !bg-transparent !border-0 focus:outline-none ${isDark ? "text-white placeholder-white/40" : "text-slate-800 placeholder-slate-400"}`}
+            className={`hidden sm:block flex-1 min-w-0 text-base font-semibold !bg-transparent !border-0 focus:outline-none ${isDark ? "text-white placeholder-white/40" : "text-slate-800 placeholder-slate-400"}`}
           />
           <button
             onClick={() => router.push("/job-posting")}
             title="채용공고"
-            className={`shrink-0 flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border transition-all ${
+            className={`flex-1 sm:flex-none min-w-[5.5rem] sm:min-w-0 justify-center shrink-0 flex items-center gap-1 px-2 py-1.5 sm:py-1 text-xs font-medium rounded-md border transition-all ${
               isGlass && isDark
                 ? "text-white/70 border-white/20 hover:bg-white/10 hover:text-white"
                 : "text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
@@ -130,7 +130,7 @@ function DocWritePageInner() {
           <button
             onClick={() => router.push("/cover-letter")}
             title="참고 자소서"
-            className={`shrink-0 flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border transition-all ${
+            className={`flex-1 sm:flex-none min-w-[6rem] sm:min-w-0 justify-center shrink-0 flex items-center gap-1 px-2 py-1.5 sm:py-1 text-xs font-medium rounded-md border transition-all ${
               isGlass && isDark
                 ? "text-white/70 border-white/20 hover:bg-white/10 hover:text-white"
                 : "text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
@@ -145,24 +145,26 @@ function DocWritePageInner() {
           <button
             onClick={() => router.push("/company-analysis")}
             title="기업 분석"
-            className="shrink-0 flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md border transition-all bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+            className="flex-1 sm:flex-none min-w-[5.5rem] sm:min-w-0 justify-center shrink-0 flex items-center gap-1 px-2 py-1.5 sm:py-1 text-xs font-semibold rounded-md border transition-all bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
           >
             <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
               <path d="M2 10V5M5 10V2M8 10V7M11 10V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
             기업 분석
           </button>
-          <button
-            onClick={editor.handleExport}
-            title="내보내기"
-            className={`shrink-0 flex items-center justify-center w-7 h-7 rounded-md border transition-all ${
-              isGlass && isDark
-                ? "text-white/70 border-white/20 hover:bg-white/10 hover:text-white"
-                : "text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
-            }`}
-          >
-            <IconDownload />
-          </button>
+          {editor.content.trim() && (
+            <button
+              onClick={editor.handleExport}
+              title="내보내기"
+              className={`shrink-0 flex items-center justify-center w-9 sm:w-7 h-8 sm:h-7 rounded-md border transition-all ${
+                isGlass && isDark
+                  ? "text-white/70 border-white/20 hover:bg-white/10 hover:text-white"
+                  : "text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
+              }`}
+            >
+              <IconDownload />
+            </button>
+          )}
         </div>
       </div>
 
@@ -215,7 +217,7 @@ function DocWritePageInner() {
         ref={containerRef}
         className={`flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden ${isDragging ? "select-none cursor-col-resize" : ""} ${isGlass ? "" : "bg-white"}`}
       >
-        <div style={{ "--split": `${splitRatio * 100}%` } as any} className="w-full lg:w-(--split) flex-1 lg:flex-none flex flex-col min-h-[30vh] lg:min-h-0 overflow-hidden">
+        <div style={{ "--split": `${splitRatio * 100}%` } as CSSProperties & Record<"--split", string>} className="w-full lg:w-(--split) flex-[1.15] lg:flex-none flex flex-col min-h-[38vh] lg:min-h-0 overflow-hidden">
           <EditorPanel
             content={editor.content}
             setContent={editor.setContent}
@@ -246,7 +248,7 @@ function DocWritePageInner() {
 
         <div className="hidden lg:flex"><ResizeDivider onMouseDown={startResize} isDragging={isDragging} /></div>
 
-        <div style={{ "--split": `${(1 - splitRatio) * 100}%` } as any} className="w-full lg:w-(--split) flex-1 lg:flex-none flex flex-col min-h-0 overflow-hidden">
+        <div style={{ "--split": `${(1 - splitRatio) * 100}%` } as CSSProperties & Record<"--split", string>} className="w-full lg:w-(--split) flex-[0.85] lg:flex-none flex flex-col min-h-0 overflow-hidden">
           <AiPanel
             messages={ai.messages}
             aiLoading={ai.aiLoading}

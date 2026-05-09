@@ -104,32 +104,32 @@ export function EditorPanel({
     <div className={`flex-1 flex flex-col min-w-0 border-r overflow-hidden transition-colors ${isGlass ? `bg-transparent ${isDark ? "border-white/10" : "border-black/10"}` : `bg-white ${isDark ? "border-slate-700/50" : "border-slate-200/60"}`}`}>
 
       {/* Company name + Job Description */}
-      <div className={`px-4 py-2 border-b shrink-0 space-y-1.5 ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-100"}`}>
+      <div className={`px-2.5 sm:px-4 py-2 border-b shrink-0 space-y-1.5 ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-100"}`}>
         {/* 1행: 기업명 + 인재상 조회 + JD 펼침 토글 */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <span className={`text-sm shrink-0 ${isDark ? "text-white/60" : "text-slate-500"}`}>지원 기업</span>
           <input
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") onFetchProfile(); }}
             placeholder="기업명 입력..."
-            className={`flex-1 text-sm bg-transparent! border-0! focus:outline-none min-w-0 ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
+            className={`flex-1 basis-[8rem] text-sm bg-transparent! border-0! focus:outline-none min-w-0 ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
           />
           <button
             onClick={() => setJdExpanded((v) => !v)}
-            className={`shrink-0 flex items-center gap-1 px-2.5 py-1 text-2xs font-medium rounded-md transition-colors ${
+            className={`shrink-0 flex items-center gap-1 px-2 sm:px-2.5 py-1 text-2xs font-medium rounded-md transition-colors ${
               jobDescription.trim()
                 ? "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
                 : isDark ? "text-white/50 bg-white/5 hover:bg-white/10" : "text-slate-500 bg-slate-100 hover:bg-slate-200"
             }`}
           >
-            {jdExpanded ? "▲" : "▼"} Job Description
-            {jobDescription.trim() && <span className="text-2xs opacity-60">({jobDescription.length}자)</span>}
+            {jdExpanded ? "▲" : "▼"} <span className="hidden sm:inline">Job Description</span><span className="sm:hidden">JD</span>
+            {jobDescription.trim() && <span className="text-2xs opacity-60 hidden sm:inline">({jobDescription.length}자)</span>}
           </button>
           <button
             onClick={onFetchProfile}
             disabled={!companyName.trim() || profileLoading}
-            className={`shrink-0 flex items-center gap-1 px-3 py-1.5 text-sm font-medium border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+            className={`shrink-0 flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-sm font-medium border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
               isGlass && isDark
                 ? "text-indigo-100 bg-white/10 border-white/20 hover:bg-white/20"
                 : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
@@ -142,7 +142,7 @@ export function EditorPanel({
                 <path d="M5 1L6.2 4.2L9.5 5L6.2 5.8L5 9L3.8 5.8L0.5 5L3.8 4.2L5 1Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
               </svg>
             )}
-            인재상 조회
+            <span className="hidden sm:inline">인재상 조회</span><span className="sm:hidden">인재상</span>
           </button>
         </div>
 
@@ -163,8 +163,8 @@ export function EditorPanel({
       </div>
 
       {/* Word/char count */}
-      <div className="flex justify-end px-4 py-1.5 shrink-0">
-        <span suppressHydrationWarning className={`text-sm ${isDark ? "text-white/40" : "text-slate-400"}`}>
+      <div className="flex justify-end px-2.5 sm:px-4 py-1 sm:py-1.5 shrink-0">
+        <span suppressHydrationWarning className={`text-xs sm:text-sm ${isDark ? "text-white/40" : "text-slate-400"}`}>
           {words.toLocaleString()}단어 · {chars.toLocaleString()}자
         </span>
       </div>
@@ -173,7 +173,7 @@ export function EditorPanel({
       <div className={`flex-1 flex flex-col min-h-0 overflow-y-auto ${isDark ? "text-white" : "text-slate-700"}`}>
         {mode === "edit" && diffTokens ? (
           // ── Inline diff view ──────────────────────────────────────────────
-          <div className="flex-1 px-8 py-6 text-lg leading-relaxed whitespace-pre-wrap font-[inherit]">
+          <div className="flex-1 px-4 sm:px-8 py-4 sm:py-6 text-base sm:text-lg leading-relaxed sm:leading-loose whitespace-pre-wrap font-[inherit]">
             <span>{diffBefore}</span>
 
             {/* Original line: unchanged + removed */}
@@ -245,11 +245,11 @@ export function EditorPanel({
               onKeyUp={onTextareaSelect}
               onContextMenu={onContextMenu}
               placeholder="내용을 작성하세요..."
-              className={`flex-1 w-full px-8 pt-3 pb-6 text-lg font-sans leading-loose !bg-transparent !border-0 focus:outline-none resize-none ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
+              className={`flex-1 w-full px-4 sm:px-8 pt-2 sm:pt-3 pb-4 sm:pb-6 text-base sm:text-lg font-sans leading-relaxed sm:leading-loose !bg-transparent !border-0 focus:outline-none resize-none ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
             />
           </div>
         ) : (
-          <div className="px-8 py-6">
+          <div className="px-4 sm:px-8 py-4 sm:py-6">
             <div className={`${PROSE_CLASS} ${isDark ? "prose-invert text-white" : ""}`}>
               {content ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>

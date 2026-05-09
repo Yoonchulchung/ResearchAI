@@ -224,7 +224,7 @@ function MobileHeader({ title, onNewResearch }: { title: string; onNewResearch: 
   const bg = isDark ? "bg-slate-900/95 border-white/10" : "bg-white/95 border-slate-200";
 
   return (
-    <header className={`sticky top-0 z-20 backdrop-blur-md border-b px-4 py-3 flex items-center justify-between ${bg}`}>
+    <header className={`z-20 backdrop-blur-md border-b px-4 py-3 flex items-center justify-between ${bg}`}>
       <button onClick={() => router.push("/main")} className="flex items-center gap-2">
         <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-sm shadow shadow-indigo-500/30">
           ◈
@@ -307,16 +307,6 @@ function getActiveTab(pathname: string): NavTab {
   return "home";
 }
 
-// Swipe-navigable route order (sessions is a drawer, not a route)
-const SWIPE_ROUTES = ["/main", "/doc-write", "/settings/overview"];
-
-function getSwipeIndex(pathname: string): number {
-  if (pathname.startsWith("/main") || pathname === "/" || pathname.startsWith("/sessions")) return 0;
-  if (pathname.startsWith("/doc-write") || pathname.startsWith("/doc-parse")) return 1;
-  if (pathname.startsWith("/settings")) return 2;
-  return 0;
-}
-
 function isInteractiveTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
   return !!target.closest("button, a, input, textarea, select, [role='button']");
@@ -329,34 +319,33 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   const { openModal } = useNewSessionModal();
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
-  const mouseDragStart = useRef<{ x: number; y: number } | null>(null);
   const touchPullStart = useRef<{ x: number; y: number } | null>(null);
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [isHeaderHidden, setIsHeaderHidden] = useState(false);
+  const lastScrollTopRef = useRef(0);
 
-  const handleDesktopSwipeStart = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0 || isInteractiveTarget(e.target)) return;
-    if (window.matchMedia("(pointer: coarse)").matches) return;
-    mouseDragStart.current = { x: e.clientX, y: e.clientY };
-  }, []);
+  // 페이지 전환 시 헤더 상태 초기화
+  useEffect(() => {
+    setIsHeaderHidden(false);
+    lastScrollTopRef.current = 0;
+  }, [pathname]);
 
-  const handleDesktopSwipeEnd = useCallback((e: React.MouseEvent) => {
-    if (!mouseDragStart.current) return;
-    const deltaX = e.clientX - mouseDragStart.current.x;
-    const deltaY = e.clientY - mouseDragStart.current.y;
-    mouseDragStart.current = null;
-
-    if (Math.abs(deltaX) < 80 || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return;
-
-    const idx = getSwipeIndex(pathname);
-    if (deltaX < 0) {
-      const next = SWIPE_ROUTES[idx + 1];
-      if (next) router.push(next);
-    } else {
-      const prev = SWIPE_ROUTES[idx - 1];
-      if (prev) router.push(prev);
-    }
-  }, [pathname, router]);
+  // /main 에서 스크롤 방향 감지 → 헤더 숨김/표시
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el || !pathname.startsWith("/main")) return;
+    const handleScroll = () => {
+      const scrollTop = el.scrollTop;
+      const delta = scrollTop - lastScrollTopRef.current;
+      lastScrollTopRef.current = scrollTop;
+      if (Math.abs(delta) < 4) return;
+      if (delta > 0 && scrollTop > 10) setIsHeaderHidden(true);
+      else if (delta < 0) setIsHeaderHidden(false);
+    };
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [pathname]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (refreshing || isInteractiveTarget(e.target)) return;
@@ -395,22 +384,34 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   }, [pullDistance, router]);
 
   const bg = isDark ? "bg-slate-950" : "bg-slate-50";
+  const hideHeader =
+    pathname.startsWith("/sessions/") ||
+    pathname.startsWith("/doc-write") ||
+    pathname.startsWith("/job-posting") ||
+    pathname.startsWith("/cover-letter") ||
+    pathname.startsWith("/company-analysis") ||
+    pathname.startsWith("/settings");
 
   return (
     <div className={`flex flex-col overflow-hidden ${bg}`} style={{ height: '100dvh' }}>
-      <MobileHeader
-        title={getPageTitle(pathname)}
-        onNewResearch={openModal}
-      />
+      {!hideHeader && (
+        <div className={`overflow-hidden transition-all duration-200 ease-out ${
+          isHeaderHidden
+            ? "max-h-0 opacity-0 pointer-events-none"
+            : "max-h-16 opacity-100"
+        }`}>
+          <MobileHeader
+            title={getPageTitle(pathname)}
+            onNewResearch={openModal}
+          />
+        </div>
+      )}
       <main
         ref={mainRef}
-        className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+        className="relative flex-1 min-h-0 overflow-y-auto"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onMouseDown={handleDesktopSwipeStart}
-        onMouseUp={handleDesktopSwipeEnd}
-        onMouseLeave={handleDesktopSwipeEnd}
       >
         <div
           className={`pointer-events-none sticky top-0 z-30 flex justify-center transition-[height,opacity] duration-200 ${pullDistance > 0 || refreshing ? "opacity-100" : "opacity-0"}`}

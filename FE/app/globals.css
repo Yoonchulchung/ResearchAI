@@ -102,8 +102,8 @@
 }
 
 html {
-  /* iPad/iOS Safari 에서 바운스 스크롤(rubber-band) 방지 */
-  overscroll-behavior: none;
+  /* 수직 바운스 스크롤만 방지 — 수평은 허용해야 크롬 뒤로/앞으로 스와이프 동작 */
+  overscroll-behavior-y: none;
   height: 100%;
 }
 
@@ -113,7 +113,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overscroll-behavior: none;
+  overscroll-behavior-y: none;
   height: 100%;
 }
 

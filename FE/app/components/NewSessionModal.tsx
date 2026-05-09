@@ -142,7 +142,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
         taskListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 100);
     }
-  }, [tasks.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tasks.length]);  
 
   // 엔터로 생성 시작 → 태스크 생성 완료되면 자동으로 리서치 시작
   useEffect(() => {
@@ -150,7 +150,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
       setAutoStart(false);
       handleResearchStart().then(() => onClose());
     }
-  }, [autoStart, generating, tasks.length, generatingTitle]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autoStart, generating, tasks.length, generatingTitle]);  
 
   // 대화(chat/clarify)가 생기면 autoStart 취소 — 리서치가 아니면 자동 시작하지 않음
   const lastAssistant = [...conversation].reverse().find((m) => m.role === "assistant");
@@ -204,7 +204,7 @@ function ModalContent({ onClose }: { onClose: () => void }) {
                   const isPdf = af.mimetype === "application/pdf";
                   return isImage ? (
                     <div key={af.id} className="relative group w-14 h-14 shrink-0 rounded-lg overflow-hidden border border-slate-200">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      { }
                       <img src={URL.createObjectURL(af.file)} alt={af.file.name} className="w-full h-full object-cover" />
                       {af.uploading && <div className="absolute inset-0 bg-black/30 flex items-center justify-center"><span className="animate-spin text-white text-xs">◌</span></div>}
                       <button onClick={() => removeFile(af.id)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/50 text-white rounded-full text-micro flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
@@ -233,9 +233,9 @@ function ModalContent({ onClose }: { onClose: () => void }) {
                   }
                 }
               }}
-              placeholder="어떤 주제를 리서치하시겠어요? (예: 최근 AI 반도체 시장 동향과 주요 플레이어)"
-              rows={3}
-              className="w-full text-sm text-slate-800 placeholder-slate-400 bg-transparent px-4 py-3 resize-none leading-relaxed focus:outline-none focus:ring-0 focus-visible:outline-none"
+              placeholder="어떤 주제를 리서치하시겠어요?"
+              rows={2}
+              className="w-full text-sm text-slate-800 placeholder-slate-400 bg-transparent px-4 py-2.5 resize-none leading-relaxed focus:outline-none focus:ring-0 focus-visible:outline-none"
             />
 
             {/* 업로드 버튼 */}

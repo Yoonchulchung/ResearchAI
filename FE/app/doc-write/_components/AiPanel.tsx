@@ -67,7 +67,6 @@ export function AiPanel({
   setModel,
   copiedId,
   messagesEndRef,
-  selectedText,
   onClearMessages,
   onRunAssist,
   onApplyResult,
@@ -86,17 +85,30 @@ export function AiPanel({
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       const scrollHeight = textareaRef.current.scrollHeight;
-      textareaRef.current.style.height = `${Math.min(scrollHeight, 120)}px`;
-      textareaRef.current.style.overflowY = scrollHeight > 120 ? "auto" : "hidden";
+      textareaRef.current.style.height = `${Math.min(scrollHeight, 72)}px`;
+      textareaRef.current.style.overflowY = scrollHeight > 72 ? "auto" : "hidden";
     }
   }, [customPrompt]);
 
   return (
     <div className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-colors ${isGlass ? "bg-transparent" : "bg-slate-50"}`}>
       {/* Header */}
-      <div className={`shrink-0 flex items-center gap-2 px-4 py-2 border-b transition-colors ${isGlass ? (isDark ? "bg-transparent border-white/10" : "bg-transparent border-black/10") : "bg-white border-slate-200/60"}`}>
+      <div className={`shrink-0 flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 border-b transition-colors ${isGlass ? (isDark ? "bg-transparent border-white/10" : "bg-transparent border-black/10") : "bg-white border-slate-200/60"}`}>
         <span className={`text-sm font-semibold uppercase tracking-wider shrink-0 ${isDark ? "text-white/60" : "text-slate-500"}`}>AI 어시스턴트</span>
-        {/* Mobile: evaluate only */}
+        {/* Mobile: spellcheck + evaluate */}
+        <button
+          onClick={() => onRunAssist("", "맞춤법 교정", true, "spellcheck")}
+          disabled={aiLoading}
+          title="맞춤법 교정"
+          className={`lg:hidden flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0 ${
+            isGlass && isDark
+              ? "text-white/80 bg-white/5 hover:bg-white/10 border-white/10"
+              : "text-slate-600 bg-white hover:bg-indigo-50 hover:text-indigo-700 border-slate-200 hover:border-indigo-200"
+          }`}
+        >
+          {KEY_TO_ICON["spellcheck"]}
+          <span>맞춤법</span>
+        </button>
         <button
           onClick={() => onRunAssist("", "글 평가", true, "evaluate")}
           disabled={aiLoading}
@@ -157,7 +169,7 @@ export function AiPanel({
         <select
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          className={`text-sm border rounded-lg px-2 py-1 focus:outline-none cursor-pointer disabled:opacity-50 ${isGlass && isDark
+          className={`min-w-0 max-w-[9rem] sm:max-w-none text-xs sm:text-sm border rounded-lg px-2 py-1 focus:outline-none cursor-pointer disabled:opacity-50 ${isGlass && isDark
               ? "!bg-white/10 !text-white !border-white/20 focus:ring-1 focus:ring-white/40"
               : "text-slate-600 bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-200"
             }`}
@@ -189,9 +201,9 @@ export function AiPanel({
       )}
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-4 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto min-h-0 flex flex-col px-3 sm:px-4 py-2 sm:py-4 gap-3 sm:gap-4">
         {messages.length === 0 && !aiError && (
-          <div className={`flex flex-col items-center justify-center h-full gap-3 pb-16 ${isDark ? "text-white/30" : "text-slate-300"}`}>
+          <div className={`flex-1 flex flex-col items-center justify-center gap-2 sm:gap-3 ${isDark ? "text-white/30" : "text-slate-300"}`}>
             <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
               <path d="M18 3L21.5 13.5L32 18L21.5 22.5L18 33L14.5 22.5L4 18L14.5 13.5L18 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
             </svg>
@@ -270,7 +282,7 @@ export function AiPanel({
       </div>
 
       {/* Bottom input area */}
-      <div className={`shrink-0 border-t px-4 pt-3 pb-4 transition-colors ${isGlass ? (isDark ? "bg-transparent border-white/10" : "bg-transparent border-black/10") : "bg-white border-slate-200/60"}`}>
+      <div className={`shrink-0 border-t px-2.5 sm:px-4 pt-1.5 sm:pt-3 pb-2 sm:pb-4 transition-colors ${isGlass ? (isDark ? "bg-transparent border-white/10" : "bg-transparent border-black/10") : "bg-white border-slate-200/60"}`}>
         {/* Custom prompt */}
         <div className="flex gap-2">
           <textarea
@@ -283,10 +295,10 @@ export function AiPanel({
                 if (customPrompt.trim()) onRunAssist(customPrompt);
               }
             }}
-            placeholder="직접 요청 입력... (↵ 실행, ⇧↵ 줄바꿈)"
+            placeholder="직접 요청 입력..."
             rows={1}
-            style={{ maxHeight: "120px" }}
-            className={`flex-1 text-sm border rounded-lg px-3 py-2 focus:outline-none resize-none overflow-hidden transition-colors ${
+            style={{ maxHeight: "72px" }}
+            className={`flex-1 text-xs sm:text-sm border rounded-lg px-3 py-1 sm:py-2 focus:outline-none resize-none overflow-hidden transition-colors ${
                 isGlass && isDark
                 ? "!bg-black/20 !text-white !border-white/20 placeholder-white/40 focus:border-white/50"
                 : "bg-white text-slate-700 border-slate-200 shadow-sm placeholder-slate-400 focus:bg-white focus:border-indigo-300"
@@ -295,7 +307,7 @@ export function AiPanel({
           <button
             onClick={() => { if (customPrompt.trim()) onRunAssist(customPrompt); }}
             disabled={!customPrompt.trim() || aiLoading}
-            className={`shrink-0 px-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all ${isGlass && isDark ? "bg-white/10 border border-white/20 text-white hover:bg-white/20" : "bg-indigo-600 text-white shadow-sm hover:bg-indigo-700"
+            className={`shrink-0 px-2.5 sm:px-3 rounded-lg min-h-8 sm:min-h-10 disabled:opacity-40 disabled:cursor-not-allowed transition-all ${isGlass && isDark ? "bg-white/10 border border-white/20 text-white hover:bg-white/20" : "bg-indigo-600 text-white shadow-sm hover:bg-indigo-700"
               }`}
           >
             {aiLoading ? (

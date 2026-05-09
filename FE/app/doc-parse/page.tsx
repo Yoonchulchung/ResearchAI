@@ -178,7 +178,7 @@ export default function DocParsePage() {
       }
     } catch { /* 무시 */ }
     setHydrated(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []);
 
   // ── 세션 저장 ──

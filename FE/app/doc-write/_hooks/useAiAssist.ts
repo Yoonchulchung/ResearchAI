@@ -115,7 +115,7 @@ export function useAiAssist(setContent: Dispatch<SetStateAction<string>>) {
     } catch {
       setMessages([]);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [docId]);
 
   // messages 변경 시 localStorage 저장

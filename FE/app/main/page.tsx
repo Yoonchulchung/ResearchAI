@@ -10,7 +10,7 @@ import { EmailCard } from "./components/EmailCard";
 
 export default function MainPage() {
   return (
-    <div className="h-full overflow-y-auto">
+    <div>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4">
         <SearchPromptCard />
         <MarketCard />
