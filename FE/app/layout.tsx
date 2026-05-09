@@ -10,8 +10,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI 리서치 시스템",
+  title: "ResearchAI",
   description: "Claude AI 기반 웹 검색 리서치 도구",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ResearchAI",
+  },
+  formatDetection: { telephone: false },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export default function RootLayout({
