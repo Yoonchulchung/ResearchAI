@@ -2,10 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useNewSessionModal } from "@/contexts/NewSessionModalContext";
-import { useDocStoreModal } from "@/contexts/DocStoreModalContext";
 import { getSessions, deleteSession } from "@/lib/api";
 import { Session } from "@/types";
 
@@ -45,16 +43,6 @@ function IconSettings() {
   );
 }
 
-function IconGrid() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-      <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="12" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="3" y="12" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="12" y="12" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
-}
 
 function IconPlus() {
   return (
@@ -253,61 +241,6 @@ function MobileHeader({ title, onNewResearch }: { title: string; onNewResearch: 
   );
 }
 
-// ─── More Drawer ──────────────────────────────────────────────────────────────
-
-function MoreDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const router = useRouter();
-  const { isDark } = useMobileTheme();
-  const bg = isDark ? "bg-slate-900 text-white" : "bg-white text-slate-800";
-  const border = isDark ? "border-white/10" : "border-slate-200";
-
-  const items = [
-    { label: "기업 분석", desc: "AI 기업 리서치", path: "/company-analysis", emoji: "🏢" },
-    { label: "채용 공고", desc: "잡사이트 크롤링", path: "/job-posting", emoji: "💼" },
-    { label: "자기소개서", desc: "AI 자소서 스크래핑", path: "/cover-letter", emoji: "📝" },
-    { label: "문서 보관함", desc: "저장된 문서 관리", path: "/doc-store", emoji: "🗂️" },
-    { label: "설정", desc: "계정 및 API 키", path: "/settings/overview", emoji: "⚙️" },
-  ];
-
-  return (
-    <>
-      <div
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-        onClick={onClose}
-      />
-      <div className={`fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl ${bg} shadow-2xl transition-transform duration-300 ${open ? "translate-y-0" : "translate-y-full"}`}>
-        <div className="flex justify-center pt-3 pb-1">
-          <div className={`w-10 h-1 rounded-full ${isDark ? "bg-white/20" : "bg-slate-200"}`} />
-        </div>
-        <div className={`flex items-center justify-between px-5 py-3 border-b ${border}`}>
-          <span className="font-semibold text-sm">더 보기</span>
-          <button onClick={onClose} className={isDark ? "text-white/50 hover:text-white" : "text-slate-400 hover:text-slate-600"}>
-            <IconClose />
-          </button>
-        </div>
-        <div className="px-3 py-3 pb-safe" style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
-          {items.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => { router.push(item.path); onClose(); }}
-              className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all mb-1 ${
-                isDark ? "hover:bg-white/5 active:bg-white/10" : "hover:bg-slate-50 active:bg-slate-100"
-              }`}
-            >
-              <span className="text-2xl w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 shrink-0">
-                {item.emoji}
-              </span>
-              <div className="text-left">
-                <div className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>{item.label}</div>
-                <div className={`text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>{item.desc}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-    </>
-  );
-}
 
 // ─── Bottom Navigation ────────────────────────────────────────────────────────
 
@@ -335,14 +268,14 @@ function BottomNav({ active, onSessions }: { active: NavTab; onSessions: () => v
             <button
               key={item.id}
               onClick={item.action}
-              className={`flex-1 flex flex-col items-center py-2.5 gap-1 transition-colors ${
+              className={`flex-1 flex flex-col items-center py-1.5 gap-0.5 transition-colors [&>svg]:h-5 [&>svg]:w-5 ${
                 isActive
                   ? "text-indigo-500"
                   : isDark ? "text-white/40 hover:text-white/70" : "text-slate-400 hover:text-slate-600"
               }`}
             >
               {item.icon}
-              <span className="text-2xs font-medium">{item.label}</span>
+              <span className="text-[10px] font-medium leading-tight">{item.label}</span>
             </button>
           );
         })}
@@ -384,25 +317,35 @@ function getSwipeIndex(pathname: string): number {
   return 0;
 }
 
+function isInteractiveTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return !!target.closest("button, a, input, textarea, select, [role='button']");
+}
+
 export function MobileShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { isDark } = useMobileTheme();
   const { openModal } = useNewSessionModal();
   const [sessionsOpen, setSessionsOpen] = useState(false);
-  const dragStart = useRef<{ x: number; y: number } | null>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const mouseDragStart = useRef<{ x: number; y: number } | null>(null);
+  const touchPullStart = useRef<{ x: number; y: number } | null>(null);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const handleGestureStart = useCallback((x: number, y: number) => {
-    dragStart.current = { x, y };
+  const handleDesktopSwipeStart = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0 || isInteractiveTarget(e.target)) return;
+    if (window.matchMedia("(pointer: coarse)").matches) return;
+    mouseDragStart.current = { x: e.clientX, y: e.clientY };
   }, []);
 
-  const handleGestureEnd = useCallback((x: number, y: number) => {
-    if (!dragStart.current) return;
-    const deltaX = x - dragStart.current.x;
-    const deltaY = y - dragStart.current.y;
-    dragStart.current = null;
+  const handleDesktopSwipeEnd = useCallback((e: React.MouseEvent) => {
+    if (!mouseDragStart.current) return;
+    const deltaX = e.clientX - mouseDragStart.current.x;
+    const deltaY = e.clientY - mouseDragStart.current.y;
+    mouseDragStart.current = null;
 
-    // Must be clearly horizontal (≥80px, at least 1.5× more horizontal than vertical)
     if (Math.abs(deltaX) < 80 || Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return;
 
     const idx = getSwipeIndex(pathname);
@@ -416,20 +359,40 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   }, [pathname, router]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    handleGestureStart(e.touches[0].clientX, e.touches[0].clientY);
-  }, [handleGestureStart]);
+    if (refreshing || isInteractiveTarget(e.target)) return;
+    const el = mainRef.current;
+    if (!el || el.scrollTop > 0) return;
+    touchPullStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, [refreshing]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchPullStart.current || refreshing) return;
+    const deltaX = e.touches[0].clientX - touchPullStart.current.x;
+    const deltaY = e.touches[0].clientY - touchPullStart.current.y;
+    if (deltaY <= 0 || Math.abs(deltaX) > deltaY * 0.8) {
+      setPullDistance(0);
+      return;
+    }
+    setPullDistance(Math.min(96, deltaY * 0.45));
+  }, [refreshing]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    handleGestureEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
-  }, [handleGestureEnd]);
+    if (!touchPullStart.current) return;
+    const deltaY = e.changedTouches[0].clientY - touchPullStart.current.y;
+    touchPullStart.current = null;
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    handleGestureStart(e.clientX, e.clientY);
-  }, [handleGestureStart]);
-
-  const handleMouseUp = useCallback((e: React.MouseEvent) => {
-    handleGestureEnd(e.clientX, e.clientY);
-  }, [handleGestureEnd]);
+    if (pullDistance >= 64 && deltaY > 0) {
+      setRefreshing(true);
+      setPullDistance(48);
+      router.refresh();
+      window.setTimeout(() => {
+        setRefreshing(false);
+        setPullDistance(0);
+      }, 700);
+      return;
+    }
+    setPullDistance(0);
+  }, [pullDistance, router]);
 
   const bg = isDark ? "bg-slate-950" : "bg-slate-50";
 
@@ -440,12 +403,24 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
         onNewResearch={openModal}
       />
       <main
-        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+        ref={mainRef}
+        className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
         onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
+        onMouseDown={handleDesktopSwipeStart}
+        onMouseUp={handleDesktopSwipeEnd}
+        onMouseLeave={handleDesktopSwipeEnd}
       >
+        <div
+          className={`pointer-events-none sticky top-0 z-30 flex justify-center transition-[height,opacity] duration-200 ${pullDistance > 0 || refreshing ? "opacity-100" : "opacity-0"}`}
+          style={{ height: pullDistance > 0 || refreshing ? `${Math.max(36, pullDistance)}px` : 0 }}
+        >
+          <div className={`mt-2 h-7 rounded-full px-3 flex items-center gap-2 text-[11px] font-medium shadow-sm ${isDark ? "bg-white/10 text-white/70 border border-white/10" : "bg-white text-slate-500 border border-slate-200"}`}>
+            <span className={`h-3 w-3 rounded-full border-2 border-current border-t-transparent ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "새로고침 중" : pullDistance >= 64 ? "놓아서 새로고침" : "당겨서 새로고침"}
+          </div>
+        </div>
         {children}
       </main>
       <BottomNav

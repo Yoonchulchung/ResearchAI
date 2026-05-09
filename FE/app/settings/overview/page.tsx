@@ -50,7 +50,7 @@ function CloudModelConfigCard({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 sm:px-6 py-5 overflow-hidden">
+    <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm px-4 sm:px-6 py-5 overflow-hidden">
       <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
         클라우드 AI 모델 기본값
       </p>
@@ -107,7 +107,7 @@ function LocalModelConfigCard({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 sm:px-6 py-5 overflow-hidden">
+    <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm px-4 sm:px-6 py-5 overflow-hidden">
       <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
         로컬 모델 기본값
       </p>
@@ -172,7 +172,7 @@ function LoginHistoryCard() {
   }, []);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-5">
+    <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm px-4 sm:px-6 py-5">
       <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
         로그인 기록
       </p>
@@ -255,8 +255,10 @@ export default function OverviewPage() {
     });
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setApiKeys(buildApiKeys(user));
     if (user?.defaultCloudModel) setDefaultCloudModel(user.defaultCloudModel);
     if (user?.defaultLocalModel) setDefaultLocalModel(user.defaultLocalModel);
@@ -277,11 +279,11 @@ export default function OverviewPage() {
   if (!user) return <LoginRequired />;
 
   return (
-    <div className={`min-h-full flex flex-col transition-all ${isGlass ? "p-3 pr-4 pb-4 bg-transparent" : "bg-slate-50"}`}>
-      <div className={`flex-1 flex flex-col transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl overflow-hidden" : ""}`}>
+    <div className={`min-h-full flex flex-col transition-all ${isGlass ? "p-0 sm:p-3 sm:pr-4 sm:pb-4 bg-transparent" : "bg-slate-50"}`}>
+      <div className={`flex-1 flex flex-col transition-all ${isGlass ? "sm:glass-panel sm:rounded-2xl sm:shadow-xl sm:overflow-hidden" : ""}`}>
         <PageHeader loading={loading} isGlass={isGlass} />
 
-        <div className="px-4 sm:px-8 py-4 sm:py-8 space-y-6 max-w-4xl mx-auto w-full">
+        <div className="px-2.5 sm:px-8 py-3 sm:py-8 space-y-4 sm:space-y-6 max-w-none sm:max-w-4xl mx-auto w-full">
           <TavilyCard loading={loading} tavily={tavily} />
           <TokenUsageCard loading={loading} analytics={analytics} />
           <CloudModelConfigCard
@@ -306,7 +308,7 @@ export default function OverviewPage() {
           />
           <LoginHistoryCard />
 
-          <div className={`rounded-2xl border px-6 py-5 flex items-center justify-between ${isGlass ? "border-white/20 bg-white/5" : "bg-white border-slate-200 shadow-sm"}`}>
+          <div className={`rounded-xl sm:rounded-2xl border px-4 sm:px-6 py-5 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between ${isGlass ? "border-white/20 bg-white/5" : "bg-white border-slate-200 shadow-sm"}`}>
             <p className={`text-sm ${isGlass ? "text-white/60" : "text-slate-500"}`}>
               Have any questions, feedback or need support? We&apos;d love to hear from you!
             </p>

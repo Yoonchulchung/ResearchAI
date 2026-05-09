@@ -59,18 +59,18 @@ function InlineEdit({
         }}
         placeholder={placeholder}
         autoFocus
-        className="flex-1 min-w-0 px-3 py-1.5 text-xs border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white text-slate-700"
+        className="min-w-0 flex-1 px-3 py-1.5 text-xs border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white text-slate-700"
       />
       <button
         onClick={() => input.trim() && onSave(input.trim())}
         disabled={saving || !input.trim()}
-        className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+        className="shrink-0 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
       >
         {saving ? "저장 중..." : "저장"}
       </button>
       <button
         onClick={onCancel}
-        className="px-3 py-1.5 border border-slate-200 text-slate-600 text-xs rounded-lg hover:bg-slate-50 transition-colors"
+        className="shrink-0 px-3 py-1.5 border border-slate-200 text-slate-600 text-xs rounded-lg hover:bg-slate-50 transition-colors"
       >
         취소
       </button>
@@ -104,9 +104,9 @@ function ApiKeyRowComp({ row, onUpdated }: { row: ApiKeyRow; onUpdated: () => vo
     : null;
 
   return (
-    <div className="border-b border-slate-100 last:border-0 px-4 py-3">
-      <div className="flex items-center gap-3">
-        <div className="w-20 shrink-0">
+    <div className="border-b border-slate-100 last:border-0 px-4 sm:px-5 py-4">
+      <div className="grid gap-3 sm:flex sm:items-center sm:gap-3">
+        <div className="min-w-0 sm:w-20 sm:shrink-0">
           <p className="text-sm font-semibold text-slate-700">{row.service}</p>
           <span className={`inline-flex items-center gap-1 text-xs mt-0.5 font-medium ${row.keyValue ? "text-emerald-600" : "text-slate-400"}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${row.keyValue ? "bg-emerald-500" : "bg-slate-300"}`} />
@@ -114,8 +114,8 @@ function ApiKeyRowComp({ row, onUpdated }: { row: ApiKeyRow; onUpdated: () => vo
           </span>
         </div>
 
-        <div className="flex-1 flex items-center gap-2">
-          <span className="w-16 text-xs text-slate-500 shrink-0">API Key</span>
+        <div className="min-w-0 flex flex-wrap items-center gap-2">
+          <span className="w-14 sm:w-16 text-xs text-slate-500 shrink-0">API Key</span>
           {editing ? (
             <InlineEdit
               value=""
@@ -127,12 +127,12 @@ function ApiKeyRowComp({ row, onUpdated }: { row: ApiKeyRow; onUpdated: () => vo
             />
           ) : (
             <>
-              <span className={`flex-1 text-xs font-mono ${masked ? "text-slate-600" : "text-slate-300"}`}>
+              <span className={`min-w-0 flex-1 truncate text-xs font-mono ${masked ? "text-slate-600" : "text-slate-300"}`}>
                 {masked ?? "미설정"}
               </span>
               <button
                 onClick={() => setEditing(true)}
-                className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
+                className="shrink-0 text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors"
               >
                 수정
               </button>
@@ -173,9 +173,9 @@ function IdPwRowComp({ row, onUpdated }: { row: IdPwRow; onUpdated: () => void }
   const isPartial = !!(row.idValue || row.pwValue) && !isConfigured;
 
   return (
-    <div className="border-b border-slate-100 last:border-0 px-4 py-3">
-      <div className="flex items-start gap-3">
-        <div className="w-20 shrink-0 pt-1">
+    <div className="border-b border-slate-100 last:border-0 px-4 sm:px-5 py-4">
+      <div className="grid gap-3 sm:flex sm:items-start sm:gap-3">
+        <div className="min-w-0 sm:w-20 sm:shrink-0 sm:pt-1">
           <p className="text-sm font-semibold text-slate-700">{row.service}</p>
           <span className={`inline-flex items-center gap-1 text-xs mt-0.5 font-medium ${isConfigured ? "text-emerald-600" : isPartial ? "text-amber-500" : "text-slate-400"}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${isConfigured ? "bg-emerald-500" : isPartial ? "bg-amber-400" : "bg-slate-300"}`} />
@@ -183,10 +183,10 @@ function IdPwRowComp({ row, onUpdated }: { row: IdPwRow; onUpdated: () => void }
           </span>
         </div>
 
-        <div className="flex-1 space-y-2">
+        <div className="min-w-0 space-y-2">
           {/* ID */}
-          <div className="flex items-center gap-2">
-            <span className="w-16 text-xs text-slate-500 shrink-0">{row.idLabel}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-14 sm:w-16 text-xs text-slate-500 shrink-0">{row.idLabel}</span>
             {editingId ? (
               <InlineEdit
                 value=""
@@ -198,19 +198,19 @@ function IdPwRowComp({ row, onUpdated }: { row: IdPwRow; onUpdated: () => void }
               />
             ) : (
               <>
-                <span className={`flex-1 text-xs font-mono ${row.idValue ? "text-slate-600" : "text-slate-300"}`}>
+                <span className={`min-w-0 flex-1 truncate text-xs font-mono ${row.idValue ? "text-slate-600" : "text-slate-300"}`}>
                   {row.idValue
                     ? `${row.idValue.slice(0, 3)}${"•".repeat(Math.max(0, row.idValue.length - 3))}`
                     : "미설정"}
                 </span>
-                <button onClick={() => setEditingId(true)} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors">수정</button>
+                <button onClick={() => setEditingId(true)} className="shrink-0 text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors">수정</button>
               </>
             )}
           </div>
 
           {/* 비밀번호 */}
-          <div className="flex items-center gap-2">
-            <span className="w-16 text-xs text-slate-500 shrink-0">비밀번호</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-14 sm:w-16 text-xs text-slate-500 shrink-0">비밀번호</span>
             {editingPw ? (
               <InlineEdit
                 value=""
@@ -222,10 +222,10 @@ function IdPwRowComp({ row, onUpdated }: { row: IdPwRow; onUpdated: () => void }
               />
             ) : (
               <>
-                <span className={`flex-1 text-xs font-mono ${row.pwValue ? "text-slate-600" : "text-slate-300"}`}>
+                <span className={`min-w-0 flex-1 truncate text-xs font-mono ${row.pwValue ? "text-slate-600" : "text-slate-300"}`}>
                   {row.pwValue ? "••••••••" : "미설정"}
                 </span>
-                <button onClick={() => setEditingPw(true)} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors">수정</button>
+                <button onClick={() => setEditingPw(true)} className="shrink-0 text-xs text-indigo-500 hover:text-indigo-700 font-medium transition-colors">수정</button>
               </>
             )}
           </div>
@@ -289,8 +289,8 @@ export function ServiceCredentialsCard({
   ];
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="px-6 py-5 border-b border-slate-100">
+    <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100">
         <h2 className="text-base font-semibold text-slate-800">서비스 계정</h2>
         <p className="text-xs text-slate-400 mt-0.5">
           기업 분석 품질 향상을 위한 외부 서비스 인증 정보 — 기업 분석 시 자동으로 활용됩니다

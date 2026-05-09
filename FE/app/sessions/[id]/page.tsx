@@ -226,42 +226,90 @@ export default function SessionPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative font-system">
-      <SessionHeader
-        topic={session.topic}
-        model={session.researchCloudAIModel}
-        isRunning={isRunning}
-        allDone={allDone}
-        hasDoneTasks={hasDoneTasks}
-        showDetail={showDetail}
-        models={models}
-        cloudAiModels={models}
-        filterModels={models}
-        webEngines={webEngines}
-        selectedCloudAiModel={headerCloudAiModel}
-        selectedWebModel={headerWebModel}
-        selectedFilterModel={headerFilterModel}
-        onCloudAiModelChange={setHeaderCloudAiModel}
-        onWebModelChange={setHeaderWebModel}
-        onFilterModelChange={setHeaderFilterModel}
-        reEvalProgress={reEvalProgress}
-        avgConfidence={avgConfidence}
-        totalInputTokens={totalInputTokens}
-        totalOutputTokens={totalOutputTokens}
-        totalFees={totalFees}
-        onRunAll={handleRunAll}
-        onCancel={handleCancelAll}
-        onExport={exportMarkdown}
-        onToggleDetail={() => setShowDetail((v) => {
-          try { sessionStorage.setItem(`detail-open:${id}`, v ? "0" : "1"); } catch {}
-          return !v;
-        })}
-        onReEvaluateAll={handleReEvaluateAll}
-      />
+      <div className="hidden md:block">
+        <SessionHeader
+          topic={session.topic}
+          model={session.researchCloudAIModel}
+          isRunning={isRunning}
+          allDone={allDone}
+          hasDoneTasks={hasDoneTasks}
+          showDetail={showDetail}
+          models={models}
+          cloudAiModels={models}
+          filterModels={models}
+          webEngines={webEngines}
+          selectedCloudAiModel={headerCloudAiModel}
+          selectedWebModel={headerWebModel}
+          selectedFilterModel={headerFilterModel}
+          onCloudAiModelChange={setHeaderCloudAiModel}
+          onWebModelChange={setHeaderWebModel}
+          onFilterModelChange={setHeaderFilterModel}
+          reEvalProgress={reEvalProgress}
+          avgConfidence={avgConfidence}
+          totalInputTokens={totalInputTokens}
+          totalOutputTokens={totalOutputTokens}
+          totalFees={totalFees}
+          onRunAll={handleRunAll}
+          onCancel={handleCancelAll}
+          onExport={exportMarkdown}
+          onToggleDetail={() => setShowDetail((v) => {
+            try { sessionStorage.setItem(`detail-open:${id}`, v ? "0" : "1"); } catch {}
+            return !v;
+          })}
+          onReEvaluateAll={handleReEvaluateAll}
+        />
+      </div>
 
       <div className="flex flex-1 min-h-0">
         {/* 왼쪽: 태스크 목록 + 채팅 */}
         <div className={`flex flex-col flex-1 min-w-0 overflow-hidden relative transition-[padding-right] duration-300 ease-in-out ${expandedDetail ? "hidden" : (showDetail || showTaskPanel) ? "md:pr-[52%]" : "pr-0"}`}>
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 sm:px-8 py-6">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto px-2.5 sm:px-8 py-3 sm:py-6">
+            <div className="md:hidden mb-3 flex items-center gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+              {cloudAiModels.length > 0 && !allDone && (
+                <select
+                  value={headerCloudAiModel}
+                  onChange={(e) => setHeaderCloudAiModel(e.target.value)}
+                  className={`min-w-[9rem] max-w-[11rem] rounded-lg border px-2.5 py-2 text-xs ${isDark ? "bg-white/10 border-white/10 text-slate-200" : "bg-white border-slate-200 text-slate-700"}`}
+                >
+                  {cloudAiModels.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              )}
+              {webEngines.length > 0 && !allDone && (
+                <select
+                  value={headerWebModel}
+                  onChange={(e) => setHeaderWebModel(e.target.value)}
+                  className={`min-w-[9rem] max-w-[11rem] rounded-lg border px-2.5 py-2 text-xs ${isDark ? "bg-white/10 border-white/10 text-slate-200" : "bg-white border-slate-200 text-slate-700"}`}
+                >
+                  {webEngines.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+              )}
+              {isRunning ? (
+                <button
+                  onClick={handleCancelAll}
+                  className="shrink-0 rounded-lg border border-red-300 px-3 py-2 text-xs font-semibold text-red-500"
+                >
+                  중단
+                </button>
+              ) : !allDone ? (
+                <button
+                  onClick={() => handleRunAll(headerCloudAiModel, headerWebModel)}
+                  className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white"
+                >
+                  전체 실행
+                </button>
+              ) : hasDoneTasks ? (
+                <button
+                  onClick={exportMarkdown}
+                  className="shrink-0 rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-white"
+                >
+                  내보내기
+                </button>
+              ) : null}
+            </div>
             <SummarySection
               sessionId={id}
               topic={session.topic}
@@ -269,16 +317,20 @@ export default function SessionPage() {
               allDone={allDone}
               summaryState={session.summaryState}
             />
-            <div className={`bg-white dark:bg-black/20 border ${isDark ? "border-slate-800" : "border-slate-200"} rounded-sm shadow-sm mb-8`}>
-              <div className={`px-6 py-4 flex items-center justify-between border-b ${isDark ? "border-slate-800" : "border-slate-100"}`}>
-                <h2 className={`text-[15px] font-bold tracking-wide ${isDark ? "text-slate-200" : "text-slate-800"} uppercase`}>수행 중인 리서치 (Research Tasks)</h2>
+            <div className={`bg-transparent sm:bg-white sm:dark:bg-black/20 sm:border ${isDark ? "sm:border-slate-800" : "sm:border-slate-200"} rounded-none sm:rounded-sm shadow-none sm:shadow-sm mb-5 sm:mb-8`}>
+              <div className={`px-1 sm:px-6 py-2 sm:py-4 flex items-center justify-between sm:border-b ${isDark ? "sm:border-slate-800" : "sm:border-slate-100"}`}>
+                <h2 className={`text-sm sm:text-[15px] font-bold tracking-wide ${isDark ? "text-slate-200" : "text-slate-800"} uppercase`}>수행 중인 리서치</h2>
                 <span className={`text-[10px] uppercase font-bold tracking-widest border px-1.5 py-0.5 rounded-sm ${isDark ? "border-slate-700 text-slate-400" : "border-slate-300 text-slate-500"}`}>
                   TOTAL {total}
                 </span>
               </div>
-              <div className="p-6">
+              <div className="px-1 sm:p-6 py-2">
                 <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5 items-start">
-              {tasks.map((task) => {
+              {tasks.length === 0 ? (
+                <div className={`rounded-xl border px-4 py-5 text-sm ${isDark ? "border-slate-800 text-slate-400 bg-white/5" : "border-slate-200 text-slate-500 bg-white"}`}>
+                  아직 생성된 리서치 항목이 없습니다.
+                </div>
+              ) : tasks.map((task) => {
                 const mergedTask = confidenceOverrides[task.itemId]
                   ? { ...task, confidence: confidenceOverrides[task.itemId] }
                   : task;
@@ -342,7 +394,7 @@ export default function SessionPage() {
 
           <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black_40%,transparent)]" />
 
-          <div className="px-4 sm:px-8 relative z-10 pb-4">
+          <div className="px-2.5 sm:px-8 relative z-10 pb-2.5 sm:pb-4">
             <ChatInputArea
               onSend={(msg, model, attachedTexts) => handleChatSend(msg, model, attachedTexts)}
               onAbort={handleChatAbort}

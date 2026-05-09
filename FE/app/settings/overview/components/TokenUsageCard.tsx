@@ -24,7 +24,7 @@ export function TokenUsageCard({
       <div className="text-[10px] text-white/30 font-medium mb-2 uppercase tracking-widest">최근 30일</div>
       <div className="grid grid-cols-3 gap-2">
         {[
-          { label: "총 비용", value: loading || !analytics ? null : `$${analytics.totalCost.toFixed(4)}` },
+          { label: "총 비용", value: loading || !analytics ? null : `$${analytics.totalCost.toFixed(2)}` },
           { label: "총 호출 수", value: loading || !analytics ? null : analytics.totalCalls.toLocaleString() },
           { label: "모델 수", value: loading || !analytics ? null : String(analytics.models.length) },
         ].map((item) => (

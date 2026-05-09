@@ -19,7 +19,6 @@ export function TopicInput({
   onAbort,
   generating,
   placeholder = "리서치 주제를 입력하세요...",
-  generatingLabel: _generatingLabel,
   cloudAiModels = [],
   localAiModels = [],
   webEngines = [],
@@ -84,7 +83,7 @@ export function TopicInput({
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      className={`relative rounded-xl px-3 pt-3 pb-2.5 transition-colors border shadow-sm ${
+      className={`relative rounded-xl px-2.5 sm:px-3 pt-2.5 sm:pt-3 pb-2 transition-colors border shadow-sm ${
         isDragOver
           ? "border-indigo-400 bg-indigo-50/60"
           : isDark
@@ -133,17 +132,17 @@ export function TopicInput({
         }}
         placeholder={placeholder}
         rows={1}
-        className={`w-full border-none focus:ring-0 resize-none text-xs !outline-none !bg-transparent leading-relaxed mb-2 min-h-6 ${
+        className={`w-full border-none focus:ring-0 resize-none text-xs !outline-none !bg-transparent leading-relaxed mb-1.5 min-h-5 max-h-24 ${
           isDark ? "text-white placeholder:text-white/40" : "text-slate-800 placeholder:text-slate-300"
         }`}
       />
 
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-1.5 sm:gap-2">
         <div className="relative shrink-0">
           <button
             type="button"
             onClick={() => setShowDropdown((v) => !v)}
-            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors text-lg leading-none ${
+            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors text-base leading-none ${
               showDropdown
                 ? "bg-slate-100 text-slate-600"
                 : "text-slate-400 hover:text-slate-600 hover:bg-slate-100"
@@ -162,7 +161,7 @@ export function TopicInput({
         </div>
 
         {/* 모델 셀렉트들 — 좁은 화면에서 자동 줄바꿈 */}
-        <div className="flex items-center gap-x-2 gap-y-1 flex-wrap justify-end flex-1 min-w-0">
+        <div className="flex items-center gap-x-1 sm:gap-x-2 gap-y-0.5 flex-wrap justify-end flex-1 min-w-0 overflow-hidden">
           {cloudAiModels.length > 0 && (
             <ModelSelect
               models={cloudAiModels}
@@ -172,7 +171,7 @@ export function TopicInput({
             />
           )}
           {cloudAiModels.length > 0 && localAiModels.length > 0 && (
-            <span className="text-slate-200 text-xs select-none shrink-0">|</span>
+            <span className="hidden sm:inline text-slate-200 text-xs select-none shrink-0">|</span>
           )}
           {localAiModels.length > 0 && (
             <ModelSelect
@@ -183,13 +182,13 @@ export function TopicInput({
             />
           )}
           {webEngines.length > 0 && (cloudAiModels.length > 0 || localAiModels.length > 0) && (
-            <span className="text-slate-200 text-xs select-none shrink-0">|</span>
+            <span className="hidden sm:inline text-slate-200 text-xs select-none shrink-0">|</span>
           )}
           {webEngines.length > 0 && (
             <select
               value={selectedWebModel}
               onChange={(e) => onWebModelChange?.(e.target.value)}
-              className="text-xs text-slate-500 !bg-transparent focus:outline-none cursor-pointer max-w-28 truncate min-w-0"
+              className="min-w-0 max-w-[8.5rem] sm:max-w-28 truncate text-[11px] sm:text-xs text-slate-500 !bg-transparent focus:outline-none cursor-pointer"
             >
               {webEngines.map((e) => (
                 <option key={e.id} value={e.id}>
