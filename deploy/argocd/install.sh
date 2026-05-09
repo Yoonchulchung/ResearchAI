@@ -40,6 +40,27 @@ log "ArgoCD 파드 Ready 대기 (최대 3분)..."
 kubectl rollout status deployment/argocd-server -n argocd --timeout=180s
 ok "ArgoCD 서버 준비 완료"
 
+# ── 3-1. 폴링 간격 단축 (기본 3분 → 30초) ────────────────────────────────────
+log "ArgoCD 폴링 간격 30초로 설정..."
+kubectl patch configmap argocd-cm -n argocd --type merge \
+  -p '{"data":{"timeout.reconciliation":"30s"}}' 2>/dev/null || true
+ok "폴링 간격 설정 완료"
+
+# ── 3-2. CI용 ArgoCD API 토큰 생성 안내 ──────────────────────────────────────
+warn "GitHub Actions에서 ArgoCD sync 트리거를 사용하려면 API 토큰이 필요합니다."
+warn "ArgoCD 설치 후 아래 명령으로 토큰을 생성하고 GitHub Secrets에 등록하세요:"
+echo ""
+echo "  # ArgoCD CLI 로그인"
+echo "  argocd login <ARGOCD_SERVER> --username admin --password <ADMIN_PW>"
+echo ""
+echo "  # CI용 토큰 생성 (만료 없음)"
+echo "  argocd account generate-token --account admin"
+echo ""
+echo "  # GitHub Repository Settings → Secrets and variables → Actions 에 추가:"
+echo "  #   ARGOCD_SERVER  = <your-argocd-host-without-https>"
+echo "  #   ARGOCD_AUTH_TOKEN = <위에서 생성한 토큰>"
+echo ""
+
 # ── 4. Prometheus BasicAuth Secret 생성 ──────────────────────────────────────
 # monitoring 네임스페이스가 없으면 먼저 생성
 kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -

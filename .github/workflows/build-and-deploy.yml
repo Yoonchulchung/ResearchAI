@@ -20,33 +20,45 @@ concurrency:
 
 jobs:
   build:
-    name: Build ${{ matrix.arch }} images
+    name: Build ${{ matrix.service }}-${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: amd64
-            platform: linux/amd64
+          - service: be
+            arch: amd64
             runner: ubuntu-latest
-          - arch: arm64
-            platform: linux/arm64
+            context: ./BE
+            dockerfile: ./BE/Dockerfile
+          - service: be
+            arch: arm64
             runner: ubuntu-24.04-arm
+            context: ./BE
+            dockerfile: ./BE/Dockerfile
+          - service: fe
+            arch: amd64
+            runner: ubuntu-latest
+            context: ./FE
+            dockerfile: ./FE/Dockerfile
+          - service: fe
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            context: ./FE
+            dockerfile: ./FE/Dockerfile
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Prepare image names
+      - name: Prepare image name
         id: meta
         shell: bash
         run: |
           OWNER_LC="${GITHUB_REPOSITORY_OWNER,,}"
           REPO_LC="${GITHUB_REPOSITORY#*/}"
           REPO_LC="${REPO_LC,,}"
-
-          echo "be_arch_image=ghcr.io/${OWNER_LC}/${REPO_LC}/be:${GITHUB_SHA}-${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
-          echo "fe_arch_image=ghcr.io/${OWNER_LC}/${REPO_LC}/fe:${GITHUB_SHA}-${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
+          echo "arch_image=ghcr.io/${OWNER_LC}/${REPO_LC}/${{ matrix.service }}:${GITHUB_SHA}-${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -58,26 +70,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push backend image
+      - name: Build and push ${{ matrix.service }} (${{ matrix.arch }})
         uses: docker/build-push-action@v6
         with:
-          context: ./BE
-          file: ./BE/Dockerfile
-          platforms: ${{ matrix.platform }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/${{ matrix.arch }}
           push: true
-          tags: ${{ steps.meta.outputs.be_arch_image }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./FE
-          file: ./FE/Dockerfile
-          platforms: ${{ matrix.platform }}
-          push: true
-          tags: ${{ steps.meta.outputs.fe_arch_image }}
+          tags: ${{ steps.meta.outputs.arch_image }}
+          cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ matrix.arch }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -100,15 +102,15 @@ jobs:
           REPO_LC="${REPO_LC,,}"
           SHORT_SHA="${GITHUB_SHA::7}"
 
-          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "be_image=ghcr.io/${OWNER_LC}/${REPO_LC}/be:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-          echo "be_main_image=ghcr.io/${OWNER_LC}/${REPO_LC}/be:main" >> "$GITHUB_OUTPUT"
-          echo "be_amd64_image=ghcr.io/${OWNER_LC}/${REPO_LC}/be:${GITHUB_SHA}-amd64" >> "$GITHUB_OUTPUT"
-          echo "be_arm64_image=ghcr.io/${OWNER_LC}/${REPO_LC}/be:${GITHUB_SHA}-arm64" >> "$GITHUB_OUTPUT"
-          echo "fe_image=ghcr.io/${OWNER_LC}/${REPO_LC}/fe:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-          echo "fe_main_image=ghcr.io/${OWNER_LC}/${REPO_LC}/fe:main" >> "$GITHUB_OUTPUT"
-          echo "fe_amd64_image=ghcr.io/${OWNER_LC}/${REPO_LC}/fe:${GITHUB_SHA}-amd64" >> "$GITHUB_OUTPUT"
-          echo "fe_arm64_image=ghcr.io/${OWNER_LC}/${REPO_LC}/fe:${GITHUB_SHA}-arm64" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}"                                                     >> "$GITHUB_OUTPUT"
+          echo "be_image=ghcr.io/${OWNER_LC}/${REPO_LC}/be:${GITHUB_SHA}"                  >> "$GITHUB_OUTPUT"
+          echo "be_main_image=ghcr.io/${OWNER_LC}/${REPO_LC}/be:main"                      >> "$GITHUB_OUTPUT"
+          echo "be_amd64_image=ghcr.io/${OWNER_LC}/${REPO_LC}/be:${GITHUB_SHA}-amd64"      >> "$GITHUB_OUTPUT"
+          echo "be_arm64_image=ghcr.io/${OWNER_LC}/${REPO_LC}/be:${GITHUB_SHA}-arm64"      >> "$GITHUB_OUTPUT"
+          echo "fe_image=ghcr.io/${OWNER_LC}/${REPO_LC}/fe:${GITHUB_SHA}"                  >> "$GITHUB_OUTPUT"
+          echo "fe_main_image=ghcr.io/${OWNER_LC}/${REPO_LC}/fe:main"                      >> "$GITHUB_OUTPUT"
+          echo "fe_amd64_image=ghcr.io/${OWNER_LC}/${REPO_LC}/fe:${GITHUB_SHA}-amd64"      >> "$GITHUB_OUTPUT"
+          echo "fe_arm64_image=ghcr.io/${OWNER_LC}/${REPO_LC}/fe:${GITHUB_SHA}-arm64"      >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -161,3 +163,19 @@ jobs:
 
           git commit -m "chore: deploy images ${{ steps.meta.outputs.short_sha }}"
           git push
+
+      - name: Trigger ArgoCD sync
+        if: ${{ env.ARGOCD_SERVER != '' }}
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+        shell: bash
+        run: |
+          # Git push 후 ArgoCD 폴링 대기(최대 3분)를 제거하고 즉시 sync 트리거
+          curl -k -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${ARGOCD_AUTH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://${ARGOCD_SERVER}/api/v1/applications/research-ai/sync" \
+            -d '{"prune":true,"revision":"HEAD"}' \
+          | grep -qE '^2' && echo "ArgoCD sync triggered." || echo "ArgoCD sync skipped (non-2xx — check ARGOCD_SERVER/ARGOCD_AUTH_TOKEN secrets)."

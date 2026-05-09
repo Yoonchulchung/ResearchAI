@@ -224,16 +224,16 @@ function MobileHeader({ title, onNewResearch }: { title: string; onNewResearch: 
   const bg = isDark ? "bg-slate-900/95 border-white/10" : "bg-white/95 border-slate-200";
 
   return (
-    <header className={`z-20 backdrop-blur-md border-b px-4 py-3 flex items-center justify-between ${bg}`}>
+    <header className={`z-20 backdrop-blur-md border-b px-4 py-2 flex items-center justify-between ${bg}`}>
       <button onClick={() => router.push("/main")} className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-sm shadow shadow-indigo-500/30">
+        <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center text-xs shadow shadow-indigo-500/30">
           ◈
         </div>
         <span className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-800"}`}>{title}</span>
       </button>
       <button
         onClick={onNewResearch}
-        className="w-8 h-8 rounded-xl bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-white shadow shadow-indigo-500/30 transition-colors"
+        className="w-7 h-7 rounded-lg bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-white shadow shadow-indigo-500/30 transition-colors"
       >
         <IconPlus />
       </button>

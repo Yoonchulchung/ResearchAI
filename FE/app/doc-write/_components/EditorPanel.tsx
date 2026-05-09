@@ -105,45 +105,46 @@ export function EditorPanel({
 
       {/* Company name + Job Description */}
       <div className={`px-2.5 sm:px-4 py-2 border-b shrink-0 space-y-1.5 ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-100"}`}>
-        {/* 1행: 기업명 + 인재상 조회 + JD 펼침 토글 */}
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+        {/* 1행: 기업명 + 버튼들 */}
+        <div className="flex items-center gap-1.5">
           <span className={`text-sm shrink-0 ${isDark ? "text-white/60" : "text-slate-500"}`}>지원 기업</span>
           <input
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") onFetchProfile(); }}
             placeholder="기업명 입력..."
-            className={`flex-1 basis-[8rem] text-sm bg-transparent! border-0! focus:outline-none min-w-0 ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
+            className={`flex-1 min-w-0 text-sm bg-transparent! border-0! focus:outline-none ${isDark ? "text-white placeholder-white/30" : "text-slate-700 placeholder-slate-400"}`}
           />
-          <button
-            onClick={() => setJdExpanded((v) => !v)}
-            className={`shrink-0 flex items-center gap-1 px-2 sm:px-2.5 py-1 text-2xs font-medium rounded-md transition-colors ${
-              jobDescription.trim()
-                ? "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
-                : isDark ? "text-white/50 bg-white/5 hover:bg-white/10" : "text-slate-500 bg-slate-100 hover:bg-slate-200"
-            }`}
-          >
-            {jdExpanded ? "▲" : "▼"} <span className="hidden sm:inline">Job Description</span><span className="sm:hidden">JD</span>
-            {jobDescription.trim() && <span className="text-2xs opacity-60 hidden sm:inline">({jobDescription.length}자)</span>}
-          </button>
-          <button
-            onClick={onFetchProfile}
-            disabled={!companyName.trim() || profileLoading}
-            className={`shrink-0 flex items-center gap-1 px-2.5 sm:px-3 py-1.5 text-sm font-medium border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
-              isGlass && isDark
-                ? "text-indigo-100 bg-white/10 border-white/20 hover:bg-white/20"
-                : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
-            }`}
-          >
-            {profileLoading ? (
-              <span className="w-2.5 h-2.5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
-            ) : (
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <path d="M5 1L6.2 4.2L9.5 5L6.2 5.8L5 9L3.8 5.8L0.5 5L3.8 4.2L5 1Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
-              </svg>
-            )}
-            <span className="hidden sm:inline">인재상 조회</span><span className="sm:hidden">인재상</span>
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => setJdExpanded((v) => !v)}
+              className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition-colors ${
+                jobDescription.trim()
+                  ? "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
+                  : isDark ? "text-white/50 bg-white/5 hover:bg-white/10" : "text-slate-500 bg-slate-100 hover:bg-slate-200"
+              }`}
+            >
+              {jdExpanded ? "▲" : "▼"} JD
+            </button>
+            <button
+              onClick={onFetchProfile}
+              disabled={!companyName.trim() || profileLoading}
+              className={`flex items-center gap-1 px-2 py-1 text-xs font-medium border rounded-md disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+                isGlass && isDark
+                  ? "text-indigo-100 bg-white/10 border-white/20 hover:bg-white/20"
+                  : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
+              }`}
+            >
+              {profileLoading ? (
+                <span className="w-2.5 h-2.5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+              ) : (
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+                  <path d="M5 1L6.2 4.2L9.5 5L6.2 5.8L5 9L3.8 5.8L0.5 5L3.8 4.2L5 1Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+                </svg>
+              )}
+              인재상
+            </button>
+          </div>
         </div>
 
         {/* 2행: JD 텍스트영역 (펼침 시) */}

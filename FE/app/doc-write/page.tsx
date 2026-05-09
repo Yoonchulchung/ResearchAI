@@ -2,6 +2,8 @@
 
 import { CSSProperties, Suspense, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useEditor } from "./_hooks/useEditor";
 import { useDocSave } from "./_hooks/useDocSave";
 import { useAiAssist } from "./_hooks/useAiAssist";
@@ -12,7 +14,7 @@ import { EditorPanel } from "./_components/EditorPanel";
 import { ResizeDivider } from "./_components/ResizeDivider";
 import { useTheme } from "@/contexts/ThemeContext";
 import { enqueueCompanyProfile, streamCompanyProfile } from "@/lib/api/ai";
-
+import { PROSE_CLASS } from "./_constants";
 import { IconDownload } from "./_components/icons";
 
 function DocWritePageInner() {
@@ -36,11 +38,13 @@ function DocWritePageInner() {
   const [jobDescription, setJobDescription] = useState("");
   const [companyProfile, setCompanyProfile] = useState("");
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   const fetchCompanyProfile = async () => {
     if (!companyName.trim() || profileLoading) return;
     setProfileLoading(true);
     setCompanyProfile("");
+    setProfileModalOpen(true);
     let accumulated = "";
     try {
       const { jobId } = await enqueueCompanyProfile(companyName, ai.model);
@@ -100,7 +104,7 @@ function DocWritePageInner() {
   };
 
   return (
-    <div className={`h-full flex flex-col overflow-hidden ${isGlass ? "p-1.5 sm:p-3 sm:pr-4 sm:pb-4 bg-transparent" : "bg-slate-100"}`}>
+    <div className={`h-full flex flex-col overflow-hidden ${isGlass ? "p-1.5 sm:p-3 sm:pr-4 sm:pb-4 bg-transparent" : ""}`}>
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-xl sm:rounded-2xl shadow-xl border border-white/20" : ""}`}>
       {/* ── Topbar ─────────────────────────────────────────────────────────── */}
       <div className={`shrink-0 transition-all ${isGlass ? `border-b ${isDark ? "border-white/20" : "border-black/10"}` : `bg-white border-b ${isDark ? "border-slate-700/50" : "border-slate-200/60"}`}`}>
@@ -267,12 +271,59 @@ function DocWritePageInner() {
             onApplyResult={ai.applyResult}
             onCopyText={ai.copyText}
             companyName={companyName}
-            companyProfile={companyProfile}
-            profileLoading={profileLoading}
           />
         </div>
       </div>
       </div>
+
+      {/* 인재상 팝업 모달 */}
+      {profileModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setProfileModalOpen(false)}
+        >
+          <div
+            className="w-full sm:max-w-xl max-h-[82dvh] sm:max-h-[70vh] rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 shadow-2xl flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 헤더 */}
+            <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2">
+                <svg width="13" height="13" viewBox="0 0 11 11" fill="none" className="text-indigo-500">
+                  <path d="M5.5 1L6.7 4.2L10 5L6.7 5.8L5.5 9L4.3 5.8L1 5L4.3 4.2L5.5 1Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+                </svg>
+                <span className="text-sm font-semibold text-slate-800 dark:text-white">
+                  {companyName} 인재상
+                </span>
+                {profileLoading && (
+                  <span className="w-3 h-3 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+                )}
+              </div>
+              <button
+                onClick={() => setProfileModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 3L13 13M13 3L3 13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+            {/* 본문 */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {!companyProfile && profileLoading ? (
+                <div className="flex items-center justify-center h-32 gap-2 text-slate-400 text-sm">
+                  <span className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+                  조회 중...
+                </div>
+              ) : (
+                <div className={`${PROSE_CLASS} text-sm`}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{companyProfile}</ReactMarkdown>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

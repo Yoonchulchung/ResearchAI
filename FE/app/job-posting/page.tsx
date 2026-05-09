@@ -143,6 +143,7 @@ export default function JobPostingPage() {
   const [selected, setSelected] = useState<JobPosting | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
+  const [isFiltersHidden, setIsFiltersHidden] = useState(false);
   const listScrollTopRef = useRef(0);
   const detailScrollTopRef = useRef(0);
   const detailCacheRef = useRef<Map<string, Partial<JobPosting>>>(new Map());
@@ -219,11 +220,18 @@ export default function JobPostingPage() {
   const handleListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     if (typeof window !== "undefined" && window.innerWidth >= 768) return;
     const scrollTop = e.currentTarget.scrollTop;
+    const maxScroll = e.currentTarget.scrollHeight - e.currentTarget.clientHeight;
     const delta = scrollTop - listScrollTopRef.current;
     listScrollTopRef.current = scrollTop;
     if (Math.abs(delta) < 4) return;
-    if (delta > 0 && scrollTop > 10) setIsHeaderHidden(true);
-    else if (delta < 0) setIsHeaderHidden(false);
+    const atBottom = maxScroll > 0 && maxScroll - scrollTop < 60;
+    if (atBottom || delta < 0) {
+      setIsHeaderHidden(false);
+      setIsFiltersHidden(false);
+    } else if (delta > 0 && scrollTop > 10) {
+      setIsHeaderHidden(true);
+      setIsFiltersHidden(true);
+    }
   }, []);
 
   const handleDetailScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -527,66 +535,73 @@ export default function JobPostingPage() {
                 />
               </div>
 
-              {/* Type Category (신입/인턴/경력) */}
-              <div className="flex p-1 rounded-lg bg-slate-100 border border-slate-200/60 overflow-x-auto scrollbar-hide">
-                {(["", "신입", "인턴", "신입/인턴", "경력"] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTypeFilter(t)}
-                    className={`shrink-0 flex-1 px-2 py-1.5 text-[13px] font-bold rounded-md transition-all whitespace-nowrap ${
-                      typeFilter === t
-                        ? "bg-white text-slate-800 shadow-sm border border-slate-200/50"
-                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 border border-transparent"
-                    }`}
-                  >
-                    {t === "" ? "전체" : t}
-                  </button>
-                ))}
-              </div>
-
-              {/* Company Types (Multi-select) */}
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {companyTypeOptions.length > 0 && companyTypeOptions.map(c => {
-                  const arr = companyTypeFilter ? companyTypeFilter.split(',') : [];
-                  const isSelected = arr.includes(c);
-                  return (
+              {/* 필터 영역 — 모바일 스크롤 시 숨김 */}
+              <div className={`md:contents overflow-hidden transition-all duration-200 ease-out ${
+                isFiltersHidden
+                  ? "max-md:max-h-0 max-md:opacity-0 max-md:pointer-events-none"
+                  : "max-md:max-h-64 max-md:opacity-100"
+              }`}>
+                {/* Type Category (신입/인턴/경력) */}
+                <div className="flex p-1 rounded-lg bg-slate-100 border border-slate-200/60 overflow-x-auto scrollbar-hide">
+                  {(["", "신입", "인턴", "신입/인턴", "경력"] as const).map((t) => (
                     <button
-                      key={c}
-                      onClick={() => {
-                        if (isSelected) {
-                          setCompanyTypeFilter(arr.filter(x => x !== c).join(','));
-                        } else {
-                          setCompanyTypeFilter([...arr, c].join(','));
-                        }
-                      }}
-                      className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-all ${
-                        isSelected
-                          ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)]"
-                          : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300"
+                      key={t}
+                      onClick={() => setTypeFilter(t)}
+                      className={`shrink-0 flex-1 px-2 py-1.5 text-[13px] font-bold rounded-md transition-all whitespace-nowrap ${
+                        typeFilter === t
+                          ? "bg-white text-slate-800 shadow-sm border border-slate-200/50"
+                          : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 border border-transparent"
                       }`}
                     >
-                      {c}
+                      {t === "" ? "전체" : t}
                     </button>
-                  );
-                })}
-              </div>
-
-              {/* Category Dropdown */}
-              {categoryOptions.length > 0 && (
-                <div className="mt-1">
-                  <select
-                    value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="w-full px-2.5 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer shadow-sm appearance-none"
-                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2394A3B8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 0.75rem center" }}
-                  >
-                    <option value="">직무분야 전체</option>
-                    {categoryOptions.map((o) => (
-                      <option key={o} value={o}>{o}</option>
-                    ))}
-                  </select>
+                  ))}
                 </div>
-              )}
+
+                {/* Company Types (Multi-select) */}
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {companyTypeOptions.length > 0 && companyTypeOptions.map(c => {
+                    const arr = companyTypeFilter ? companyTypeFilter.split(',') : [];
+                    const isSelected = arr.includes(c);
+                    return (
+                      <button
+                        key={c}
+                        onClick={() => {
+                          if (isSelected) {
+                            setCompanyTypeFilter(arr.filter(x => x !== c).join(','));
+                          } else {
+                            setCompanyTypeFilter([...arr, c].join(','));
+                          }
+                        }}
+                        className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-all ${
+                          isSelected
+                            ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)]"
+                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300"
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Category Dropdown */}
+                {categoryOptions.length > 0 && (
+                  <div className="mt-1">
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer shadow-sm appearance-none"
+                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2394A3B8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 0.75rem center" }}
+                    >
+                      <option value="">직무분야 전체</option>
+                      {categoryOptions.map((o) => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* List */}

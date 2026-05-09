@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { MODELS, PROSE_CLASS } from "../_constants";
@@ -53,8 +53,6 @@ interface Props {
   onApplyResult: (result: string, mode: "append" | "replace") => void;
   onCopyText: (text: string, id: string) => void;
   companyName: string;
-  companyProfile: string;
-  profileLoading: boolean;
 }
 
 export function AiPanel({
@@ -71,15 +69,15 @@ export function AiPanel({
   onRunAssist,
   onApplyResult,
   onCopyText,
-  companyName,
-  companyProfile,
-  profileLoading,
 }: Props) {
   const { theme, uiStyle } = useTheme();
   const isGlass = uiStyle === "glass";
   const isDark = theme === "dark";
   const actions = FALLBACK_ACTIONS;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isHeaderHidden, setIsHeaderHidden] = useState(false);
+  const lastMsgScrollTopRef = useRef(0);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -90,10 +88,21 @@ export function AiPanel({
     }
   }, [customPrompt]);
 
+  const handleMsgScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const scrollTop = el.scrollTop;
+    const delta = scrollTop - lastMsgScrollTopRef.current;
+    lastMsgScrollTopRef.current = scrollTop;
+    if (Math.abs(delta) < 4) return;
+    if (delta > 0 && scrollTop > 20) setIsHeaderHidden(true);
+    else if (delta < 0) setIsHeaderHidden(false);
+  };
+
   return (
-    <div className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-colors ${isGlass ? "bg-transparent" : "bg-slate-50"}`}>
-      {/* Header */}
-      <div className={`shrink-0 flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 border-b transition-colors ${isGlass ? (isDark ? "bg-transparent border-white/10" : "bg-transparent border-black/10") : "bg-white border-slate-200/60"}`}>
+    <div className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-colors ${isGlass ? "bg-transparent" : "bg-slate-50"} ${isExpanded ? "max-lg:fixed max-lg:inset-0 max-lg:z-50" : ""}`}>
+      {/* Header — 채팅 스크롤 시 숨김 */}
+      <div className={`shrink-0 overflow-hidden transition-all duration-200 ease-out ${isHeaderHidden ? "max-h-0 opacity-0 pointer-events-none" : "max-h-20 opacity-100"}`}>
+      <div className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 border-b transition-colors ${isGlass ? (isDark ? "bg-transparent border-white/10" : "bg-white/60 border-black/10") : "bg-white border-slate-200/60"}`}>
         <span className={`text-sm font-semibold uppercase tracking-wider shrink-0 ${isDark ? "text-white/60" : "text-slate-500"}`}>AI 어시스턴트</span>
         {/* Mobile: spellcheck + evaluate */}
         <button
@@ -159,17 +168,41 @@ export function AiPanel({
         </div>
         <div className="flex-1" />
         {messages.length > 0 && (
-          <button
-            onClick={onClearMessages}
-            className={`text-sm transition-colors ${isDark ? "text-white/40 hover:text-white" : "text-slate-400 hover:text-slate-600"}`}
-          >
-            대화 초기화
-          </button>
+          <>
+            {/* 초기화 아이콘 */}
+            <button
+              onClick={onClearMessages}
+              title="대화 초기화"
+              className={`shrink-0 flex items-center justify-center w-6 h-6 rounded-md transition-colors ${isDark ? "text-white/30 hover:text-white/70" : "text-slate-300 hover:text-slate-600"}`}
+            >
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                <path d="M2 3h9M5 3V2h3v1M4 3l.5 7h4L9 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {/* 모바일 전용 확장 버튼 */}
+            <button
+              onClick={() => setIsExpanded((v) => !v)}
+              title={isExpanded ? "축소" : "확장"}
+              className={`lg:hidden shrink-0 flex items-center justify-center w-6 h-6 rounded-md border transition-all ${
+                isDark ? "text-white/50 border-white/20 hover:bg-white/10" : "text-slate-400 border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              {isExpanded ? (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 2L4.5 4.5M10 2L7.5 4.5M2 10L4.5 7.5M10 10L7.5 7.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M1 1L3.5 3.5M11 1L8.5 3.5M1 11L3.5 8.5M11 11L8.5 8.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
+              )}
+            </button>
+          </>
         )}
         <select
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          className={`min-w-0 max-w-[9rem] sm:max-w-none text-xs sm:text-sm border rounded-lg px-2 py-1 focus:outline-none cursor-pointer disabled:opacity-50 ${isGlass && isDark
+          className={`min-w-0 max-w-[6rem] sm:max-w-none text-xs sm:text-sm border rounded-lg px-2 py-1 focus:outline-none cursor-pointer disabled:opacity-50 ${isGlass && isDark
               ? "!bg-white/10 !text-white !border-white/20 focus:ring-1 focus:ring-white/40"
               : "text-slate-600 bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-200"
             }`}
@@ -179,29 +212,10 @@ export function AiPanel({
           ))}
         </select>
       </div>
-
-      {/* Company profile panel */}
-      {(companyProfile || profileLoading) && (
-        <div className="shrink-0 border-b border-indigo-100 bg-indigo-50/60 px-4 py-3 max-h-52 overflow-y-auto">
-          <div className="flex items-center gap-1.5 mb-2">
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" className="text-indigo-500 shrink-0">
-              <path d="M5.5 1L6.7 4.2L10 5L6.7 5.8L5.5 9L4.3 5.8L1 5L4.3 4.2L5.5 1Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
-            </svg>
-            <span className="text-sm font-semibold text-indigo-600">{companyName} 인재상</span>
-            {profileLoading && (
-              <span className="w-2.5 h-2.5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin ml-1" />
-            )}
-          </div>
-          {companyProfile && (
-            <div className={`${PROSE_CLASS} text-sm`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{companyProfile}</ReactMarkdown>
-            </div>
-          )}
-        </div>
-      )}
+      </div>{/* /header animation wrapper */}
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto min-h-0 flex flex-col px-3 sm:px-4 py-2 sm:py-4 gap-3 sm:gap-4">
+      <div onScroll={handleMsgScroll} className="flex-1 overflow-y-auto min-h-0 flex flex-col px-3 sm:px-4 py-2 sm:py-4 gap-3 sm:gap-4">
         {messages.length === 0 && !aiError && (
           <div className={`flex-1 flex flex-col items-center justify-center gap-2 sm:gap-3 ${isDark ? "text-white/30" : "text-slate-300"}`}>
             <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
