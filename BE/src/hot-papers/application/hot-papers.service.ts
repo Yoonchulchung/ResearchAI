@@ -1,5 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import { load } from 'cheerio';
+import { Repository } from 'typeorm';
+import { HotPaperEntity } from '../domain/entity/hot-paper.entity';
+import { ContentRefreshStateEntity } from '../../shared/entity/content-refresh-state.entity';
 
 export interface HotPaperSource {
   id: string;
@@ -35,21 +39,86 @@ const SOURCES: HotPaperSource[] = [
   { id: 'neurips', name: 'NeurIPS Proceedings', url: 'https://papers.nips.cc/' },
 ];
 
-const CACHE_TTL_MS = 30 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 15_000;
+const DAILY_REFRESH_MS = 24 * 60 * 60 * 1000;
+const REFRESH_CHECK_MS = 60 * 60 * 1000;
+const REFRESH_STATE_KEY = 'content-refresh:hot-papers';
 
 @Injectable()
-export class HotPapersService {
+export class HotPapersService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(HotPapersService.name);
-  private cache: HotPaperListResult | null = null;
-  private cacheExpiresAt = 0;
+  private refreshTimer: NodeJS.Timeout | null = null;
+  private refreshPromise: Promise<HotPaperListResult['errors']> | null = null;
+
+  constructor(
+    @InjectRepository(HotPaperEntity)
+    private readonly paperRepo: Repository<HotPaperEntity>,
+    @InjectRepository(ContentRefreshStateEntity)
+    private readonly refreshStateRepo: Repository<ContentRefreshStateEntity>,
+  ) {}
+
+  onModuleInit() {
+    setTimeout(() => {
+      this.refreshCacheIfStale().catch((error) => {
+        const message = error instanceof Error ? error.message : '핫 논문 자동 수집에 실패했습니다.';
+        this.logger.warn(message);
+      });
+    }, 8_000);
+
+    this.refreshTimer = setInterval(() => {
+      this.refreshCacheIfStale().catch((error) => {
+        const message = error instanceof Error ? error.message : '핫 논문 자동 수집에 실패했습니다.';
+        this.logger.warn(message);
+      });
+    }, REFRESH_CHECK_MS);
+    this.refreshTimer.unref?.();
+  }
+
+  onModuleDestroy() {
+    if (this.refreshTimer) clearInterval(this.refreshTimer);
+  }
 
   async getPapers(options: { source?: string; limit?: number; refresh?: boolean } = {}): Promise<HotPaperListResult> {
-    const now = Date.now();
-    if (!options.refresh && this.cache && this.cacheExpiresAt > now) {
-      return this.filterResult(this.cache, options.source, options.limit);
+    let errors: HotPaperListResult['errors'] = [];
+    const cachedCount = await this.paperRepo.count();
+
+    if (options.refresh || cachedCount === 0) {
+      errors = await this.refreshCache();
+    } else {
+      this.refreshCacheIfStale().catch((error) => {
+        const message = error instanceof Error ? error.message : '핫 논문 백그라운드 수집에 실패했습니다.';
+        this.logger.warn(message);
+      });
     }
 
+    const result: HotPaperListResult = {
+      sources: SOURCES,
+      papers: await this.readCachedPapers(),
+      errors,
+      fetchedAt: (await this.getLastRefreshAt()) ?? new Date(0).toISOString(),
+    };
+
+    return this.filterResult(result, options.source, options.limit);
+  }
+
+  private async refreshCacheIfStale(): Promise<void> {
+    const lastRefreshAt = await this.getLastRefreshAt();
+    const empty = (await this.paperRepo.count()) === 0;
+    if (!empty && lastRefreshAt && Date.now() - new Date(lastRefreshAt).getTime() < DAILY_REFRESH_MS) return;
+    await this.refreshCache();
+  }
+
+  private async refreshCache(): Promise<HotPaperListResult['errors']> {
+    if (this.refreshPromise) return this.refreshPromise;
+
+    this.refreshPromise = this.collectAndStorePapers()
+      .finally(() => {
+        this.refreshPromise = null;
+      });
+    return this.refreshPromise;
+  }
+
+  private async collectAndStorePapers(): Promise<HotPaperListResult['errors']> {
     const settled = await Promise.allSettled([
       this.fetchHuggingFaceTrending(),
       this.fetchNeuripsLatest(),
@@ -68,16 +137,19 @@ export class HotPapersService {
       this.logger.warn(`${source.name} crawl failed: ${message}`);
     });
 
-    const result: HotPaperListResult = {
-      sources: SOURCES,
-      papers: this.dedupe(papers),
-      errors,
-      fetchedAt: new Date().toISOString(),
-    };
+    const deduped = this.dedupe(papers);
+    if (deduped.length > 0) {
+      await this.paperRepo.save(deduped.map((paper) => this.toPaperEntity(paper)));
+    }
+    await this.setLastRefreshAt(new Date().toISOString());
+    return errors;
+  }
 
-    this.cache = result;
-    this.cacheExpiresAt = now + CACHE_TTL_MS;
-    return this.filterResult(result, options.source, options.limit);
+  private async readCachedPapers(): Promise<HotPaper[]> {
+    const entities = await this.paperRepo.find({ order: { publishedAt: 'DESC', updatedAt: 'DESC' } });
+    return entities
+      .map((entity) => this.toPaper(entity))
+      .sort((a, b) => this.paperSortValue(b) - this.paperSortValue(a));
   }
 
   private async fetchHuggingFaceTrending(): Promise<HotPaper[]> {
@@ -223,5 +295,65 @@ export class HotPapersService {
     if (!value) return undefined;
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+  }
+
+  private toPaperEntity(paper: HotPaper): HotPaperEntity {
+    return this.paperRepo.create({
+      id: paper.id,
+      sourceId: paper.sourceId,
+      sourceName: paper.sourceName,
+      title: this.cleanText(paper.title),
+      url: paper.url,
+      summary: paper.summary ? this.cleanText(paper.summary) : null,
+      authorsJson: JSON.stringify(paper.authors ?? []),
+      publishedAt: paper.publishedAt ?? null,
+      venue: paper.venue ?? null,
+      upvotes: typeof paper.upvotes === 'number' ? paper.upvotes : null,
+      pdfUrl: paper.pdfUrl ?? null,
+      codeUrl: paper.codeUrl ?? null,
+      tagsJson: JSON.stringify(paper.tags ?? []),
+    });
+  }
+
+  private toPaper(entity: HotPaperEntity): HotPaper {
+    return {
+      id: entity.id,
+      sourceId: entity.sourceId,
+      sourceName: entity.sourceName,
+      title: entity.title,
+      url: entity.url,
+      summary: entity.summary ?? undefined,
+      authors: this.parseJsonArray(entity.authorsJson),
+      publishedAt: entity.publishedAt ?? undefined,
+      venue: entity.venue ?? undefined,
+      upvotes: entity.upvotes ?? undefined,
+      pdfUrl: entity.pdfUrl ?? undefined,
+      codeUrl: entity.codeUrl ?? undefined,
+      tags: this.parseJsonArray(entity.tagsJson),
+    };
+  }
+
+  private async getLastRefreshAt(): Promise<string | null> {
+    const state = await this.refreshStateRepo.findOne({ where: { key: REFRESH_STATE_KEY } });
+    return state?.refreshedAt || null;
+  }
+
+  private async setLastRefreshAt(value: string): Promise<void> {
+    await this.refreshStateRepo.save(this.refreshStateRepo.create({ key: REFRESH_STATE_KEY, refreshedAt: value }));
+  }
+
+  private paperSortValue(paper: HotPaper): number {
+    const dateValue = paper.publishedAt ? new Date(paper.publishedAt).getTime() : 0;
+    const safeDateValue = Number.isNaN(dateValue) ? 0 : dateValue;
+    return safeDateValue + (paper.upvotes ?? 0);
+  }
+
+  private parseJsonArray(value: string): string[] {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+    } catch {
+      return [];
+    }
   }
 }

@@ -62,16 +62,23 @@ function BlogCard({ post }: { post: TechBlogPost }) {
             </span>
             <span className="text-2xs text-slate-400">{formatDate(post.publishedAt)}</span>
           </div>
-          <h2 className="line-clamp-2 text-base font-semibold leading-snug text-slate-900 dark:text-white">
+          <a
+            href={post.url}
+            target="_blank"
+            rel="noreferrer"
+            className="line-clamp-2 text-base font-semibold leading-snug text-slate-900 transition-colors hover:text-indigo-600 dark:text-white dark:hover:text-indigo-300"
+          >
             {post.title}
-          </h2>
+          </a>
         </div>
         {post.thumbnail && (
-          <img
-            src={post.thumbnail}
-            alt=""
-            className="h-16 w-20 shrink-0 rounded-md border border-slate-100 object-cover dark:border-slate-800"
-          />
+          <a href={post.url} target="_blank" rel="noreferrer" className="shrink-0">
+            <img
+              src={post.thumbnail}
+              alt=""
+              className="h-16 w-20 rounded-md border border-slate-100 object-cover dark:border-slate-800"
+            />
+          </a>
         )}
       </div>
       {post.summary && (
@@ -89,7 +96,14 @@ function BlogCard({ post }: { post: TechBlogPost }) {
         </div>
       )}
       <div className="mt-4 flex items-center justify-between gap-3">
-        <span className="truncate text-xs text-slate-400">{hostLabel(post.url)}</span>
+        <a
+          href={post.url}
+          target="_blank"
+          rel="noreferrer"
+          className="truncate text-xs text-slate-400 transition-colors hover:text-indigo-500"
+        >
+          {hostLabel(post.url)}
+        </a>
         <a
           href={post.url}
           target="_blank"
@@ -125,14 +139,30 @@ export default function TechBlogsPage() {
   const [source, setSource] = useState(SOURCE_ALL);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [sourceCount, setSourceCount] = useState<Map<string, number>>(new Map());
 
-  const load = useCallback(async (force = false) => {
+  const load = useCallback(async (force = false, requestedSource = SOURCE_ALL) => {
     setError(null);
     if (force) setRefreshing(true);
     else setLoading(true);
     try {
-      const result = await listTechBlogPosts({ source: SOURCE_ALL, limit: 220, refresh: force });
+      const result = await listTechBlogPosts({
+        source: requestedSource,
+        limit: requestedSource === SOURCE_ALL ? 300 : 500,
+        refresh: force,
+      });
       setData(result);
+      setSourceCount((prev) => {
+        const next = requestedSource === SOURCE_ALL ? new Map<string, number>() : new Map(prev);
+        if (requestedSource !== SOURCE_ALL) {
+          next.set(requestedSource, result.posts.length);
+          return next;
+        }
+        for (const post of result.posts) {
+          next.set(post.sourceId, (next.get(post.sourceId) ?? 0) + 1);
+        }
+        return next;
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "기술 블로그 목록을 불러오지 못했습니다.");
     } finally {
@@ -142,8 +172,8 @@ export default function TechBlogsPage() {
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    load(false, source);
+  }, [load, source]);
 
   const posts = useMemo(() => {
     const items = data?.posts ?? [];
@@ -160,14 +190,6 @@ export default function TechBlogsPage() {
     });
   }, [data?.posts, query, source]);
 
-  const sourceCount = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const post of data?.posts ?? []) {
-      map.set(post.sourceId, (map.get(post.sourceId) ?? 0) + 1);
-    }
-    return map;
-  }, [data?.posts]);
-
   const sourceGroups = useMemo(() => {
     const groups = new Map<string, NonNullable<TechBlogListResult["sources"]>>();
     for (const item of data?.sources ?? []) {
@@ -180,6 +202,10 @@ export default function TechBlogsPage() {
   const selectedSource = source === SOURCE_ALL
     ? null
     : data?.sources.find((item) => item.id === source) ?? null;
+  const loadedTotalCount = useMemo(
+    () => Array.from(sourceCount.values()).reduce((sum, count) => sum + count, 0),
+    [sourceCount],
+  );
 
   return (
     <div className="min-h-full bg-slate-50 px-4 py-5 dark:bg-slate-950 sm:px-6">
@@ -204,7 +230,7 @@ export default function TechBlogsPage() {
                 className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-200 dark:border-slate-700 dark:bg-slate-950 dark:text-white sm:w-72"
               />
               <button
-                onClick={() => load(true)}
+                onClick={() => load(true, source)}
                 disabled={refreshing}
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-indigo-200"
               >
@@ -228,7 +254,7 @@ export default function TechBlogsPage() {
                 }`}
               >
                 <span>전체</span>
-                <span className="text-xs text-slate-400">{data?.posts.length ?? 0}</span>
+                <span className="text-xs text-slate-400">{loadedTotalCount || data?.posts.length || 0}</span>
               </button>
               {sourceGroups.map(([category, items]) => (
                 <div key={category} className="pt-2">
@@ -237,19 +263,35 @@ export default function TechBlogsPage() {
                   </div>
                   <div className="space-y-1">
                     {items.map((item) => (
-                      <button
+                      <div
                         key={item.id}
-                        onClick={() => setSource(item.id)}
-                        className={`flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-2 text-left text-sm transition ${
+                        className={`flex items-center rounded-md transition ${
                           source === item.id
-                            ? "bg-indigo-50 font-semibold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
+                            ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
                             : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
                         }`}
-                        title={item.url}
                       >
-                        <span className="min-w-0 truncate">{item.name}</span>
-                        <span className="shrink-0 text-xs text-slate-400">{sourceCount.get(item.id) ?? 0}</span>
-                      </button>
+                        <button
+                          onClick={() => setSource(item.id)}
+                          className={`flex min-w-0 flex-1 items-center justify-between gap-3 px-2.5 py-2 text-left text-sm ${
+                            source === item.id ? "font-semibold" : ""
+                          }`}
+                          title={item.name}
+                        >
+                          <span className="min-w-0 truncate">{item.name}</span>
+                          <span className="shrink-0 text-xs text-slate-400">{sourceCount.get(item.id) ?? 0}</span>
+                        </button>
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white hover:text-indigo-600 dark:hover:bg-slate-950 dark:hover:text-indigo-300"
+                          title={`${item.name} 바로가기`}
+                          aria-label={`${item.name} 바로가기`}
+                        >
+                          <IconExternal />
+                        </a>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -267,6 +309,15 @@ export default function TechBlogsPage() {
                       {selectedSource.category}
                     </span>
                   )}
+                  <a
+                    href={selectedSource.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-0.5 text-2xs font-semibold text-slate-500 transition-colors hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:text-slate-300 dark:hover:border-indigo-500/40 dark:hover:text-indigo-300"
+                  >
+                    바로가기
+                    <IconExternal />
+                  </a>
                 </div>
                 {selectedSource.description && selectedSource.description.length > 0 && (
                   <ul className="mt-2 space-y-1 text-sm leading-6 text-slate-500 dark:text-slate-400">

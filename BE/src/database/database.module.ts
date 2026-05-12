@@ -20,6 +20,9 @@ import { AiCallLogEntity } from '../ai/domain/entity/ai-call-log.entity';
 import { UserEntity } from '../auth/domain/entity/user.entity';
 import { LoginHistoryEntity } from '../auth/domain/entity/login-history.entity';
 import { SessionJobEntity } from '../sessions/domain/entity/session-job.entity';
+import { HotPaperEntity } from '../hot-papers/domain/entity/hot-paper.entity';
+import { TechBlogPostEntity } from '../tech-blog/domain/entity/tech-blog-post.entity';
+import { ContentRefreshStateEntity } from '../shared/entity/content-refresh-state.entity';
 
 function resolveSqlitePath(): string {
   const explicitPath = process.env.DATABASE_PATH;
@@ -48,7 +51,8 @@ mkdirSync(dirname(databasePath), { recursive: true });
                  NewsBriefingEntity, AppConfigEntity,
                  GmailTokenEntity, ExperienceEntity, DocumentEntity,
                  CompanyAnalysisEntity, SessionJobEntity,
-                 AiCallLogEntity, UserEntity, LoginHistoryEntity],
+                 AiCallLogEntity, UserEntity, LoginHistoryEntity,
+                 HotPaperEntity, TechBlogPostEntity, ContentRefreshStateEntity],
       synchronize: true,
       // WAL 모드: 동시 읽기/쓰기 성능 향상 (다중 기기 동시 접속 대응)
       prepareDatabase: (db: { pragma: (s: string) => void }) => {

@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { TechBlogListResult, TechBlogService, TechBlogSource } from '../application/tech-blog.service';
+import { TechBlogService } from '../application/tech-blog.service';
+import type { TechBlogListResult, TechBlogSource } from '../domain/tech-blog.types';
 
 @Controller('tech-blogs')
 export class TechBlogController {
