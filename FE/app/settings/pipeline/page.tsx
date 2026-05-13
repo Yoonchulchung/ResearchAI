@@ -11,9 +11,9 @@ import { DocParsePanel } from "@/settings/pipeline/DocParsePanel/DocParsePanel";
 import { AiCallLogPanel } from "@/settings/pipeline/AiCallLogPanel/AiCallLogPanel";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { API_BASE, tokenStore } from "@/lib/api/base";
+import { API_BASE, readSSE, tokenStore } from "@/lib/api/base";
 
-type Tab = "pipeline" | "api" | "local" | "recruit" | "rag" | "docparse" | "calllog" | "jobplanet";
+type Tab = "pipeline" | "api" | "local" | "recruit" | "rag" | "docparse" | "calllog" | "jobplanet" | "catch";
 
 interface JobplanetTestResult {
   ok: boolean;
@@ -26,7 +26,27 @@ interface JobplanetTestResult {
   reviewCount?: number;
   welfare?: string;
   preview?: { rating: number; title: string; pros: string; cons: string; date: string }[];
+  logs?: string[];
 }
+
+type JobplanetTestEvent =
+  | { type: "log"; message: string }
+  | { type: "done"; result: JobplanetTestResult }
+  | { type: "error"; message: string };
+
+interface CatchTestResult {
+  ok: boolean;
+  error?: string;
+  failedStep?: string;
+  finalUrl?: string;
+  sessionReused?: boolean;
+  logs?: string[];
+}
+
+type CatchTestEvent =
+  | { type: "log"; message: string }
+  | { type: "done"; result: CatchTestResult }
+  | { type: "error"; message: string };
 
 function JobplanetTestPanel({ isDark, user }: { isDark: boolean; user: ReturnType<typeof useAuth>["user"] }) {
   const [jpId, setJpId] = useState(user?.jobplanetId ?? "");
@@ -34,14 +54,27 @@ function JobplanetTestPanel({ isDark, user }: { isDark: boolean; user: ReturnTyp
   const [company, setCompany] = useState("삼성전자");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<JobplanetTestResult | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  const addClientLog = (message: string) => {
+    setLogs((prev) => [...prev, `[${new Date().toISOString()}] ${message}`]);
+  };
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ block: "end" });
+  }, [logs]);
 
   const handleTest = async () => {
     if (!jpId || !jpPw) return;
     setLoading(true);
     setResult(null);
+    setLogs([]);
+    addClientLog("FE 요청 준비 완료");
     try {
       const token = tokenStore.get();
-      const res = await fetch(`${API_BASE}/jobplanet/test-login`, {
+      addClientLog("BE 잡플래닛 테스트 스트림 호출");
+      const res = await fetch(`${API_BASE}/jobplanet/test-login/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -49,10 +82,29 @@ function JobplanetTestPanel({ isDark, user }: { isDark: boolean; user: ReturnTyp
         },
         body: JSON.stringify({ id: jpId, password: jpPw, companyName: company }),
       });
-      const data = await res.json() as JobplanetTestResult;
-      setResult(data);
+      addClientLog(`BE 스트림 연결: HTTP ${res.status}`);
+      if (!res.ok || !res.body) throw new Error(`스트림 연결 실패 (${res.status})`);
+
+      await readSSE<JobplanetTestEvent>(res, (event) => {
+        if (event.type === "log") {
+          setLogs((prev) => [...prev, event.message]);
+          return;
+        }
+        if (event.type === "error") {
+          const line = `[${new Date().toISOString()}] ${event.message}`;
+          setLogs((prev) => [...prev, line]);
+          setResult({ ok: false, error: event.message, logs: [line] });
+          return true;
+        }
+        setResult(event.result);
+        if (event.result.logs?.length) setLogs(event.result.logs);
+        return true;
+      });
     } catch (e) {
-      setResult({ ok: false, error: e instanceof Error ? e.message : "네트워크 오류" });
+      const message = e instanceof Error ? e.message : "네트워크 오류";
+      const errorLog = `[${new Date().toISOString()}] 요청 실패: ${message}`;
+      setLogs((prev) => [...prev, errorLog]);
+      setResult({ ok: false, error: message, logs: [errorLog] });
     } finally {
       setLoading(false);
     }
@@ -91,6 +143,43 @@ function JobplanetTestPanel({ isDark, user }: { isDark: boolean; user: ReturnTyp
         )}
       </div>
 
+      <div className={`rounded-xl border overflow-hidden ${isDark ? "bg-slate-950 border-slate-700" : "bg-slate-950 border-slate-200"}`}>
+        <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
+          <div>
+            <p className="text-xs font-semibold text-slate-200">잡플래닛 테스트 로그</p>
+            <p className="text-[11px] text-slate-500">로그인, 검색, 리뷰 페이지 이동, 데이터 추출 단계를 표시합니다.</p>
+          </div>
+          <button
+            onClick={() => setLogs([])}
+            disabled={loading || logs.length === 0}
+            className="px-2 py-1 text-[11px] font-semibold rounded-md text-slate-400 hover:text-slate-200 hover:bg-white/10 disabled:opacity-40 transition-colors"
+          >
+            지우기
+          </button>
+        </div>
+        <div className="h-56 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed">
+          {logs.length === 0 ? (
+            <p className="text-slate-500">테스트를 실행하면 단계별 로그가 여기에 표시됩니다.</p>
+          ) : (
+            <div className="space-y-1">
+              {logs.map((line, index) => (
+                <p key={`${line}-${index}`} className="whitespace-pre-wrap break-words text-slate-300">
+                  <span className="text-slate-600">{String(index + 1).padStart(2, "0")}</span>{" "}
+                  {line}
+                </p>
+              ))}
+              {loading && (
+                <p className="text-indigo-300 animate-pulse">
+                  <span className="text-slate-600">{String(logs.length + 1).padStart(2, "0")}</span>{" "}
+                  BE 작업 진행 중...
+                </p>
+              )}
+              <div ref={logEndRef} />
+            </div>
+          )}
+        </div>
+      </div>
+
       {result && (
         <div className={`rounded-xl border p-5 ${result.ok ? (isDark ? "bg-emerald-900/20 border-emerald-700/40" : "bg-emerald-50 border-emerald-200") : (isDark ? "bg-red-900/20 border-red-700/40" : "bg-red-50 border-red-200")}`}>
           {result.ok ? (
@@ -120,6 +209,173 @@ function JobplanetTestPanel({ isDark, user }: { isDark: boolean; user: ReturnTyp
                       <p className={`${isDark ? "text-red-400" : "text-red-700"}`}>👎 {r.cons}</p>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-start gap-2">
+                <span className="text-red-500 text-lg shrink-0">✕</span>
+                <div>
+                  <p className={`font-semibold text-sm mb-1 ${isDark ? "text-red-300" : "text-red-700"}`}>
+                    테스트 실패{result.failedStep ? ` — ${result.failedStep}` : ""}
+                  </p>
+                  <p className={`text-sm ${isDark ? "text-red-400" : "text-red-600"}`}>{result.error}</p>
+                </div>
+              </div>
+              {result.finalUrl && (
+                <div className={`text-xs font-mono px-3 py-2 rounded-lg ${isDark ? "bg-slate-700/50 text-slate-400" : "bg-slate-100 text-slate-500"}`}>
+                  최종 URL: {result.finalUrl}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CatchTestPanel({ isDark }: { isDark: boolean }) {
+  const [catchId, setCatchId] = useState("");
+  const [catchPw, setCatchPw] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<CatchTestResult | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  const addClientLog = (message: string) => {
+    setLogs((prev) => [...prev, `[${new Date().toISOString()}] ${message}`]);
+  };
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ block: "end" });
+  }, [logs]);
+
+  const handleTest = async () => {
+    if (!catchId || !catchPw) return;
+    setLoading(true);
+    setResult(null);
+    setLogs([]);
+    addClientLog("FE 요청 준비 완료");
+    try {
+      const token = tokenStore.get();
+      addClientLog("BE 캐치 테스트 스트림 호출");
+      const res = await fetch(`${API_BASE}/catch/test-login/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ id: catchId, password: catchPw }),
+      });
+      addClientLog(`BE 스트림 연결: HTTP ${res.status}`);
+      if (!res.ok || !res.body) throw new Error(`스트림 연결 실패 (${res.status})`);
+
+      await readSSE<CatchTestEvent>(res, (event) => {
+        if (event.type === "log") {
+          setLogs((prev) => [...prev, event.message]);
+          return;
+        }
+        if (event.type === "error") {
+          const line = `[${new Date().toISOString()}] ${event.message}`;
+          setLogs((prev) => [...prev, line]);
+          setResult({ ok: false, error: event.message, logs: [line] });
+          return true;
+        }
+        setResult(event.result);
+        if (event.result.logs?.length) setLogs(event.result.logs);
+        return true;
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "네트워크 오류";
+      const errorLog = `[${new Date().toISOString()}] 요청 실패: ${message}`;
+      setLogs((prev) => [...prev, errorLog]);
+      setResult({ ok: false, error: message, logs: [errorLog] });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputCls = `w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${isDark ? "bg-slate-800 border-slate-600 text-slate-200 placeholder-slate-500 focus:ring-slate-500" : "bg-white border-slate-300 text-slate-800 placeholder-slate-400 focus:ring-slate-300"}`;
+
+  return (
+    <div className="space-y-4">
+      <div className={`rounded-xl border p-5 space-y-4 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"}`}>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>캐치 ID</label>
+            <input value={catchId} onChange={(e) => setCatchId(e.target.value)} placeholder="catch id" className={inputCls} />
+          </div>
+          <div>
+            <label className={`block text-xs font-medium mb-1 ${isDark ? "text-slate-400" : "text-slate-600"}`}>비밀번호</label>
+            <input type="password" value={catchPw} onChange={(e) => setCatchPw(e.target.value)} placeholder="••••••••" className={inputCls} />
+          </div>
+        </div>
+        <button
+          onClick={handleTest}
+          disabled={loading || !catchId || !catchPw}
+          className="w-full py-2 text-sm font-semibold rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-50 transition-colors"
+        >
+          {loading ? "캐치 로그인 테스트 중..." : "테스트 실행"}
+        </button>
+        {loading && (
+          <p className={`text-xs text-center ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+            Puppeteer로 캐치에 로그인하고 세션 쿠키가 생성되는지 확인합니다.
+          </p>
+        )}
+      </div>
+
+      <div className={`rounded-xl border overflow-hidden ${isDark ? "bg-slate-950 border-slate-700" : "bg-slate-950 border-slate-200"}`}>
+        <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
+          <div>
+            <p className="text-xs font-semibold text-slate-200">캐치 테스트 로그</p>
+            <p className="text-[11px] text-slate-500">로그인 페이지 이동, API 로그인, DOM fallback, 세션 확인 단계를 표시합니다.</p>
+          </div>
+          <button
+            onClick={() => setLogs([])}
+            disabled={loading || logs.length === 0}
+            className="px-2 py-1 text-[11px] font-semibold rounded-md text-slate-400 hover:text-slate-200 hover:bg-white/10 disabled:opacity-40 transition-colors"
+          >
+            지우기
+          </button>
+        </div>
+        <div className="h-56 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed">
+          {logs.length === 0 ? (
+            <p className="text-slate-500">테스트를 실행하면 단계별 로그가 여기에 표시됩니다.</p>
+          ) : (
+            <div className="space-y-1">
+              {logs.map((line, index) => (
+                <p key={`${line}-${index}`} className="whitespace-pre-wrap break-words text-slate-300">
+                  <span className="text-slate-600">{String(index + 1).padStart(2, "0")}</span>{" "}
+                  {line}
+                </p>
+              ))}
+              {loading && (
+                <p className="text-cyan-300 animate-pulse">
+                  <span className="text-slate-600">{String(logs.length + 1).padStart(2, "0")}</span>{" "}
+                  BE 작업 진행 중...
+                </p>
+              )}
+              <div ref={logEndRef} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {result && (
+        <div className={`rounded-xl border p-5 ${result.ok ? (isDark ? "bg-emerald-900/20 border-emerald-700/40" : "bg-emerald-50 border-emerald-200") : (isDark ? "bg-red-900/20 border-red-700/40" : "bg-red-50 border-red-200")}`}>
+          {result.ok ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-500 text-lg">✓</span>
+                <span className={`font-semibold text-sm ${isDark ? "text-emerald-300" : "text-emerald-700"}`}>
+                  캐치 로그인 성공{result.sessionReused ? " (저장된 세션 사용)" : ""}
+                </span>
+              </div>
+              {result.finalUrl && (
+                <div className={`text-xs font-mono px-3 py-2 rounded-lg ${isDark ? "bg-slate-700/50 text-slate-400" : "bg-white/70 text-slate-600"}`}>
+                  최종 URL: {result.finalUrl}
                 </div>
               )}
             </div>
@@ -192,6 +448,7 @@ export default function PipelinePage() {
     { id: "rag", label: "RAG 디버그" },
     { id: "calllog", label: "호출 이력" },
     { id: "jobplanet", label: "잡플래닛 테스트" },
+    { id: "catch", label: "캐치 테스트" },
   ];
 
   if (user?.role !== "admin") {
@@ -375,6 +632,18 @@ export default function PipelinePage() {
                 </p>
               </div>
               <JobplanetTestPanel isDark={isDark} user={user} />
+            </div>
+          )}
+
+          {activeTab === "catch" && (
+            <div className="max-w-2xl">
+              <div className="mb-6">
+                <h3 className={`text-base font-semibold ${isDark ? "text-slate-200" : "text-slate-900"}`}>캐치 로그인 테스트</h3>
+                <p className={`text-sm mt-1 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  캐치 로그인과 세션 쿠키 생성이 정상적으로 동작하는지 확인합니다.
+                </p>
+              </div>
+              <CatchTestPanel isDark={isDark} />
             </div>
           )}
 

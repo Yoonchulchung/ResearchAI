@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { TechBlogService } from '../application/tech-blog.service';
-import type { TechBlogListResult, TechBlogSource } from '../domain/tech-blog.types';
+import type { TechBlogListResult, TechBlogSource, TechBlogTrendSummary } from '../domain/tech-blog.types';
 
 @Controller('tech-blogs')
 export class TechBlogController {
@@ -21,6 +21,22 @@ export class TechBlogController {
     return this.techBlogService.getPosts({
       source,
       limit,
+      refresh: refresh === 'true' || refresh === '1',
+    });
+  }
+
+  @Get('trends')
+  getTrendSummary(
+    @Query('days') daysStr = '14',
+    @Query('source') source = 'all',
+    @Query('model') model = '',
+    @Query('refresh') refresh = 'false',
+  ): Promise<TechBlogTrendSummary> {
+    const days = parseInt(daysStr, 10) || 14;
+    return this.techBlogService.getTrendSummary({
+      days,
+      source,
+      model,
       refresh: refresh === 'true' || refresh === '1',
     });
   }

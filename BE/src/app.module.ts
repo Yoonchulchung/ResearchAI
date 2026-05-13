@@ -16,7 +16,6 @@ import { GmailModule } from './gmail/gmail.module';
 import { DocumentsModule } from './documents/documents.module';
 import { BackgroundsModule } from './backgrounds/backgrounds.module';
 import { CoverLetterModule } from './cover-letter/cover-letter.module';
-import { JobPostingModule } from './job-posting/job-posting.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { TechBlogModule } from './tech-blog/tech-blog.module';
 import { HotPapersModule } from './hot-papers/hot-papers.module';
@@ -40,7 +39,6 @@ import { HotPapersModule } from './hot-papers/hot-papers.module';
     DocumentsModule,
     BackgroundsModule,
     CoverLetterModule,
-    JobPostingModule,
     MetricsModule,
     TechBlogModule,
     HotPapersModule,

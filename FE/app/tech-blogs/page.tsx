@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { listTechBlogPosts, type TechBlogListResult, type TechBlogPost } from "@/lib/api/tech-blogs";
+import { getTechBlogTrendSummary, listTechBlogPosts, type TechBlogListResult, type TechBlogPost, type TechBlogTrendSummary } from "@/lib/api/tech-blogs";
 
 const SOURCE_ALL = "all";
 
@@ -30,6 +30,15 @@ function IconFeed() {
       <circle cx="4.5" cy="13.5" r="1.4" fill="currentColor" />
       <path d="M3.5 8.5C6.8 8.5 9.5 11.2 9.5 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       <path d="M3.5 4C9.3 4 14 8.7 14 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconSparkles({ spinning = false }: { spinning?: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={spinning ? "animate-spin" : ""}>
+      <path d="M8.5 1.8L9.7 5.1L13 6.3L9.7 7.5L8.5 10.8L7.3 7.5L4 6.3L7.3 5.1L8.5 1.8Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M3.2 9.4L3.8 11L5.4 11.6L3.8 12.2L3.2 13.8L2.6 12.2L1 11.6L2.6 11L3.2 9.4Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -138,8 +147,12 @@ export default function TechBlogsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [source, setSource] = useState(SOURCE_ALL);
   const [query, setQuery] = useState("");
+  const [sourceQuery, setSourceQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sourceCount, setSourceCount] = useState<Map<string, number>>(new Map());
+  const [trend, setTrend] = useState<TechBlogTrendSummary | null>(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState<string | null>(null);
 
   const load = useCallback(async (force = false, requestedSource = SOURCE_ALL) => {
     setError(null);
@@ -192,12 +205,21 @@ export default function TechBlogsPage() {
 
   const sourceGroups = useMemo(() => {
     const groups = new Map<string, NonNullable<TechBlogListResult["sources"]>>();
+    const normalized = sourceQuery.trim().toLowerCase();
     for (const item of data?.sources ?? []) {
+      const sourceText = [
+        item.name,
+        item.id,
+        item.category ?? "",
+        ...(item.description ?? []),
+      ].join(" ").toLowerCase();
+      if (normalized && !sourceText.includes(normalized)) continue;
+
       const category = item.category ?? "기타";
       groups.set(category, [...(groups.get(category) ?? []), item]);
     }
     return Array.from(groups.entries());
-  }, [data?.sources]);
+  }, [data?.sources, sourceQuery]);
 
   const selectedSource = source === SOURCE_ALL
     ? null
@@ -206,6 +228,23 @@ export default function TechBlogsPage() {
     () => Array.from(sourceCount.values()).reduce((sum, count) => sum + count, 0),
     [sourceCount],
   );
+
+  const loadTrend = useCallback(async (force = false) => {
+    setTrendError(null);
+    setTrendLoading(true);
+    try {
+      const result = await getTechBlogTrendSummary({
+        days: 14,
+        source,
+        refresh: force,
+      });
+      setTrend(result);
+    } catch (e) {
+      setTrendError(e instanceof Error ? e.message : "기술 블로그 트렌드 분석에 실패했습니다.");
+    } finally {
+      setTrendLoading(false);
+    }
+  }, [source]);
 
   return (
     <div className="min-h-full bg-slate-50 px-4 py-5 dark:bg-slate-950 sm:px-6">
@@ -244,6 +283,14 @@ export default function TechBlogsPage() {
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[240px_1fr]">
           <aside className="hidden max-h-[calc(100vh-7rem)] overflow-y-auto rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:block">
             <div className="px-2 pb-2 text-xs font-semibold text-slate-400">출처</div>
+            <div className="px-1 pb-2">
+              <input
+                value={sourceQuery}
+                onChange={(e) => setSourceQuery(e.target.value)}
+                placeholder="기업 이름 검색"
+                className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs text-slate-800 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              />
+            </div>
             <div className="space-y-1">
               <button
                 onClick={() => setSource(SOURCE_ALL)}
@@ -256,7 +303,11 @@ export default function TechBlogsPage() {
                 <span>전체</span>
                 <span className="text-xs text-slate-400">{loadedTotalCount || data?.posts.length || 0}</span>
               </button>
-              {sourceGroups.map(([category, items]) => (
+              {sourceGroups.length === 0 ? (
+                <div className="px-2 py-6 text-center text-xs text-slate-400">
+                  일치하는 출처가 없습니다
+                </div>
+              ) : sourceGroups.map(([category, items]) => (
                 <div key={category} className="pt-2">
                   <div className="px-2 pb-1 text-2xs font-semibold uppercase tracking-wide text-slate-400">
                     {category}
@@ -281,16 +332,6 @@ export default function TechBlogsPage() {
                           <span className="min-w-0 truncate">{item.name}</span>
                           <span className="shrink-0 text-xs text-slate-400">{sourceCount.get(item.id) ?? 0}</span>
                         </button>
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mr-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white hover:text-indigo-600 dark:hover:bg-slate-950 dark:hover:text-indigo-300"
-                          title={`${item.name} 바로가기`}
-                          aria-label={`${item.name} 바로가기`}
-                        >
-                          <IconExternal />
-                        </a>
                       </div>
                     ))}
                   </div>
@@ -300,6 +341,57 @@ export default function TechBlogsPage() {
           </aside>
 
           <main className="min-w-0">
+            <section className="mb-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                    <IconSparkles />
+                    최근 2주 기술 트렌드
+                  </div>
+                  <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
+                    수집된 기술 블로그 글을 AI가 읽고 반복 키워드와 핫 토픽을 요약합니다.
+                  </p>
+                </div>
+                <button
+                  onClick={() => loadTrend(true)}
+                  disabled={trendLoading}
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-indigo-600 px-3 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <IconSparkles spinning={trendLoading} />
+                  {trendLoading ? "분석 중" : "AI 분석"}
+                </button>
+              </div>
+
+              {trendError && (
+                <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+                  {trendError}
+                </div>
+              )}
+
+              {trend && (
+                <div className="mt-4 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                    <span>{trend.postCount}개 글</span>
+                    <span>{trend.sourceCount}개 출처</span>
+                    <span>{formatDate(trend.from)} - {formatDate(trend.to)}</span>
+                    {trend.cached && <span>캐시됨</span>}
+                  </div>
+                  {trend.keywords.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {trend.keywords.slice(0, 12).map((item) => (
+                        <span key={item.keyword} className="rounded-md bg-slate-100 px-2 py-1 text-2xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          {item.keyword} {item.count}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm leading-6 text-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                    {trend.summary}
+                  </div>
+                </div>
+              )}
+            </section>
+
             {selectedSource && (
               <section className="mb-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <div className="mb-1 flex flex-wrap items-center gap-2">

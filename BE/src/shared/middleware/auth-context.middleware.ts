@@ -45,6 +45,8 @@ export class AuthContextMiddleware implements NestMiddleware {
                 jobplanetPassword: user.jobplanetPassword,
                 jobkoreaId: user.jobkoreaId,
                 jobkoreaPassword: user.jobkoreaPassword,
+                catchId: user.catchId,
+                catchPassword: user.catchPassword,
               },
             },
             () => next(),

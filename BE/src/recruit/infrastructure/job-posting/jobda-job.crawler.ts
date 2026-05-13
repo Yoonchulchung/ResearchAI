@@ -1,4 +1,4 @@
-import type { JobPosting } from '../domain/job-posting.model';
+import type { JobPosting } from '../../domain/job-posting.model';
 
 const BASE_URL = 'https://www.jobda.im';
 const API_URL = 'https://api.jobda.im/position';

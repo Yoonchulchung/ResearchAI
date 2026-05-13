@@ -8,15 +8,14 @@ import { NewsProviderService } from './infrastructure/news-provider.service';
 import { GithubApi } from './infrastructure/provider/github.api';
 import { HuggingfaceApi } from './infrastructure/provider/huggingface.api';
 import { GoogleNewsApi } from './infrastructure/provider/google-news.api';
-import { PuppeteerService } from './puppeteer.service';
 import { NewsBriefingEntity } from './domain/entity/news-briefing.entity';
 import { AiModule } from '../ai/ai.module';
 import { AppConfigModule } from '../config/config.module';
+import { SharedModule } from '../shared/shared.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([NewsBriefingEntity]), AiModule, AppConfigModule],
+  imports: [TypeOrmModule.forFeature([NewsBriefingEntity]), AiModule, AppConfigModule, SharedModule],
   controllers: [NewsController],
-  providers: [PuppeteerService, NewsService, MarketService, GithubApi, HuggingfaceApi, GoogleNewsApi, NewsProviderService, NewsSummaryService],
-  exports: [PuppeteerService],
+  providers: [NewsService, MarketService, GithubApi, HuggingfaceApi, GoogleNewsApi, NewsProviderService, NewsSummaryService],
 })
 export class NewsModule {}

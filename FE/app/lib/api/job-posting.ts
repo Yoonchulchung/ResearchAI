@@ -1,5 +1,7 @@
 import { apiFetch } from "./base";
 
+const JOB_POSTING_API_BASE = "/recruit/job-postings";
+
 export interface JobPosting {
   id: string;
   url: string;
@@ -43,6 +45,7 @@ export interface JobPostingListParams {
   companyType?: string;
   type?: string;
   category?: string;
+  sort?: "latest" | "deadline";
 }
 
 export interface JobScrapingStatus {
@@ -64,6 +67,7 @@ export const listJobPostings = ({
   companyType,
   type,
   category,
+  sort,
 }: JobPostingListParams = {}) => {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (source) params.set("source", source);
@@ -72,24 +76,28 @@ export const listJobPostings = ({
   if (companyType) params.set("companyType", companyType);
   if (type) params.set("type", type);
   if (category) params.set("category", category);
-  return apiFetch<JobPostingListResponse>(`/job-posting-scraper/data?${params}`);
+  if (sort) params.set("sort", sort);
+  return apiFetch<JobPostingListResponse>(`${JOB_POSTING_API_BASE}/data?${params}`);
 };
 
 export const getJobPosting = (id: string) =>
-  apiFetch<JobPosting>(`/job-posting-scraper/data/${encodeURIComponent(id)}`);
+  apiFetch<JobPosting>(`${JOB_POSTING_API_BASE}/data/${encodeURIComponent(id)}`);
 
 export const startJobScraping = (opts: { jobType?: "INTERN" | "RECRUIT"; fetchDetail?: boolean; source?: "linkareer" | "jobkorea" | "catch" | "jobplanet" | "jobda" | "all" } = {}) =>
-  apiFetch<{ message: string }>("/job-posting-scraper/start", { method: "POST", body: JSON.stringify(opts) });
+  apiFetch<{ message: string }>(`${JOB_POSTING_API_BASE}/start`, { method: "POST", body: JSON.stringify(opts) });
 
 export const stopJobScraping = () =>
-  apiFetch<{ message: string }>("/job-posting-scraper/stop", { method: "POST" });
+  apiFetch<{ message: string }>(`${JOB_POSTING_API_BASE}/stop`, { method: "POST" });
 
 export const getJobScrapingStatus = () =>
-  apiFetch<JobScrapingStatus>("/job-posting-scraper/status");
+  apiFetch<JobScrapingStatus>(`${JOB_POSTING_API_BASE}/status`);
+
+export const getPopularJobPostings = () =>
+  apiFetch<JobPosting[]>(`${JOB_POSTING_API_BASE}/popular`);
 
 export const fetchJobPostingDetail = (id: string, url: string, source: string) => {
   const params = new URLSearchParams({ id, url, source });
   return apiFetch<{ companyType?: string; jobs?: string; detailContent?: string; detailHtml?: string }>(
-    `/job-posting-scraper/detail?${params}`,
+    `${JOB_POSTING_API_BASE}/detail?${params}`,
   );
 };

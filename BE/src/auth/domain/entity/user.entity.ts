@@ -51,6 +51,12 @@ export class UserEntity {
   @Column({ name: 'jobkorea_password', type: 'text', nullable: true })
   jobkoreaPassword: string | null;
 
+  @Column({ name: 'catch_id', type: 'text', nullable: true })
+  catchId: string | null;
+
+  @Column({ name: 'catch_password', type: 'text', nullable: true })
+  catchPassword: string | null;
+
   @Column({ name: 'default_cloud_model', type: 'text', nullable: true })
   defaultCloudModel: string | null;
 

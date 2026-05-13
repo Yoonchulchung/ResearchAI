@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { CompanyAnalysisEntity } from '../domain/entity/company-analysis.entity';
 import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 import { WebSearchService } from '../../research/application/web-search.service';
+import type { SearchSources } from '../../research/domain/model/search-sources.model';
 import { JobplanetScraperService } from '../infrastructure/jobplanet-scraper.service';
 import { CareerPageUrlService } from '../infrastructure/career-page-url.service';
 import { DartFinancialService, YearlyFinancial, EmployeeDetail } from '../infrastructure/dart-financial.service';
@@ -93,7 +94,7 @@ export class CompanyAnalysisService {
     try {
       const { context, sources } = await this.webSearch.runSearch(`${companyName} 인재상 핵심가치 채용 공식`);
       webContext = context;
-      const srcText = sources?.tavily ?? sources?.duckduckgo ?? sources?.serper ?? sources?.naver ?? sources?.brave ?? '';
+      const srcText = this.getDefaultSearchSourceText(sources);
       evidence = parseSearchLinks(srcText).filter((e) => !isNaverBlog(e.url)).slice(0, 8);
     } catch {}
 
@@ -102,7 +103,7 @@ export class CompanyAnalysisService {
     let recentNews: { title: string; url: string; date: string }[] = [];
     try {
       const { sources: newsSrc } = await this.webSearch.runSearch(`${companyName} 뉴스`);
-      const newsText = newsSrc?.naver ?? newsSrc?.tavily ?? newsSrc?.serper ?? newsSrc?.duckduckgo ?? newsSrc?.brave ?? '';
+      const newsText = this.getDefaultSearchSourceText(newsSrc);
       recentNews = parseSearchLinks(newsText)
         .map((n) => ({ ...n, title: cleanSearchTitle(n.title) }))
         .filter((n) => n.title && !isBadNewsTitle(n.title) && !isJobPosting(n.url, n.title) && !isNaverBlog(n.url) && isLikelyNewsArticle(n.url, n.title))
@@ -120,7 +121,7 @@ export class CompanyAnalysisService {
         `"${companyName}" 사업보고서 사업부문 매출비중 ${searchYear}년 연결재무`,
       );
       segmentContext = segCtx?.slice(0, 4000) ?? '';
-      const segSrcText = segSrc?.tavily ?? segSrc?.serper ?? segSrc?.duckduckgo ?? segSrc?.naver ?? segSrc?.brave ?? '';
+      const segSrcText = this.getDefaultSearchSourceText(segSrc);
       segmentSources = parseSearchLinks(segSrcText).slice(0, 6);
     } catch {}
 
@@ -145,14 +146,14 @@ export class CompanyAnalysisService {
     let careerPageCandidates: { title: string; url: string }[] = [];
     try {
       const { sources: jobSrc } = await this.webSearch.runSearch(`${companyName} 채용 공고 입사지원`);
-      const jobText = jobSrc?.tavily ?? jobSrc?.serper ?? jobSrc?.duckduckgo ?? jobSrc?.naver ?? jobSrc?.brave ?? '';
+      const jobText = this.getDefaultSearchSourceText(jobSrc);
       jobPostings = parseSearchLinks(jobText)
         .filter((j) => j.title && !isNaverBlog(j.url) && (isJobPosting(j.url, j.title) || !isNewsArticle(j.url)))
         .slice(0, 10)
         .map((j) => ({ ...j, date: '' }));
 
       const { sources: careerSrc } = await this.webSearch.runSearch(`${companyName} 공식 채용 사이트 career jobs`);
-      const careerText = careerSrc?.tavily ?? careerSrc?.serper ?? careerSrc?.duckduckgo ?? careerSrc?.naver ?? careerSrc?.brave ?? '';
+      const careerText = this.getDefaultSearchSourceText(careerSrc);
       careerPageCandidates = parseSearchLinks(careerText)
         .filter((j) => j.title && !isNaverBlog(j.url) && isJobPosting(j.url, j.title))
         .slice(0, 10);
@@ -171,7 +172,7 @@ export class CompanyAnalysisService {
       const competitorParts: string[] = [];
       for (const query of queries) {
         const { context, sources } = await this.webSearch.runSearch(query);
-        const sourceText = sources?.tavily ?? sources?.serper ?? sources?.duckduckgo ?? sources?.naver ?? sources?.brave ?? '';
+        const sourceText = this.getDefaultSearchSourceText(sources);
         if (context?.trim()) competitorParts.push(`### 검색어: ${query}\n${context.slice(0, 5000)}`);
         competitorSources.push(...parseSearchLinks(sourceText).filter((s) => !isNaverBlog(s.url)));
       }
@@ -717,6 +718,10 @@ export class CompanyAnalysisService {
     return `### ${label}\n${sources.map((s, i) => `${i + 1}. ${s.title || s.url}\n   출처: ${s.url}`).join('\n')}`;
   }
 
+  private getDefaultSearchSourceText(sources?: SearchSources): string {
+    return sources?.duckduckgo ?? sources?.tavily ?? sources?.serper ?? sources?.naver ?? sources?.brave ?? '';
+  }
+
   private uniqueSources(sources: { title: string; url: string }[]): { title: string; url: string }[] {
     const seen = new Set<string>();
     const unique: { title: string; url: string }[] = [];
@@ -797,7 +802,7 @@ export class CompanyAnalysisService {
       const categoryContexts: string[] = [];
       for (const query of category.queries) {
         const { context, sources } = await this.webSearch.runSearch(query);
-        const sourceText = sources?.tavily ?? sources?.serper ?? sources?.duckduckgo ?? sources?.naver ?? sources?.brave ?? '';
+        const sourceText = this.getDefaultSearchSourceText(sources);
         if (context?.trim()) categoryContexts.push(`#### 검색어: ${query}\n${context.slice(0, 3500)}`);
         allSources.push(
           ...parseSearchLinks(sourceText)

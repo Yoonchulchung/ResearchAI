@@ -247,6 +247,8 @@ export function ServiceCredentialsCard({
   jobplanetPassword,
   jobkoreaId,
   jobkoreaPassword,
+  catchId,
+  catchPassword,
   onRefresh,
 }: {
   loading: boolean;
@@ -255,6 +257,8 @@ export function ServiceCredentialsCard({
   jobplanetPassword: string | null;
   jobkoreaId: string | null;
   jobkoreaPassword: string | null;
+  catchId: string | null;
+  catchPassword: string | null;
   onRefresh: () => void;
 }) {
   const rows: ServiceRow[] = [
@@ -285,6 +289,16 @@ export function ServiceCredentialsCard({
       idValue: jobkoreaId,
       pwValue: jobkoreaPassword,
       description: "기업 채용 공고 및 기업 정보 수집에 사용",
+    },
+    {
+      kind: "id-password",
+      service: "캐치",
+      idKey: "CATCH_ID",
+      pwKey: "CATCH_PASSWORD",
+      idLabel: "아이디",
+      idValue: catchId,
+      pwValue: catchPassword,
+      description: "캐치 채용 공고 상세 정보 및 로그인 기반 기업/채용 데이터 수집에 사용",
     },
   ];
 

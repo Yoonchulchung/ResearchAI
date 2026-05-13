@@ -3,12 +3,18 @@ import {
   UploadedFile, UseInterceptors, BadRequestException, Req, Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import puppeteer, { Browser } from 'puppeteer';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { DocumentsService } from '../application/documents.service';
 import { CompanyAnalysisService } from '../application/company-analysis.service';
 import { JobplanetScraperService } from '../infrastructure/jobplanet-scraper.service';
 import { requestContext } from '../../shared/request-context';
+import { CatchAuthService } from '../../shared/infrastructure/auth/catch-auth.service';
+import {
+  BrowserAutomationUtil,
+  BROWSER_LAUNCH_OPTIONS,
+} from '../../shared/infrastructure/browser/browser-automation.util';
 
 // ── Experience DTOs ───────────────────────────────────────────────────────
 
@@ -34,6 +40,7 @@ export class DocumentsController {
     private readonly service: DocumentsService,
     private readonly companyAnalysisService: CompanyAnalysisService,
     private readonly jobplanetScraper: JobplanetScraperService,
+    private readonly catchAuth: CatchAuthService,
   ) {}
 
   // ── Company Analysis (인재상 핵심 역량 매핑) ────────────────────────────
@@ -121,32 +128,86 @@ export class DocumentsController {
     if (!body.id || !body.password) {
       throw new BadRequestException('id와 password가 필요합니다');
     }
+    return this.runJobplanetTest(body);
+  }
+
+  @Post('jobplanet/test-login/stream')
+  async testJobplanetLoginStream(
+    @Body() body: { id: string; password: string; companyName?: string },
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    if (!body.id || !body.password) {
+      throw new BadRequestException('id와 password가 필요합니다');
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    let closed = false;
+    req.on('close', () => { closed = true; });
+
+    const send = (event: object) => {
+      if (closed || res.writableEnded) return;
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+
+    try {
+      const result = await this.runJobplanetTest(body, (message) => send({ type: 'log', message }));
+      send({ type: 'done', result });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '잡플래닛 테스트 오류';
+      send({ type: 'error', message: msg });
+    } finally {
+      if (!res.writableEnded) res.end();
+    }
+  }
+
+  private async runJobplanetTest(
+    body: { id: string; password: string; companyName?: string },
+    onLog?: (line: string) => void,
+  ) {
+    const logs: string[] = [];
+    const addLog = (message: string) => {
+      const line = `[${new Date().toISOString()}] ${message}`;
+      logs.push(line);
+      onLog?.(line);
+    };
 
     // 1단계: 로그인 테스트
-    const loginResult = await this.jobplanetScraper.testLogin(body.id, body.password);
+    addLog('잡플래닛 로그인 테스트 시작');
+    const loginResult = await this.jobplanetScraper.testLogin(body.id, body.password, addLog);
     if (!loginResult.success) {
       return {
         ok: false,
         failedStep: loginResult.failedStep,
         finalUrl: loginResult.finalUrl,
         error: loginResult.error,
+        logs,
       };
     }
 
     // 2단계: 기업 데이터 수집 (companyName 있을 때만)
     if (!body.companyName?.trim()) {
-      return { ok: true, loginOnly: true, finalUrl: loginResult.finalUrl };
+      addLog('기업명이 없어 로그인 테스트만 완료');
+      return { ok: true, loginOnly: true, finalUrl: loginResult.finalUrl, logs };
     }
 
     try {
+      addLog(`기업 리뷰 수집 시작: ${body.companyName.trim()}`);
       const result = await this.jobplanetScraper.scrapeCompany(
         body.companyName.trim(),
         body.id,
         body.password,
+        addLog,
       );
       if (!result) {
-        return { ok: false, failedStep: '기업 데이터 수집', error: `"${body.companyName}" 검색 결과 없음 또는 수집 실패` };
+        addLog(`기업 데이터 수집 실패: "${body.companyName}" 검색 결과 없음 또는 수집 실패`);
+        return { ok: false, failedStep: '기업 데이터 수집', error: `"${body.companyName}" 검색 결과 없음 또는 수집 실패`, logs };
       }
+      addLog(`기업 데이터 수집 성공: ${result.companyName}`);
       return {
         ok: true,
         companyName: result.companyName,
@@ -154,9 +215,105 @@ export class DocumentsController {
         reviewCount: result.reviewCount,
         welfare: result.welfare,
         preview: result.reviews.slice(0, 2),
+        logs,
       };
     } catch (err) {
-      return { ok: false, failedStep: '기업 데이터 수집', error: (err as Error).message };
+      addLog(`기업 데이터 수집 예외: ${(err as Error).message}`);
+      return { ok: false, failedStep: '기업 데이터 수집', error: (err as Error).message, logs };
+    }
+  }
+
+  // ── Catch Test ──────────────────────────────────────────────────────────
+
+  @Post('catch/test-login')
+  async testCatchLogin(
+    @Body() body: { id: string; password: string },
+  ) {
+    if (!body.id || !body.password) {
+      throw new BadRequestException('id와 password가 필요합니다');
+    }
+    return this.runCatchTest(body);
+  }
+
+  @Post('catch/test-login/stream')
+  async testCatchLoginStream(
+    @Body() body: { id: string; password: string },
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    if (!body.id || !body.password) {
+      throw new BadRequestException('id와 password가 필요합니다');
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    let closed = false;
+    req.on('close', () => { closed = true; });
+
+    const send = (event: object) => {
+      if (closed || res.writableEnded) return;
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+
+    try {
+      const result = await this.runCatchTest(body, (message) => send({ type: 'log', message }));
+      send({ type: 'done', result });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '캐치 테스트 오류';
+      send({ type: 'error', message: msg });
+    } finally {
+      if (!res.writableEnded) res.end();
+    }
+  }
+
+  private async runCatchTest(
+    body: { id: string; password: string },
+    onLog?: (line: string) => void,
+  ) {
+    const logs: string[] = [];
+    const addLog = (message: string) => {
+      const line = `[${new Date().toISOString()}] ${message}`;
+      logs.push(line);
+      onLog?.(line);
+    };
+
+    let browser: Browser | null = null;
+    try {
+      addLog('캐치 로그인 테스트 시작');
+      addLog('브라우저 실행 중');
+      browser = await puppeteer.launch(BROWSER_LAUNCH_OPTIONS);
+      const page = await browser.newPage();
+      await BrowserAutomationUtil.setupPage(page);
+      addLog('브라우저 페이지 설정 완료');
+
+      const result = await this.catchAuth.loginWithSession(page, body.id, body.password, addLog);
+      if (!result.ok) {
+        addLog(`캐치 로그인 실패: ${result.failedStep ?? '로그인'}${result.error ? ` - ${result.error}` : ''}`);
+        return {
+          ok: false,
+          failedStep: result.failedStep,
+          finalUrl: result.finalUrl,
+          error: result.error,
+          logs,
+        };
+      }
+
+      addLog(`캐치 로그인 성공${result.reused ? ' (저장된 세션 사용)' : ''}: ${result.finalUrl ?? page.url()}`);
+      return {
+        ok: true,
+        finalUrl: result.finalUrl ?? page.url(),
+        sessionReused: result.reused,
+        logs,
+      };
+    } catch (err) {
+      addLog(`캐치 테스트 예외: ${(err as Error).message}`);
+      return { ok: false, failedStep: '테스트 실행', error: (err as Error).message, logs };
+    } finally {
+      await browser?.close();
+      addLog('브라우저 종료');
     }
   }
 

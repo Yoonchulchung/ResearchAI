@@ -304,6 +304,8 @@ export default function OverviewPage() {
             jobplanetPassword={user?.jobplanetPassword ?? null}
             jobkoreaId={user?.jobkoreaId ?? null}
             jobkoreaPassword={user?.jobkoreaPassword ?? null}
+            catchId={user?.catchId ?? null}
+            catchPassword={user?.catchPassword ?? null}
             onRefresh={refreshUser}
           />
           <LoginHistoryCard />

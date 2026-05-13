@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import puppeteer, { Browser, Page } from 'puppeteer';
-import type { CookieData } from 'puppeteer';
+import {
+  BrowserAutomationUtil,
+  BrowserLogFn,
+  BROWSER_LAUNCH_OPTIONS,
+} from '../../shared/infrastructure/browser/browser-automation.util';
+import { JobplanetAuthService } from '../../shared/infrastructure/auth/jobplanet-auth.service';
 
 export interface JobplanetReview {
   rating: number;
@@ -29,40 +34,38 @@ export interface JobplanetLoginResult {
   sessionReused?: boolean;
 }
 
-const LOGIN_URL = 'https://www.jobplanet.co.kr/users/sign_in';
-const HOME_URL  = 'https://www.jobplanet.co.kr/';
-const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-const BROWSER_ARGS = [
-  '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-  '--disable-blink-features=AutomationControlled',
-  `--user-agent=${USER_AGENT}`,
-];
-const COOKIE_TTL_MS = 2 * 60 * 60 * 1000; // 2시간
+type JobplanetLogFn = BrowserLogFn;
 
 @Injectable()
 export class JobplanetScraperService {
   private readonly logger = new Logger(JobplanetScraperService.name);
 
-  /** 로그인 세션 쿠키 캐시 (서버 재시작 전까지 유지) */
-  private savedCookies: CookieData[] | null = null;
-  private cookiesSavedAt = 0;
+  constructor(private readonly jobplanetAuth: JobplanetAuthService) {}
 
   // ── 로그인 테스트 (진단용) ──────────────────────────────────────────────
-  async testLogin(id: string, password: string): Promise<JobplanetLoginResult> {
+  async testLogin(id: string, password: string, onLog?: JobplanetLogFn): Promise<JobplanetLoginResult> {
     let browser: Browser | null = null;
     try {
-      browser = await puppeteer.launch({ headless: true, args: BROWSER_ARGS });
+      onLog?.('브라우저 실행 중');
+      browser = await puppeteer.launch(BROWSER_LAUNCH_OPTIONS);
       const page = await browser.newPage();
-      await this.setupPage(page);
+      await BrowserAutomationUtil.setupPage(page);
+      onLog?.('브라우저 페이지 설정 완료');
 
-      const { ok, reused, finalUrl, error, failedStep } = await this.loginWithSession(page, id, password);
-      if (!ok) return { success: false, finalUrl, error, failedStep };
+      const { ok, reused, finalUrl, error, failedStep } = await this.jobplanetAuth.loginWithSession(page, id, password, onLog);
+      if (!ok) {
+        onLog?.(`로그인 실패: ${failedStep ?? '알 수 없는 단계'}${error ? ` - ${error}` : ''}`);
+        return { success: false, finalUrl, error, failedStep };
+      }
+      onLog?.(`로그인 성공${reused ? ' (저장된 세션 사용)' : ''}: ${finalUrl ?? page.url()}`);
       return { success: true, finalUrl: finalUrl ?? page.url(), sessionReused: reused };
     } catch (err) {
       this.logger.warn(`[Jobplanet] testLogin 오류: ${(err as Error).message}`);
+      onLog?.(`브라우저 실행 또는 로그인 테스트 오류: ${(err as Error).message}`);
       return { success: false, failedStep: '브라우저 실행', error: (err as Error).message };
     } finally {
       await browser?.close();
+      onLog?.('브라우저 종료');
     }
   }
 
@@ -78,11 +81,11 @@ export class JobplanetScraperService {
   }> {
     let browser: Browser | null = null;
     try {
-      browser = await puppeteer.launch({ headless: true, args: BROWSER_ARGS });
+      browser = await puppeteer.launch(BROWSER_LAUNCH_OPTIONS);
       const page = await browser.newPage();
-      await this.setupPage(page);
+      await BrowserAutomationUtil.setupPage(page);
 
-      await this.loginWithSession(page, id, password);
+      await this.jobplanetAuth.loginWithSession(page, id, password);
       const loginUrl = page.url();
 
       const searchUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(companyName)}`;
@@ -129,9 +132,9 @@ export class JobplanetScraperService {
   async findOfficialWebsite(companyName: string): Promise<string | null> {
     let browser: Browser | null = null;
     try {
-      browser = await puppeteer.launch({ headless: true, args: BROWSER_ARGS });
+      browser = await puppeteer.launch(BROWSER_LAUNCH_OPTIONS);
       const page = await browser.newPage();
-      await this.setupPage(page);
+      await BrowserAutomationUtil.setupPage(page);
 
       const EXCLUDE = [
         'naver.com', 'daum.net', 'kakao.com', 'google.', 'bing.com',
@@ -211,145 +214,32 @@ export class JobplanetScraperService {
     companyName: string,
     id: string,
     password: string,
+    onLog?: JobplanetLogFn,
   ): Promise<JobplanetCompanyData | null> {
     let browser: Browser | null = null;
     try {
-      browser = await puppeteer.launch({ headless: true, args: BROWSER_ARGS });
+      onLog?.('기업 리뷰 수집용 브라우저 실행 중');
+      browser = await puppeteer.launch(BROWSER_LAUNCH_OPTIONS);
       const page = await browser.newPage();
-      await this.setupPage(page);
+      await BrowserAutomationUtil.setupPage(page);
+      onLog?.('기업 리뷰 수집용 페이지 설정 완료');
 
-      const { ok } = await this.loginWithSession(page, id, password);
+      const { ok, finalUrl, failedStep, error } = await this.jobplanetAuth.loginWithSession(page, id, password, onLog);
       if (!ok) {
         this.logger.warn('[Jobplanet] 로그인 실패 — 스크래핑 중단');
+        onLog?.(`로그인 실패로 수집 중단: ${failedStep ?? '로그인'}${error ? ` - ${error}` : ''}`);
         return null;
       }
+      onLog?.(`수집 전 로그인 확인 완료: ${finalUrl ?? page.url()}`);
 
-      return await this.scrapeCompanyData(page, companyName);
+      return await this.scrapeCompanyData(page, companyName, onLog);
     } catch (err) {
       this.logger.error(`[Jobplanet] 스크래핑 오류: ${(err as Error).message}`);
+      onLog?.(`스크래핑 오류: ${(err as Error).message}`);
       return null;
     } finally {
       await browser?.close();
-    }
-  }
-
-  // ── 내부 헬퍼 ──────────────────────────────────────────────────────────
-
-  /**
-   * 세션 쿠키가 유효하면 복원, 만료됐거나 없으면 신규 로그인 후 쿠키 저장.
-   * 호출 후 page는 로그인된 상태로 HOME_URL에 위치.
-   */
-  private async loginWithSession(
-    page: Page,
-    id: string,
-    password: string,
-  ): Promise<{ ok: boolean; reused: boolean; finalUrl?: string; error?: string; failedStep?: string }> {
-    // 1. 캐시된 쿠키가 유효하면 복원 시도
-    if (this.savedCookies && Date.now() - this.cookiesSavedAt < COOKIE_TTL_MS) {
-      await page.browserContext().setCookie(...this.savedCookies);
-      await page.goto(HOME_URL, { waitUntil: 'networkidle2', timeout: 15000 });
-      if (!page.url().includes('sign_in')) {
-        this.logger.log('[Jobplanet] 쿠키 세션 복원 성공');
-        return { ok: true, reused: true, finalUrl: page.url() };
-      }
-      this.logger.log('[Jobplanet] 쿠키 만료 — 재로그인');
-      this.savedCookies = null;
-    }
-
-    // 2. 신규 로그인
-    const result = await this.doFreshLogin(page, id, password);
-    if (result.ok) {
-      this.savedCookies = await page.browserContext().cookies() as CookieData[];
-      this.cookiesSavedAt = Date.now();
-      this.logger.log('[Jobplanet] 로그인 완료 — 쿠키 저장됨');
-    }
-    return { ...result, reused: false };
-  }
-
-  private async setupPage(page: Page): Promise<void> {
-    await page.setViewport({ width: 1280, height: 800 });
-    await page.setExtraHTTPHeaders({ 'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8' });
-    await page.evaluateOnNewDocument(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    });
-  }
-
-  private async fillInput(page: Page, selectors: string[], value: string): Promise<boolean> {
-    for (const sel of selectors) {
-      try {
-        const el = await page.waitForSelector(sel, { visible: true, timeout: 5000 });
-        if (!el) continue;
-        await el.click({ clickCount: 3 }); // 기존 값 전체 선택
-        await el.type(value, { delay: 60 });
-        this.logger.debug(`[Jobplanet] 입력 완료: ${sel}`);
-        return true;
-      } catch {
-        continue;
-      }
-    }
-    return false;
-  }
-
-  private async submitForm(page: Page, selectors: string[]): Promise<boolean> {
-    for (const sel of selectors) {
-      try {
-        const el = await page.$(sel);
-        if (!el) continue;
-        await el.click();
-        this.logger.debug(`[Jobplanet] 제출: ${sel}`);
-        return true;
-      } catch {
-        continue;
-      }
-    }
-    return false;
-  }
-
-  private async doFreshLogin(
-    page: Page,
-    id: string,
-    password: string,
-  ): Promise<{ ok: boolean; finalUrl?: string; error?: string; failedStep?: string }> {
-    try {
-      await page.goto(LOGIN_URL, { waitUntil: 'networkidle2', timeout: 30000 });
-
-      const emailOk = await this.fillInput(page, [
-        'input[name="user[email]"]', '#user_email', 'input[type="email"]',
-      ], id);
-      if (!emailOk) return { ok: false, failedStep: '이메일 입력', error: '이메일 입력 필드를 찾을 수 없습니다.' };
-
-      const pwOk = await this.fillInput(page, [
-        'input[name="user[password]"]', '#user_password', 'input[type="password"]',
-      ], password);
-      if (!pwOk) return { ok: false, failedStep: '비밀번호 입력', error: '비밀번호 입력 필드를 찾을 수 없습니다.' };
-
-      await page.keyboard.press('Enter');
-      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {});
-
-      if (page.url().includes('sign_in')) {
-        await this.submitForm(page, [
-          'input[type="submit"]', 'button[type="submit"]',
-          'input[type="submit"][name="commit"]', '.btn_login', 'form button',
-        ]);
-        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 8000 }).catch(() => {});
-      }
-
-      const finalUrl = page.url();
-      const ok = !finalUrl.includes('sign_in');
-      this.logger.log(`[Jobplanet] 로그인 ${ok ? '성공' : '실패'} — ${finalUrl}`);
-
-      if (!ok) {
-        const errMsg = await page.$eval(
-          '.error-message, .alert, [class*="error"], [class*="alert"]',
-          (el) => el.textContent?.trim() ?? '',
-        ).catch(() => '');
-        return { ok: false, finalUrl, failedStep: '로그인 실패', error: errMsg || 'ID/비밀번호 오류 또는 접근 차단' };
-      }
-
-      return { ok: true, finalUrl };
-    } catch (err) {
-      this.logger.warn(`[Jobplanet] 로그인 오류: ${(err as Error).message}`);
-      return { ok: false, failedStep: '로그인', error: (err as Error).message };
+      onLog?.('기업 리뷰 수집용 브라우저 종료');
     }
   }
 
@@ -371,10 +261,11 @@ export class JobplanetScraperService {
                .replace(/\/companies\/(\d+)(?:\/[^/]*)?$/, '/companies/$1/reviews');
   }
 
-  private async scrapeCompanyData(page: Page, companyName: string): Promise<JobplanetCompanyData | null> {
+  private async scrapeCompanyData(page: Page, companyName: string, onLog?: JobplanetLogFn): Promise<JobplanetCompanyData | null> {
     try {
       // /search?query= 가 올바른 검색 엔드포인트 (/companies?query= 는 랭킹 홈 리다이렉트)
       const searchUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(companyName)}`;
+      onLog?.(`기업 검색 페이지 이동: ${searchUrl}`);
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 20000 });
 
       // 회사 링크 추출 — 빈 텍스트 앵커와 사이드바 링크 제외
@@ -415,18 +306,23 @@ export class JobplanetScraperService {
 
       this.logger.log(`[Jobplanet] 검색 링크 후보: ${JSON.stringify(allLinks)}`);
       this.logger.log(`[Jobplanet] 선택된 링크: ${companyLink}`);
+      onLog?.(`기업 링크 후보 ${allLinks.length}개 탐색`);
+      onLog?.(`선택된 기업 링크: ${companyLink ?? '없음'}`);
 
       if (!companyLink) {
         this.logger.warn(`[Jobplanet] "${companyName}" 기업 링크 없음`);
+        onLog?.(`"${companyName}" 기업 링크를 찾지 못함`);
         return null;
       }
 
       // /companies/{id}/reviews/{slug} 형태로 리뷰 페이지 이동
       const reviewUrl = this.toReviewUrl(companyLink);
       this.logger.log(`[Jobplanet] 리뷰 URL: ${reviewUrl}`);
+      onLog?.(`리뷰 페이지 이동: ${reviewUrl}`);
       await page.goto(reviewUrl, { waitUntil: 'networkidle2', timeout: 20000 });
 
       // JS 렌더링 대기 + 스크롤로 지연 로딩 리뷰 유도
+      onLog?.('리뷰 페이지 렌더링 대기 및 스크롤 로딩 시작');
       await new Promise<void>((r) => setTimeout(r, 2000));
       for (let i = 0; i < 4; i++) {
         await page.evaluate(() => window.scrollBy(0, window.innerHeight));
@@ -532,10 +428,12 @@ export class JobplanetScraperService {
       }, companyName);
 
       this.logger.log(`[Jobplanet] 수집 완료 — 평점: ${data.overallRating}, 리뷰: ${data.reviewCount}개, 추출: ${data.reviews.length}건`);
+      onLog?.(`데이터 추출 완료 — 평점 ${data.overallRating}, 리뷰 ${data.reviewCount}개, 미리보기 ${data.reviews.length}건`);
 
       return data;
     } catch (err) {
       this.logger.error(`[Jobplanet] 데이터 추출 오류: ${(err as Error).message}`);
+      onLog?.(`데이터 추출 오류: ${(err as Error).message}`);
       return null;
     }
   }
@@ -554,11 +452,11 @@ export class JobplanetScraperService {
   }> {
     let browser: Browser | null = null;
     try {
-      browser = await puppeteer.launch({ headless: true, args: BROWSER_ARGS });
+      browser = await puppeteer.launch(BROWSER_LAUNCH_OPTIONS);
       const page = await browser.newPage();
-      await this.setupPage(page);
+      await BrowserAutomationUtil.setupPage(page);
 
-      await this.loginWithSession(page, id, password);
+      await this.jobplanetAuth.loginWithSession(page, id, password);
 
       const searchUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(companyName)}`;
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 20000 });

@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { NewsService, NewsItem, CountryNewsItem, KeywordItem, ConflictZone } from '../application/service/news.service';
 import { MarketService, MarketItem, ChartPoint } from '../application/service/market.service';
 import { NewsSummaryService } from '../application/service/news-summary.service';
-import { PuppeteerService } from '../puppeteer.service';
+import { PuppeteerService } from '../../shared/infrastructure/browser/puppeteer.service';
 import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 
 @Controller('news')

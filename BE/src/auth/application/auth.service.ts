@@ -124,6 +124,8 @@ export class AuthService {
       JOBPLANET_PASSWORD: 'jobplanetPassword',
       JOBKOREA_ID: 'jobkoreaId',
       JOBKOREA_PASSWORD: 'jobkoreaPassword',
+      CATCH_ID: 'catchId',
+      CATCH_PASSWORD: 'catchPassword',
     };
     const field = allowed[key];
     if (!field) throw new UnauthorizedException('지원하지 않는 키입니다.');

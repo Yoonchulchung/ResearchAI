@@ -17,6 +17,8 @@ export interface ServiceCredentials {
   jobplanetPassword?: string | null;
   jobkoreaId?: string | null;
   jobkoreaPassword?: string | null;
+  catchId?: string | null;
+  catchPassword?: string | null;
 }
 
 export interface RequestUser {

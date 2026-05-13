@@ -17,6 +17,7 @@ import { AiModule } from '../ai/ai.module';
 import { VectorModule } from '../vector/vector.module';
 import { QueueModule } from '../queue/queue.module';
 import { ResearchModule } from '../research/research.module';
+import { SharedModule } from '../shared/shared.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ResearchModule } from '../research/research.module';
     MulterModule.register(),
     forwardRef(() => AiModule),
     VectorModule,
+    SharedModule,
     forwardRef(() => QueueModule),
     forwardRef(() => ResearchModule),
   ],

@@ -2,7 +2,7 @@ import { Body, Controller, Get, NotFoundException, Param, Post, Query } from '@n
 import { JobPostingScraperService } from '../application/job-posting-scraper.service';
 import type { JobPostingListFilters, JobPostingScrapeOptions } from '../domain/job-posting.model';
 
-@Controller('job-posting-scraper')
+@Controller(['recruit/job-postings', 'job-posting-scraper'])
 export class JobPostingScraperController {
   constructor(private readonly service: JobPostingScraperService) {}
 
@@ -19,6 +19,11 @@ export class JobPostingScraperController {
   @Get('status')
   status() {
     return this.service.getStatus();
+  }
+
+  @Get('popular')
+  async popular() {
+    return this.service.getPopularPostings();
   }
 
   @Get('detail')
@@ -40,8 +45,17 @@ export class JobPostingScraperController {
     @Query('companyType') companyType?: string,
     @Query('type') type?: string,
     @Query('category') category?: string,
+    @Query('sort') sort?: string,
   ) {
-    const filters: JobPostingListFilters = { source, search, job, companyType, type, category };
+    const filters: JobPostingListFilters = {
+      source,
+      search,
+      job,
+      companyType,
+      type,
+      category,
+      sort: sort === 'deadline' ? 'deadline' : 'latest',
+    };
     return this.service.getData(Number(page), Number(limit), filters);
   }
 

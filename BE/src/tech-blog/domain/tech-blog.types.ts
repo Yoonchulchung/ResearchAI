@@ -25,3 +25,20 @@ export interface TechBlogListResult {
   errors: { sourceId: string; message: string }[];
   fetchedAt: string;
 }
+
+export interface TechBlogTrendKeyword {
+  keyword: string;
+  count: number;
+}
+
+export interface TechBlogTrendSummary {
+  summary: string;
+  keywords: TechBlogTrendKeyword[];
+  postCount: number;
+  sourceCount: number;
+  from: string;
+  to: string;
+  generatedAt: string;
+  cached: boolean;
+  model: string;
+}

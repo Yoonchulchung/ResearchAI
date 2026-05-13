@@ -11,11 +11,11 @@ import type {
   JobPostingScrapeOptions,
   JobPostingScrapeStatus,
 } from '../domain/job-posting.model';
-import { LinkareerJobCrawler } from '../infrastructure/linkareer-job.crawler';
-import { JobkoreaJobCrawler } from '../infrastructure/jobkorea-job.crawler';
-import { CatchJobCrawler } from '../infrastructure/catch-job.crawler';
-import { JobplanetJobCrawler } from '../infrastructure/jobplanet-job.crawler';
-import { JobdaJobCrawler } from '../infrastructure/jobda-job.crawler';
+import { LinkareerJobCrawler } from '../infrastructure/job-posting/linkareer-job.crawler';
+import { JobkoreaJobCrawler } from '../infrastructure/job-posting/jobkorea-job.crawler';
+import { CatchJobCrawler } from '../infrastructure/job-posting/catch-job.crawler';
+import { JobplanetJobCrawler } from '../infrastructure/job-posting/jobplanet-job.crawler';
+import { JobdaJobCrawler } from '../infrastructure/job-posting/jobda-job.crawler';
 
 const DATA_DIR = path.resolve(__dirname, '../../../data/job-postings');
 const JSONL_FILE = path.join(DATA_DIR, 'job-postings.jsonl');
@@ -33,6 +33,7 @@ const COMPANY_PROFILE_SOURCE_PRIORITY: Record<CompanyProfileSource, number> = {
 const INTERESTED_CATEGORIES = ['IT', '전자'];
 const FINANCIAL_COMPANY_KEYWORDS = [
   '금융',
+  '금융권',
   '은행',
   '뱅크',
   '증권',
@@ -178,6 +179,7 @@ export class JobPostingScraperService implements OnModuleInit {
   private collectedIds = new Set<string>();
   private companyProfiles = new Map<string, CompanyProfile>();
   private crawlCheckpoint: CrawlCheckpointFile = { date: '', sources: {} };
+  private initialCatchSeedPromise: Promise<void> | null = null;
   private status: JobPostingScrapeStatus = {
     running: false,
     currentPage: 0,
@@ -195,6 +197,9 @@ export class JobPostingScraperService implements OnModuleInit {
     await this.bootstrapCompanyProfilesFromPostings();
     await this.loadCheckpoint();
     this.status.totalCollected = this.collectedIds.size;
+    void this.ensureInitialCatchPostings().catch((err) => {
+      this.logger.warn(`캐치 초기 공고 로드 실패: ${err instanceof Error ? err.message : String(err)}`);
+    });
   }
 
   getStatus(): JobPostingScrapeStatus {
@@ -462,11 +467,13 @@ export class JobPostingScraperService implements OnModuleInit {
     limit: number,
     filters: JobPostingListFilters = {},
   ): Promise<{ items: JobPosting[]; total: number; filterOptions: JobPostingFilterOptions }> {
+    await this.ensureInitialCatchPostings();
+
     const all = (await this.readAllFromJsonl()).map((posting) => this.normalizePostingForView(posting));
 
     const visible = all.filter((p) => !this.isIgnoredPosting(p));
     const sourceFiltered = filters.source ? visible.filter((p) => p.source === filters.source) : visible;
-    const filtered = this.applyFilters(sourceFiltered, filters);
+    const filtered = this.sortPostings(this.applyFilters(sourceFiltered, filters), filters.sort ?? 'latest');
     return {
       items: filtered.slice((page - 1) * limit, page * limit),
       total: filtered.length,
@@ -486,6 +493,47 @@ export class JobPostingScraperService implements OnModuleInit {
 
   private today(): string {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  private async ensureInitialCatchPostings(): Promise<void> {
+    if (this.initialCatchSeedPromise) return this.initialCatchSeedPromise;
+    this.initialCatchSeedPromise = this.seedInitialCatchPostings();
+    return this.initialCatchSeedPromise;
+  }
+
+  async getPopularPostings(): Promise<JobPosting[]> {
+    const postings = await this.catchCrawler.getPopularPostings(30);
+    return postings.map((p) => this.normalizePostingForView(p));
+  }
+
+  private async seedInitialCatchPostings(): Promise<void> {
+    const existingPostings = await this.readAllFromJsonl();
+    const hasCatchPostings = existingPostings.some((posting) => this.getPostingSource(posting) === 'catch');
+
+    try {
+      const postings = await this.catchCrawler.getPopularPostings(50);
+      const existingIds = new Set(existingPostings.map((posting) => posting.id));
+      let savedCount = 0;
+
+      for (const posting of postings) {
+        if (existingIds.has(posting.id) || this.isIgnoredPosting(posting)) continue;
+        await this.savePosting(posting);
+        existingIds.add(posting.id);
+        savedCount++;
+      }
+
+      if (savedCount > 0) {
+        this.status.totalCollected = this.collectedIds.size;
+        this.logger.log(`[catch] 초기 화면용 인기 공고 ${savedCount}개 저장`);
+      }
+    } catch (err) {
+      this.initialCatchSeedPromise = null;
+      if (hasCatchPostings) {
+        this.logger.warn(`캐치 인기 공고 갱신 실패 — 기존 캐치 공고를 사용합니다: ${err instanceof Error ? err.message : String(err)}`);
+        return;
+      }
+      throw err;
+    }
   }
 
   private async loadCheckpoint() {
@@ -761,7 +809,7 @@ export class JobPostingScraperService implements OnModuleInit {
     const inferred = this.inferCompanyTypeFromCompanyName(p.company);
     if (profile.source === 'jobSite' && inferred) return inferred;
 
-    return profile.companyType;
+    return this.normalizeCompanyType(profile.companyType) ?? profile.companyType;
   }
 
   private upsertCompanyProfileFromPosting(p: JobPosting): boolean {
@@ -849,6 +897,61 @@ export class JobPostingScraperService implements OnModuleInit {
     });
   }
 
+  private sortPostings(items: JobPosting[], sort: NonNullable<JobPostingListFilters['sort']>): JobPosting[] {
+    const copy = [...items];
+    if (sort === 'deadline') {
+      return copy.sort((a, b) => {
+        const aDeadline = this.getDeadlineSortValue(a);
+        const bDeadline = this.getDeadlineSortValue(b);
+        if (aDeadline !== bDeadline) return aDeadline - bDeadline;
+        return this.getLatestSortValue(b) - this.getLatestSortValue(a);
+      });
+    }
+
+    return copy.sort((a, b) => {
+      const latestDiff = this.getLatestSortValue(b) - this.getLatestSortValue(a);
+      if (latestDiff !== 0) return latestDiff;
+      return this.getDeadlineSortValue(a) - this.getDeadlineSortValue(b);
+    });
+  }
+
+  private getLatestSortValue(p: JobPosting): number {
+    return this.parsePostingDate(p.startDate) ?? this.parsePostingDate(p.collectedAt) ?? 0;
+  }
+
+  private getDeadlineSortValue(p: JobPosting): number {
+    const raw = p.endDate || p.deadline;
+    if (!raw || /상시|채용\s*시|수시/i.test(raw)) return Number.MAX_SAFE_INTEGER;
+
+    const date = this.parsePostingDate(raw);
+    if (!date) return Number.MAX_SAFE_INTEGER;
+
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    return date < todayStart ? Number.MAX_SAFE_INTEGER - 1 : date;
+  }
+
+  private parsePostingDate(raw?: string): number | null {
+    if (!raw) return null;
+
+    const isoMatch = raw.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3])).getTime();
+
+    const fullDateMatch = raw.match(/(\d{4})[./](\d{1,2})[./](\d{1,2})/);
+    if (fullDateMatch) return new Date(Number(fullDateMatch[1]), Number(fullDateMatch[2]) - 1, Number(fullDateMatch[3])).getTime();
+
+    const monthDayMatch = raw.match(/(\d{1,2})[./](\d{1,2})/);
+    if (!monthDayMatch) return null;
+
+    const today = new Date();
+    const month = Number(monthDayMatch[1]) - 1;
+    const day = Number(monthDayMatch[2]);
+    const currentYearDate = new Date(today.getFullYear(), month, day);
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    if (currentYearDate.getTime() >= todayStart) return currentYearDate.getTime();
+    return new Date(today.getFullYear() + 1, month, day).getTime();
+  }
+
   private isIgnoredPosting(p: JobPosting): boolean {
     return IGNORED_TITLE_PATTERNS.some((pattern) => pattern.test(p.title));
   }
@@ -886,6 +989,7 @@ export class JobPostingScraperService implements OnModuleInit {
     if (companyType.includes('공공기관') || companyType.includes('공기업')) return '공공기관';
     if (
       companyType.includes('금융') ||
+      companyType.includes('금융권') ||
       companyType.includes('은행') ||
       companyType.includes('증권') ||
       companyType.includes('보험') ||

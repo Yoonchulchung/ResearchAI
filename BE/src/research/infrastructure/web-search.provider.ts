@@ -17,6 +17,8 @@ export class WebSearchProvider {
 
   getAvailableTasks(query: string): { key: keyof SearchSources; fn: () => Promise<string> }[] {
     const tasks: { key: keyof SearchSources; fn: () => Promise<string> }[] = [];
+    // API 키 불필요 — 기본 검색 엔진으로 우선 사용
+    tasks.push({ key: 'duckduckgo', fn: () => searchDuckDuckGo(query) });
     if (process.env.TAVILY_API_KEY && !process.env.TAVILY_API_KEY.startsWith('your_')) {
       tasks.push({ key: 'tavily', fn: () => searchTavily(query) });
     }
@@ -29,8 +31,6 @@ export class WebSearchProvider {
     if (process.env.BRAVE_API_KEY && !process.env.BRAVE_API_KEY.startsWith('your_')) {
       tasks.push({ key: 'brave', fn: () => searchBrave(query) });
     }
-    // API 키 불필요 — 항상 포함
-    tasks.push({ key: 'duckduckgo', fn: () => searchDuckDuckGo(query) });
     return tasks;
   }
 

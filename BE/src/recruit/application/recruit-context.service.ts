@@ -44,7 +44,15 @@ export class RecruitContextService {
           (async () => {
             for await (const job of source.collect({ ...query, limit: limitPerSource })) {
               this.jobRepository.upsert(job);
-              jobs.push(job);
+              jobs.push({
+                title: job.title,
+                company: job.company,
+                source: job.source ?? source.name,
+                location: job.location,
+                description: job.description,
+                skills: job.skills ?? [],
+                url: job.url,
+              });
               if (++count >= limitPerSource) break;
             }
           })(),
@@ -77,7 +85,7 @@ export class RecruitContextService {
   dbSearch(keyword: string, limit = 20): string {
     const jobs = this.jobRepository.findAll({ keyword }).slice(0, limit);
     if (jobs.length === 0) return '';
-    return this.format(keyword, jobs);
+    return this.format(keyword, jobs.map((job) => ({ ...job, skills: job.skills ?? [], source: job.source ?? 'db' })));
   }
 
   private cleanSkills(skills: string[]): string[] {

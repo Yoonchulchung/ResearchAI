@@ -1,9 +1,12 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
+import { createHash } from 'crypto';
+import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
+import { AppConfigService, CONFIG_KEYS } from '../../config/application/app-config.service';
 import { ContentRefreshStateEntity } from '../../shared/entity/content-refresh-state.entity';
 import { TechBlogPostEntity } from '../domain/entity/tech-blog-post.entity';
-import type { TechBlogListResult, TechBlogPost, TechBlogSource } from '../domain/tech-blog.types';
+import type { TechBlogListResult, TechBlogPost, TechBlogSource, TechBlogTrendKeyword, TechBlogTrendSummary } from '../domain/tech-blog.types';
 import { TechBlogCrawlerService } from '../infrastructure/tech-blog-crawler.service';
 import { cleanText, dateValue } from '../infrastructure/tech-blog-crawler.util';
 
@@ -14,12 +17,20 @@ const DEFAULT_LIST_LIMIT = 300;
 const MAX_LIST_LIMIT = 300;
 const MAX_SOURCE_LIST_LIMIT = 1000;
 const MIN_POSTS_PER_SOURCE = 5;
+const DEFAULT_TREND_DAYS = 14;
+const TREND_CACHE_MS = 6 * 60 * 60 * 1000;
+const TREND_STOPWORDS = new Set([
+  '그리고', '하지만', '있는', '없는', '위한', '통한', '으로', '에서', '에게', '까지', '부터', '보다',
+  'with', 'from', 'that', 'this', 'into', 'using', 'about', 'build', 'building', 'based', 'how',
+  'the', 'and', 'for', 'of', 'to', 'in', 'on', 'a', 'an', 'is', 'are', 'be', 'by',
+]);
 
 @Injectable()
 export class TechBlogService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TechBlogService.name);
   private refreshTimer: NodeJS.Timeout | null = null;
   private refreshPromise: Promise<TechBlogListResult['errors']> | null = null;
+  private trendCache: { key: string; expiresAt: number; value: TechBlogTrendSummary } | null = null;
 
   constructor(
     @InjectRepository(TechBlogPostEntity)
@@ -27,6 +38,8 @@ export class TechBlogService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(ContentRefreshStateEntity)
     private readonly refreshStateRepo: Repository<ContentRefreshStateEntity>,
     private readonly crawler: TechBlogCrawlerService,
+    private readonly aiProvider: AiProviderService,
+    private readonly appConfig: AppConfigService,
   ) {}
 
   onModuleInit() {
@@ -75,6 +88,66 @@ export class TechBlogService implements OnModuleInit, OnModuleDestroy {
     };
 
     return this.filterResult(result, options.source, options.limit);
+  }
+
+  async getTrendSummary(options: { days?: number; source?: string; model?: string; refresh?: boolean } = {}): Promise<TechBlogTrendSummary> {
+    const days = Math.min(Math.max(options.days ?? DEFAULT_TREND_DAYS, 1), 60);
+    const source = options.source && options.source !== 'all' ? options.source : 'all';
+    const model = options.model || await this.appConfig.get(CONFIG_KEYS.DEFAULT_CLOUD_MODEL, 'claude-haiku-4-5-20251001');
+    const posts = await this.readCachedPosts();
+    const now = Date.now();
+    const fromTime = now - days * 24 * 60 * 60 * 1000;
+    const trendPosts = posts
+      .filter((post) => source === 'all' || post.sourceId === source)
+      .filter((post) => {
+        const time = dateValue(post.publishedAt);
+        return time >= fromTime && time <= now + 24 * 60 * 60 * 1000;
+      });
+    const keywords = this.extractKeywords(trendPosts).slice(0, 20);
+    const from = new Date(fromTime).toISOString();
+    const to = new Date(now).toISOString();
+    const cacheKey = this.trendCacheKey({ days, source, model, posts: trendPosts });
+
+    if (!options.refresh && this.trendCache?.key === cacheKey && this.trendCache.expiresAt > now) {
+      return { ...this.trendCache.value, cached: true };
+    }
+
+    if (trendPosts.length === 0) {
+      return {
+        summary: '최근 기간에 분석할 기술 블로그 글이 없습니다. 먼저 새로고침으로 글을 수집해 주세요.',
+        keywords,
+        postCount: 0,
+        sourceCount: 0,
+        from,
+        to,
+        generatedAt: new Date().toISOString(),
+        cached: false,
+        model,
+      };
+    }
+
+    const sourceCount = new Set(trendPosts.map((post) => post.sourceId)).size;
+    const prompt = this.buildTrendPrompt(trendPosts, keywords, days);
+    const { text } = await this.aiProvider.call(
+      model,
+      '너는 여러 기업 기술 블로그를 분석하는 한국어 기술 트렌드 애널리스트다. 제공된 글 목록에 없는 사실을 만들지 말고, 반복적으로 등장하는 키워드와 기업별 채택 흐름을 근거로 요약한다.',
+      prompt,
+      { caller: 'tech-blog-trend-summary' },
+    );
+
+    const value: TechBlogTrendSummary = {
+      summary: text.trim(),
+      keywords,
+      postCount: trendPosts.length,
+      sourceCount,
+      from,
+      to,
+      generatedAt: new Date().toISOString(),
+      cached: false,
+      model,
+    };
+    this.trendCache = { key: cacheKey, expiresAt: Date.now() + TREND_CACHE_MS, value };
+    return value;
   }
 
   private async refreshCacheIfStale(): Promise<void> {
@@ -159,6 +232,82 @@ export class TechBlogService implements OnModuleInit, OnModuleDestroy {
     }
 
     return selected.sort((a, b) => dateValue(b.publishedAt) - dateValue(a.publishedAt));
+  }
+
+  private buildTrendPrompt(posts: TechBlogPost[], keywords: TechBlogTrendKeyword[], days: number): string {
+    const postLines = posts.slice(0, 160).map((post, index) => {
+      const tags = post.tags.length ? ` / tags: ${post.tags.join(', ')}` : '';
+      const summary = post.summary ? ` - ${post.summary}` : '';
+      const date = post.publishedAt?.slice(0, 10) ?? '날짜 없음';
+      return `${index + 1}. [${date}] ${post.sourceName}: ${post.title}${summary}${tags}`;
+    }).join('\n');
+    const keywordLines = keywords.map((item) => `${item.keyword}(${item.count})`).join(', ');
+
+    return `다음은 최근 ${days}일 동안 수집된 기업 기술 블로그 글 목록이야.
+
+[자주 등장한 키워드]
+${keywordLines || '없음'}
+
+[글 목록]
+${postLines}
+
+아래 형식으로 한국어 Markdown만 출력해줘.
+
+## 핵심 요약
+- 2~3문장으로 현재 가장 뜨거운 기술 흐름을 요약
+
+## 핫 토픽
+- 토픽명: 왜 뜨거운지, 어떤 기업/글 제목에서 근거가 보이는지
+- 4~6개
+
+## 반복 키워드 해석
+- 키워드: 이 키워드가 어떤 기술/제품/조직 흐름을 의미하는지
+- 5~8개
+
+## 기업들이 글을 쓰는 의도
+- 채용 브랜딩, 기술 신뢰, 제품 홍보, 생태계 선점 등 관점에서 3~5개
+
+## 눈여겨볼 글
+- 글 제목 (출처): 왜 봐야 하는지
+- 3~5개`;
+  }
+
+  private extractKeywords(posts: TechBlogPost[]): TechBlogTrendKeyword[] {
+    const counts = new Map<string, number>();
+    for (const post of posts) {
+      const text = [
+        post.title,
+        post.summary ?? '',
+        post.sourceName,
+        ...post.tags,
+      ].join(' ');
+      for (const keyword of this.tokenizeKeywords(text)) {
+        counts.set(keyword, (counts.get(keyword) ?? 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .map(([keyword, count]) => ({ keyword, count }))
+      .sort((a, b) => b.count - a.count || a.keyword.localeCompare(b.keyword));
+  }
+
+  private tokenizeKeywords(text: string): string[] {
+    return cleanText(text)
+      .replace(/[^\p{L}\p{N}+#./-]+/gu, ' ')
+      .split(/\s+/)
+      .map((token) => token.replace(/^[#./-]+|[#./-]+$/g, ''))
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2)
+      .filter((token) => !/^\d+$/.test(token))
+      .filter((token) => !TREND_STOPWORDS.has(token.toLowerCase()))
+      .map((token) => token.length > 28 ? token.slice(0, 28) : token);
+  }
+
+  private trendCacheKey(options: { days: number; source: string; model: string; posts: TechBlogPost[] }): string {
+    const hash = createHash('sha256')
+      .update(options.posts.map((post) => `${post.id}:${post.publishedAt ?? ''}`).join('|'))
+      .digest('hex')
+      .slice(0, 16);
+    return `${options.days}:${options.source}:${options.model}:${hash}`;
   }
 
   private async deletePostsFromDisabledSources(): Promise<void> {

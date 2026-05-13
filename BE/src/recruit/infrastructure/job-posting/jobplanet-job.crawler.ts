@@ -1,4 +1,4 @@
-import type { JobPosting } from '../domain/job-posting.model';
+import type { JobPosting } from '../../domain/job-posting.model';
 import { normalizeJobType } from './job-type.util';
 
 const BASE_URL = 'https://www.jobplanet.co.kr';

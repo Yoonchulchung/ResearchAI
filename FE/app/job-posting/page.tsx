@@ -9,6 +9,7 @@ import {
   stopJobScraping,
   getJobScrapingStatus,
   fetchJobPostingDetail,
+  getPopularJobPostings,
   type JobPosting,
   type JobPostingFilterOptions,
   type JobPostingListParams,
@@ -40,6 +41,7 @@ interface PersistedFilters {
   companyTypeFilter: string;
   typeFilter: string;
   categoryFilter: string;
+  sortOrder: "latest" | "deadline";
 }
 
 const DEFAULT_PERSISTED_FILTERS: PersistedFilters = {
@@ -48,6 +50,7 @@ const DEFAULT_PERSISTED_FILTERS: PersistedFilters = {
   companyTypeFilter: "",
   typeFilter: "",
   categoryFilter: "",
+  sortOrder: "latest",
 };
 
 const readPersistedFilters = (): PersistedFilters => {
@@ -62,6 +65,7 @@ const readPersistedFilters = (): PersistedFilters => {
       companyTypeFilter: parsed.companyTypeFilter ?? "",
       typeFilter: parsed.typeFilter ?? "",
       categoryFilter: parsed.categoryFilter ?? "",
+      sortOrder: parsed.sortOrder === "deadline" ? "deadline" : "latest",
     };
   } catch {
     return DEFAULT_PERSISTED_FILTERS;
@@ -133,6 +137,7 @@ function JobPostingPageContent() {
   const [companyTypeFilter, setCompanyTypeFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [sortOrder, setSortOrder] = useState<"latest" | "deadline">("latest");
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
@@ -142,6 +147,7 @@ function JobPostingPageContent() {
     setCompanyTypeFilter(persisted.companyTypeFilter);
     setTypeFilter(persisted.typeFilter);
     setCategoryFilter(persisted.categoryFilter);
+    setSortOrder(persisted.sortOrder);
     setIsReady(true);
   }, []);
   const [selected, setSelected] = useState<JobPosting | null>(null);
@@ -153,6 +159,10 @@ function JobPostingPageContent() {
   const detailCacheRef = useRef<Map<string, Partial<JobPosting>>>(new Map());
   const itemsRef = useRef<JobPosting[]>([]);
   const selectedRef = useRef<JobPosting | null>(null);
+
+  const [popularPostings, setPopularPostings] = useState<JobPosting[]>([]);
+  const [popularLoading, setPopularLoading] = useState(false);
+  const [popularCategoryFilter, setPopularCategoryFilter] = useState<"" | "IT" | "전자">("");
 
   const [status, setStatus] = useState<JobScrapingStatus | null>(null);
   const [scrapeLoading, setScrapeLoading] = useState(false);
@@ -223,7 +233,8 @@ function JobPostingPageContent() {
     companyType: companyTypeFilter || undefined,
     type: typeFilter === "신입/인턴" ? "신입,인턴" : (typeFilter || undefined),
     category: categoryFilter || undefined,
-  }), [categoryFilter, companyTypeFilter, search, sourceFilter, typeFilter]);
+    sort: sortOrder,
+  }), [categoryFilter, companyTypeFilter, search, sourceFilter, sortOrder, typeFilter]);
 
   const handleSourceChange = (src: string) => {
     setSourceFilter(src);
@@ -269,9 +280,17 @@ function JobPostingPageContent() {
   }, []);
 
   useEffect(() => {
+    setPopularLoading(true);
+    getPopularJobPostings()
+      .then(setPopularPostings)
+      .catch(() => {})
+      .finally(() => setPopularLoading(false));
+  }, []);
+
+  useEffect(() => {
     if (!isReady) return;
     const filters = buildFilters();
-    persistFilters({ search, sourceFilter, companyTypeFilter, typeFilter, categoryFilter });
+    persistFilters({ search, sourceFilter, companyTypeFilter, typeFilter, categoryFilter, sortOrder });
     currentFiltersRef.current = filters;
     setSelected(null);
     setPage(1);
@@ -279,7 +298,7 @@ function JobPostingPageContent() {
     setHasMore(true);
     hasMoreRef.current = true;
     loadRef.current(1, true, filters);
-  }, [isReady, buildFilters, sourceFilter, search, companyTypeFilter, typeFilter, categoryFilter]);
+  }, [isReady, buildFilters, sourceFilter, search, companyTypeFilter, typeFilter, categoryFilter, sortOrder]);
 
   useEffect(() => {
     if (!jobId) {
@@ -420,6 +439,16 @@ function JobPostingPageContent() {
     } finally {
       setScrapeLoading(false);
     }
+  };
+
+  const IT_KEYWORDS = ['it', '인터넷', '정보기술', '웹', '서버', '네트워크', '보안', '데이터', 'ai', '인공지능', '개발', '소프트웨어', 'sw', '클라우드', '플랫폼', '백엔드', '프론트엔드', '풀스택', '모바일', '앱', 'ios', 'android', 'qa', 'si개발', 'erp', '솔루션'];
+  const ELEC_KEYWORDS = ['전자', '전기', '반도체', '디스플레이', '제어', '통신', '회로', '하드웨어', '임베디드', '펌웨어', '설비'];
+
+  const matchesPopularCategory = (p: JobPosting, cat: "" | "IT" | "전자"): boolean => {
+    if (!cat) return true;
+    const keywords = cat === "IT" ? IT_KEYWORDS : ELEC_KEYWORDS;
+    const haystack = [p.category, p.jobs, p.title].filter(Boolean).join(" ").toLowerCase();
+    return keywords.some((k) => haystack.includes(k));
   };
 
   const normalizeType = (t: string) => {
@@ -583,6 +612,25 @@ function JobPostingPageContent() {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 border border-slate-200/60 p-1">
+                {([
+                  ["latest", "최신순"],
+                  ["deadline", "마감순"],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => setSortOrder(value)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
+                      sortOrder === value
+                        ? "bg-white text-slate-800 shadow-sm border border-slate-200/50"
+                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 border border-transparent"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
               {/* 필터 영역 — 모바일 스크롤 시 숨김 */}
               <div className={`md:contents overflow-hidden transition-all duration-200 ease-out ${
                 isFiltersHidden
@@ -726,14 +774,94 @@ function JobPostingPageContent() {
           {/* Right: detail */}
           <div onScroll={handleDetailScroll} className={`flex-1 overflow-y-auto ${selected ? "flex" : "hidden md:flex"} flex-col bg-[#F8F9FA]`}>
             {!selected ? (
-              <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-400">
-                <div className="w-16 h-16 rounded-2xl bg-white shadow-sm border border-slate-200 flex items-center justify-center mb-2">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" strokeWidth="2"/>
-                    <path d="M8 10h8M8 14h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
+              <div className="flex flex-col h-full overflow-y-auto">
+                <div className="p-6 sm:p-8 max-w-3xl w-full mx-auto">
+                  {/* 헤더 */}
+                  <div className="flex items-center justify-between gap-2 mb-4">
+                    <div className="flex items-center gap-2">
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="text-orange-500">
+                        <path d="M9 1C9 1 13 5 13 9C13 11.2091 11.2091 13 9 13C6.79086 13 5 11.2091 5 9C5 7.5 5.5 6.5 6 5.5C6 5.5 6.5 7 8 7C8 7 7 5 9 1Z" fill="currentColor"/>
+                        <path d="M9 13C9 13 11 14 11 16H7C7 14 9 13 9 13Z" fill="currentColor" opacity="0.5"/>
+                      </svg>
+                      <h2 className="text-base font-extrabold text-slate-800">지금 인기 있는 공고</h2>
+                      <span className="text-xs text-slate-400 font-medium">· 캐치</span>
+                    </div>
+                    {/* 카테고리 필터 탭 */}
+                    <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white text-xs font-bold shrink-0">
+                      {([["", "전체"], ["IT", "IT"], ["전자", "전자"]] as const).map(([val, label]) => (
+                        <button
+                          key={val}
+                          onClick={() => setPopularCategoryFilter(val)}
+                          className={`px-3 py-1.5 transition-colors ${
+                            popularCategoryFilter === val
+                              ? "bg-indigo-600 text-white"
+                              : "text-slate-500 hover:bg-slate-50"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {popularLoading ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="h-28 bg-slate-100 rounded-xl animate-pulse" />
+                      ))}
+                    </div>
+                  ) : popularPostings.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
+                      <p className="text-sm font-medium">인기 공고를 불러올 수 없습니다</p>
+                    </div>
+                  ) : popularPostings.filter((p) => matchesPopularCategory(p, popularCategoryFilter)).length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-400">
+                      <p className="text-sm font-medium">{popularCategoryFilter} 카테고리 인기 공고가 없습니다</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {popularPostings.filter((p) => matchesPopularCategory(p, popularCategoryFilter)).map((p, idx) => {
+                        const dday = getDdayLabel(p);
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => selectPosting(p)}
+                            className="text-left p-4 bg-white rounded-xl border border-slate-200/80 hover:border-indigo-200 hover:shadow-md transition-all group"
+                          >
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-[11px] font-bold text-slate-400 shrink-0">#{idx + 1}</span>
+                                <p className="text-xs font-bold text-slate-600 truncate group-hover:text-indigo-700 transition-colors">{p.company}</p>
+                              </div>
+                              {dday && (
+                                <span className={`shrink-0 text-2xs font-bold px-1.5 py-0.5 rounded-md border ${
+                                  dday === "마감" ? "bg-slate-50 text-slate-400 border-slate-200"
+                                  : dday === "D-Day" ? "bg-red-50 text-red-500 border-red-200"
+                                  : "bg-amber-50 text-amber-600 border-amber-200"
+                                }`}>
+                                  {dday}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[13px] font-semibold text-slate-900 line-clamp-2 leading-snug mb-2.5 group-hover:text-indigo-900 transition-colors">
+                              {p.title}
+                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {p.type && (
+                                <span className="text-2xs px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500 font-semibold border border-slate-200/60">
+                                  {normalizeType(p.type)}
+                                </span>
+                              )}
+                              {p.location && (
+                                <span className="text-2xs text-slate-400 font-medium">{p.location}</span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                <p className="text-base font-medium text-slate-500">공고를 선택하시면 상세 정보를 볼 수 있습니다</p>
               </div>
             ) : (
               <div className="p-0 sm:p-8 sm:max-w-3xl w-full mx-auto">

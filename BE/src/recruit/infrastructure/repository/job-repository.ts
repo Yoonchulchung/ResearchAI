@@ -41,8 +41,11 @@ export class JobRepository {
         collected_at = excluded.collected_at
     `).run({
       ...job,
-      sourceType: job.sourceType,
-      skills: JSON.stringify(job.skills),
+      source: job.source ?? 'unknown',
+      sourceType: job.sourceType ?? 'crawler',
+      description: job.description ?? '',
+      skills: JSON.stringify(job.skills ?? []),
+      postedAt: job.postedAt ?? null,
     });
   }
 

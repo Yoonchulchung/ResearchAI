@@ -19,6 +19,8 @@ export interface AuthUser {
   jobplanetPassword: string | null;
   jobkoreaId: string | null;
   jobkoreaPassword: string | null;
+  catchId: string | null;
+  catchPassword: string | null;
 }
 
 export async function checkUsernameApi(username: string): Promise<{ available: boolean }> {

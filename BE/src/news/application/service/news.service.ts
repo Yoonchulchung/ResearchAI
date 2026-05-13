@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
-import { PuppeteerService } from '../../puppeteer.service';
+import { PuppeteerService } from '../../../shared/infrastructure/browser/puppeteer.service';
 import { NewsBriefingEntity } from '../../domain/entity/news-briefing.entity';
 import { NewsProviderService } from '../../infrastructure/news-provider.service';
 import { AppConfigService, CONFIG_KEYS } from '../../../config/application/app-config.service';

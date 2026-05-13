@@ -64,7 +64,7 @@ export class CollectService {
         try {
           for await (const job of source.collect(query)) {
             this.jobRepository.upsert(job);
-            this.broadcast({ type: 'job', id: job.id, title: job.title, company: job.company, source: job.source });
+            this.broadcast({ type: 'job', id: job.id, title: job.title, company: job.company, source: job.source ?? source.name });
             sourceCount++;
             totalCollected++;
           }
