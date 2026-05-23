@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/doc-write",
+        source: "/recruit",
         headers: [
           {
             key: "Cache-Control",
@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/doc-write/:path*",
+        source: "/recruit/:path*",
         headers: [
           {
             key: "Cache-Control",

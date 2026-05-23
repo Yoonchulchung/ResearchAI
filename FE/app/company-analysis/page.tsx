@@ -1007,6 +1007,7 @@ function CompanyAnalysisPage() {
     const errorParam = searchParams.get("error");
     if (errorParam) setError(decodeURIComponent(errorParam));
     if (companyParam) {
+      setSearchQuery(companyParam);
       const found = companies.find(
         (c) => c.companyName === companyParam || c.companyKey === companyParam,
       );

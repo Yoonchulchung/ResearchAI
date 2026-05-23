@@ -236,9 +236,9 @@ function JobplanetTestPanel({ isDark, user }: { isDark: boolean; user: ReturnTyp
   );
 }
 
-function CatchTestPanel({ isDark }: { isDark: boolean }) {
-  const [catchId, setCatchId] = useState("");
-  const [catchPw, setCatchPw] = useState("");
+function CatchTestPanel({ isDark, user }: { isDark: boolean; user: ReturnType<typeof useAuth>["user"] }) {
+  const [catchId, setCatchId] = useState(user?.catchId ?? "");
+  const [catchPw, setCatchPw] = useState(user?.catchPassword ?? "");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CatchTestResult | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
@@ -251,6 +251,11 @@ function CatchTestPanel({ isDark }: { isDark: boolean }) {
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ block: "end" });
   }, [logs]);
+
+  useEffect(() => {
+    setCatchId(user?.catchId ?? "");
+    setCatchPw(user?.catchPassword ?? "");
+  }, [user?.catchId, user?.catchPassword]);
 
   const handleTest = async () => {
     if (!catchId || !catchPw) return;
@@ -643,7 +648,7 @@ export default function PipelinePage() {
                   캐치 로그인과 세션 쿠키 생성이 정상적으로 동작하는지 확인합니다.
                 </p>
               </div>
-              <CatchTestPanel isDark={isDark} />
+              <CatchTestPanel isDark={isDark} user={user} />
             </div>
           )}
 

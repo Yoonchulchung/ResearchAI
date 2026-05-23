@@ -1,6 +1,6 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { CoverLetterScraperService } from '../application/cover-letter-scraper.service';
-import type { ScrapeOptions } from '../domain/cover-letter.model';
+import type { CoverLetterJobAnalysisRequest, ScrapeOptions } from '../domain/cover-letter.model';
 
 @Controller('cover-letter-scraper')
 export class CoverLetterScraperController {
@@ -44,8 +44,11 @@ export class CoverLetterScraperController {
   async data(
     @Query('page') page = '1',
     @Query('limit') limit = '20',
+    @Query('source') source?: string,
+    @Query('companyType') companyType?: string,
+    @Query('search') search?: string,
   ) {
-    return this.service.getData(Number(page), Number(limit));
+    return this.service.getData(Number(page), Number(limit), { source, companyType, search });
   }
 
   @Get('data/:id')
@@ -53,5 +56,10 @@ export class CoverLetterScraperController {
     const item = await this.service.getById(id);
     if (!item) throw new NotFoundException('자소서를 찾을 수 없습니다.');
     return item;
+  }
+
+  @Post('ai-job-analysis')
+  analyzeJobs(@Body() body: CoverLetterJobAnalysisRequest) {
+    return this.service.analyzeJobsWithAi(body);
   }
 }

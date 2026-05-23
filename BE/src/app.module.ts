@@ -19,6 +19,8 @@ import { CoverLetterModule } from './cover-letter/cover-letter.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { TechBlogModule } from './tech-blog/tech-blog.module';
 import { HotPapersModule } from './hot-papers/hot-papers.module';
+import { ExamModule } from './exam/exam.module';
+import { ResumeModule } from './resume/resume.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { HotPapersModule } from './hot-papers/hot-papers.module';
     MetricsModule,
     TechBlogModule,
     HotPapersModule,
+    ExamModule,
+    ResumeModule,
   ],
 })
 export class AppModule {}

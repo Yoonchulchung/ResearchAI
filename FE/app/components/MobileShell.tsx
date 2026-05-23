@@ -255,7 +255,7 @@ function BottomNav({ active, onSessions }: { active: NavTab; onSessions: () => v
   const items: { id: NavTab; icon: React.ReactNode; label: string; action: () => void }[] = [
     { id: "home", icon: <IconHome />, label: "홈", action: () => router.push("/main") },
     { id: "sessions", icon: <IconSearch />, label: "세션", action: onSessions },
-    { id: "write", icon: <IconPencil />, label: "문서 작성", action: () => router.push("/doc-write") },
+    { id: "write", icon: <IconPencil />, label: "채용", action: () => router.push("/recruit") },
     { id: "settings", icon: <IconSettings />, label: "설정", action: () => router.push("/settings/overview") },
   ];
 
@@ -289,14 +289,15 @@ function BottomNav({ active, onSessions }: { active: NavTab; onSessions: () => v
 
 function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/sessions/")) return "리서치 세션";
-  if (pathname.startsWith("/doc-write")) return "문서 작성";
-  if (pathname.startsWith("/doc-parse")) return "문서 파싱";
-  if (pathname.startsWith("/doc-store")) return "문서 보관함";
+  if (pathname.startsWith("/recruit/write")) return "자소서 작성";
+  if (pathname.startsWith("/recruit/doc-parse")) return "문서 파싱";
+  if (pathname.startsWith("/recruit/doc-store")) return "문서 보관함";
+  if (pathname.startsWith("/recruit/job-posting")) return "채용 공고";
+  if (pathname.startsWith("/recruit/cover-letter")) return "자기소개서";
+  if (pathname.startsWith("/recruit")) return "채용";
   if (pathname.startsWith("/company-analysis")) return "기업 분석";
   if (pathname.startsWith("/tech-blogs")) return "기술 블로그";
   if (pathname.startsWith("/hot-papers")) return "핫한 논문";
-  if (pathname.startsWith("/job-posting")) return "채용 공고";
-  if (pathname.startsWith("/cover-letter")) return "자기소개서";
   if (pathname.startsWith("/settings")) return "설정";
   return "ResearchAI";
 }
@@ -304,9 +305,9 @@ function getPageTitle(pathname: string): string {
 function getActiveTab(pathname: string): NavTab {
   if (pathname.startsWith("/main") || pathname === "/") return "home";
   if (pathname.startsWith("/sessions")) return "sessions";
-  if (pathname.startsWith("/doc-write") || pathname.startsWith("/doc-parse")) return "write";
+  if (pathname.startsWith("/recruit")) return "write";
   if (pathname.startsWith("/settings")) return "settings";
-  if (pathname.startsWith("/company-analysis") || pathname.startsWith("/tech-blogs") || pathname.startsWith("/hot-papers") || pathname.startsWith("/job-posting") || pathname.startsWith("/cover-letter") || pathname.startsWith("/doc-store")) return "more";
+  if (pathname.startsWith("/company-analysis") || pathname.startsWith("/tech-blogs") || pathname.startsWith("/hot-papers")) return "more";
   return "home";
 }
 
@@ -403,9 +404,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   const bg = isDark ? "bg-slate-950" : "bg-slate-50";
   const hideHeader =
     pathname.startsWith("/sessions/") ||
-    pathname.startsWith("/doc-write") ||
-    pathname.startsWith("/job-posting") ||
-    pathname.startsWith("/cover-letter") ||
+    pathname.startsWith("/recruit") ||
     pathname.startsWith("/company-analysis") ||
     pathname.startsWith("/tech-blogs") ||
     pathname.startsWith("/hot-papers") ||

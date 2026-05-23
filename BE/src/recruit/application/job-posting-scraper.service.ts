@@ -16,6 +16,8 @@ import { JobkoreaJobCrawler } from '../infrastructure/job-posting/jobkorea-job.c
 import { CatchJobCrawler } from '../infrastructure/job-posting/catch-job.crawler';
 import { JobplanetJobCrawler } from '../infrastructure/job-posting/jobplanet-job.crawler';
 import { JobdaJobCrawler } from '../infrastructure/job-posting/jobda-job.crawler';
+import { RecruitDb } from '../infrastructure/database/recruit-db';
+import { requestContext } from '../../shared/request-context';
 
 const DATA_DIR = path.resolve(__dirname, '../../../data/job-postings');
 const JSONL_FILE = path.join(DATA_DIR, 'job-postings.jsonl');
@@ -127,17 +129,63 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   전자: [
     '전자',
     '전기',
-    '반도체',
-    '디스플레이',
     '제어',
     '통신',
     '회로',
     '하드웨어',
     '임베디드',
     '펌웨어',
-    '설비',
   ],
 };
+const ELECTRONICS_STRONG_KEYWORDS = [
+  '전자',
+  '반도체',
+  '디스플레이',
+  '회로',
+  '하드웨어',
+  '임베디드',
+  '펌웨어',
+];
+const ELECTRONICS_CONTEXT_KEYWORDS = ['전기', '제어', '통신'];
+const ELECTRONICS_BROAD_FACILITY_PATTERNS = [
+  /전기\/소방\/통신\/안전/,
+  /소방/,
+  /안전/,
+];
+const NON_ELECTRONICS_JOB_KEYWORDS = [
+  '객실서비스',
+  '벨데스크',
+  '하우스키핑',
+  '고객서비스',
+  '고객관리',
+  '식음',
+  '조리',
+  '요리',
+  '플로리스트',
+  '경영지원',
+  '인사',
+  '상담',
+  '웨딩',
+  '매장관리',
+  '판매',
+];
+const SEARCH_SYNONYMS: Record<string, string[]> = {
+  it: ['it', '정보기술', '개발', '소프트웨어', 'sw', '웹', '서버', '클라우드', '인프라'],
+  개발: ['개발', '개발자', '프로그래머', '프로그래밍', '소프트웨어', 'sw'],
+  데이터: ['데이터', 'data', '빅데이터', 'dba', 'db', 'dw', 'bi', 'etl'],
+  ai: ['ai', '인공지능', '머신러닝', 'ml', '딥러닝'],
+  반도체: ['반도체', '디스플레이', '회로', '하드웨어', '공정', '장비'],
+  전자: ['전자', '반도체', '디스플레이', '회로', '하드웨어', '임베디드', '펌웨어'],
+  금융: ['금융', '금융권', '은행', '증권', '보험', '카드', '캐피탈', '자산운용'],
+};
+const SOURCE_SEARCH_LABELS: Record<string, string[]> = {
+  linkareer: ['linkareer', '링커리어'],
+  jobkorea: ['jobkorea', '잡코리아'],
+  catch: ['catch', '캐치'],
+  jobplanet: ['jobplanet', '잡플래닛'],
+  jobda: ['jobda', '잡다'],
+};
+
 
 type CompanyProfileSource = 'manual' | 'dart' | 'publicData' | 'jobSite' | 'search';
 
@@ -189,6 +237,8 @@ export class JobPostingScraperService implements OnModuleInit {
     startedAt: null,
     lastActivity: null,
   };
+
+  constructor(private readonly recruitDb: RecruitDb) {}
 
   async onModuleInit() {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -471,20 +521,43 @@ export class JobPostingScraperService implements OnModuleInit {
 
     const all = (await this.readAllFromJsonl()).map((posting) => this.normalizePostingForView(posting));
 
+    const favoriteIds = this.getFavoriteIds();
     const visible = all.filter((p) => !this.isIgnoredPosting(p));
     const sourceFiltered = filters.source ? visible.filter((p) => p.source === filters.source) : visible;
-    const filtered = this.sortPostings(this.applyFilters(sourceFiltered, filters), filters.sort ?? 'latest');
+    const favoriteFiltered = filters.favorite ? sourceFiltered.filter((p) => favoriteIds.has(p.id)) : sourceFiltered;
+    const searchTerms = this.getSearchTerms(filters.search);
+    const filtered = this.applyFilters(favoriteFiltered, filters, searchTerms);
+    const sorted = searchTerms.length > 0
+      ? this.sortPostingsBySearchRelevance(filtered, searchTerms, filters.sort ?? 'latest')
+      : this.sortPostings(filtered, filters.sort ?? 'latest');
     return {
-      items: filtered.slice((page - 1) * limit, page * limit),
-      total: filtered.length,
-      filterOptions: this.getFilterOptions(sourceFiltered),
+      items: sorted.slice((page - 1) * limit, page * limit).map((p) => this.withFavorite(p, favoriteIds)),
+      total: sorted.length,
+      filterOptions: this.getFilterOptions(favoriteFiltered),
     };
   }
 
   async getPostingById(id: string): Promise<JobPosting | null> {
     const all = await this.readAllFromJsonl();
     const posting = all.find((p) => p.id === id);
-    return posting ? this.normalizePostingForView(posting) : null;
+    return posting ? this.withFavorite(this.normalizePostingForView(posting)) : null;
+  }
+
+  setFavorite(id: string, favorite: boolean): { id: string; favorite: boolean } {
+    const userId = this.getCurrentUserId();
+    if (favorite) {
+      this.recruitDb.get().prepare(`
+        INSERT OR IGNORE INTO job_posting_favorites (user_id, job_id, created_at)
+        VALUES (?, ?, ?)
+      `).run(userId, id, new Date().toISOString());
+      return { id, favorite: true };
+    }
+
+    this.recruitDb.get().prepare(`
+      DELETE FROM job_posting_favorites
+      WHERE user_id = ? AND job_id = ?
+    `).run(userId, id);
+    return { id, favorite: false };
   }
 
   // ────────────────────────────────────────────────
@@ -503,7 +576,8 @@ export class JobPostingScraperService implements OnModuleInit {
 
   async getPopularPostings(): Promise<JobPosting[]> {
     const postings = await this.catchCrawler.getPopularPostings(30);
-    return postings.map((p) => this.normalizePostingForView(p));
+    const favoriteIds = this.getFavoriteIds();
+    return postings.map((p) => this.withFavorite(this.normalizePostingForView(p), favoriteIds));
   }
 
   private async seedInitialCatchPostings(): Promise<void> {
@@ -802,6 +876,28 @@ export class JobPostingScraperService implements OnModuleInit {
     };
   }
 
+  private withFavorite(posting: JobPosting, favoriteIds = this.getFavoriteIds()): JobPosting {
+    return {
+      ...posting,
+      favorite: favoriteIds.has(posting.id),
+    };
+  }
+
+  private getFavoriteIds(): Set<string> {
+    const userId = this.getCurrentUserId();
+    const rows = this.recruitDb.get().prepare(`
+      SELECT job_id as jobId
+      FROM job_posting_favorites
+      WHERE user_id = ?
+    `).all(userId) as { jobId: string }[];
+
+    return new Set(rows.map((row) => row.jobId));
+  }
+
+  private getCurrentUserId(): string {
+    return requestContext.getStore()?.id ?? 'anonymous';
+  }
+
   private resolveCompanyType(p: JobPosting): string | undefined {
     const profile = this.companyProfiles.get(this.normalizeCompanyName(p.company));
     if (!profile) return undefined;
@@ -863,8 +959,7 @@ export class JobPostingScraperService implements OnModuleInit {
     return true;
   }
 
-  private applyFilters(items: JobPosting[], filters: JobPostingListFilters): JobPosting[] {
-    const search = this.normalize(filters.search);
+  private applyFilters(items: JobPosting[], filters: JobPostingListFilters, searchTerms: string[] = this.getSearchTerms(filters.search)): JobPosting[] {
     const job = this.normalize(filters.job);
     const companyType = this.normalize(filters.companyType);
     const type = this.normalize(filters.type);
@@ -883,18 +978,121 @@ export class JobPostingScraperService implements OnModuleInit {
         if (!allowedTypes.includes(postingType)) return false;
       }
       if (category && !this.matchesInterestedCategory(p, category)) return false;
-      if (!search) return true;
+      if (searchTerms.length === 0) return true;
 
-      return [
-        p.company,
-        p.title,
-        p.location,
-        p.category,
-        p.type,
-        p.jobs,
-        p.companyType,
-      ].some((value) => this.normalize(value).includes(search));
+      return this.matchesSearchTerms(p, searchTerms);
     });
+  }
+
+  private sortPostingsBySearchRelevance(
+    items: JobPosting[],
+    searchTerms: string[],
+    sort: NonNullable<JobPostingListFilters['sort']>,
+  ): JobPosting[] {
+    const sortedByDate = this.sortPostings(items, sort);
+    return sortedByDate.sort((a, b) => {
+      const scoreDiff = this.getSearchScore(b, searchTerms) - this.getSearchScore(a, searchTerms);
+      if (scoreDiff !== 0) return scoreDiff;
+      return 0;
+    });
+  }
+
+  private getSearchTerms(search?: string): string[] {
+    return [...new Set(
+      this.normalize(search)
+        .split(/[\s,，、|]+/)
+        .map((term) => term.replace(/^["'`]+|["'`]+$/g, '').trim())
+        .filter(Boolean),
+    )];
+  }
+
+  private matchesSearchTerms(p: JobPosting, terms: string[]): boolean {
+    return terms.every((term) => this.getSearchTermScore(p, term) > 0);
+  }
+
+  private getSearchScore(p: JobPosting, terms: string[]): number {
+    return terms.reduce((score, term) => score + this.getSearchTermScore(p, term), 0);
+  }
+
+  private getSearchTermScore(p: JobPosting, term: string): number {
+    const semanticScore = this.getSemanticSearchScore(p, term);
+    if (semanticScore !== null) return semanticScore;
+
+    const aliases = this.getSearchAliases(term);
+    const fields = this.getSearchFields(p);
+    let best = 0;
+
+    for (const alias of aliases) {
+      if (!alias) continue;
+      for (const field of fields) {
+        if (!field.value) continue;
+        best = Math.max(best, this.scoreFieldMatch(field.value, alias, field.weight));
+      }
+    }
+
+    return best;
+  }
+
+  private getSemanticSearchScore(p: JobPosting, term: string): number | null {
+    if (term === '전자') {
+      return this.matchesElectronicsCategory(p) ? 80 : 0;
+    }
+    if (term === 'it' || term === '개발' || term === '데이터' || term === 'ai') {
+      return this.matchesInterestedCategory(p, 'it') ? 70 : null;
+    }
+    if (ELECTRONICS_STRONG_KEYWORDS.includes(term)) {
+      const haystack = this.normalize([p.jobs, p.title, p.category].filter(Boolean).join(' '));
+      return haystack.includes(term) ? 75 : 0;
+    }
+    if (ELECTRONICS_CONTEXT_KEYWORDS.includes(term)) {
+      const primaryText = this.normalize([p.jobs, p.title].filter(Boolean).join(' '));
+      if (primaryText.includes(term)) return 70;
+
+      const categoryText = this.normalize(p.category);
+      if (!categoryText.includes(term)) return 0;
+
+      const isBroadFacilityCategory = ELECTRONICS_BROAD_FACILITY_PATTERNS.some((pattern) => pattern.test(categoryText));
+      const looksLikeNonElectronicsJob = NON_ELECTRONICS_JOB_KEYWORDS.some((keyword) => primaryText.includes(this.normalize(keyword)));
+      return isBroadFacilityCategory || looksLikeNonElectronicsJob ? 0 : 25;
+    }
+
+    return null;
+  }
+
+  private getSearchAliases(term: string): string[] {
+    return [...new Set([term, ...(SEARCH_SYNONYMS[term] ?? [])].map((value) => this.normalize(value)).filter(Boolean))];
+  }
+
+  private getSearchFields(p: JobPosting): Array<{ value: string; weight: number }> {
+    const source = this.normalize(p.source);
+    return [
+      { value: this.normalizeCompanyName(p.company), weight: 16 },
+      { value: this.normalize(p.company), weight: 14 },
+      { value: this.normalize(p.title), weight: 12 },
+      { value: this.normalize(p.jobs), weight: 11 },
+      { value: this.normalize(p.category), weight: 7 },
+      { value: this.normalize(p.location), weight: 5 },
+      { value: this.normalize(this.normalizeJobType(p.type)), weight: 5 },
+      { value: this.normalize(this.normalizeCompanyType(p.companyType) ?? p.companyType), weight: 5 },
+      { value: source, weight: 4 },
+      ...((SOURCE_SEARCH_LABELS[source] ?? []).map((label) => ({ value: this.normalize(label), weight: 4 }))),
+    ];
+  }
+
+  private scoreFieldMatch(field: string, term: string, weight: number): number {
+    if (!field || !term) return 0;
+    if (field === term) return weight * 5;
+    if (field.startsWith(term)) return weight * 4;
+    if (this.hasDelimitedTerm(field, term)) return weight * 3;
+    if (term.length >= 2 && field.includes(term)) return weight * 2;
+    return 0;
+  }
+
+  private hasDelimitedTerm(field: string, term: string): boolean {
+    return field
+      .split(/[\s,，、/|·()[\]{}<>:;'"`]+/)
+      .filter(Boolean)
+      .some((part) => part === term || part.startsWith(term));
   }
 
   private sortPostings(items: JobPosting[], sort: NonNullable<JobPostingListFilters['sort']>): JobPosting[] {
@@ -972,6 +1170,9 @@ export class JobPostingScraperService implements OnModuleInit {
     if (!keywords) {
       return this.splitComma(p.category).some((value) => this.normalize(value) === category);
     }
+    if (category === '전자') {
+      return this.matchesElectronicsCategory(p);
+    }
 
     const haystack = this.normalize([
       p.category,
@@ -980,6 +1181,31 @@ export class JobPostingScraperService implements OnModuleInit {
     ].filter(Boolean).join(' '));
 
     return keywords.some((keyword) => haystack.includes(this.normalize(keyword)));
+  }
+
+  private matchesElectronicsCategory(p: JobPosting): boolean {
+    const primaryText = this.normalize([
+      p.jobs,
+      p.title,
+    ].filter(Boolean).join(' '));
+    const categoryText = this.normalize(p.category);
+    const fullText = `${primaryText} ${categoryText}`;
+
+    if (ELECTRONICS_STRONG_KEYWORDS.some((keyword) => fullText.includes(this.normalize(keyword)))) {
+      return true;
+    }
+    if (ELECTRONICS_CONTEXT_KEYWORDS.some((keyword) => primaryText.includes(this.normalize(keyword)))) {
+      return true;
+    }
+
+    const hasContextCategory = ELECTRONICS_CONTEXT_KEYWORDS.some((keyword) => categoryText.includes(this.normalize(keyword)));
+    if (!hasContextCategory) return false;
+
+    const isBroadFacilityCategory = ELECTRONICS_BROAD_FACILITY_PATTERNS.some((pattern) => pattern.test(categoryText));
+    const looksLikeNonElectronicsJob = NON_ELECTRONICS_JOB_KEYWORDS.some((keyword) => primaryText.includes(this.normalize(keyword)));
+    if (isBroadFacilityCategory || looksLikeNonElectronicsJob) return false;
+
+    return true;
   }
 
   private normalizeCompanyType(value?: string): string | undefined {

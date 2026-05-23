@@ -23,6 +23,8 @@ import { SessionJobEntity } from '../sessions/domain/entity/session-job.entity';
 import { HotPaperEntity } from '../hot-papers/domain/entity/hot-paper.entity';
 import { TechBlogPostEntity } from '../tech-blog/domain/entity/tech-blog-post.entity';
 import { ContentRefreshStateEntity } from '../shared/entity/content-refresh-state.entity';
+import { ExamEventEntity } from '../exam/domain/entity/exam-event.entity';
+import { ResumeEntity } from '../resume/domain/resume.entity';
 
 function resolveSqlitePath(): string {
   const explicitPath = process.env.DATABASE_PATH;
@@ -52,7 +54,8 @@ mkdirSync(dirname(databasePath), { recursive: true });
                  GmailTokenEntity, ExperienceEntity, DocumentEntity,
                  CompanyAnalysisEntity, SessionJobEntity,
                  AiCallLogEntity, UserEntity, LoginHistoryEntity,
-                 HotPaperEntity, TechBlogPostEntity, ContentRefreshStateEntity],
+                 HotPaperEntity, TechBlogPostEntity, ContentRefreshStateEntity,
+                 ExamEventEntity, ResumeEntity],
       synchronize: true,
       // WAL 모드: 동시 읽기/쓰기 성능 향상 (다중 기기 동시 접속 대응)
       prepareDatabase: (db: { pragma: (s: string) => void }) => {

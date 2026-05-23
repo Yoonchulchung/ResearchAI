@@ -30,6 +30,17 @@ export class RecruitDb implements OnModuleInit, OnModuleDestroy {
       CREATE INDEX IF NOT EXISTS idx_source       ON job_postings(source);
       CREATE INDEX IF NOT EXISTS idx_company      ON job_postings(company);
       CREATE INDEX IF NOT EXISTS idx_collected_at ON job_postings(collected_at);
+
+      CREATE TABLE IF NOT EXISTS job_posting_favorites (
+        user_id    TEXT NOT NULL,
+        job_id     TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, job_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_job_posting_favorites_user
+        ON job_posting_favorites(user_id);
+      CREATE INDEX IF NOT EXISTS idx_job_posting_favorites_job
+        ON job_posting_favorites(job_id);
     `);
   }
 

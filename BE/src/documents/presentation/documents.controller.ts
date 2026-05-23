@@ -227,21 +227,23 @@ export class DocumentsController {
 
   @Post('catch/test-login')
   async testCatchLogin(
-    @Body() body: { id: string; password: string },
+    @Body() body: { id?: string; password?: string },
   ) {
-    if (!body.id || !body.password) {
+    const credentials = this.resolveCatchCredentials(body);
+    if (!credentials) {
       throw new BadRequestException('id와 password가 필요합니다');
     }
-    return this.runCatchTest(body);
+    return this.runCatchTest(credentials);
   }
 
   @Post('catch/test-login/stream')
   async testCatchLoginStream(
-    @Body() body: { id: string; password: string },
+    @Body() body: { id?: string; password?: string },
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    if (!body.id || !body.password) {
+    const credentials = this.resolveCatchCredentials(body);
+    if (!credentials) {
       throw new BadRequestException('id와 password가 필요합니다');
     }
 
@@ -259,7 +261,7 @@ export class DocumentsController {
     };
 
     try {
-      const result = await this.runCatchTest(body, (message) => send({ type: 'log', message }));
+      const result = await this.runCatchTest(credentials, (message) => send({ type: 'log', message }));
       send({ type: 'done', result });
     } catch (e) {
       const msg = e instanceof Error ? e.message : '캐치 테스트 오류';
@@ -267,6 +269,15 @@ export class DocumentsController {
     } finally {
       if (!res.writableEnded) res.end();
     }
+  }
+
+  private resolveCatchCredentials(body: { id?: string; password?: string }) {
+    const stored = requestContext.getStore()?.serviceCredentials;
+    const id = body.id?.trim() || stored?.catchId?.trim();
+    const password = body.password || stored?.catchPassword || '';
+
+    if (!id || !password) return null;
+    return { id, password };
   }
 
   private async runCatchTest(

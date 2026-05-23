@@ -24,6 +24,7 @@ export interface JobPosting {
   detailContent?: string;
   detailHtml?: string;
   postedAt?: string | null;
+  favorite?: boolean;
   collectedAt: string;
 }
 
@@ -45,6 +46,7 @@ export interface JobPostingListFilters {
   type?: string;
   category?: string;
   sort?: 'latest' | 'deadline';
+  favorite?: boolean;
 }
 
 export interface JobPostingFilterOptions {

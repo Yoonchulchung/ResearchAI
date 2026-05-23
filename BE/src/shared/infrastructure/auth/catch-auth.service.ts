@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import puppeteer from 'puppeteer';
 import type { CookieData, Page } from 'puppeteer';
 import {
+  BROWSER_LAUNCH_OPTIONS,
   BrowserAutomationUtil,
   BrowserLogFn,
   NAVIGATION_TIMEOUT_MS,
@@ -16,6 +18,12 @@ export interface CatchSessionResult {
   finalUrl?: string;
   error?: string;
   failedStep?: string;
+}
+
+export interface CatchAuthenticatedHeaders {
+  headers: Record<string, string>;
+  reused: boolean;
+  finalUrl?: string;
 }
 
 @Injectable()
@@ -53,6 +61,39 @@ export class CatchAuthService {
       onLog?.(`캐치 신규 로그인 성공 - 쿠키 ${this.savedCookies.length}개 저장`);
     }
     return { ...result, reused: false };
+  }
+
+  async getAuthenticatedHeaders(
+    id: string,
+    password: string,
+    onLog?: BrowserLogFn,
+  ): Promise<CatchAuthenticatedHeaders> {
+    const browser = await puppeteer.launch(BROWSER_LAUNCH_OPTIONS);
+    try {
+      const page = await browser.newPage();
+      await BrowserAutomationUtil.setupPage(page);
+      const result = await this.loginWithSession(page, id, password, onLog);
+      if (!result.ok) {
+        throw new Error(result.error || '캐치 로그인에 실패했습니다.');
+      }
+
+      const cookies = await page.browserContext().cookies();
+      const token = cookies.find((cookie) => cookie.name === 'token')?.value;
+      const cookieHeader = cookies
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join('; ');
+
+      return {
+        reused: result.reused,
+        finalUrl: result.finalUrl,
+        headers: {
+          ...(cookieHeader ? { cookie: cookieHeader } : {}),
+          ...(token ? { 'x-auth-token': token } : {}),
+        },
+      };
+    } finally {
+      await browser.close().catch(() => {});
+    }
   }
 
   private async doFreshLogin(

@@ -60,15 +60,6 @@ function IconResearch() {
   );
 }
 
-function IconDocument() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
-      <path d="M9 2H4C3.44772 2 3 2.44772 3 3V13C3 13.5523 3.44772 14 4 14H12C12.5523 14 13 13.5523 13 13V6L9 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M9 2V6H13" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M6 9H10M6 11.5H8.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function IconPencil() {
   return (
@@ -166,6 +157,12 @@ export function Sidebar() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const isRecruitWorkspaceActive =
+    pathname === "/recruit" ||
+    pathname?.startsWith("/recruit/write") ||
+    pathname?.startsWith("/recruit/job-posting") ||
+    pathname?.startsWith("/recruit/cover-letter") ||
+    pathname?.startsWith("/recruit/doc-store");
 
   const updateCollapsed = useCallback((v: boolean) => {
     setCollapsed(v);
@@ -286,22 +283,12 @@ export function Sidebar() {
             <IconPlus />
           </button>
           <button
-            onClick={() => router.push("/doc-parse")}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${pathname === "/doc-parse"
+            onClick={() => router.push("/recruit")}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${isRecruitWorkspaceActive
                 ? "bg-brand-primary text-white shadow-md shadow-brand-primary/30"
                 : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
               }`}
-            title="문서 파싱"
-          >
-            <IconDocument />
-          </button>
-          <button
-            onClick={() => router.push("/doc-write")}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${pathname === "/doc-write"
-                ? "bg-brand-primary text-white shadow-md shadow-brand-primary/30"
-                : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
-              }`}
-            title="문서 작성"
+            title="채용"
           >
             <IconPencil />
           </button>
@@ -409,25 +396,16 @@ export function Sidebar() {
           새 리서치
         </button>
         <button
-          onClick={() => router.push("/doc-parse")}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${pathname === "/doc-parse"
-              ? "bg-brand-primary text-white shadow-md shadow-brand-primary/30"
-              : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
-            }`}
-        >
-          <IconDocument />
-          문서 파싱
-        </button>
-        <button
-          onClick={() => router.push("/doc-write")}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${pathname === "/doc-write"
+          onClick={() => router.push("/recruit")}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isRecruitWorkspaceActive
               ? "bg-brand-primary text-white shadow-md shadow-brand-primary/30"
               : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
             }`}
         >
           <IconPencil />
-          문서 작성
+          채용
         </button>
+
         <button
           onClick={() => router.push("/company-analysis")}
           className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${

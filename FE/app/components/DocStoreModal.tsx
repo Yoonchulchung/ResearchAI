@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useDocStoreModal } from "@/contexts/DocStoreModalContext";
 import { useSidebar } from "@/contexts/SidebarContext";
-import DocStorePage from "@/doc-store/page";
+import DocStorePage from "@/recruit/doc-store/page";
 
 export function DocStoreModal() {
   const { isOpen, closeModal } = useDocStoreModal();

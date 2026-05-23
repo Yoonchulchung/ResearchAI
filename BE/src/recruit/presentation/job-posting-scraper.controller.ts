@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { JobPostingScraperService } from '../application/job-posting-scraper.service';
 import type { JobPostingListFilters, JobPostingScrapeOptions } from '../domain/job-posting.model';
 
@@ -46,6 +46,7 @@ export class JobPostingScraperController {
     @Query('type') type?: string,
     @Query('category') category?: string,
     @Query('sort') sort?: string,
+    @Query('favorite') favorite?: string,
   ) {
     const filters: JobPostingListFilters = {
       source,
@@ -55,8 +56,19 @@ export class JobPostingScraperController {
       type,
       category,
       sort: sort === 'deadline' ? 'deadline' : 'latest',
+      favorite: favorite === 'true',
     };
     return this.service.getData(Number(page), Number(limit), filters);
+  }
+
+  @Post('data/:id/favorite')
+  favorite(@Param('id') id: string) {
+    return this.service.setFavorite(id, true);
+  }
+
+  @Delete('data/:id/favorite')
+  unfavorite(@Param('id') id: string) {
+    return this.service.setFavorite(id, false);
   }
 
   @Get('data/:id')

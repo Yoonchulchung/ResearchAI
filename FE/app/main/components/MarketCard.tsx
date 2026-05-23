@@ -24,6 +24,13 @@ interface ChartPoint {
   low: number;
 }
 
+function unwrapApiResult<T>(data: unknown): T | null {
+  if (data && typeof data === "object" && "result" in data) {
+    return (data as { result?: T }).result ?? null;
+  }
+  return data as T;
+}
+
 const RANGES = [
   { label: "1주", value: "5d" },
   { label: "1달", value: "1mo" },
@@ -69,7 +76,10 @@ function ChartModal({ item, onClose }: { item: MarketItem; onClose: () => void }
       `${API_BASE}/news/market-chart?symbol=${encodeURIComponent(item.symbol)}&range=${range}`,
     )
       .then((r) => r.json())
-      .then((data: unknown) => setPoints(Array.isArray(data) ? (data as ChartPoint[]) : []))
+      .then((data: unknown) => {
+        const result = unwrapApiResult<ChartPoint[]>(data);
+        setPoints(Array.isArray(result) ? result : []);
+      })
       .catch(() => setPoints([]))
       .finally(() => setLoading(false));
   }, [item.symbol, range]);
@@ -220,7 +230,8 @@ export function MarketCard() {
     fetch(`${API_BASE}/news/market`)
       .then((r) => r.json())
       .then((data: unknown) => {
-        setItems(Array.isArray(data) ? (data as MarketItem[]) : []);
+        const result = unwrapApiResult<MarketItem[]>(data);
+        setItems(Array.isArray(result) ? result : []);
         setLastUpdated(new Date());
       })
       .catch(() => setError(true))
