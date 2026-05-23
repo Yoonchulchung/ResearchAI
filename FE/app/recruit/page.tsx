@@ -8,23 +8,29 @@ import { getPopularJobPostings, listJobPostings, type JobPosting } from "@/lib/a
 import { listCoverLetters, type CoverLetter } from "@/lib/api/recruit/cover-letter";
 import { listCompanyAnalyses, type CompanyAnalysis } from "@/lib/api/company-analysis";
 import { getExperiences, type Experience } from "@/lib/api/experiences";
-import { type ExamEvent } from "@/lib/api/exams";
 import { API_BASE, getAuthHeaders } from "@/lib/api/base";
 import { useTheme } from "@/contexts/ThemeContext";
 import { IconEvaluate, IconSpellcheck } from "./_components/icons";
 import { PROSE_CLASS } from "./_constants";
 import { useDraftAssist } from "./_hooks/useDraftAssist";
-import { useExamCalendar } from "./_hooks/useExamCalendar";
+import { useExamCalendar, type RecruitCalendarEvent } from "./_hooks/useExamCalendar";
 
 type InfoTab = "jobs" | "letters";
 type JobCategoryFilter = "" | "IT" | "전자";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
-function examLabel(event: ExamEvent) {
-  const group = event.groupId === "apply" ? "접수" : event.groupId === "test" ? "시험" : event.groupId === "result" ? "발표" : event.groupId;
-  const phase = event.phase ? ` · ${event.phase}` : "";
-  return `${group}${phase}`;
+function scheduleLabel(event: RecruitCalendarEvent) {
+  if (event.kind !== "exam") return event.label;
+  const phase = event.exam?.phase ? ` · ${event.exam.phase}` : "";
+  return `${event.label}${phase}`;
+}
+
+function scheduleTone(event: RecruitCalendarEvent, isDark: boolean) {
+  if (event.kind === "job-end") return isDark ? "bg-slate-900 text-white" : "bg-slate-900 text-white";
+  if (event.kind === "job-start") return isDark ? "bg-white/10 text-white/80" : "bg-white text-slate-700 ring-1 ring-slate-200";
+  if (event.exam?.groupId === "test") return isDark ? "bg-rose-500/20 text-rose-200" : "bg-rose-50 text-rose-600";
+  return isDark ? "bg-indigo-500/20 text-indigo-200" : "bg-indigo-50 text-indigo-600";
 }
 
 function deadlineBadge(job: JobPosting) {
@@ -53,6 +59,26 @@ function analysisMeta(analysis: CompanyAnalysis) {
   return [analysis.industry, analysis.companySize, analysis.corpClass].filter(Boolean).join(" · ") || "기업 분석";
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractExperienceLine(content: string, labels: string[]) {
+  const lines = content.split(/\r?\n/);
+  for (const label of labels) {
+    const pattern = new RegExp(`^\\s*${escapeRegExp(label)}\\s*[:：]\\s*(.+)$`);
+    const matched = lines.map((line) => line.match(pattern)?.[1]?.trim()).find(Boolean);
+    if (matched) return matched;
+  }
+  return "";
+}
+
+function experienceMeta(exp: Experience) {
+  const company = extractExperienceLine(exp.content, ["기업명", "지원 기업", "회사"]);
+  const job = extractExperienceLine(exp.content, ["직무", "지원 직무", "직무명"]);
+  return [company, job].filter(Boolean).join(" · ") || exp.category || "분류 없음";
+}
+
 export default function RecruitPage() {
   const router = useRouter();
   const { theme, uiStyle } = useTheme();
@@ -76,7 +102,7 @@ export default function RecruitPage() {
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const { draft, setDraft, assistMode, assistResult, assistLoading, assistError, runDraftAssist, closeAssist } = useDraftAssist();
-  const { examMonth, examEvents, examLoading, examError, examCalendarDays, examEventsByDate, upcomingExams, moveExamMonth, toDateKey } = useExamCalendar();
+  const { examMonth, examLoading, examError, examCalendarDays, examEventsByDate, upcomingExams, calendarEvents, moveExamMonth, toDateKey } = useExamCalendar();
 
   useEffect(() => {
     let cancelled = false;
@@ -531,7 +557,7 @@ export default function RecruitPage() {
                       </span>
                       <span className="min-w-0">
                         <span className={`block truncate text-sm font-bold ${textMain}`}>{exp.title}</span>
-                        <span className={`block truncate text-xs ${textSub}`}>{exp.category || "분류 없음"}</span>
+                        <span className={`block truncate text-xs ${textSub}`}>{experienceMeta(exp)}</span>
                       </span>
                     </button>
                   </li>
@@ -592,10 +618,10 @@ export default function RecruitPage() {
               <div className="flex items-center gap-2">
                 <span className={`text-sm font-semibold ${textSub}`}>03</span>
                 <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${isDark ? "border-white/10 text-white/60" : "border-slate-200 text-slate-500"}`}>
-                  자격증 일정
+                  채용 · 시험 일정
                 </span>
               </div>
-              <h2 className={`mt-2 text-lg font-bold ${textMain}`}>DATAQ 시험 캘린더</h2>
+              <h2 className={`mt-2 text-lg font-bold ${textMain}`}>채용 마감 · 자격증 캘린더</h2>
             </div>
             <div className={`flex items-center overflow-hidden rounded-lg border text-xs font-bold ${
               isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"
@@ -662,14 +688,11 @@ export default function RecruitPage() {
                           {events.slice(0, 2).map((event) => (
                             <div
                               key={`${event.id}-${key}`}
-                              title={`${event.title} ${examLabel(event)}`}
-                              className={`truncate rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                                event.groupId === "test"
-                                  ? isDark ? "bg-rose-500/20 text-rose-200" : "bg-rose-50 text-rose-600"
-                                  : isDark ? "bg-indigo-500/20 text-indigo-200" : "bg-indigo-50 text-indigo-600"
-                              }`}
+                              title={`${event.title} ${scheduleLabel(event)}${event.description ? ` · ${event.description}` : ""}`}
+                              className={`truncate rounded px-1.5 py-0.5 text-[10px] font-bold ${scheduleTone(event, isDark)}`}
                             >
-                              {event.shortTitle || event.title}
+                              <span className="mr-1">{event.label}</span>
+                              {event.title}
                             </div>
                           ))}
                           {events.length > 2 && (
@@ -686,7 +709,7 @@ export default function RecruitPage() {
             <div className={`rounded-xl border p-3 ${subtleBoxClass}`}>
               <div className="flex items-center justify-between">
                 <h3 className={`text-sm font-bold ${textMain}`}>이번 달 일정</h3>
-                <span className={`text-xs font-semibold ${textSub}`}>{examEvents.length}건</span>
+                <span className={`text-xs font-semibold ${textSub}`}>{calendarEvents.length}건</span>
               </div>
               <div className="mt-3 space-y-2">
                 {examLoading ? (
@@ -697,20 +720,16 @@ export default function RecruitPage() {
                   <div className={`flex h-28 items-center justify-center text-sm ${textSub}`}>등록된 일정이 없습니다.</div>
                 ) : (
                   upcomingExams.map((event) => {
-                    const start = new Date(event.start);
-                    const dateLabel = Number.isNaN(start.getTime())
+                    const date = new Date(`${event.date}T00:00:00`);
+                    const dateLabel = Number.isNaN(date.getTime())
                       ? "날짜 없음"
-                      : start.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+                      : date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
                     return (
                       <div key={event.id} className={`rounded-lg border px-3 py-2 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
                         <div className="flex items-center justify-between gap-2">
                           <p className={`truncate text-sm font-bold ${textMain}`}>{event.title}</p>
-                          <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
-                            event.groupId === "test"
-                              ? "bg-rose-100 text-rose-600"
-                              : "bg-indigo-100 text-indigo-600"
-                          }`}>
-                            {examLabel(event)}
+                          <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${scheduleTone(event, false)}`}>
+                            {scheduleLabel(event)}
                           </span>
                         </div>
                         <p className={`mt-1 truncate text-xs ${textSub}`}>{dateLabel} · {event.description}</p>

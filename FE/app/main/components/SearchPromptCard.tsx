@@ -10,6 +10,7 @@ export function SearchPromptCard() {
   const [isHidden, setIsHidden] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const lastScrollTopRef = useRef(0);
+  const scrollIntentRef = useRef<{ direction: "up" | "down" | null; distance: number }>({ direction: null, distance: 0 });
 
   useEffect(() => {
     if (typeof window === "undefined" || window.innerWidth >= 768) return;
@@ -27,6 +28,12 @@ export function SearchPromptCard() {
     const handleScroll = () => {
       if (window.innerWidth >= 768) return;
       const scrollTop = scrollEl.scrollTop;
+      if (scrollTop <= 8) {
+        lastScrollTopRef.current = scrollTop;
+        scrollIntentRef.current = { direction: null, distance: 0 };
+        setIsHidden(false);
+        return;
+      }
       if (isNearScrollBottom(scrollEl)) {
         lastScrollTopRef.current = scrollTop;
         return;
@@ -34,10 +41,24 @@ export function SearchPromptCard() {
       const delta = scrollTop - lastScrollTopRef.current;
       lastScrollTopRef.current = scrollTop;
 
-      if (Math.abs(delta) < 4) return;
+      if (Math.abs(delta) < 2) return;
 
-      if (delta < 0) setIsHidden(false);
-      else if (delta > 0 && scrollTop > 60) setIsHidden(true);
+      const direction = delta > 0 ? "down" : "up";
+      const intent = scrollIntentRef.current;
+      if (intent.direction !== direction) {
+        scrollIntentRef.current = { direction, distance: Math.abs(delta) };
+      } else {
+        intent.distance += Math.abs(delta);
+      }
+
+      const distance = scrollIntentRef.current.distance;
+      if (direction === "down" && scrollTop > 84 && distance > 42) {
+        setIsHidden(true);
+        scrollIntentRef.current.distance = 0;
+      } else if (direction === "up" && distance > 52) {
+        setIsHidden(false);
+        scrollIntentRef.current.distance = 0;
+      }
     };
 
     scrollEl.addEventListener("scroll", handleScroll, { passive: true });

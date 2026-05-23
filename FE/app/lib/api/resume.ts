@@ -80,8 +80,19 @@ export interface ResumeOverseas {
 
 export interface ResumeSelfIntro {
   id: string;
+  companyName?: string;
+  jobTitle?: string;
+  jd?: string;
   question: string;
   answer: string;
+}
+
+export interface ResumeTarget {
+  id: string;
+  companyName: string;
+  jobTitle: string;
+  jd: string;
+  selfIntroductions: ResumeSelfIntro[];
 }
 
 export interface ResumeProfile {
@@ -94,6 +105,7 @@ export interface ResumeProfile {
   activities: ResumeActivity[];
   overseas: ResumeOverseas[];
   selfIntroductions: ResumeSelfIntro[];
+  resumeTargets?: ResumeTarget[];
 }
 
 export function getResume(): Promise<ResumeProfile | null> {

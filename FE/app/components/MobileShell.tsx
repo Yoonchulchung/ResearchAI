@@ -290,6 +290,8 @@ function BottomNav({ active, onSessions }: { active: NavTab; onSessions: () => v
 function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/sessions/")) return "리서치 세션";
   if (pathname.startsWith("/recruit/write")) return "자소서 작성";
+  if (pathname.startsWith("/recruit/resume/write")) return "이력서 편집";
+  if (pathname.startsWith("/recruit/resume")) return "이력서";
   if (pathname.startsWith("/recruit/doc-parse")) return "문서 파싱";
   if (pathname.startsWith("/recruit/doc-store")) return "문서 보관함";
   if (pathname.startsWith("/recruit/job-posting")) return "채용 공고";
@@ -328,28 +330,51 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   const [refreshing, setRefreshing] = useState(false);
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
   const lastScrollTopRef = useRef(0);
+  const scrollIntentRef = useRef<{ direction: "up" | "down" | null; distance: number }>({ direction: null, distance: 0 });
 
   // 페이지 전환 시 헤더 상태 초기화
   useEffect(() => {
     setIsHeaderHidden(false);
     lastScrollTopRef.current = 0;
+    scrollIntentRef.current = { direction: null, distance: 0 };
   }, [pathname]);
 
-  // /main 에서 스크롤 방향 감지 → 헤더 숨김/표시
+  // /main 에서 스크롤 방향 감지 → 누적 이동량 기준으로 헤더 숨김/표시
   useEffect(() => {
     const el = mainRef.current;
     if (!el || !pathname.startsWith("/main")) return;
     const handleScroll = () => {
       const scrollTop = el.scrollTop;
+      if (scrollTop <= 8) {
+        lastScrollTopRef.current = scrollTop;
+        scrollIntentRef.current = { direction: null, distance: 0 };
+        setIsHeaderHidden(false);
+        return;
+      }
       if (isNearScrollBottom(el)) {
         lastScrollTopRef.current = scrollTop;
         return;
       }
       const delta = scrollTop - lastScrollTopRef.current;
       lastScrollTopRef.current = scrollTop;
-      if (Math.abs(delta) < 4) return;
-      if (delta > 0 && scrollTop > 10) setIsHeaderHidden(true);
-      else if (delta < 0) setIsHeaderHidden(false);
+      if (Math.abs(delta) < 2) return;
+
+      const direction = delta > 0 ? "down" : "up";
+      const intent = scrollIntentRef.current;
+      if (intent.direction !== direction) {
+        scrollIntentRef.current = { direction, distance: Math.abs(delta) };
+      } else {
+        intent.distance += Math.abs(delta);
+      }
+
+      const distance = scrollIntentRef.current.distance;
+      if (direction === "down" && scrollTop > 72 && distance > 36) {
+        setIsHeaderHidden(true);
+        scrollIntentRef.current.distance = 0;
+      } else if (direction === "up" && distance > 44) {
+        setIsHeaderHidden(false);
+        scrollIntentRef.current.distance = 0;
+      }
     };
     el.addEventListener("scroll", handleScroll, { passive: true });
     return () => el.removeEventListener("scroll", handleScroll);
