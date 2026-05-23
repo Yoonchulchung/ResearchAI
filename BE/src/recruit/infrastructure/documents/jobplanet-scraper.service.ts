@@ -4,8 +4,8 @@ import {
   BrowserAutomationUtil,
   BrowserLogFn,
   BROWSER_LAUNCH_OPTIONS,
-} from '../../shared/infrastructure/browser/browser-automation.util';
-import { JobplanetAuthService } from '../../shared/infrastructure/auth/jobplanet-auth.service';
+} from '../../../shared/infrastructure/browser/browser-automation.util';
+import { JobplanetAuthService } from '../../../shared/infrastructure/auth/jobplanet-auth.service';
 
 export interface JobplanetReview {
   rating: number;

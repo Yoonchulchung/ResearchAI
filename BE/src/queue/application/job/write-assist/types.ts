@@ -7,6 +7,8 @@ export interface WriteAssistExtras {
   companyCtx?: string;
   /** 이전 채팅 히스토리 — 대화 연속성 유지 */
   history?: { role: 'user' | 'assistant'; content: string }[];
+  /** 이미지 파일명 목록 (BE IMAGE_CACHE_DIR 기준) — vision 분석 시 사용 */
+  imageFiles?: string[];
 }
 
 /** 글 평가 — 문항 유형 (AI Agent 1단계에서 분류) */

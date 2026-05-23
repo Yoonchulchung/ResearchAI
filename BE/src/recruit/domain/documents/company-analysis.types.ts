@@ -1,5 +1,5 @@
 import { CompetencyScores } from './entity/company-analysis.entity';
-import { YearlyFinancial, EmployeeDetail } from '../infrastructure/dart-financial.service';
+import { YearlyFinancial, EmployeeDetail } from '../../infrastructure/documents/dart-financial.service';
 
 export type { CompetencyScores };
 

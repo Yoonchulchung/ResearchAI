@@ -43,8 +43,11 @@ export interface JobPostingListFilters {
   search?: string;
   job?: string;
   companyType?: string;
+  excludeCompanyType?: string;
   type?: string;
   category?: string;
+  scheduleFrom?: string;
+  scheduleTo?: string;
   sort?: 'latest' | 'deadline';
   favorite?: boolean;
 }

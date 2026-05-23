@@ -44,8 +44,11 @@ export interface JobPostingListParams {
   search?: string;
   job?: string;
   companyType?: string;
+  excludeCompanyType?: string;
   type?: string;
   category?: string;
+  scheduleFrom?: string;
+  scheduleTo?: string;
   sort?: "latest" | "deadline";
   favorite?: boolean;
 }
@@ -67,8 +70,11 @@ export const listJobPostings = ({
   search,
   job,
   companyType,
+  excludeCompanyType,
   type,
   category,
+  scheduleFrom,
+  scheduleTo,
   sort,
   favorite,
 }: JobPostingListParams = {}) => {
@@ -77,8 +83,11 @@ export const listJobPostings = ({
   if (search?.trim()) params.set("search", search.trim());
   if (job) params.set("job", job);
   if (companyType) params.set("companyType", companyType);
+  if (excludeCompanyType) params.set("excludeCompanyType", excludeCompanyType);
   if (type) params.set("type", type);
   if (category) params.set("category", category);
+  if (scheduleFrom) params.set("scheduleFrom", scheduleFrom);
+  if (scheduleTo) params.set("scheduleTo", scheduleTo);
   if (sort) params.set("sort", sort);
   if (favorite) params.set("favorite", "true");
   return apiFetch<JobPostingListResponse>(`${JOB_POSTING_API_BASE}/data?${params}`);
@@ -109,4 +118,23 @@ export const fetchJobPostingDetail = (id: string, url: string, source: string) =
 export const setJobPostingFavorite = (id: string, favorite: boolean) =>
   apiFetch<{ id: string; favorite: boolean }>(`${JOB_POSTING_API_BASE}/data/${encodeURIComponent(id)}/favorite`, {
     method: favorite ? "POST" : "DELETE",
+  });
+
+export type AiAnalysisMode = "analysis" | "interview";
+
+export const getJobPostingAiAnalysis = (id: string, mode: AiAnalysisMode) =>
+  apiFetch<{ id: string; mode: AiAnalysisMode; text: string | null }>(
+    `${JOB_POSTING_API_BASE}/data/${encodeURIComponent(id)}/ai-analysis?mode=${mode}`,
+  );
+
+export const saveJobPostingAiAnalysis = (id: string, mode: AiAnalysisMode, text: string) =>
+  apiFetch<{ ok: boolean }>(`${JOB_POSTING_API_BASE}/data/${encodeURIComponent(id)}/ai-analysis`, {
+    method: "POST",
+    body: JSON.stringify({ mode, text }),
+  });
+
+export const getPostingImageFiles = (html: string) =>
+  apiFetch<{ files: string[] }>(`${JOB_POSTING_API_BASE}/data/image-files`, {
+    method: "POST",
+    body: JSON.stringify({ html }),
   });

@@ -41,18 +41,9 @@ export function useCoverLetterList(coverId: string | null) {
   const listScrollTopRef = useRef(0);
   const detailScrollTopRef = useRef(0);
 
-  const rawFiltered = items.filter((cl) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      cl.company.toLowerCase().includes(q) ||
-      cl.position.toLowerCase().includes(q) ||
-      cl.season.toLowerCase().includes(q) ||
-      cl.questions.some((item) => item.question.toLowerCase().includes(q) || item.answer.toLowerCase().includes(q))
-    );
-  });
+  const rawFiltered = items;
 
-  const filtered = rawFiltered.filter((cl) => {
+  const filtered = items.filter((cl) => {
     if (aiJobFilter === "all") return true;
     return jobAnalyses[cl.id]?.jobCategory === aiJobFilter;
   });
@@ -65,6 +56,7 @@ export function useCoverLetterList(coverId: string | null) {
           source: sourceFilter || undefined,
           companyType: companyTypeFilter || undefined,
           search: search.trim() || undefined,
+          sort: "latest",
         });
         setTotal(res.total);
         setItems((prev) => (reset ? res.items : [...prev, ...res.items]));
@@ -193,7 +185,7 @@ export function useCoverLetterList(coverId: string | null) {
   };
 
   const handleAnalyzeJobs = async () => {
-    const targets = rawFiltered.slice(0, 50);
+    const targets = items.slice(0, 50);
     if (targets.length === 0 || jobAnalysisLoading) return;
     setJobAnalysisLoading(true);
     setJobAnalysisError(null);

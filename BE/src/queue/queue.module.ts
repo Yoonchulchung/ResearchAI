@@ -12,7 +12,7 @@ import { QueueController } from './presentation/queue.controller';
 import { ResearchModule } from '../research/research.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { AiModule } from '../ai/ai.module';
-import { DocumentsModule } from '../documents/documents.module';
+import { DocumentsModule } from '../recruit/documents.module';
 import { QueueJobEntity } from './domain/entity/queue-job.entity';
 import { QueueJobRepository } from './domain/repository/queue-job.repository';
 import { AppConfigModule } from '../config/config.module';

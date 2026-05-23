@@ -79,6 +79,7 @@ function JobPostingPageContent() {
               detailLoading={posts.detailLoading}
               onToggleFavorite={posts.toggleFavorite}
               onScroll={posts.handleDetailScroll}
+
             />
           ) : (
             <div className="hidden md:flex flex-1 bg-[#F8F9FA]">

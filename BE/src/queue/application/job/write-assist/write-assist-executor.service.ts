@@ -1,5 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import { AiProviderService } from '../../../../ai/infrastructure/ai-provider.service';
+import type { ImageContentBlock } from '../../../../ai/infrastructure/provider/vlm.types';
+
+const IMAGE_CACHE_DIR = path.join(process.cwd(), 'data/recruit/image-cache');
+const MEDIA_TYPE_MAP: Record<string, ImageContentBlock['mediaType']> = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+};
 import { QueueJob } from '../../../domain/queue-job.model';
 import { QuestionType, QUESTION_TYPE_LABELS, WriteAssistExtras } from './types';
 import {
@@ -44,6 +52,22 @@ export class WriteAssistExecutorService {
 
   // ── 기본 액션 ────────────────────────────────────────────────────────────────
 
+  private loadImageBlocks(imageFiles?: string[]): ImageContentBlock[] {
+    if (!imageFiles?.length) return [];
+    return imageFiles.flatMap((filename) => {
+      const filePath = path.join(IMAGE_CACHE_DIR, filename);
+      if (!fs.existsSync(filePath)) return [];
+      try {
+        const ext = path.extname(filename).slice(1).toLowerCase();
+        const mediaType = MEDIA_TYPE_MAP[ext] ?? 'image/jpeg';
+        const data = fs.readFileSync(filePath).toString('base64');
+        return [{ type: 'image' as const, mediaType, data }];
+      } catch {
+        return [];
+      }
+    });
+  }
+
   private async executeDefaultTask(
     taskType: QueueJob.TaskType,
     content: string,
@@ -53,7 +77,13 @@ export class WriteAssistExecutorService {
     extras?: WriteAssistExtras,
   ): Promise<string> {
     const instruction = this.buildInstruction(taskType, content, extras);
-    const currentMessage = { role: 'user' as const, content: instruction };
+    const imageBlocks = this.loadImageBlocks(extras?.imageFiles);
+
+    const messageContent = imageBlocks.length
+      ? [...imageBlocks, instruction]
+      : instruction;
+
+    const currentMessage = { role: 'user' as const, content: messageContent };
 
     // 커스텀 프롬프트(WRITEASSIST)만 이전 대화 히스토리를 포함해 연속성 유지
     const messages =

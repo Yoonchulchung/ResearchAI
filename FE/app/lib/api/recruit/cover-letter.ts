@@ -64,12 +64,13 @@ export interface ScrapeStatus {
 export const listCoverLetters = (
   page = 1,
   limit = 20,
-  filters: { source?: string; companyType?: string; search?: string } = {},
+  filters: { source?: string; companyType?: string; search?: string; sort?: "latest" } = {},
 ) => {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (filters.source) params.set("source", filters.source);
   if (filters.companyType) params.set("companyType", filters.companyType);
   if (filters.search) params.set("search", filters.search);
+  if (filters.sort) params.set("sort", filters.sort);
   return apiFetch<CoverLetterListResponse>(`/cover-letter-scraper/data?${params}`);
 };
 

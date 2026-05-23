@@ -6,15 +6,15 @@ import type { Request, Response } from 'express';
 import puppeteer, { Browser } from 'puppeteer';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { DocumentsService } from '../application/documents.service';
-import { CompanyAnalysisService } from '../application/company-analysis.service';
-import { JobplanetScraperService } from '../infrastructure/jobplanet-scraper.service';
-import { requestContext } from '../../shared/request-context';
-import { CatchAuthService } from '../../shared/infrastructure/auth/catch-auth.service';
+import { DocumentsService } from '../../application/documents/documents.service';
+import { CompanyAnalysisService } from '../../application/documents/company-analysis.service';
+import { JobplanetScraperService } from '../../infrastructure/documents/jobplanet-scraper.service';
+import { requestContext } from '../../../shared/request-context';
+import { CatchAuthService } from '../../../shared/infrastructure/auth/catch-auth.service';
 import {
   BrowserAutomationUtil,
   BROWSER_LAUNCH_OPTIONS,
-} from '../../shared/infrastructure/browser/browser-automation.util';
+} from '../../../shared/infrastructure/browser/browser-automation.util';
 
 // ── Experience DTOs ───────────────────────────────────────────────────────
 

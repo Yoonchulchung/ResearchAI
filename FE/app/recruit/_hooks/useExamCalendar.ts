@@ -15,6 +15,8 @@ export type RecruitCalendarEvent = {
   job?: JobPosting;
 };
 
+export type CalendarJobTypeFilter = "" | "early" | "career";
+
 function toDateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
@@ -23,7 +25,7 @@ function buildCalendarDays(month: Date) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const start = new Date(first);
   start.setDate(first.getDate() - first.getDay());
-  return Array.from({ length: 35 }, (_, index) => {
+  return Array.from({ length: 42 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
     return date;
@@ -45,7 +47,13 @@ function isInMonth(date: Date, month: Date) {
   return date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth();
 }
 
-export function useExamCalendar() {
+function toJobTypeParam(filter: CalendarJobTypeFilter) {
+  if (filter === "early") return "신입,인턴";
+  if (filter === "career") return "경력";
+  return undefined;
+}
+
+export function useExamCalendar(jobTypeFilter: CalendarJobTypeFilter = "") {
   const [examMonth, setExamMonth] = useState(() => new Date());
   const [examEvents, setExamEvents] = useState<ExamEvent[]>([]);
   const [jobEvents, setJobEvents] = useState<RecruitCalendarEvent[]>([]);
@@ -82,12 +90,23 @@ export function useExamCalendar() {
       setJobLoading(true);
       setJobError(null);
       try {
-        const res = await listJobPostings({ page: 1, limit: 300, sort: "deadline" });
+        const scheduleFrom = toDateKey(new Date(examMonth.getFullYear(), examMonth.getMonth(), 1));
+        const scheduleTo = toDateKey(new Date(examMonth.getFullYear(), examMonth.getMonth() + 1, 0));
+        const res = await listJobPostings({
+          page: 1,
+          limit: 1000,
+          sort: "deadline",
+          category: "IT,전자",
+          excludeCompanyType: "중소기업,스타트업",
+          type: toJobTypeParam(jobTypeFilter),
+          scheduleFrom,
+          scheduleTo,
+        });
         if (cancelled) return;
         const events: RecruitCalendarEvent[] = [];
         for (const job of res.items) {
           const start = parseScheduleDate(job.startDate);
-          const end = parseScheduleDate(job.endDate);
+          const end = parseScheduleDate(job.endDate || job.deadline);
           if (start && isInMonth(start, examMonth)) {
             events.push({
               id: `${job.id}-start`,
@@ -122,7 +141,7 @@ export function useExamCalendar() {
     return () => {
       cancelled = true;
     };
-  }, [examMonth]);
+  }, [examMonth, jobTypeFilter]);
 
   const examCalendarDays = useMemo(() => buildCalendarDays(examMonth), [examMonth]);
 
@@ -157,7 +176,7 @@ export function useExamCalendar() {
   }, [calendarEvents]);
 
   const upcomingExams = useMemo(
-    () => [...calendarEvents].sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6),
+    () => [...calendarEvents].sort((a, b) => a.date.localeCompare(b.date)),
     [calendarEvents],
   );
 

@@ -2,11 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
-import { DocumentEntity } from '../domain/entity/document.entity';
-import { ExperienceEntity } from '../domain/entity/experience.entity';
-import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
-import { VectorService } from '../../vector/vector.service';
-import { QueueService } from '../../queue/application/queue.service';
+import { DocumentEntity } from '../../domain/documents/entity/document.entity';
+import { ExperienceEntity } from '../../domain/documents/entity/experience.entity';
+import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
+import { VectorService } from '../../../vector/vector.service';
+import { QueueService } from '../../../queue/application/queue.service';
 import pdfParse from 'pdf-parse';
 
 export interface DocAskResult {

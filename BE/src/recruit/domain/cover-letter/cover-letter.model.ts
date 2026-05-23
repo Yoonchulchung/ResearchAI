@@ -32,6 +32,7 @@ export interface CoverLetterListFilters {
   source?: 'linkareer' | 'catch' | string;
   companyType?: '대기업' | '중견기업' | '중소기업' | '금융권' | string;
   search?: string;
+  sort?: 'latest';
 }
 
 export interface CoverLetterJobAnalysis {

@@ -3,29 +3,29 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
 
-import { CompanyAnalysisEntity } from '../domain/entity/company-analysis.entity';
-import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
-import { WebSearchService } from '../../research/application/web-search.service';
-import type { SearchSources } from '../../research/domain/model/search-sources.model';
-import { JobplanetScraperService } from '../infrastructure/jobplanet-scraper.service';
-import { CareerPageUrlService } from '../infrastructure/career-page-url.service';
-import { DartFinancialService, YearlyFinancial, EmployeeDetail } from '../infrastructure/dart-financial.service';
-import { NeonetRealEstatePriceService } from '../infrastructure/neonet-real-estate-price.service';
-import { ZippoomRealEstateUrlService } from '../infrastructure/zippoom-real-estate-url.service';
-import { requestContext } from '../../shared/request-context';
+import { CompanyAnalysisEntity } from '../../domain/documents/entity/company-analysis.entity';
+import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
+import { WebSearchService } from '../../../research/application/web-search.service';
+import type { SearchSources } from '../../../research/domain/model/search-sources.model';
+import { JobplanetScraperService } from '../../infrastructure/documents/jobplanet-scraper.service';
+import { CareerPageUrlService } from '../../infrastructure/documents/career-page-url.service';
+import { DartFinancialService, YearlyFinancial, EmployeeDetail } from '../../infrastructure/documents/dart-financial.service';
+import { NeonetRealEstatePriceService } from '../../infrastructure/documents/neonet-real-estate-price.service';
+import { ZippoomRealEstateUrlService } from '../../infrastructure/documents/zippoom-real-estate-url.service';
+import { requestContext } from '../../../shared/request-context';
 
 import {
   COMPETENCY_KEYS, ZERO_SCORES,
   CompetencyScores, CompetencyReasons,
   SwotAnalysis, Competitor, BusinessSegment, CompanyProfile, HrAnalysis,
   CompanyAnalysisProgress, CompanyAnalysisDto,
-} from '../domain/company-analysis.types';
+} from '../../domain/documents/company-analysis.types';
 import {
   SYSTEM_PROMPT_SCORING,
   SYSTEM_PROMPT_BUSINESS,
   SYSTEM_PROMPT_REPORT,
   SYSTEM_PROMPT_HR,
-} from '../domain/company-analysis.prompts';
+} from '../../domain/documents/company-analysis.prompts';
 import {
   parseSearchLinks, cleanSearchTitle, isBadNewsTitle, isJobPosting, isNewsArticle, isLikelyNewsArticle, isNaverBlog, repairJsonStr,
 } from './company-analysis.utils';

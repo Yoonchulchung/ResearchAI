@@ -82,10 +82,11 @@ export async function enqueueWriteAssist(
   instruction: string,
   model: string,
   history?: { role: 'user' | 'assistant'; content: string }[],
+  imageFiles?: string[],
 ): Promise<{ jobId: string }> {
   return apiFetch('/queue/write-assist', {
     method: 'POST',
-    body: JSON.stringify({ content, instruction, model, history }),
+    body: JSON.stringify({ content, instruction, model, history, imageFiles }),
   });
 }
 

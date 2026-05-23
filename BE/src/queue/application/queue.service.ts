@@ -25,7 +25,7 @@ import { DocParseExecutorService } from './job/doc-parse-executor.service';
 import { QueueJobRepository } from '../domain/repository/queue-job.repository';
 import { QueueJobDbStatus } from '../domain/entity/queue-job.entity';
 import { randomUUID } from 'crypto';
-import { CompanyAnalysisProgress } from '../../documents/domain/company-analysis.types';
+import { CompanyAnalysisProgress } from '../../recruit/domain/documents/company-analysis.types';
 import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 
 @Injectable()
@@ -428,6 +428,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     instruction: string,
     model: string,
     history?: { role: 'user' | 'assistant'; content: string }[],
+    imageFiles?: string[],
   ): Promise<{ jobId: string }> {
     const jobId = randomUUID();
     this.writeAssistSubjects.set(jobId, new Subject<MessageEvent>());
@@ -438,7 +439,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       jobId,
       sessionId: jobId,
       itemId: '',
-      itemContent: JSON.stringify({ content, instruction, history: trimmedHistory } satisfies WriteAssistExtras & { content: string }),
+      itemContent: JSON.stringify({ content, instruction, history: trimmedHistory, imageFiles } satisfies WriteAssistExtras & { content: string }),
       taskType: QueueJob.TaskType.WRITEASSIST,
       localAIModel: '',
       CloudAIModel: model,

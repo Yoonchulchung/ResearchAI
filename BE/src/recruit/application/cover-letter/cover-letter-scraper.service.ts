@@ -9,14 +9,14 @@ import {
   CoverLetterListFilters,
   ScrapeOptions,
   ScrapeStatus,
-} from '../domain/cover-letter.model';
-import { LinkareerCrawler } from '../infrastructure/linkareer.crawler';
-import { CatchCoverLetterCrawler } from '../infrastructure/catch.crawler';
-import { CatchAuthService } from '../../shared/infrastructure/auth/catch-auth.service';
-import { requestContext } from '../../shared/request-context';
-import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
+} from '../../domain/cover-letter/cover-letter.model';
+import { LinkareerCrawler } from '../../infrastructure/cover-letter/linkareer.crawler';
+import { CatchCoverLetterCrawler } from '../../infrastructure/cover-letter/catch.crawler';
+import { CatchAuthService } from '../../../shared/infrastructure/auth/catch-auth.service';
+import { requestContext } from '../../../shared/request-context';
+import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
 
-const DATA_DIR = path.resolve(__dirname, '../../../data/cover-letters');
+const DATA_DIR = path.resolve(__dirname, '../../../../data/cover-letters');
 const JSONL_FILE = path.join(DATA_DIR, 'cover-letters.jsonl');
 const IDS_FILE = path.join(DATA_DIR, 'collected-ids.json');
 
@@ -112,7 +112,7 @@ export class CoverLetterScraperService implements OnModuleInit {
     filters: CoverLetterListFilters = {},
   ): Promise<{ items: CoverLetter[]; total: number }> {
     const all = (await this.readAllFromJsonl()).map((item) => this.normalizeCoverLetterForView(item));
-    const filtered = this.applyFilters(all, filters);
+    const filtered = this.sortCoverLetters(this.applyFilters(all, filters), filters.sort);
     const total = filtered.length;
     const items = filtered.slice((page - 1) * limit, page * limit);
     return { items, total };
@@ -298,6 +298,19 @@ export class CoverLetterScraperService implements OnModuleInit {
         ...item.questions.flatMap((q) => [q.question, q.answer]),
       ].some((value) => this.normalize(value).includes(search));
     });
+  }
+
+  private sortCoverLetters(items: CoverLetter[], sort?: CoverLetterListFilters['sort']): CoverLetter[] {
+    const copy = [...items];
+    if (sort === 'latest') {
+      return copy.sort((a, b) => this.getCollectedAtSortValue(b) - this.getCollectedAtSortValue(a));
+    }
+    return copy;
+  }
+
+  private getCollectedAtSortValue(item: CoverLetter): number {
+    const time = new Date(item.collectedAt).getTime();
+    return Number.isNaN(time) ? 0 : time;
   }
 
   private buildJobAnalysisPrompt(items: CoverLetter[], target: 'IT' | '전자' | 'all'): string {

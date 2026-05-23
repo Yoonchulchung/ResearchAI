@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { getPopularJobPostings, listJobPostings, type JobPosting } from "@/lib/api/recruit/job-posting";
+import { fetchJobPostingDetail, listJobPostings, type JobPosting } from "@/lib/api/recruit/job-posting";
 import { listCoverLetters, type CoverLetter } from "@/lib/api/recruit/cover-letter";
 import { listCompanyAnalyses, type CompanyAnalysis } from "@/lib/api/company-analysis";
 import { getExperiences, type Experience } from "@/lib/api/experiences";
@@ -13,7 +13,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { IconEvaluate, IconSpellcheck } from "./_components/icons";
 import { PROSE_CLASS } from "./_constants";
 import { useDraftAssist } from "./_hooks/useDraftAssist";
-import { useExamCalendar, type RecruitCalendarEvent } from "./_hooks/useExamCalendar";
+import { useExamCalendar, type CalendarJobTypeFilter, type RecruitCalendarEvent } from "./_hooks/useExamCalendar";
 
 type InfoTab = "jobs" | "letters";
 type JobCategoryFilter = "" | "IT" | "전자";
@@ -87,6 +87,7 @@ export default function RecruitPage() {
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [activeTab, setActiveTab] = useState<InfoTab>("jobs");
   const [jobCategoryFilter, setJobCategoryFilter] = useState<JobCategoryFilter>("");
+  const [calendarJobTypeFilter, setCalendarJobTypeFilter] = useState<CalendarJobTypeFilter>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
@@ -101,8 +102,13 @@ export default function RecruitPage() {
   const [analysisSearch, setAnalysisSearch] = useState("");
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [selectedJobEvent, setSelectedJobEvent] = useState<RecruitCalendarEvent | null>(null);
+  const [selectedJobDetail, setSelectedJobDetail] = useState<JobPosting | null>(null);
+  const [jobDetailLoading, setJobDetailLoading] = useState(false);
+  const [jobDetailError, setJobDetailError] = useState<string | null>(null);
+  const [selectedDateEvents, setSelectedDateEvents] = useState<{ date: string; events: RecruitCalendarEvent[] } | null>(null);
   const { draft, setDraft, assistMode, assistResult, assistLoading, assistError, runDraftAssist, closeAssist } = useDraftAssist();
-  const { examMonth, examLoading, examError, examCalendarDays, examEventsByDate, upcomingExams, calendarEvents, moveExamMonth, toDateKey } = useExamCalendar();
+  const { examMonth, examLoading, examError, examCalendarDays, examEventsByDate, upcomingExams, calendarEvents, moveExamMonth, toDateKey } = useExamCalendar(calendarJobTypeFilter);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,22 +116,15 @@ export default function RecruitPage() {
       setLoading(true);
       setError(null);
       try {
-        const result = jobCategoryFilter
-          ? await listJobPostings({ page: 1, limit: 10, sort: "deadline", category: jobCategoryFilter })
-          : await getPopularJobPostings();
-        if (!cancelled) setJobs(Array.isArray(result) ? result : result.items);
-      } catch {
-        try {
-          const fallback = await listJobPostings({
-            page: 1,
-            limit: 10,
-            sort: "deadline",
-            category: jobCategoryFilter || undefined,
-          });
-          if (!cancelled) setJobs(fallback.items);
-        } catch (e) {
-          if (!cancelled) setError(e instanceof Error ? e.message : "채용 정보를 불러오지 못했습니다");
-        }
+        const result = await listJobPostings({
+          page: 1,
+          limit: 5,
+          sort: "deadline",
+          category: jobCategoryFilter || undefined,
+        });
+        if (!cancelled) setJobs(result.items);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "채용 정보를 불러오지 못했습니다");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -177,14 +176,9 @@ export default function RecruitPage() {
       setCoverLoading(true);
       setCoverError(null);
       try {
-        const res = await listCoverLetters(1, 10);
+        const res = await listCoverLetters(1, 10, { sort: "latest" });
         if (cancelled) return;
-        const recent = [...res.items].sort((a, b) => {
-          const at = new Date(a.collectedAt).getTime();
-          const bt = new Date(b.collectedAt).getTime();
-          return (Number.isNaN(bt) ? 0 : bt) - (Number.isNaN(at) ? 0 : at);
-        });
-        setCoverLetters(recent.slice(0, 10));
+        setCoverLetters(res.items);
       } catch (e) {
         if (!cancelled) setCoverError(e instanceof Error ? e.message : "자소서를 불러오지 못했습니다");
       } finally {
@@ -197,7 +191,7 @@ export default function RecruitPage() {
     };
   }, [activeTab, coverLetters.length, coverLoading]);
 
-  const topJobs = useMemo(() => jobs.slice(0, 6), [jobs]);
+  const topJobs = jobs;
   const filteredCompanyAnalyses = useMemo(() => {
     const query = analysisSearch.trim().toLowerCase();
     if (!query) return companyAnalyses;
@@ -212,6 +206,37 @@ export default function RecruitPage() {
   const openCompanyAnalysisSearch = () => {
     const query = analysisSearch.trim();
     router.push(query ? `/company-analysis?company=${encodeURIComponent(query)}` : "/company-analysis");
+  };
+
+  const closeJobDetail = () => {
+    setSelectedJobEvent(null);
+    setSelectedJobDetail(null);
+    setJobDetailError(null);
+    setJobDetailLoading(false);
+  };
+
+  const openJobDetail = async (event: RecruitCalendarEvent) => {
+    if (!event.job) return;
+    setSelectedDateEvents(null);
+    setSelectedJobEvent(event);
+    setSelectedJobDetail(event.job);
+    setJobDetailError(null);
+
+    if (event.job.detailContent || event.job.detailHtml) return;
+
+    setJobDetailLoading(true);
+    try {
+      const detail = await fetchJobPostingDetail(event.job.id, event.job.url, event.job.source ?? "linkareer");
+      setSelectedJobDetail({ ...event.job, ...detail });
+    } catch (e) {
+      setJobDetailError(e instanceof Error ? e.message : "공고 상세 정보를 불러오지 못했습니다");
+    } finally {
+      setJobDetailLoading(false);
+    }
+  };
+
+  const openDateEvents = (date: string, events: RecruitCalendarEvent[]) => {
+    setSelectedDateEvents({ date, events });
   };
 
   const handlePdfFile = async (file: File) => {
@@ -623,26 +648,49 @@ export default function RecruitPage() {
               </div>
               <h2 className={`mt-2 text-lg font-bold ${textMain}`}>채용 마감 · 자격증 캘린더</h2>
             </div>
-            <div className={`flex items-center overflow-hidden rounded-lg border text-xs font-bold ${
-              isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"
-            }`}>
-              <button
-                onClick={() => moveExamMonth(-1)}
-                className={`px-3 py-1.5 transition-colors ${isDark ? "text-white/55 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
-                aria-label="이전 달"
-              >
-                ‹
-              </button>
-              <span className={`min-w-24 border-x px-3 py-1.5 text-center ${isDark ? "border-white/10 text-white/80" : "border-slate-200 text-slate-700"}`}>
-                {examMonth.getFullYear()}.{String(examMonth.getMonth() + 1).padStart(2, "0")}
-              </span>
-              <button
-                onClick={() => moveExamMonth(1)}
-                className={`px-3 py-1.5 transition-colors ${isDark ? "text-white/55 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
-                aria-label="다음 달"
-              >
-                ›
-              </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className={`flex items-center overflow-hidden rounded-lg border text-xs font-bold ${
+                isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"
+              }`}>
+                {([
+                  ["", "전체"],
+                  ["early", "신입/인턴"],
+                  ["career", "경력"],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value || "all"}
+                    onClick={() => setCalendarJobTypeFilter(value)}
+                    className={`px-3 py-1.5 transition-colors ${
+                      calendarJobTypeFilter === value
+                        ? "bg-indigo-600 text-white"
+                        : isDark ? "text-white/55 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className={`flex items-center overflow-hidden rounded-lg border text-xs font-bold ${
+                isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"
+              }`}>
+                <button
+                  onClick={() => moveExamMonth(-1)}
+                  className={`px-3 py-1.5 transition-colors ${isDark ? "text-white/55 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
+                  aria-label="이전 달"
+                >
+                  ‹
+                </button>
+                <span className={`min-w-24 border-x px-3 py-1.5 text-center ${isDark ? "border-white/10 text-white/80" : "border-slate-200 text-slate-700"}`}>
+                  {examMonth.getFullYear()}.{String(examMonth.getMonth() + 1).padStart(2, "0")}
+                </span>
+                <button
+                  onClick={() => moveExamMonth(1)}
+                  className={`px-3 py-1.5 transition-colors ${isDark ? "text-white/55 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}
+                  aria-label="다음 달"
+                >
+                  ›
+                </button>
+              </div>
             </div>
           </div>
 
@@ -656,7 +704,7 @@ export default function RecruitPage() {
 
               {examLoading ? (
                 <div className="grid grid-cols-7">
-                  {Array.from({ length: 35 }).map((_, index) => (
+                  {Array.from({ length: 42 }).map((_, index) => (
                     <div key={index} className={`h-16 border-b border-r ${isDark ? "border-white/5 bg-white/[0.03]" : "border-slate-100 bg-slate-50/70"} animate-pulse`} />
                   ))}
                 </div>
@@ -686,17 +734,30 @@ export default function RecruitPage() {
                         </div>
                         <div className="space-y-1">
                           {events.slice(0, 2).map((event) => (
-                            <div
+                            <button
                               key={`${event.id}-${key}`}
+                              type="button"
+                              onClick={() => openJobDetail(event)}
+                              disabled={!event.job}
                               title={`${event.title} ${scheduleLabel(event)}${event.description ? ` · ${event.description}` : ""}`}
-                              className={`truncate rounded px-1.5 py-0.5 text-[10px] font-bold ${scheduleTone(event, isDark)}`}
+                              className={`block w-full truncate rounded px-1.5 py-0.5 text-left text-[10px] font-bold transition-transform ${scheduleTone(event, isDark)} ${
+                                event.job ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-sm" : "cursor-default"
+                              }`}
                             >
                               <span className="mr-1">{event.label}</span>
                               {event.title}
-                            </div>
+                            </button>
                           ))}
                           {events.length > 2 && (
-                            <div className={`text-[10px] font-semibold ${textSub}`}>+{events.length - 2}</div>
+                            <button
+                              type="button"
+                              onClick={() => openDateEvents(key, events)}
+                              className={`text-[10px] font-semibold underline-offset-2 transition-colors hover:underline ${
+                                isDark ? "text-indigo-300 hover:text-indigo-200" : "text-indigo-600 hover:text-indigo-700"
+                              }`}
+                            >
+                              +{events.length - 2}
+                            </button>
                           )}
                         </div>
                       </div>
@@ -711,7 +772,7 @@ export default function RecruitPage() {
                 <h3 className={`text-sm font-bold ${textMain}`}>이번 달 일정</h3>
                 <span className={`text-xs font-semibold ${textSub}`}>{calendarEvents.length}건</span>
               </div>
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 max-h-[21rem] space-y-2 overflow-y-auto pr-1">
                 {examLoading ? (
                   Array.from({ length: 3 }).map((_, index) => (
                     <div key={index} className={`h-11 rounded-lg ${isDark ? "bg-white/5" : "bg-white"} animate-pulse`} />
@@ -725,7 +786,15 @@ export default function RecruitPage() {
                       ? "날짜 없음"
                       : date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
                     return (
-                      <div key={event.id} className={`rounded-lg border px-3 py-2 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
+                      <button
+                        key={event.id}
+                        type="button"
+                        onClick={() => openJobDetail(event)}
+                        disabled={!event.job}
+                        className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+                          isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"
+                        } ${event.job ? isDark ? "hover:bg-white/10" : "hover:bg-slate-50" : "cursor-default"}`}
+                      >
                         <div className="flex items-center justify-between gap-2">
                           <p className={`truncate text-sm font-bold ${textMain}`}>{event.title}</p>
                           <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${scheduleTone(event, false)}`}>
@@ -733,7 +802,7 @@ export default function RecruitPage() {
                           </span>
                         </div>
                         <p className={`mt-1 truncate text-xs ${textSub}`}>{dateLabel} · {event.description}</p>
-                      </div>
+                      </button>
                     );
                   })
                 )}
@@ -782,6 +851,175 @@ export default function RecruitPage() {
           </div>
         </section>
       </div>
+
+      {selectedDateEvents && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-3 pb-3 backdrop-blur-sm sm:items-center sm:p-6"
+          onClick={() => setSelectedDateEvents(null)}
+        >
+          <div
+            className={`flex max-h-[78dvh] w-full max-w-md flex-col overflow-hidden rounded-2xl border shadow-2xl ${
+              isDark ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white"
+            }`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10">
+              <div>
+                <h3 className={`text-lg font-bold ${textMain}`}>전체 일정</h3>
+                <p className={`text-xs font-semibold ${textSub}`}>{selectedDateEvents.date} · {selectedDateEvents.events.length}건</p>
+              </div>
+              <button
+                onClick={() => setSelectedDateEvents(null)}
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  isDark ? "text-white/60 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                닫기
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <div className="space-y-2">
+                {selectedDateEvents.events.map((event) => (
+                  <button
+                    key={`${event.id}-date-modal`}
+                    type="button"
+                    onClick={() => openJobDetail(event)}
+                    disabled={!event.job}
+                    className={`w-full rounded-xl border px-3 py-3 text-left transition-colors ${
+                      isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
+                    } ${event.job ? isDark ? "hover:bg-white/10" : "hover:bg-white" : "cursor-default"}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`min-w-0 truncate text-sm font-bold ${textMain}`}>{event.title}</span>
+                      <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${scheduleTone(event, isDark)}`}>
+                        {scheduleLabel(event)}
+                      </span>
+                    </div>
+                    {event.description && (
+                      <p className={`mt-1 line-clamp-2 text-xs ${textSub}`}>{event.description}</p>
+                    )}
+                    {event.job && (
+                      <p className={`mt-2 text-[11px] font-semibold ${isDark ? "text-indigo-300" : "text-indigo-600"}`}>
+                        공고 정보 보기
+                      </p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedJobEvent && selectedJobDetail && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 pb-3 backdrop-blur-sm sm:items-center sm:p-6"
+          onClick={closeJobDetail}
+        >
+          <div
+            className={`flex max-h-[86dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border shadow-2xl ${
+              isDark ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white"
+            }`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-white/10">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-md px-2 py-1 text-xs font-bold ${scheduleTone(selectedJobEvent, isDark)}`}>
+                    {scheduleLabel(selectedJobEvent)}
+                  </span>
+                  <span className={`text-xs font-semibold ${textSub}`}>{selectedJobEvent.date}</span>
+                </div>
+                <h3 className={`mt-3 truncate text-xl font-bold ${textMain}`}>{selectedJobDetail.company}</h3>
+                <p className={`mt-1 line-clamp-2 text-sm font-semibold ${isDark ? "text-white/75" : "text-slate-700"}`}>
+                  {selectedJobDetail.title}
+                </p>
+              </div>
+              <button
+                onClick={closeJobDetail}
+                className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  isDark ? "text-white/60 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                닫기
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {[
+                  ["직무", selectedJobDetail.jobs || selectedJobDetail.category],
+                  ["고용형태", selectedJobDetail.type],
+                  ["지역", selectedJobDetail.location],
+                  ["기업유형", selectedJobDetail.companyType],
+                  ["시작일", selectedJobDetail.startDate],
+                  ["마감일", selectedJobDetail.endDate || selectedJobDetail.deadline],
+                ].map(([label, value]) => (
+                  value ? (
+                    <div key={label} className={`rounded-xl border px-3 py-2 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
+                      <p className={`text-[11px] font-bold ${textSub}`}>{label}</p>
+                      <p className={`mt-1 text-sm font-semibold ${textMain}`}>{value}</p>
+                    </div>
+                  ) : null
+                ))}
+              </div>
+
+              <div className="mt-4">
+                <h4 className={`text-sm font-bold ${textMain}`}>상세 내용</h4>
+                {jobDetailLoading ? (
+                  <div className={`mt-2 flex h-28 items-center justify-center gap-2 rounded-xl border text-sm ${isDark ? "border-white/10 text-white/50" : "border-slate-200 text-slate-500"}`}>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-600" />
+                    공고 상세를 불러오는 중...
+                  </div>
+                ) : jobDetailError ? (
+                  <div className={`mt-2 rounded-xl border px-4 py-3 text-sm ${isDark ? "border-red-400/20 bg-red-500/10 text-red-200" : "border-red-200 bg-red-50 text-red-600"}`}>
+                    {jobDetailError}
+                  </div>
+                ) : selectedJobDetail.detailHtml ? (
+                  <div
+                    className={`mt-2 max-h-64 overflow-y-auto rounded-xl border px-4 py-3 ${PROSE_CLASS} ${
+                      isDark ? "border-white/10 bg-white/5 prose-invert [&_*]:text-white/75" : "border-slate-200 bg-white"
+                    }`}
+                    dangerouslySetInnerHTML={{ __html: selectedJobDetail.detailHtml }}
+                  />
+                ) : selectedJobDetail.detailContent ? (
+                  <div className={`mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl border px-4 py-3 text-sm leading-6 ${
+                    isDark ? "border-white/10 bg-white/5 text-white/75" : "border-slate-200 bg-white text-slate-700"
+                  }`}>
+                    {selectedJobDetail.detailContent}
+                  </div>
+                ) : (
+                  <div className={`mt-2 rounded-xl border px-4 py-3 text-sm ${isDark ? "border-white/10 bg-white/5 text-white/50" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
+                    저장된 상세 내용이 없습니다. 원문 공고에서 확인해 주세요.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-white/10">
+              <button
+                onClick={() => router.push("/recruit/job-posting")}
+                className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                  isDark ? "border-white/15 text-white/75 hover:bg-white/10" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                채용 상세 페이지
+              </button>
+              {selectedJobDetail.url && (
+                <a
+                  href={selectedJobDetail.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+                >
+                  원문 공고 열기
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {assistMode && (
         <div

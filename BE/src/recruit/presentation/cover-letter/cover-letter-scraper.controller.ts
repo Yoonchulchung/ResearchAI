@@ -1,6 +1,6 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
-import { CoverLetterScraperService } from '../application/cover-letter-scraper.service';
-import type { CoverLetterJobAnalysisRequest, ScrapeOptions } from '../domain/cover-letter.model';
+import { CoverLetterScraperService } from '../../application/cover-letter/cover-letter-scraper.service';
+import type { CoverLetterJobAnalysisRequest, ScrapeOptions } from '../../domain/cover-letter/cover-letter.model';
 
 @Controller('cover-letter-scraper')
 export class CoverLetterScraperController {
@@ -47,8 +47,14 @@ export class CoverLetterScraperController {
     @Query('source') source?: string,
     @Query('companyType') companyType?: string,
     @Query('search') search?: string,
+    @Query('sort') sort?: string,
   ) {
-    return this.service.getData(Number(page), Number(limit), { source, companyType, search });
+    return this.service.getData(Number(page), Number(limit), {
+      source,
+      companyType,
+      search,
+      sort: sort === 'latest' ? 'latest' : undefined,
+    });
   }
 
   @Get('data/:id')

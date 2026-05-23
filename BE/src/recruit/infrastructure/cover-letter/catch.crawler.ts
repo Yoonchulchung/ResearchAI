@@ -1,5 +1,5 @@
-import { CoverLetter, CoverLetterQuestion } from '../domain/cover-letter.model';
-import { CatchAuthService } from '../../shared/infrastructure/auth/catch-auth.service';
+import { CoverLetter, CoverLetterQuestion } from '../../domain/cover-letter/cover-letter.model';
+import { CatchAuthService } from '../../../shared/infrastructure/auth/catch-auth.service';
 
 const BASE_URL = 'https://www.catch.co.kr';
 const LIST_API_URL = `${BASE_URL}/api/v1.0/jobn/coverLetter/main/getCvletterList`;

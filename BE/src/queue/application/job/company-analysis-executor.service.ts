@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CompanyAnalysisService } from '../../../documents/application/company-analysis.service';
-import { CompanyAnalysisProgress, CompanyAnalysisDto } from '../../../documents/domain/company-analysis.types';
+import { CompanyAnalysisService } from '../../../recruit/application/documents/company-analysis.service';
+import { CompanyAnalysisProgress, CompanyAnalysisDto } from '../../../recruit/domain/documents/company-analysis.types';
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1_500;

@@ -1,5 +1,5 @@
 import { load } from 'cheerio';
-import { CoverLetter, CoverLetterQuestion } from '../domain/cover-letter.model';
+import { CoverLetter, CoverLetterQuestion } from '../../domain/cover-letter/cover-letter.model';
 
 const BASE_URL = 'https://linkareer.com';
 

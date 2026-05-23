@@ -76,6 +76,7 @@ export function useJobPostings(jobId: string | null) {
 
   const selectPosting = useCallback(
     (posting: JobPosting) => {
+      if (selectedRef.current?.id === posting.id) return;
       setSelected(posting);
       router.push(`/recruit/job-posting?job=${encodeURIComponent(posting.id)}`);
     },
@@ -279,7 +280,12 @@ export function useJobPostings(jobId: string | null) {
     }
     const existing = items.find((item) => item.id === jobId);
     if (existing) {
-      setSelected(existing);
+      setSelected((prev) => {
+        if (prev?.id !== existing.id) return existing;
+        // 같은 공고가 items 업데이트로 재발견됐을 때 — 이미 로드한 detail 필드 유지
+        const cachedDetail = detailCacheRef.current.get(existing.id) ?? {};
+        return { ...existing, ...cachedDetail };
+      });
       return;
     }
     let cancelled = false;

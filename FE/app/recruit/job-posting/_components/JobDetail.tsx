@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useRef, useCallback, type MouseEvent } from "react";
+import { useState, useRef, useCallback, useEffect, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { JobPosting } from "@/lib/api/recruit/job-posting";
+import { getJobPostingAiAnalysis, saveJobPostingAiAnalysis, getPostingImageFiles, type AiAnalysisMode } from "@/lib/api/recruit/job-posting";
 import { enqueueWriteAssist, streamWriteAssist } from "@/lib/api/ai";
+import { BE_BASE } from "@/lib/api/base";
 import { getDdayLabel, normalizeType } from "../_utils";
 import { FavoriteIcon } from "./FavoriteIcon";
 import { PROSE_CLASS } from "../../_constants";
 
-const DEFAULT_MODEL = "claude-sonnet-4-6";
+const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 
 type AiMode = "analysis" | "interview" | null;
 
@@ -24,11 +26,34 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
   const [aiMode, setAiMode] = useState<AiMode>(null);
   const [aiResult, setAiResult] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [imageFiles, setImageFiles] = useState<string[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+  const prevIdRef = useRef<string>("");
 
   const selectedDday = getDdayLabel(selected);
 
-  const getPostingContent = () => {
+  // Reset state and load image files when posting changes
+  useEffect(() => {
+    if (prevIdRef.current === selected.id) return;
+    prevIdRef.current = selected.id;
+    setAiMode(null);
+    setAiResult("");
+    setImageFiles([]);
+
+    if (selected.detailHtml && /src=["']\/api\/recruit\/job-postings\/image\//.test(selected.detailHtml)) {
+      getPostingImageFiles(selected.detailHtml)
+        .then(({ files }) => setImageFiles(files))
+        .catch(() => {});
+    }
+  }, [selected.id, selected.detailHtml]);
+
+  const getPostingContent = useCallback(() => {
+    let detailText = selected.detailContent ?? "";
+    if (!detailText && selected.detailHtml) {
+      const tmp = document.createElement("div");
+      tmp.innerHTML = selected.detailHtml;
+      detailText = (tmp.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 3000);
+    }
     const parts = [
       `회사: ${selected.company}`,
       `직무: ${selected.title}`,
@@ -37,14 +62,31 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
       selected.jobs ? `모집직무: ${selected.jobs}` : null,
       selected.companyType ? `기업형태: ${selected.companyType}` : null,
       selected.deadline ? `마감: ${selected.deadline}` : null,
-      selected.detailContent ? `\n상세내용:\n${selected.detailContent}` : null,
+      detailText ? `\n상세내용:\n${detailText}` : null,
     ];
     return parts.filter(Boolean).join("\n");
-  };
+  }, [selected]);
+
+  const loadCachedResult = useCallback(async (mode: AiAnalysisMode) => {
+    try {
+      const { text } = await getJobPostingAiAnalysis(selected.id, mode);
+      if (text) {
+        setAiMode(mode);
+        setAiResult(text);
+        return true;
+      }
+    } catch {}
+    return false;
+  }, [selected.id]);
 
   const runAi = useCallback(
     async (mode: AiMode) => {
       if (!mode) return;
+
+      // Show cached result if available
+      const hasCached = await loadCachedResult(mode as AiAnalysisMode);
+      if (hasCached) return;
+
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
@@ -60,17 +102,23 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
           ? `다음 채용 공고를 분석해서 아래 형식으로 답변해주세요.\n\n**핵심 자격 요건**\n- ...\n\n**우대 사항**\n- ...\n\n**직무 핵심**\n- ...\n\n**숨겨진 요구사항**\n공고에 명시되지 않았지만 맥락상 예상되는 사항을 분석해주세요.\n\n**지원 전략**\n이 공고에 합격하기 위한 핵심 전략을 제시해주세요.\n\n채용 공고:\n${content}`
           : `다음 채용 공고를 바탕으로 실제 면접에서 나올 수 있는 예상 질문 10개를 생성해주세요.\n\n**기술 면접 질문** (5개)\n각 질문마다 출제 의도와 핵심 답변 방향을 함께 제시해주세요.\n\n**인성/행동 면접 질문** (3개)\nSTAR 기법으로 답변할 수 있는 질문과 의도를 제시해주세요.\n\n**기업/산업 관련 질문** (2개)\n해당 기업과 산업에 특화된 질문과 답변 포인트를 제시해주세요.\n\n채용 공고:\n${content}`;
 
+      let finalResult = "";
       try {
-        const { jobId } = await enqueueWriteAssist("", instruction, DEFAULT_MODEL);
+        const { jobId } = await enqueueWriteAssist("", instruction, DEFAULT_MODEL, undefined, imageFiles.length ? imageFiles : undefined);
         await streamWriteAssist(
           jobId,
           (event) => {
             if (event.type === "chunk" && event.text) {
+              finalResult += event.text;
               setAiResult((prev) => prev + event.text);
             }
           },
           ctrl.signal,
         );
+        // Save result to DB
+        if (finalResult) {
+          saveJobPostingAiAnalysis(selected.id, mode as AiAnalysisMode, finalResult).catch(() => {});
+        }
       } catch (err: unknown) {
         if (err instanceof Error && err.name !== "AbortError") {
           setAiResult("분석 중 오류가 발생했습니다. 다시 시도해주세요.");
@@ -79,7 +127,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
         setAiLoading(false);
       }
     },
-    [selected],
+    [selected.id, getPostingContent, loadCachedResult],
   );
 
   const handleCompanyAnalysis = () => {
@@ -99,7 +147,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
 
   return (
     <div onScroll={onScroll} className="flex-1 overflow-y-auto bg-[#F8F9FA] flex flex-col">
-      <div className="p-0 sm:p-8 sm:max-w-3xl w-full mx-auto">
+      <div className="p-0 sm:p-6 w-full">
         <div className="bg-white sm:rounded-2xl sm:border sm:border-slate-200/80 sm:shadow-sm overflow-hidden">
           {/* Header */}
           <div className="p-4 sm:p-8 border-b border-slate-100">
@@ -310,7 +358,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
                   상세 내용을 불러오는 중...
                 </div>
               ) : selected.detailHtml ? (
-                <div className="job-detail-html text-[15px] leading-relaxed text-slate-700" dangerouslySetInnerHTML={{ __html: selected.detailHtml }} />
+                <div className="job-detail-html text-[15px] leading-relaxed text-slate-700" dangerouslySetInnerHTML={{ __html: selected.detailHtml.replace(/\/api\/recruit\/job-postings\/image\//g, `${BE_BASE}/api/recruit/job-postings/image/`) }} />
               ) : selected.detailContent ? (
                 <div className="text-[15px] leading-relaxed whitespace-pre-wrap text-slate-700 font-medium">{selected.detailContent}</div>
               ) : (

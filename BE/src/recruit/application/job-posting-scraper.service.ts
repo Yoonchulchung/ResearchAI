@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { load } from 'cheerio';
 import type { CheerioAPI } from 'cheerio';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
@@ -20,6 +21,7 @@ import { RecruitDb } from '../infrastructure/database/recruit-db';
 import { requestContext } from '../../shared/request-context';
 
 const DATA_DIR = path.resolve(__dirname, '../../../data/job-postings');
+const IMAGE_CACHE_DIR = path.join(process.cwd(), 'data/recruit/image-cache');
 const JSONL_FILE = path.join(DATA_DIR, 'job-postings.jsonl');
 const IDS_FILE = path.join(DATA_DIR, 'collected-ids.json');
 const COMPANY_PROFILES_FILE = path.join(DATA_DIR, 'company-profiles.json');
@@ -247,6 +249,8 @@ export class JobPostingScraperService implements OnModuleInit {
     await this.bootstrapCompanyProfilesFromPostings();
     await this.loadCheckpoint();
     this.status.totalCollected = this.collectedIds.size;
+    this.recruitDb.pruneDetailCache();
+    this.pruneImageCache();
     void this.ensureInitialCatchPostings().catch((err) => {
       this.logger.warn(`캐치 초기 공고 로드 실패: ${err instanceof Error ? err.message : String(err)}`);
     });
@@ -289,52 +293,203 @@ export class JobPostingScraperService implements OnModuleInit {
     url: string,
     source: string,
   ): Promise<Pick<JobPosting, 'companyType' | 'jobs' | 'detailContent' | 'detailHtml'>> {
+    const cached = this.recruitDb.getDetailCache(id);
+    if (cached) {
+      // 기존 캐시에 외부 이미지 URL이 남아있으면 프록시 처리 후 캐시 갱신
+      if (cached.detailHtml && /<img\b[^>]*\bsrc=["'](https?:|\/\/)/i.test(cached.detailHtml)) {
+        const processed = await this.downloadAndCacheImages(cached.detailHtml, url);
+        if (processed !== cached.detailHtml) {
+          const updated = { ...cached, detailHtml: processed };
+          this.recruitDb.setDetailCache(id, updated);
+          return updated;
+        }
+      }
+      return cached;
+    }
+
     try {
+      let result: Pick<JobPosting, 'companyType' | 'jobs' | 'detailContent' | 'detailHtml'>;
+
       if (source === 'linkareer') {
         const detail = await this.linkareerCrawler.getDetail(id);
-        return {
+        result = {
           companyType: detail.companyType,
           jobs: detail.jobs,
           detailHtml: detail.detailHtml,
         };
-      }
-
-      if (source === 'jobkorea') {
+      } else if (source === 'jobkorea') {
         const gno = id.startsWith('jk-') ? id.slice('jk-'.length) : id;
-        return this.parseJobkoreaDetail(gno);
+        result = await this.parseJobkoreaDetail(gno);
+      } else if (source === 'jobplanet') {
+        result = await this.parseJobplanetDetail(url);
+      } else if (source === 'jobda') {
+        result = await this.parseJobdaDetail(url);
+      } else {
+        const html = await this.fetchHtml(url);
+        if (!html) return {};
+        const $ = load(html);
+
+        if (source === 'catch') {
+          const recruitId = id.startsWith('catch-') ? id.slice('catch-'.length) : id;
+          result = await this.parseCatchDetail($, recruitId);
+        } else {
+          // 기타 — 범용 텍스트 추출
+          $('script, style, nav, header, footer').remove();
+          let text = '';
+          for (const sel of ['article', 'main', '#content', '.content']) {
+            const el = $(sel).first();
+            if (!el.length) continue;
+            text = el.text().replace(/\s+/g, ' ').trim();
+            if (text.length > 200) break;
+          }
+          result = { detailContent: text || undefined };
+        }
       }
 
-      if (source === 'jobplanet') {
-        return this.parseJobplanetDetail(url);
+      const hasContent = result.detailHtml || result.detailContent || result.jobs || result.companyType;
+      if (hasContent) {
+        if (result.detailHtml) {
+          result = { ...result, detailHtml: await this.downloadAndCacheImages(result.detailHtml, url) };
+        }
+        this.recruitDb.setDetailCache(id, result);
       }
-
-      if (source === 'jobda') {
-        return this.parseJobdaDetail(url);
-      }
-
-      const html = await this.fetchHtml(url);
-      if (!html) return {};
-      const $ = load(html);
-
-      if (source === 'catch') {
-        const recruitId = id.startsWith('catch-') ? id.slice('catch-'.length) : id;
-        return this.parseCatchDetail($, recruitId);
-      }
-
-      // 기타 — 범용 텍스트 추출
-      $('script, style, nav, header, footer').remove();
-      let text = '';
-      for (const sel of ['article', 'main', '#content', '.content']) {
-        const el = $(sel).first();
-        if (!el.length) continue;
-        text = el.text().replace(/\s+/g, ' ').trim();
-        if (text.length > 200) break;
-      }
-      return { detailContent: text || undefined };
+      return result;
     } catch (err) {
       this.logger.warn(`fetchDetailContent 오류: ${err}`);
       return {};
     }
+  }
+
+  serveImage(filename: string): { buffer: Buffer; contentType: string } | null {
+    if (!fs.existsSync(IMAGE_CACHE_DIR)) return null;
+    const safe = path.basename(filename);
+    if (!/^[a-f0-9]{32}\.(jpg|png|gif|webp|svg)$/.test(safe)) return null;
+    const filePath = path.join(IMAGE_CACHE_DIR, safe);
+    if (!fs.existsSync(filePath)) return null;
+    const buffer = fs.readFileSync(filePath);
+    const ext = path.extname(safe).toLowerCase();
+    const contentType: Record<string, string> = { '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
+    return { buffer, contentType: contentType[ext] ?? 'image/jpeg' };
+  }
+
+  private pruneImageCache(): void {
+    if (!fs.existsSync(IMAGE_CACHE_DIR)) return;
+    const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+    for (const file of fs.readdirSync(IMAGE_CACHE_DIR)) {
+      const filePath = path.join(IMAGE_CACHE_DIR, file);
+      try {
+        if (fs.statSync(filePath).mtimeMs < twoDaysAgo) fs.unlinkSync(filePath);
+      } catch {}
+    }
+  }
+
+  private async downloadAndCacheImages(html: string, referer: string): Promise<string> {
+    fs.mkdirSync(IMAGE_CACHE_DIR, { recursive: true });
+
+    // src → 다운로드용 정규화 URL 매핑 (http/https + 프로토콜 상대 URL 처리)
+    const srcToFetchUrl = new Map<string, string>();
+    for (const m of html.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["']/gi)) {
+      const src = m[1];
+      if (src.startsWith('http')) {
+        srcToFetchUrl.set(src, src);
+      } else if (src.startsWith('//')) {
+        srcToFetchUrl.set(src, `https:${src}`);
+      }
+    }
+    if (srcToFetchUrl.size === 0) return html;
+
+    const existingFiles = fs.readdirSync(IMAGE_CACHE_DIR);
+    const srcToProxy = new Map<string, string>();
+
+    await Promise.allSettled([...srcToFetchUrl.entries()].map(async ([src, fetchUrl]) => {
+      const hash = crypto.createHash('md5').update(fetchUrl).digest('hex');
+      const existing = existingFiles.find((f) => f.startsWith(`${hash}.`));
+      if (existing) {
+        srcToProxy.set(src, `/api/recruit/job-postings/image/${existing}`);
+        return;
+      }
+      const downloaded = await this.downloadImageFile(fetchUrl, referer);
+      if (!downloaded) return;
+      const filename = `${hash}${downloaded.ext}`;
+      fs.writeFileSync(path.join(IMAGE_CACHE_DIR, filename), downloaded.buffer);
+      srcToProxy.set(src, `/api/recruit/job-postings/image/${filename}`);
+    }));
+
+    if (srcToProxy.size === 0) return html;
+
+    let result = html;
+    for (const [src, proxyUrl] of srcToProxy) {
+      result = result.split(src).join(proxyUrl);
+    }
+    return result;
+  }
+
+  getAiAnalysis(id: string, mode: 'analysis' | 'interview'): string | null {
+    return this.recruitDb.getAiAnalysisCache(id, mode);
+  }
+
+  setAiAnalysis(id: string, mode: 'analysis' | 'interview', text: string): void {
+    this.recruitDb.setAiAnalysisCache(id, mode, text);
+  }
+
+  getPostingImageFiles(html: string): string[] {
+    return [...html.matchAll(/src=["']\/api\/recruit\/job-postings\/image\/([^"']+)["']/g)]
+      .map((m) => m[1])
+      .slice(0, 5)
+      .filter((f) => fs.existsSync(path.join(IMAGE_CACHE_DIR, f)));
+  }
+
+  getImageCacheStats(): { dir: string; count: number; totalKb: number; files: Array<{ name: string; sizeKb: number; ageMin: number }> } {
+    if (!fs.existsSync(IMAGE_CACHE_DIR)) {
+      return { dir: IMAGE_CACHE_DIR, count: 0, totalKb: 0, files: [] };
+    }
+    const now = Date.now();
+    const files = fs.readdirSync(IMAGE_CACHE_DIR).map((name) => {
+      try {
+        const stat = fs.statSync(path.join(IMAGE_CACHE_DIR, name));
+        return { name, sizeKb: Math.round(stat.size / 1024), ageMin: Math.round((now - stat.mtimeMs) / 60_000) };
+      } catch {
+        return { name, sizeKb: 0, ageMin: 0 };
+      }
+    });
+    const totalKb = files.reduce((s, f) => s + f.sizeKb, 0);
+    return { dir: IMAGE_CACHE_DIR, count: files.length, totalKb, files };
+  }
+
+  private async downloadImageFile(url: string, referer: string): Promise<{ buffer: Buffer; ext: string } | null> {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
+          Referer: referer,
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      const contentType = res.headers.get('content-type') ?? '';
+      if (!contentType.startsWith('image/')) return null;
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const ext = this.getImageExt(url, contentType);
+      return { buffer, ext };
+    } catch {
+      return null;
+    }
+  }
+
+  private getImageExt(url: string, contentType: string): string {
+    if (contentType.includes('/png')) return '.png';
+    if (contentType.includes('/gif')) return '.gif';
+    if (contentType.includes('/webp')) return '.webp';
+    if (contentType.includes('/svg')) return '.svg';
+    const pathname = url.split('?')[0].toLowerCase();
+    if (pathname.endsWith('.png')) return '.png';
+    if (pathname.endsWith('.gif')) return '.gif';
+    if (pathname.endsWith('.webp')) return '.webp';
+    if (pathname.endsWith('.svg')) return '.svg';
+    return '.jpg';
   }
 
   private async parseJobkoreaDetail(
@@ -962,8 +1117,13 @@ export class JobPostingScraperService implements OnModuleInit {
   private applyFilters(items: JobPosting[], filters: JobPostingListFilters, searchTerms: string[] = this.getSearchTerms(filters.search)): JobPosting[] {
     const job = this.normalize(filters.job);
     const companyType = this.normalize(filters.companyType);
+    const excludedCompanyTypes = this.splitComma(filters.excludeCompanyType)
+      .map((value) => this.normalize(this.normalizeCompanyType(value) ?? value))
+      .filter(Boolean);
     const type = this.normalize(filters.type);
-    const category = this.normalize(filters.category);
+    const categories = this.splitComma(filters.category).map((value) => this.normalize(value)).filter(Boolean);
+    const scheduleFrom = this.parsePostingDate(filters.scheduleFrom);
+    const scheduleTo = this.parsePostingDate(filters.scheduleTo);
 
     return items.filter((p) => {
       if (companyType) {
@@ -971,16 +1131,41 @@ export class JobPostingScraperService implements OnModuleInit {
         const postingCompanyType = this.normalize(this.normalizeCompanyType(p.companyType) ?? p.companyType);
         if (!allowedCompanyTypes.includes(postingCompanyType)) return false;
       }
+      if (excludedCompanyTypes.length > 0) {
+        const postingCompanyType = this.normalize(this.normalizeCompanyType(p.companyType) ?? p.companyType);
+        const postingCompanyTypeText = this.normalize(p.companyType);
+        if (
+          postingCompanyType &&
+          excludedCompanyTypes.some((excluded) =>
+            postingCompanyType === excluded || postingCompanyTypeText.includes(excluded),
+          )
+        ) {
+          return false;
+        }
+      }
       if (job && !this.splitComma(p.jobs).some((value) => this.normalize(value) === job)) return false;
       if (type) {
         const allowedTypes = this.splitComma(type).map(t => this.normalize(t));
         const postingType = this.normalize(this.normalizeJobType(p.type));
-        if (!allowedTypes.includes(postingType)) return false;
+        if (!allowedTypes.some((allowedType) => postingType === allowedType || postingType.includes(allowedType))) return false;
       }
-      if (category && !this.matchesInterestedCategory(p, category)) return false;
+      if (categories.length > 0 && !categories.some((category) => this.matchesInterestedCategory(p, category))) return false;
+      if ((scheduleFrom || scheduleTo) && !this.isPostingInScheduleRange(p, scheduleFrom, scheduleTo)) return false;
       if (searchTerms.length === 0) return true;
 
       return this.matchesSearchTerms(p, searchTerms);
+    });
+  }
+
+  private isPostingInScheduleRange(p: JobPosting, from: number | null, to: number | null): boolean {
+    const dates = [p.startDate, p.endDate, p.deadline]
+      .map((value) => this.parsePostingDate(value))
+      .filter((value): value is number => value !== null);
+    if (dates.length === 0) return false;
+    return dates.some((date) => {
+      if (from !== null && date < from) return false;
+      if (to !== null && date > to) return false;
+      return true;
     });
   }
 
