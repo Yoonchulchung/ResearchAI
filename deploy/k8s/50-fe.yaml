@@ -34,7 +34,7 @@ spec:
       terminationGracePeriodSeconds: 15
       containers:
         - name: fe
-          image: ghcr.io/yoonchulchung/researchai/fe:2dae37458a42d7db26ab99c7f8ca2c84c8c1aa69
+          image: ghcr.io/yoonchulchung/researchai/fe:d187d1949af8a9f9a5121d27efe0c1808a8374c5
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
