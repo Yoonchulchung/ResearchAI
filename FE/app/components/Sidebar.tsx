@@ -248,8 +248,8 @@ export function Sidebar() {
   };
 
   const containerClasses = uiStyle === "glass"
-    ? "m-3 mr-0 h-[calc(100vh-1.5rem)] rounded-2xl glass-panel shadow-lg"
-    : "h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800";
+    ? "m-3 mr-0 h-[calc(100dvh-1.5rem)] rounded-2xl glass-panel shadow-lg"
+    : "h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800";
 
   if (collapsed) {
     return (

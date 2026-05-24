@@ -483,60 +483,61 @@ export default function RecruitSpecPage() {
                 {selectedIds.size > 0 ? `선택 ${selectedIds.size}건 분석` : "AI 스펙 분석"}
               </button>
             </div>
-          </div>
+          </div>          {/* 필터 래퍼: 검색/드롭다운 영역과 직무 칩 영역을 깔끔한 2열 행으로 재구성하여 태블릿/모바일 깨짐 방지 */}
+          <div className="mt-5 flex flex-col gap-3.5">
+            {/* 상단 행: 검색 인풋 & 드롭다운 필터들 */}
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              {/* 검색 인풋 & 조회 버튼 */}
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  load(1, true);
+                }}
+                className="flex gap-2 lg:flex-1"
+              >
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="기업명, 직무, 시즌 검색"
+                  className={`h-10 min-w-0 flex-1 rounded-lg border px-3 text-sm outline-none transition-colors ${inputClass}`}
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`h-10 rounded-lg px-4 text-xs font-bold transition-colors disabled:opacity-50 whitespace-nowrap shrink-0 ${
+                    isDark ? "bg-white/10 text-white/70 hover:bg-white/15" : "bg-slate-900 text-white hover:bg-slate-800"
+                  }`}
+                >
+                  조회
+                </button>
+              </form>
 
-          {/* 필터 래퍼: 모바일에서는 flex-col로 정렬되지만 데스크탑(lg)에서는 일렬 배치 */}
-          <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center">
-            {/* 검색 인풋 & 조회 버튼 */}
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                load(1, true);
-              }}
-              className="flex gap-2 lg:flex-1"
-            >
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="기업명, 직무, 시즌 검색"
-                className={`h-10 min-w-0 flex-1 rounded-lg border px-3 text-sm outline-none transition-colors ${inputClass}`}
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                className={`h-10 rounded-lg px-4 text-xs font-bold transition-colors disabled:opacity-50 whitespace-nowrap shrink-0 ${
-                  isDark ? "bg-white/10 text-white/70 hover:bg-white/15" : "bg-slate-900 text-white hover:bg-slate-800"
-                }`}
-              >
-                조회
-              </button>
-            </form>
-
-            {/* 드롭다운 필터들: 모바일(lg 미만)에서는 2열 그리드로 꽉 차게 정렬, 데스크탑에서는 자연스럽게 가로 배치 */}
-            <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center">
-              <select
-                value={source}
-                onChange={(event) => setSource(event.target.value)}
-                className={`h-10 rounded-lg border px-3 text-xs font-semibold outline-none lg:w-36 ${inputClass}`}
-              >
-                {SOURCE_FILTERS.map((item) => (
-                  <option key={item.value || "all"} value={item.value} className={isDark ? "bg-slate-900 text-white" : "bg-white text-slate-800"}>{item.label}</option>
-                ))}
-              </select>
-              <select
-                value={companyType}
-                onChange={(event) => setCompanyType(event.target.value)}
-                className={`h-10 rounded-lg border px-3 text-xs font-semibold outline-none lg:w-40 ${inputClass}`}
-              >
-                {COMPANY_TYPE_FILTERS.map((item) => (
-                  <option key={item || "all"} value={item} className={isDark ? "bg-slate-900 text-white" : "bg-white text-slate-800"}>{item || "기업분류 전체"}</option>
-                ))}
-              </select>
+              {/* 드롭다운 필터들 */}
+              <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center">
+                <select
+                  value={source}
+                  onChange={(event) => setSource(event.target.value)}
+                  className={`h-10 rounded-lg border px-3 text-xs font-semibold outline-none lg:w-36 ${inputClass}`}
+                >
+                  {SOURCE_FILTERS.map((item) => (
+                    <option key={item.value || "all"} value={item.value} className={isDark ? "bg-slate-900 text-white" : "bg-white text-slate-800"}>{item.label}</option>
+                  ))}
+                </select>
+                <select
+                  value={companyType}
+                  onChange={(event) => setCompanyType(event.target.value)}
+                  className={`h-10 rounded-lg border px-3 text-xs font-semibold outline-none lg:w-40 ${inputClass}`}
+                >
+                  {COMPANY_TYPE_FILTERS.map((item) => (
+                    <option key={item || "all"} value={item} className={isDark ? "bg-slate-900 text-white" : "bg-white text-slate-800"}>{item || "기업분류 전체"}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            {/* 직무 타겟 칩 탭: 모바일에서는 영롱한 칩 형태의 스크롤 바, 데스크탑에서는 기존의 그리드처럼 렌더링 */}
-            <div className="lg:ml-auto w-full lg:w-auto">
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1 lg:mx-0 lg:px-0 lg:pb-0">
+            {/* 하단 행: 직무 타겟 칩 탭 (가로 너비 제약 없이 모바일/태블릿에서도 미려하게 스크롤 가능) */}
+            <div className={`border-t pt-3 ${isDark ? "border-white/5" : "border-slate-100"}`}>
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
                 {TARGET_FILTERS.map((item) => (
                   <button
                     key={item.value}
@@ -555,7 +556,6 @@ export default function RecruitSpecPage() {
               </div>
             </div>
           </div>
-
           <div className={`mt-4 flex flex-wrap items-center gap-2 text-xs ${textSub}`}>
             <span>조회 {items.length.toLocaleString()}건 / 전체 {total.toLocaleString()}건</span>
             {analyzedModel && <span>· 분석 모델 {analyzedModel}</span>}

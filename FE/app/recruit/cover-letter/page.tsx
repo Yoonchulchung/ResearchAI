@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useCoverLetterList } from "./_hooks/useCoverLetterList";
@@ -23,6 +23,18 @@ function CoverLetterPageContent() {
   const list = useCoverLetterList(coverId);
   const scraping = useCoverLetterScraping(list.reload);
 
+  useEffect(() => {
+    // 부모 main 엘리먼트의 스크롤을 막아서 중첩 스크롤 및 뷰포트 밀림 방지
+    const mainEl = document.querySelector("main");
+    if (mainEl) {
+      const originalOverflow = mainEl.style.overflow;
+      mainEl.style.overflow = "hidden";
+      return () => {
+        mainEl.style.overflow = originalOverflow;
+      };
+    }
+  }, []);
+
   return (
     <div className={`h-full flex flex-col overflow-hidden ${isGlass ? "p-3 pr-4 pb-4 bg-transparent" : "bg-slate-100"}`}>
       <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl border border-white/20" : ""}`}>
@@ -30,8 +42,8 @@ function CoverLetterPageContent() {
         {/* Topbar */}
         <div className={`shrink-0 flex flex-col border-b transition-all duration-200 ease-out overflow-hidden ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : "bg-white border-slate-200/60"} ${
           list.isHeaderHidden
-            ? "max-md:max-h-0 max-md:opacity-0 max-md:-translate-y-2 max-md:pointer-events-none max-md:border-b-0"
-            : "max-md:max-h-28 max-md:opacity-100 max-md:translate-y-0"
+            ? "max-lg:max-h-0 max-lg:opacity-0 max-lg:-translate-y-2 max-lg:pointer-events-none max-lg:border-b-0"
+            : "max-lg:max-h-28 max-lg:opacity-100 max-lg:translate-y-0"
         }`}>
           <div className="flex items-center gap-2 px-4 sm:px-5 pt-2.5 pb-1.5">
             <button
@@ -112,7 +124,7 @@ function CoverLetterPageContent() {
         {/* Body */}
         <div className="flex-1 flex min-h-0 overflow-hidden">
           {/* Left: list */}
-          <div className={`${list.selected ? "hidden md:flex" : "flex"} flex-col w-full md:w-[360px] shrink-0 border-r overflow-hidden ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-200"}`}>
+          <div className={`${list.selected ? "hidden lg:flex" : "flex"} flex-col w-full lg:w-[360px] shrink-0 border-r overflow-hidden ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-200"}`}>
             {/* Filters */}
             <div className={`shrink-0 px-3 py-2.5 border-b ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-100"}`}>
               <div className="relative">
@@ -225,14 +237,14 @@ function CoverLetterPageContent() {
                   )}
                 </button>
               ))}
-              <div ref={list.loaderRef} className="py-3 flex justify-center">
+              <div ref={list.loaderRef} className="pt-3 pb-12 flex justify-center">
                 {list.loading && <span className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin block" />}
               </div>
             </div>
           </div>
 
           {/* Right: detail */}
-          <div onScroll={list.handleDetailScroll} className={`flex-1 overflow-y-auto ${list.selected ? "flex" : "hidden md:flex"} flex-col`}>
+          <div onScroll={list.handleDetailScroll} className={`flex-1 overflow-y-auto ${list.selected ? "flex" : "hidden lg:flex"} flex-col`}>
             {!list.selected ? (
               <div className={`flex flex-col items-center justify-center h-full gap-3 ${isDark ? "text-white/25" : "text-slate-300"}`}>
                 <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
@@ -242,7 +254,7 @@ function CoverLetterPageContent() {
                 <p className="text-sm">자소서를 선택하세요</p>
               </div>
             ) : (
-              <div className="px-3 py-3 sm:px-8 sm:py-6 sm:max-w-3xl w-full mx-auto">
+              <div className="px-3 pt-3 pb-20 sm:px-8 sm:pt-6 sm:pb-24 sm:max-w-3xl w-full mx-auto">
                 <div className="mb-5 sm:mb-6">
                   <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-3 ${isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
                     합격 자소서
