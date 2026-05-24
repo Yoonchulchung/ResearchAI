@@ -485,13 +485,15 @@ export default function RecruitSpecPage() {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-2 lg:grid-cols-[1fr_auto_auto_auto]">
+          {/* 필터 래퍼: 모바일에서는 flex-col로 정렬되지만 데스크탑(lg)에서는 일렬 배치 */}
+          <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center">
+            {/* 검색 인풋 & 조회 버튼 */}
             <form
               onSubmit={(event) => {
                 event.preventDefault();
                 load(1, true);
               }}
-              className="flex gap-2"
+              className="flex gap-2 lg:flex-1"
             >
               <input
                 value={search}
@@ -502,43 +504,55 @@ export default function RecruitSpecPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`h-10 rounded-lg px-4 text-xs font-bold transition-colors disabled:opacity-50 ${isDark ? "bg-white/10 text-white/70 hover:bg-white/15" : "bg-slate-900 text-white hover:bg-slate-800"}`}
+                className={`h-10 rounded-lg px-4 text-xs font-bold transition-colors disabled:opacity-50 whitespace-nowrap shrink-0 ${
+                  isDark ? "bg-white/10 text-white/70 hover:bg-white/15" : "bg-slate-900 text-white hover:bg-slate-800"
+                }`}
               >
                 조회
               </button>
             </form>
-            <select
-              value={source}
-              onChange={(event) => setSource(event.target.value)}
-              className={`h-10 rounded-lg border px-3 text-xs font-semibold outline-none ${inputClass}`}
-            >
-              {SOURCE_FILTERS.map((item) => (
-                <option key={item.value || "all"} value={item.value}>{item.label}</option>
-              ))}
-            </select>
-            <select
-              value={companyType}
-              onChange={(event) => setCompanyType(event.target.value)}
-              className={`h-10 rounded-lg border px-3 text-xs font-semibold outline-none ${inputClass}`}
-            >
-              {COMPANY_TYPE_FILTERS.map((item) => (
-                <option key={item || "all"} value={item}>{item || "기업분류 전체"}</option>
-              ))}
-            </select>
-            <div className={`flex overflow-x-auto sm:grid sm:grid-cols-5 md:grid-cols-10 overflow-hidden rounded-lg border text-xs font-bold whitespace-nowrap scrollbar-none ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
-              {TARGET_FILTERS.map((item) => (
-                <button
-                  key={item.value}
-                  onClick={() => setTarget(item.value)}
-                  className={`flex-shrink-0 px-4 py-2 sm:px-2.5 transition-colors ${
-                    target === item.value
-                      ? "bg-indigo-600 text-white"
-                      : isDark ? "text-white/55 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+
+            {/* 드롭다운 필터들: 모바일(lg 미만)에서는 2열 그리드로 꽉 차게 정렬, 데스크탑에서는 자연스럽게 가로 배치 */}
+            <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center">
+              <select
+                value={source}
+                onChange={(event) => setSource(event.target.value)}
+                className={`h-10 rounded-lg border px-3 text-xs font-semibold outline-none lg:w-36 ${inputClass}`}
+              >
+                {SOURCE_FILTERS.map((item) => (
+                  <option key={item.value || "all"} value={item.value} className={isDark ? "bg-slate-900 text-white" : "bg-white text-slate-800"}>{item.label}</option>
+                ))}
+              </select>
+              <select
+                value={companyType}
+                onChange={(event) => setCompanyType(event.target.value)}
+                className={`h-10 rounded-lg border px-3 text-xs font-semibold outline-none lg:w-40 ${inputClass}`}
+              >
+                {COMPANY_TYPE_FILTERS.map((item) => (
+                  <option key={item || "all"} value={item} className={isDark ? "bg-slate-900 text-white" : "bg-white text-slate-800"}>{item || "기업분류 전체"}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 직무 타겟 칩 탭: 모바일에서는 영롱한 칩 형태의 스크롤 바, 데스크탑에서는 기존의 그리드처럼 렌더링 */}
+            <div className="lg:ml-auto w-full lg:w-auto">
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1 lg:mx-0 lg:px-0 lg:pb-0">
+                {TARGET_FILTERS.map((item) => (
+                  <button
+                    key={item.value}
+                    onClick={() => setTarget(item.value)}
+                    className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${
+                      target === item.value
+                        ? "bg-indigo-600 text-white border border-indigo-600"
+                        : isDark
+                          ? "text-white/50 border border-transparent hover:text-white hover:bg-white/5"
+                          : "text-slate-500 border border-transparent hover:text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

@@ -18,7 +18,7 @@ interface JobListProps {
 
 export function JobList({ items, loading, selected, onSelect, onToggleFavorite, onScroll, loaderRef, listItemRefs }: JobListProps) {
   return (
-    <div onScroll={onScroll} className="flex-1 overflow-y-auto bg-slate-50/30">
+    <div onScroll={onScroll} className="flex-1 overflow-y-auto bg-slate-50/30 dark:bg-slate-900/40">
       {items.length === 0 && !loading && (
         <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400">
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
@@ -46,33 +46,33 @@ export function JobList({ items, loading, selected, onSelect, onToggleFavorite, 
           }}
           className={`w-full text-left p-4 border-b transition-all group ${
             selected?.id === p.id
-              ? "bg-indigo-50/60 border-indigo-100 shadow-[inset_3px_0_0_0_#4f46e5]"
-              : "bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200"
+              ? "bg-indigo-50/60 border-indigo-100 shadow-[inset_3px_0_0_0_#4f46e5] dark:bg-indigo-950/30 dark:border-indigo-950/50 dark:shadow-[inset_3px_0_0_0_#6366f1]"
+              : "bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200 dark:bg-slate-800/40 dark:border-slate-800/50 dark:hover:bg-slate-850 dark:hover:border-slate-700"
           }`}
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1.5">
-                <p className={`text-xs font-bold truncate ${selected?.id === p.id ? "text-indigo-900" : "text-slate-700 group-hover:text-slate-900"}`}>
+                <p className={`text-xs font-bold truncate ${selected?.id === p.id ? "text-indigo-900 dark:text-indigo-300" : "text-slate-700 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-slate-200"}`}>
                   {p.company}
                 </p>
                 {(!p.source || p.source === "linkareer") && (
-                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-bold tracking-wide">링커리어</span>
+                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-bold tracking-wide dark:bg-emerald-950/40 dark:text-emerald-400">링커리어</span>
                 )}
                 {p.source === "jobkorea" && (
-                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 font-bold tracking-wide">잡코리아</span>
+                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 font-bold tracking-wide dark:bg-orange-950/40 dark:text-orange-400">잡코리아</span>
                 )}
                 {p.source === "catch" && (
-                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 font-bold tracking-wide">캐치</span>
+                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 font-bold tracking-wide dark:bg-sky-950/40 dark:text-sky-400">캐치</span>
                 )}
                 {p.source === "jobplanet" && (
-                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-bold tracking-wide">잡플래닛</span>
+                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-bold tracking-wide dark:bg-violet-950/40 dark:text-violet-400">잡플래닛</span>
                 )}
                 {p.source === "jobda" && (
-                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-600 font-bold tracking-wide">잡다</span>
+                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-600 font-bold tracking-wide dark:bg-teal-950/40 dark:text-teal-400">잡다</span>
                 )}
               </div>
-              <p className={`text-[15px] font-semibold line-clamp-2 leading-snug mb-2 ${selected?.id === p.id ? "text-indigo-950" : "text-slate-900"}`}>
+              <p className={`text-[15px] font-semibold line-clamp-2 leading-snug mb-2 ${selected?.id === p.id ? "text-indigo-950 dark:text-indigo-100" : "text-slate-900 dark:text-slate-100"}`}>
                 {p.title}
               </p>
             </div>
@@ -81,7 +81,7 @@ export function JobList({ items, loading, selected, onSelect, onToggleFavorite, 
               onClick={(e) => onToggleFavorite(p, e)}
               aria-label={p.favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
               className={`shrink-0 p-1.5 rounded-lg transition-colors ${
-                p.favorite ? "text-amber-500 bg-amber-50 hover:bg-amber-100" : "text-slate-300 hover:text-amber-500 hover:bg-amber-50"
+                p.favorite ? "text-amber-500 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400" : "text-slate-300 hover:text-amber-500 hover:bg-amber-50 dark:text-slate-600 dark:hover:text-amber-400"
               }`}
             >
               <FavoriteIcon active={!!p.favorite} />
@@ -90,11 +90,11 @@ export function JobList({ items, loading, selected, onSelect, onToggleFavorite, 
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
             {p.type && (
-              <span className="shrink-0 text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium border border-slate-200/60">
+              <span className="shrink-0 text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium border border-slate-200/60 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700/60">
                 {normalizeType(p.type)}
               </span>
             )}
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
               {p.location && (
                 <span className="flex items-center gap-1">
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -103,7 +103,7 @@ export function JobList({ items, loading, selected, onSelect, onToggleFavorite, 
                   {p.location}
                 </span>
               )}
-              {p.location && p.deadline && <span className="w-0.5 h-0.5 rounded-full bg-slate-300" />}
+              {p.location && p.deadline && <span className="w-0.5 h-0.5 rounded-full bg-slate-300 dark:bg-slate-750" />}
               {p.deadline && (
                 <span className="flex items-center gap-1">
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -118,7 +118,7 @@ export function JobList({ items, loading, selected, onSelect, onToggleFavorite, 
         </div>
       ))}
       <div ref={loaderRef} className="py-6 flex justify-center">
-        {loading && <span className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin block" />}
+        {loading && <span className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin block dark:border-indigo-950 dark:border-t-indigo-500" />}
       </div>
     </div>
   );

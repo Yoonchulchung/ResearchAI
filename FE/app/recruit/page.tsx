@@ -314,7 +314,11 @@ export default function RecruitPage() {
               </div>
               <button
                 onClick={() => router.push("/company-analysis")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${isDark ? "text-indigo-300 hover:bg-white/10" : "text-indigo-600 hover:bg-indigo-50"}`}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all border ${
+                  isDark
+                    ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 hover:border-indigo-400/40"
+                    : "border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:border-indigo-300"
+                }`}
               >
                 상세 페이지
               </button>

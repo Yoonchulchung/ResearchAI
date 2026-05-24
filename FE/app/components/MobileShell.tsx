@@ -333,14 +333,10 @@ function isInteractiveTarget(target: EventTarget | null) {
 
 export function MobileShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { isDark } = useMobileTheme();
   const { openModal } = useNewSessionModal();
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
-  const touchPullStart = useRef<{ x: number; y: number } | null>(null);
-  const [pullDistance, setPullDistance] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
   const lastScrollTopRef = useRef(0);
   const scrollIntentRef = useRef<{ direction: "up" | "down" | null; distance: number }>({ direction: null, distance: 0 });
@@ -407,54 +403,6 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
     return () => el.removeEventListener("scroll", handleScroll);
   }, [pathname]);
 
-  const isMainScrolledToTop = useCallback(() => {
-    const el = mainRef.current;
-    return !!el && el.scrollTop <= 1;
-  }, []);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchPullStart.current = null;
-    if (refreshing || isInteractiveTarget(e.target) || !isMainScrolledToTop()) return;
-    touchPullStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  }, [isMainScrolledToTop, refreshing]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchPullStart.current || refreshing) return;
-    if (!isMainScrolledToTop()) {
-      touchPullStart.current = null;
-      setPullDistance(0);
-      return;
-    }
-    const deltaX = e.touches[0].clientX - touchPullStart.current.x;
-    const deltaY = e.touches[0].clientY - touchPullStart.current.y;
-    if (deltaY <= 0 || Math.abs(deltaX) > deltaY * 0.8) {
-      setPullDistance(0);
-      return;
-    }
-    // 최대 당김 거리를 120으로 상향하고, 저항 계수를 0.35로 주어 좀 더 쫀득하게 힘을 줘서 당기도록 유도
-    setPullDistance(Math.min(120, deltaY * 0.35));
-  }, [isMainScrolledToTop, refreshing]);
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (!touchPullStart.current) return;
-    const deltaY = e.changedTouches[0].clientY - touchPullStart.current.y;
-    const canRefresh = isMainScrolledToTop();
-    touchPullStart.current = null;
-
-    // 새로고침을 위한 당김 임계값을 64에서 90으로 대폭 상향하여, 끝까지 확실하게 힘주어 더 댕겼을 때만 동작하도록 설정
-    if (canRefresh && pullDistance >= 90 && deltaY > 0) {
-      setRefreshing(true);
-      setPullDistance(48);
-      router.refresh();
-      window.setTimeout(() => {
-        setRefreshing(false);
-        setPullDistance(0);
-      }, 700);
-      return;
-    }
-    setPullDistance(0);
-  }, [isMainScrolledToTop, pullDistance, router]);
-
   const bg = isDark ? "bg-slate-950" : "bg-slate-50";
   const hideHeader =
     pathname.startsWith("/sessions/") ||
@@ -480,19 +428,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
       <main
         ref={mainRef}
         className={`relative flex-1 min-h-0 overflow-y-auto ${!hideHeader ? "pt-12" : ""}`}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
-        <div
-          className={`pointer-events-none sticky top-0 z-30 flex justify-center transition-[height,opacity] duration-200 ${pullDistance > 0 || refreshing ? "opacity-100" : "opacity-0"}`}
-          style={{ height: pullDistance > 0 || refreshing ? `${Math.max(36, pullDistance)}px` : 0 }}
-        >
-          <div className={`mt-2 h-7 rounded-full px-3 flex items-center gap-2 text-[11px] font-medium shadow-sm ${isDark ? "bg-white/10 text-white/70 border border-white/10" : "bg-white text-slate-500 border border-slate-200"}`}>
-            <span className={`h-3 w-3 rounded-full border-2 border-current border-t-transparent ${refreshing ? "animate-spin" : ""}`} />
-            {refreshing ? "새로고침 중" : pullDistance >= 90 ? "놓아서 새로고침" : "당겨서 새로고침"}
-          </div>
-        </div>
         {children}
       </main>
       <BottomNav

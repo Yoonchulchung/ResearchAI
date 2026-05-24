@@ -38,7 +38,7 @@ export function JobFilters({
   isFiltersHidden,
 }: JobFiltersProps) {
   return (
-    <div className="shrink-0 p-4 border-b border-slate-200/80 flex flex-col gap-3 bg-slate-50/50">
+    <div className="shrink-0 p-4 border-b border-slate-200/80 flex flex-col gap-3 bg-slate-50/50 dark:bg-slate-950/20 dark:border-slate-800">
       {/* Source tabs — desktop only */}
       <div className="hidden md:flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
         {(["", "favorite", "linkareer", "jobkorea", "catch", "jobplanet", "jobda"] as const).map((src) => (
@@ -47,8 +47,8 @@ export function JobFilters({
             onClick={() => onSourceChange(src)}
             className={`shrink-0 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors border ${
               sourceFilter === src
-                ? "bg-white border-indigo-200 text-indigo-700 shadow-sm"
-                : "bg-transparent border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                ? "bg-white border-indigo-200 text-indigo-700 shadow-sm dark:bg-slate-800 dark:border-indigo-900 dark:text-indigo-300"
+                : "bg-transparent border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 dark:text-slate-300 dark:hover:text-white dark:hover:bg-white/10"
             }`}
           >
             {SOURCE_LABELS[src]}
@@ -66,12 +66,12 @@ export function JobFilters({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="기업명, 공고명, 지역, 직무 검색"
-          className="w-full pl-9 pr-3 py-2 text-sm rounded-md border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+          className="w-full pl-9 pr-3 py-2 text-sm rounded-md border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
         />
       </div>
 
       {/* Sort order */}
-      <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 border border-slate-200/60 p-1">
+      <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 border border-slate-200/60 p-1 dark:bg-slate-950/40 dark:border-slate-800">
         {(
           [
             ["latest", "최신순"],
@@ -83,8 +83,8 @@ export function JobFilters({
             onClick={() => setSortOrder(value)}
             className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
               sortOrder === value
-                ? "bg-white text-slate-800 shadow-sm border border-slate-200/50"
-                : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 border border-transparent"
+                ? "bg-white text-slate-800 shadow-sm border border-slate-200/50 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700"
+                : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 border border-transparent dark:text-slate-300 dark:hover:text-white dark:hover:bg-white/5"
             }`}
           >
             {label}
@@ -99,15 +99,15 @@ export function JobFilters({
         }`}
       >
         {/* Type filter */}
-        <div className="flex p-1 rounded-lg bg-slate-100 border border-slate-200/60 overflow-x-auto scrollbar-hide">
+        <div className="flex p-1 rounded-lg bg-slate-100 border border-slate-200/60 overflow-x-auto scrollbar-hide dark:bg-slate-950/40 dark:border-slate-800">
           {(["", "신입", "인턴", "신입/인턴", "경력"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTypeFilter(t)}
               className={`shrink-0 flex-1 px-2 py-1.5 text-[13px] font-bold rounded-md transition-all whitespace-nowrap ${
                 typeFilter === t
-                  ? "bg-white text-slate-800 shadow-sm border border-slate-200/50"
-                  : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 border border-transparent"
+                  ? "bg-white text-slate-800 shadow-sm border border-slate-200/50 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700"
+                  : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 border border-transparent dark:text-slate-300 dark:hover:text-white dark:hover:bg-white/5"
               }`}
             >
               {t === "" ? "전체" : t}
@@ -133,8 +133,8 @@ export function JobFilters({
                   }}
                   className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-all ${
                     isSelected
-                      ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)]"
-                      : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300"
+                      ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] dark:bg-indigo-950/50 dark:border-indigo-900 dark:text-indigo-300"
+                      : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 dark:bg-slate-800/40 dark:border-slate-700/80 dark:text-slate-300 dark:hover:bg-slate-850 dark:hover:text-white"
                   }`}
                 >
                   {c}
@@ -150,7 +150,7 @@ export function JobFilters({
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer shadow-sm appearance-none"
+              className="w-full px-2.5 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer shadow-sm appearance-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               style={{
                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2394A3B8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
                 backgroundRepeat: "no-repeat",

@@ -97,6 +97,14 @@ export default function DocParsePage() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const isRestoringRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw) isRestoringRef.current = true;
+    } catch { /* 무시 */ }
+  }, []);
 
   useEffect(() => {
     if (selectedModel || modelsLoading) return;
@@ -226,84 +234,87 @@ export default function DocParsePage() {
   useEffect(() => {
     let cancelled = false;
 
-    const restorePdfFile = async (draft: DocParseDraft) => {
-      const cachedFile = pdfFileCache.consume() ?? await loadPdfDraftFile().catch(() => null);
+    const restore = async () => {
+      try {
+        const raw = sessionStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const draft: DocParseDraft = JSON.parse(raw);
+          if (draft.docText) setDocText(draft.docText);
+          if (draft.docPages?.length) setDocPages(draft.docPages);
+          if (draft.filename) setFilename(draft.filename);
+          if (draft.pageCount) setPageCount(draft.pageCount);
+          if (draft.isReady) setIsReady(draft.isReady);
+          if (draft.messages?.length) {
+            // streaming 중이던 메시지는 완료 상태로 전환
+            const restored = draft.messages.map((m) => ({ ...m, streaming: false }));
+            setMessages(restored);
 
-      if (cancelled) return;
+            // 중단된 job이 있으면 재연결
+            if (draft.pendingJob) {
+              const { jobId, msgId } = draft.pendingJob;
+              setLoading(true);
+              subscribeToStream(jobId, msgId, false)
+                .catch(() => {
+                  setMessages((m) => m.map((msg) =>
+                    msg.id === msgId && !msg.content
+                      ? { ...msg, content: "연결이 끊겼습니다. 다시 시도해주세요.", streaming: false }
+                      : msg,
+                  ));
+                })
+                .finally(() => setLoading(false));
+            }
+          }
+          if (draft.selectedModel) setSelectedModel(draft.selectedModel);
 
-      if (cachedFile) {
-        const blobUrl = URL.createObjectURL(cachedFile);
-        setPdfUrl(blobUrl);
-        if (draft.pdfDataUrl) setPdfDataUrl(draft.pdfDataUrl);
-        return;
-      }
+          // IndexedDB 캐시 복원 비동기 처리
+          const cachedFile = pdfFileCache.consume() ?? await loadPdfDraftFile().catch(() => null);
 
-      if (draft.pdfDataUrl) {
-        setPdfDataUrl(draft.pdfDataUrl);
-        dataUrlToBlobUrl(draft.pdfDataUrl)
-          .then((blobUrl) => {
-            if (!cancelled) setPdfUrl(blobUrl);
-          })
-          .catch(() => {
-            if (!cancelled) setPdfUrl(draft.pdfDataUrl!);
-          });
+          if (!cancelled) {
+            if (cachedFile) {
+              const blobUrl = URL.createObjectURL(cachedFile);
+              setPdfUrl(blobUrl);
+              if (draft.pdfDataUrl) setPdfDataUrl(draft.pdfDataUrl);
+            } else if (draft.pdfDataUrl) {
+              setPdfDataUrl(draft.pdfDataUrl);
+              try {
+                const blobUrl = await dataUrlToBlobUrl(draft.pdfDataUrl);
+                if (!cancelled) setPdfUrl(blobUrl);
+              } catch {
+                if (!cancelled) setPdfUrl(draft.pdfDataUrl);
+              }
+            }
+          }
+
+          if (draft.isReady && draft.docPages?.length) setViewMode("visual");
+        }
+      } catch { /* 무시 */ }
+
+      if (!cancelled) {
+        setHydrated(true);
+        // React의 상태 배칭 리렌더링이 완전히 브라우저 프레임에 바인딩된 후 락을 해제
+        setTimeout(() => {
+          isRestoringRef.current = false;
+        }, 120);
       }
     };
 
-    try {
-      const raw = sessionStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const draft: DocParseDraft = JSON.parse(raw);
-        if (draft.docText) setDocText(draft.docText);
-        if (draft.docPages?.length) setDocPages(draft.docPages);
-        if (draft.filename) setFilename(draft.filename);
-        if (draft.pageCount) setPageCount(draft.pageCount);
-        if (draft.isReady) setIsReady(draft.isReady);
-        if (draft.messages?.length) {
-          // streaming 중이던 메시지는 완료 상태로 전환
-          const restored = draft.messages.map((m) => ({ ...m, streaming: false }));
-          setMessages(restored);
-
-          // 중단된 job이 있으면 재연결
-          if (draft.pendingJob) {
-            const { jobId, msgId } = draft.pendingJob;
-            setLoading(true);
-            subscribeToStream(jobId, msgId, false)
-              .catch(() => {
-                setMessages((m) => m.map((msg) =>
-                  msg.id === msgId && !msg.content
-                    ? { ...msg, content: "연결이 끊겼습니다. 다시 시도해주세요.", streaming: false }
-                    : msg,
-                ));
-              })
-              .finally(() => setLoading(false));
-          }
-        }
-        if (draft.selectedModel) setSelectedModel(draft.selectedModel);
-
-        void restorePdfFile(draft);
-
-        if (draft.isReady && draft.docPages?.length) setViewMode("visual");
-      }
-    } catch { /* 무시 */ }
-    setHydrated(true);
+    void restore();
 
     return () => {
       cancelled = true;
     };
-    // 세션 복원은 페이지 진입 시 한 번만 수행한다.
-    // Fast Refresh 중 의존성 배열 크기가 바뀌면 React 경고가 발생하므로 고정 배열로 둔다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [subscribeToStream]);
 
   // ── 세션 저장 ──
   useEffect(() => {
     if (!hydrated) return;
+    if (isRestoringRef.current) return; // 복원 중의 불안정한 과도기 상태일 때는 저장을 방어하여 지우기 조건 차단
+    
+    // 복원 도중이나 상태 로드 지연 시 기존 캐시가 자폭 청소되는 것을 방지하기 위해 조기 리턴으로 철통 보호
     if (!docText && messages.length === 0 && !filename) {
-      sessionStorage.removeItem(STORAGE_KEY);
-      void clearPdfDraftFile().catch(() => undefined);
       return;
     }
+
     const draft: DocParseDraft = {
       docText, docPages, filename, pageCount, isReady,
       messages: messages.filter((m) => !m.streaming),
@@ -495,6 +506,82 @@ export default function DocParsePage() {
         : bold;
       return <p key={i} className="leading-relaxed" dangerouslySetInnerHTML={{ __html: bullet }} />;
     });
+
+  if (!hydrated) {
+    return (
+      <div className={`h-full flex flex-col overflow-hidden transition-all ${isGlass ? "p-3 bg-transparent" : isDark ? "bg-slate-900" : "bg-slate-50"}`}>
+        <div className={`flex-1 flex flex-col md:flex-row overflow-hidden ${isGlass ? "glass-panel rounded-2xl shadow-xl border " + (isDark ? "border-white/20" : "border-black/5") : "rounded-2xl border " + (isDark ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white")}`}>
+          
+          {/* Left Panel: 뷰어 스켈레톤 */}
+          <div className={`flex-1 flex flex-col min-w-0 min-h-[40vh] md:min-h-0 border-b md:border-b-0 md:border-r ${isDark ? "border-slate-800" : "border-slate-200"}`}>
+            {/* Top Toolbar */}
+            <div className={`flex items-center justify-between px-4 py-3 border-b shrink-0 ${isDark ? "border-slate-800 bg-slate-900/50" : "border-slate-200 bg-slate-50/50"}`}>
+              <div className="flex items-center gap-2">
+                <div className={`h-4 w-16 rounded-md animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                <div className={`h-3.5 w-24 rounded-md animate-pulse ${isDark ? "bg-slate-800/60" : "bg-slate-200/60"}`} />
+              </div>
+              <div className={`h-7 w-20 rounded-lg animate-pulse ${isDark ? "bg-indigo-950/40" : "bg-indigo-50"}`} />
+            </div>
+            {/* Big Content Body */}
+            <div className="flex-1 p-6 flex flex-col items-center justify-center gap-4 overflow-hidden relative">
+              <div className={`w-3/4 max-w-lg h-5/6 rounded-xl border border-dashed flex flex-col items-center justify-center p-6 gap-4 animate-pulse ${isDark ? "border-slate-800 bg-slate-950/20" : "border-slate-200 bg-slate-100/10"}`}>
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                <div className="w-full flex flex-col items-center gap-2">
+                  <div className={`h-3 w-1/2 rounded-md ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                  <div className={`h-2.5 w-1/3 rounded-md ${isDark ? "bg-slate-800/60" : "bg-slate-200/60"}`} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel: AI 대화창 스켈레톤 */}
+          <div className={`w-full md:w-120 shrink-0 flex flex-col overflow-hidden h-[60vh] md:h-auto ${isDark ? "bg-slate-800/30" : "bg-slate-50/20"}`}>
+            {/* Top Select Bar */}
+            <div className={`px-4 py-3.5 border-b shrink-0 ${isDark ? "border-slate-800" : "border-slate-200"}`}>
+              <div className="flex items-center gap-2">
+                <div className={`h-4 w-20 rounded-md animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                <div className={`h-3.5 w-6 rounded-full animate-pulse ${isDark ? "bg-indigo-950/60" : "bg-indigo-100"}`} />
+              </div>
+              <div className={`mt-2.5 h-8 w-full rounded-lg animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+            </div>
+            {/* Messages Body */}
+            <div className="flex-1 p-4 space-y-4 overflow-hidden">
+              {/* Message 1 (AI) */}
+              <div className="flex justify-start gap-2.5">
+                <div className={`w-6 h-6 rounded-full shrink-0 animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                <div className="flex-1 space-y-2 max-w-[80%]">
+                  <div className={`h-3 w-2/3 rounded-md animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                  <div className={`h-3 w-5/6 rounded-md animate-pulse ${isDark ? "bg-slate-800/70" : "bg-slate-200/70"}`} />
+                  <div className={`h-3 w-1/2 rounded-md animate-pulse ${isDark ? "bg-slate-800/50" : "bg-slate-200/50"}`} />
+                </div>
+              </div>
+              {/* Message 2 (User) */}
+              <div className="flex justify-end">
+                <div className="space-y-2 w-1/2 flex flex-col items-end">
+                  <div className={`h-3 w-full rounded-md animate-pulse ${isDark ? "bg-indigo-950/60" : "bg-indigo-100"}`} />
+                  <div className={`h-3 w-3/4 rounded-md animate-pulse ${isDark ? "bg-indigo-950/40" : "bg-indigo-50"} mt-2`} />
+                </div>
+              </div>
+              {/* Message 3 (AI) */}
+              <div className="flex justify-start gap-2.5">
+                <div className={`w-6 h-6 rounded-full shrink-0 animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                <div className="flex-1 space-y-2 max-w-[70%]">
+                  <div className={`h-3 w-full rounded-md animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                  <div className={`h-3 w-2/3 rounded-md animate-pulse ${isDark ? "bg-slate-800/70" : "bg-slate-200/70"}`} />
+                </div>
+              </div>
+            </div>
+            {/* Input Bar */}
+            <div className={`p-3 border-t shrink-0 ${isDark ? "border-slate-800" : "border-slate-200"}`}>
+              <div className={`h-16 w-full rounded-xl animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+              <div className={`mt-2 h-2.5 w-1/3 mx-auto rounded-md animate-pulse ${isDark ? "bg-slate-800/50" : "bg-slate-200/50"}`} />
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`h-full flex flex-col overflow-hidden transition-all ${isGlass ? "p-3 bg-transparent" : isDark ? "bg-slate-900" : "bg-slate-50"}`}>

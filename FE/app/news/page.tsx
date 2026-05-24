@@ -487,32 +487,42 @@ export default function NewsPage() {
 
         {/* Bottom: 뉴스 피드 */}
         <section className={`flex flex-col rounded-2xl border shadow-sm ${panelClass}`}>
-          <div className={`flex items-center justify-between px-4 py-3.5 ${isDark ? "border-b border-white/5" : "border-b border-slate-100"}`}>
-            <div className="flex items-center gap-3">
+          <div className={`flex flex-col gap-3 px-4 py-3.5 ${isDark ? "border-b border-white/5" : "border-b border-slate-100"}`}>
+            {/* Top Row: Title & View All */}
+            <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-2">
                 <span className={isDark ? "text-emerald-400" : "text-emerald-600"}><IconNewspaper /></span>
-                <span className={`font-bold ${textMain}`}>뉴스 피드</span>
-                {!feedLoading && <span className={`text-xs ${textSub}`}>{feedItems.length}개</span>}
+                <span className={`font-bold ${textMain} whitespace-nowrap`}>뉴스 피드</span>
+                {!feedLoading && <span className={`text-xs ${textSub} whitespace-nowrap`}>{feedItems.length}개</span>}
               </div>
-              {/* Category tabs */}
-              <div className="flex items-center gap-1">
-                {FEED_CATEGORIES.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setFeedCategory(cat.id)}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors ${feedCategory === cat.id ? isDark ? "bg-emerald-500/20 text-emerald-300" : "bg-emerald-100 text-emerald-700" : isDark ? "text-white/40 hover:text-white/70" : "text-slate-400 hover:text-slate-600"}`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
+              <button
+                onClick={() => router.push("/news/feed")}
+                className={`text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${isDark ? "text-white/40 hover:text-emerald-400" : "text-slate-400 hover:text-emerald-600"}`}
+              >
+                전체 보기
+              </button>
             </div>
-            <button
-              onClick={() => router.push("/news/feed")}
-              className={`text-xs font-semibold transition-colors ${isDark ? "text-white/40 hover:text-emerald-400" : "text-slate-400 hover:text-emerald-600"}`}
-            >
-              전체 보기
-            </button>
+
+            {/* Bottom Row: Scrollable Category tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
+              {FEED_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setFeedCategory(cat.id)}
+                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${
+                    feedCategory === cat.id
+                      ? isDark
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                        : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : isDark
+                        ? "text-white/50 border border-transparent hover:text-white hover:bg-white/5"
+                        : "text-slate-500 border border-transparent hover:text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2">
             {feedLoading ? (
