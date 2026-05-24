@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: be
-          image: ghcr.io/yoonchulchung/researchai/be:87d21b439b3d006e243a85e7b1127679245923e5
+          image: ghcr.io/yoonchulchung/researchai/be:7cf863e261d7b83a6e73ca8f8a71afc1580bbf4e
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
