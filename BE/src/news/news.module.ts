@@ -8,6 +8,7 @@ import { NewsProviderService } from './infrastructure/news-provider.service';
 import { GithubApi } from './infrastructure/provider/github.api';
 import { HuggingfaceApi } from './infrastructure/provider/huggingface.api';
 import { GoogleNewsApi } from './infrastructure/provider/google-news.api';
+import { StackOverflowApi } from './infrastructure/provider/stackoverflow.api';
 import { NewsBriefingEntity } from './domain/entity/news-briefing.entity';
 import { AiModule } from '../ai/ai.module';
 import { AppConfigModule } from '../config/config.module';
@@ -18,6 +19,6 @@ import { HotPapersModule } from './hot-papers/hot-papers.module';
 @Module({
   imports: [TypeOrmModule.forFeature([NewsBriefingEntity]), AiModule, AppConfigModule, SharedModule, TechBlogModule, HotPapersModule],
   controllers: [NewsController],
-  providers: [NewsService, MarketService, GithubApi, HuggingfaceApi, GoogleNewsApi, NewsProviderService, NewsSummaryService],
+  providers: [NewsService, MarketService, GithubApi, HuggingfaceApi, GoogleNewsApi, StackOverflowApi, NewsProviderService, NewsSummaryService],
 })
 export class NewsModule {}

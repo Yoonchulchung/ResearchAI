@@ -44,6 +44,15 @@ function IconSettings() {
   );
 }
 
+function IconNewspaper() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <path d="M19 4H3C2.45 4 2 4.45 2 5V17C2 17.55 2.45 18 3 18H19C19.55 18 20 17.55 20 17V5C20 4.45 19.55 4 19 4Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M6 8H10M6 11H10M6 14H16M13 8H16M13 11H16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 
 function IconPlus() {
   return (
@@ -245,7 +254,7 @@ function MobileHeader({ title, onNewResearch }: { title: string; onNewResearch: 
 
 // ─── Bottom Navigation ────────────────────────────────────────────────────────
 
-type NavTab = "home" | "sessions" | "write" | "settings" | "more";
+type NavTab = "home" | "sessions" | "write" | "news" | "settings" | "more";
 
 function BottomNav({ active, onSessions }: { active: NavTab; onSessions: () => void }) {
   const router = useRouter();
@@ -255,6 +264,7 @@ function BottomNav({ active, onSessions }: { active: NavTab; onSessions: () => v
   const items: { id: NavTab; icon: React.ReactNode; label: string; action: () => void }[] = [
     { id: "home", icon: <IconHome />, label: "홈", action: () => router.push("/main") },
     { id: "sessions", icon: <IconSearch />, label: "세션", action: onSessions },
+    { id: "news", icon: <IconNewspaper />, label: "뉴스", action: () => router.push("/news") },
     { id: "write", icon: <IconPencil />, label: "채용", action: () => router.push("/recruit") },
     { id: "settings", icon: <IconSettings />, label: "설정", action: () => router.push("/settings/overview") },
   ];
@@ -309,9 +319,10 @@ function getPageTitle(pathname: string): string {
 function getActiveTab(pathname: string): NavTab {
   if (pathname.startsWith("/main") || pathname === "/") return "home";
   if (pathname.startsWith("/sessions")) return "sessions";
+  if (pathname.startsWith("/news")) return "news";
   if (pathname.startsWith("/recruit")) return "write";
   if (pathname.startsWith("/settings")) return "settings";
-  if (pathname.startsWith("/company-analysis") || pathname.startsWith("/news")) return "more";
+  if (pathname.startsWith("/company-analysis")) return "more";
   return "home";
 }
 
@@ -341,39 +352,53 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
     scrollIntentRef.current = { direction: null, distance: 0 };
   }, [pathname]);
 
-  // /main 에서 스크롤 방향 감지 → 누적 이동량 기준으로 헤더 숨김/표시
+  // /main 에서 스크롤 방향 감지 → 누적 이동량 기준으로 헤더 숨김/표시 (노이즈 필터링 가드 적용)
   useEffect(() => {
     const el = mainRef.current;
     if (!el || !pathname.startsWith("/main")) return;
     const handleScroll = () => {
       const scrollTop = el.scrollTop;
-      if (scrollTop <= 8) {
+      
+      // 최상단 근처에서는 무조건 헤더 노출
+      if (scrollTop <= 10) {
         lastScrollTopRef.current = scrollTop;
         scrollIntentRef.current = { direction: null, distance: 0 };
         setIsHeaderHidden(false);
         return;
       }
+      // 바닥 근처 오버스크롤 보정 시에는 무시
       if (isNearScrollBottom(el)) {
         lastScrollTopRef.current = scrollTop;
         return;
       }
+      
       const delta = scrollTop - lastScrollTopRef.current;
       lastScrollTopRef.current = scrollTop;
-      if (Math.abs(delta) < 2) return;
+      
+      // 미세한 픽셀 오차(스크롤 노이즈) 무시
+      if (Math.abs(delta) < 3) return;
 
       const direction = delta > 0 ? "down" : "up";
       const intent = scrollIntentRef.current;
+      
       if (intent.direction !== direction) {
+        // 스크롤 중간에 발생하는 미세한 반대 방향 튐(8px 미만)은 노이즈로 간주해 무시하고 방향 전환을 보류함
+        if (Math.abs(delta) < 8) return;
+        
         scrollIntentRef.current = { direction, distance: Math.abs(delta) };
       } else {
         intent.distance += Math.abs(delta);
       }
 
       const distance = scrollIntentRef.current.distance;
-      if (direction === "down" && scrollTop > 72 && distance > 36) {
+      
+      // 아래로 40px 이상 확실하게 내렸을 때 숨김
+      if (direction === "down" && distance > 40) {
         setIsHeaderHidden(true);
         scrollIntentRef.current.distance = 0;
-      } else if (direction === "up" && distance > 44) {
+      } 
+      // 위로 30px 이상 확실하게 올렸을 때 자연스럽게 노출 (반응성을 높여줌)
+      else if (direction === "up" && distance > 30) {
         setIsHeaderHidden(false);
         scrollIntentRef.current.distance = 0;
       }
@@ -406,7 +431,8 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
       setPullDistance(0);
       return;
     }
-    setPullDistance(Math.min(96, deltaY * 0.45));
+    // 최대 당김 거리를 120으로 상향하고, 저항 계수를 0.35로 주어 좀 더 쫀득하게 힘을 줘서 당기도록 유도
+    setPullDistance(Math.min(120, deltaY * 0.35));
   }, [isMainScrolledToTop, refreshing]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
@@ -415,7 +441,8 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
     const canRefresh = isMainScrolledToTop();
     touchPullStart.current = null;
 
-    if (canRefresh && pullDistance >= 64 && deltaY > 0) {
+    // 새로고침을 위한 당김 임계값을 64에서 90으로 대폭 상향하여, 끝까지 확실하게 힘주어 더 댕겼을 때만 동작하도록 설정
+    if (canRefresh && pullDistance >= 90 && deltaY > 0) {
       setRefreshing(true);
       setPullDistance(48);
       router.refresh();
@@ -437,12 +464,12 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/settings");
 
   return (
-    <div className={`flex flex-col overflow-hidden ${bg}`} style={{ height: '100dvh' }}>
+    <div className={`relative flex flex-col overflow-hidden ${bg}`} style={{ height: '100dvh' }}>
       {!hideHeader && (
-        <div className={`overflow-hidden transition-all duration-200 ease-out ${
+        <div className={`absolute inset-x-0 top-0 z-20 transition-all duration-200 ease-out ${
           isHeaderHidden
-            ? "max-h-0 opacity-0 pointer-events-none"
-            : "max-h-16 opacity-100"
+            ? "-translate-y-full opacity-0 pointer-events-none"
+            : "translate-y-0 opacity-100"
         }`}>
           <MobileHeader
             title={getPageTitle(pathname)}
@@ -452,7 +479,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
       )}
       <main
         ref={mainRef}
-        className="relative flex-1 min-h-0 overflow-y-auto"
+        className={`relative flex-1 min-h-0 overflow-y-auto ${!hideHeader ? "pt-12" : ""}`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -463,7 +490,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
         >
           <div className={`mt-2 h-7 rounded-full px-3 flex items-center gap-2 text-[11px] font-medium shadow-sm ${isDark ? "bg-white/10 text-white/70 border border-white/10" : "bg-white text-slate-500 border border-slate-200"}`}>
             <span className={`h-3 w-3 rounded-full border-2 border-current border-t-transparent ${refreshing ? "animate-spin" : ""}`} />
-            {refreshing ? "새로고침 중" : pullDistance >= 64 ? "놓아서 새로고침" : "당겨서 새로고침"}
+            {refreshing ? "새로고침 중" : pullDistance >= 90 ? "놓아서 새로고침" : "당겨서 새로고침"}
           </div>
         </div>
         {children}

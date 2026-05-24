@@ -1,12 +1,22 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { API_BASE, tokenStore, readSSE, apiFetch } from "@/lib/api/base";
+import {
+  clearPdfDraftFile,
+  dataUrlToBlobUrl,
+  loadPdfDraftFile,
+  pdfFileCache,
+  savePdfDraftFile,
+} from "@/lib/cache/pdfFileCache";
 import { useModels } from "@/sessions/new/hooks/useModels";
 import { DEFAULT_FREE_MODEL_ID } from "@/sessions/new/hooks/useNewSession";
 import { useTheme } from "@/contexts/ThemeContext";
+
+const PdfVisualViewer = dynamic(() => import("./_components/PdfVisualViewer"), { ssr: false });
 
 const API = `${API_BASE}/doc-parse`;
 const QUEUE_SSE_BASE = `${API_BASE}/queue/doc-parse`;
@@ -36,7 +46,7 @@ interface Message {
 type QuickAction = "translate" | "summarize" | "explain" | "keywords" | "evaluate";
 
 const QUICK_ACTIONS: { value: QuickAction; label: string }[] = [
-  { value: "evaluate", label: "평가" },
+  { value: "evaluate", label: "포트폴리오 평가" },
   { value: "translate", label: "번역" },
   { value: "summarize", label: "요약" },
   { value: "explain", label: "설명" },
@@ -80,6 +90,7 @@ export default function DocParsePage() {
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [docText, setDocText] = useState("");
   const [docPages, setDocPages] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [filename, setFilename] = useState("");
   const [pageCount, setPageCount] = useState(0);
@@ -98,13 +109,27 @@ export default function DocParsePage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<"visual" | "text">("visual");
+  const [scrollRequest, setScrollRequest] = useState<{ page: number; id: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const textContainerRef = useRef<HTMLDivElement>(null);
+  const textScrollRafRef = useRef<number | null>(null);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   }, []);
+
+  const scrollToPage = useCallback((page: number) => {
+    setCurrentPage(page);
+    // visual 모드는 PdfVisualViewer의 scrollRequest로, text 모드는 pageRefs로 처리
+    setScrollRequest((prev) => ({ page, id: (prev?.id ?? 0) + 1 }));
+    if (viewMode === "text") {
+      pageRefs.current[page]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [viewMode]);
 
   // SSE 스트림 구독 — jobId → 어시스턴트 메시지 업데이트
   const subscribeToStream = useCallback(async (
@@ -142,8 +167,89 @@ export default function DocParsePage() {
     } catch { /* 무시 */ }
   };
 
+  // ── 텍스트 뷰에서 현재 보이는 페이지 추적 ──
+  useEffect(() => {
+    if (!docPages.length || viewMode !== "text" || !textContainerRef.current) return;
+    const root = textContainerRef.current;
+    const updateCurrentTextPage = () => {
+      const rootRect = root.getBoundingClientRect();
+      const focusY = rootRect.top + rootRect.height * 0.32;
+      let bestIndex = -1;
+      let bestScore = Number.POSITIVE_INFINITY;
+
+      pageRefs.current.slice(0, docPages.length).forEach((page, index) => {
+        if (!page) return;
+        const rect = page.getBoundingClientRect();
+        const visibleTop = Math.max(rect.top, rootRect.top);
+        const visibleBottom = Math.min(rect.bottom, rootRect.bottom);
+        const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+        if (visibleHeight <= 0) return;
+
+        const containsFocus = rect.top <= focusY && rect.bottom >= focusY;
+        const edgeDistance = containsFocus
+          ? 0
+          : Math.min(Math.abs(rect.top - focusY), Math.abs(rect.bottom - focusY));
+        const score = edgeDistance - visibleHeight * 0.001;
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestIndex = index;
+        }
+      });
+
+      if (bestIndex !== -1) {
+        setCurrentPage((prev) => (prev === bestIndex ? prev : bestIndex));
+      }
+    };
+
+    const scheduleTextPageCheck = () => {
+      if (textScrollRafRef.current !== null) return;
+      textScrollRafRef.current = requestAnimationFrame(() => {
+        textScrollRafRef.current = null;
+        updateCurrentTextPage();
+      });
+    };
+
+    root.addEventListener("scroll", scheduleTextPageCheck, { passive: true });
+    window.addEventListener("resize", scheduleTextPageCheck);
+    scheduleTextPageCheck();
+
+    return () => {
+      root.removeEventListener("scroll", scheduleTextPageCheck);
+      window.removeEventListener("resize", scheduleTextPageCheck);
+      if (textScrollRafRef.current !== null) cancelAnimationFrame(textScrollRafRef.current);
+      textScrollRafRef.current = null;
+    };
+  }, [docPages, viewMode]);
+
   // ── 세션 복원 ──
   useEffect(() => {
+    let cancelled = false;
+
+    const restorePdfFile = async (draft: DocParseDraft) => {
+      const cachedFile = pdfFileCache.consume() ?? await loadPdfDraftFile().catch(() => null);
+
+      if (cancelled) return;
+
+      if (cachedFile) {
+        const blobUrl = URL.createObjectURL(cachedFile);
+        setPdfUrl(blobUrl);
+        if (draft.pdfDataUrl) setPdfDataUrl(draft.pdfDataUrl);
+        return;
+      }
+
+      if (draft.pdfDataUrl) {
+        setPdfDataUrl(draft.pdfDataUrl);
+        dataUrlToBlobUrl(draft.pdfDataUrl)
+          .then((blobUrl) => {
+            if (!cancelled) setPdfUrl(blobUrl);
+          })
+          .catch(() => {
+            if (!cancelled) setPdfUrl(draft.pdfDataUrl!);
+          });
+      }
+    };
+
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -174,11 +280,20 @@ export default function DocParsePage() {
           }
         }
         if (draft.selectedModel) setSelectedModel(draft.selectedModel);
-        if (draft.pdfDataUrl) { setPdfDataUrl(draft.pdfDataUrl); setPdfUrl(draft.pdfDataUrl); }
+
+        void restorePdfFile(draft);
+
+        if (draft.isReady && draft.docPages?.length) setViewMode("visual");
       }
     } catch { /* 무시 */ }
     setHydrated(true);
-   
+
+    return () => {
+      cancelled = true;
+    };
+    // 세션 복원은 페이지 진입 시 한 번만 수행한다.
+    // Fast Refresh 중 의존성 배열 크기가 바뀌면 React 경고가 발생하므로 고정 배열로 둔다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── 세션 저장 ──
@@ -186,6 +301,7 @@ export default function DocParsePage() {
     if (!hydrated) return;
     if (!docText && messages.length === 0 && !filename) {
       sessionStorage.removeItem(STORAGE_KEY);
+      void clearPdfDraftFile().catch(() => undefined);
       return;
     }
     const draft: DocParseDraft = {
@@ -206,6 +322,7 @@ export default function DocParsePage() {
     setIsReady(false);
     setDocText("");
     setDocPages([]);
+    setCurrentPage(0);
     setMessages([]);
     if (pdfUrl && pdfUrl.startsWith("blob:")) URL.revokeObjectURL(pdfUrl);
     setPdfDataUrl(null);
@@ -213,6 +330,8 @@ export default function DocParsePage() {
     const objectUrl = URL.createObjectURL(file);
     setPdfUrl(objectUrl);
     setFilename(file.name);
+    pdfFileCache.set(file);
+    void savePdfDraftFile(file).catch(() => undefined);
 
     if (file.size < 10 * 1024 * 1024) {
       const reader = new FileReader();
@@ -232,6 +351,7 @@ export default function DocParsePage() {
       setDocPages(Array.isArray(data.pages) ? data.pages : []);
       setPageCount(data.pageCount ?? 1);
       setIsReady(true);
+      if (Array.isArray(data.pages) && data.pages.length > 0) setViewMode("visual");
       const charCount = Math.ceil(text.length / 1000);
       setMessages([{
         id: crypto.randomUUID(), role: "assistant",
@@ -329,6 +449,44 @@ export default function DocParsePage() {
     }
   };
 
+  const analyzeCurrentPage = async (targetPage?: number) => {
+    const page = targetPage ?? currentPage;
+    const pageText = docPages[page] ?? docText;
+    if (!pageText.trim() || !isReady || loading) return;
+
+    const msgId = crypto.randomUUID();
+    setMessages((m) => [
+      ...m,
+      { id: crypto.randomUUID(), role: "user", content: `${page + 1}페이지 분석` },
+      { id: msgId, role: "assistant", content: "", streaming: true, markdown: true },
+    ]);
+    setLoading(true);
+    scrollToBottom();
+
+    try {
+      const { jobId } = await apiFetch<{ jobId: string }>("/doc-parse/ask", {
+        method: "POST",
+        body: JSON.stringify({
+          docText: pageText,
+          question: `이 문서를 분석해 주세요. 주요 내용, 핵심 항목, 특이사항을 마크다운으로 정리해 주세요.`,
+          aiModel: apiModel,
+        }),
+      });
+      savePendingJob({ jobId, msgId });
+      abortRef.current = new AbortController();
+      await subscribeToStream(jobId, msgId, true, abortRef.current.signal);
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") {
+        setMessages((m) =>
+          m.map((msg) => msg.id === msgId ? { ...msg, content: "오류가 발생했습니다.", streaming: false } : msg),
+        );
+      }
+    } finally {
+      setLoading(false);
+      scrollToBottom();
+    }
+  };
+
   const formatContent = (text: string) =>
     text.split("\n").map((line, i) => {
       const bold = line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
@@ -342,13 +500,20 @@ export default function DocParsePage() {
     <div className={`h-full flex flex-col overflow-hidden transition-all ${isGlass ? "p-3 bg-transparent" : isDark ? "bg-slate-900" : "bg-slate-50"}`}>
       <div className={`flex-1 flex flex-col md:flex-row overflow-hidden ${isGlass ? "glass-panel rounded-2xl shadow-xl border " + (isDark ? "border-white/20" : "border-black/5") : ""}`}>
 
-        {/* Left: PDF Viewer */}
+        {/* Left: 문서 뷰어 */}
         <div className={`flex-1 flex flex-col min-w-0 min-h-[40vh] md:min-h-0 border-b md:border-b-0 md:border-r ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : (isDark ? "border-slate-700" : "border-slate-200")}`}>
-          <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 shrink-0">
-            <span className={`text-sm font-bold ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"}`}>문서 파싱</span>
-            {filename && <span className="text-xs text-slate-400 truncate max-w-xs">{filename} {pageCount > 0 && `· ${pageCount}p`}</span>}
+          <div className="flex items-center gap-2 px-4 py-3 bg-white border-b border-slate-200 shrink-0">
+            <span className={`text-sm font-bold shrink-0 ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"}`}>문서 파싱</span>
+            {filename && <span className="text-xs text-slate-400 truncate max-w-32">{filename} {pageCount > 0 && `· ${pageCount}p`}</span>}
+            {/* 시각적 ↔ 텍스트 뷰 토글 */}
+            {isReady && docPages.length > 0 && (
+              <div className="ml-auto flex overflow-hidden rounded-lg border border-slate-200 text-xs">
+                <button onClick={() => setViewMode("visual")} className={`px-2.5 py-1 font-semibold transition-colors ${viewMode === "visual" ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>시각적</button>
+                <button onClick={() => setViewMode("text")} className={`px-2.5 py-1 font-semibold transition-colors ${viewMode === "text" ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>텍스트</button>
+              </div>
+            )}
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-              className="ml-auto text-xs font-semibold px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+              className={`${isReady && docPages.length > 0 && pdfUrl ? "" : "ml-auto"} shrink-0 text-xs font-semibold px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors`}>
               {uploading ? "파싱 중..." : "파일 열기"}
             </button>
             <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md" className="hidden"
@@ -356,9 +521,79 @@ export default function DocParsePage() {
           </div>
 
           <div className="flex-1 overflow-hidden relative" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
-            {pdfUrl ? (
-              <iframe src={pdfUrl} className="w-full h-full border-0" title="PDF Viewer" />
-            ) : (
+
+            {/* 시각적 PDF 뷰 — react-pdf 캔버스 렌더링 */}
+            {viewMode === "visual" && (pdfDataUrl ?? pdfUrl) && (
+              <PdfVisualViewer
+                file={(pdfDataUrl ?? pdfUrl)!}
+                onPageChange={setCurrentPage}
+                onAnalyzePage={analyzeCurrentPage}
+                scrollRequest={scrollRequest}
+                disabled={loading}
+              />
+            )}
+
+            {/* 텍스트 뷰: IntersectionObserver로 현재 페이지 추적 */}
+            {viewMode === "text" && docPages.length > 0 && (
+              <div ref={textContainerRef} className="h-full overflow-y-auto divide-y divide-slate-100">
+                {docPages.map((pageText, index) => (
+                  <div
+                    key={index}
+                    ref={(el) => { pageRefs.current[index] = el; }}
+                    className="p-4"
+                  >
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-2xs font-semibold uppercase tracking-wider text-slate-400">페이지 {index + 1}</span>
+                      <button
+                        onClick={() => analyzeCurrentPage(index)}
+                        disabled={loading}
+                        className="text-2xs font-semibold text-indigo-500 transition-colors hover:text-indigo-700 disabled:opacity-40"
+                      >
+                        AI 분석
+                      </button>
+                    </div>
+                    <pre className="whitespace-pre-wrap wrap-break-word font-sans text-xs leading-5 text-slate-700">{pageText}</pre>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 페이지별 AI 분석 플로팅 위젯 */}
+            {isReady && docPages.length > 0 && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm">
+                <button
+                  onClick={() => scrollToPage(Math.max(0, currentPage - 1))}
+                  disabled={currentPage === 0}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-base text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-30"
+                >
+                  ‹
+                </button>
+                <span className="min-w-14 text-center text-xs font-semibold text-slate-700">
+                  {currentPage + 1} / {pageCount}
+                </span>
+                <button
+                  onClick={() => scrollToPage(Math.min(pageCount - 1, currentPage + 1))}
+                  disabled={currentPage >= pageCount - 1}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-base text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-30"
+                >
+                  ›
+                </button>
+                <div className="mx-1 h-5 w-px bg-slate-200" />
+                <button
+                  onClick={() => analyzeCurrentPage()}
+                  disabled={loading}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                    <path d="M8.5 1.8L9.7 5.1L13 6.3L9.7 7.5L8.5 10.8L7.3 7.5L4 6.3L7.3 5.1L8.5 1.8Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                  </svg>
+                  이 페이지 분석
+                </button>
+              </div>
+            )}
+
+            {/* 파일 미업로드 플레이스홀더 */}
+            {!pdfUrl && !docPages.length && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-slate-400">
                 <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
                   <svg width="28" height="28" viewBox="0 0 28 28" fill="none" className="text-slate-400">

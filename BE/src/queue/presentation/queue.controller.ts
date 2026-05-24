@@ -1,13 +1,16 @@
-import { Controller, Get, Post, Delete, Sse, Param, Body, BadRequestException, MessageEvent, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Sse, Param, Body, BadRequestException, MessageEvent, HttpCode, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { Observable } from 'rxjs';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { QueueService } from '../application/queue.service';
+import { ImageOcrQueueService } from '../application/image-ocr-queue.service';
 import { QueueStatusDto } from './dto/response/queue-status.dto';
 import { SessionQueryService } from '../../sessions/application/query/session-query.service';
 import { EnqueueDeepResearchDto } from './dto/request/enqueue-deep-research.dto';
 import { EnqueueLightResearchDto } from './dto/request/enqueue-light-research.dto';
 
 class EnqueueSummaryDto {
-  localAIModel: string;
+  localAIModel!: string;
 }
 
 @Controller('queue')
@@ -15,6 +18,7 @@ export class QueueController {
   constructor(
     private readonly queueService: QueueService,
     private readonly sessionQueryService: SessionQueryService,
+    private readonly imageOcrQueue: ImageOcrQueueService,
   ) {}
 
   @Get('status')
@@ -173,6 +177,59 @@ export class QueueController {
     return obs;
   }
 
+  // **************** //
+  // Tech Blog Trend  //
+  // **************** //
+  @Post('tech-blog-trend')
+  @HttpCode(202)
+  async enqueueTechBlogTrend(
+    @Body() body: { days?: number; source?: string; model?: string; refresh?: boolean },
+  ) {
+    return this.queueService.enqueueTechBlogTrend(body);
+  }
+
+  @Delete('tech-blog-trend/:jobId')
+  cancelTechBlogTrend(@Param('jobId') jobId: string) {
+    this.queueService.cancelTechBlogTrend(jobId);
+    return { ok: true };
+  }
+
+  @Sse('tech-blog-trend/:jobId/stream')
+  streamTechBlogTrend(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getTechBlogTrendStream(jobId);
+    if (!obs) throw new BadRequestException('진행 중인 트렌드 분석 작업이 없습니다.');
+    return obs;
+  }
+
+  // ***************** //
+  // Hot Paper Summary //
+  // ***************** //
+  @Post('hot-paper-summary')
+  @HttpCode(202)
+  async enqueueHotPaperSummary(
+    @Body() body: { id: string; model?: string; refresh?: boolean },
+  ) {
+    if (!body.id?.trim()) throw new BadRequestException('id가 필요합니다.');
+    return this.queueService.enqueueHotPaperSummary({
+      id: body.id,
+      model: body.model,
+      refresh: body.refresh === true,
+    });
+  }
+
+  @Delete('hot-paper-summary/:jobId')
+  cancelHotPaperSummary(@Param('jobId') jobId: string) {
+    this.queueService.cancelHotPaperSummary(jobId);
+    return { ok: true };
+  }
+
+  @Sse('hot-paper-summary/:jobId/stream')
+  streamHotPaperSummary(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getHotPaperSummaryStream(jobId);
+    if (!obs) throw new BadRequestException('진행 중인 논문 요약 작업이 없습니다.');
+    return obs;
+  }
+
   // *********** //
   // Doc Parse   //
   // *********** //
@@ -186,6 +243,43 @@ export class QueueController {
   streamDocParse(@Param('jobId') jobId: string): Observable<MessageEvent> {
     const obs = this.queueService.getDocParseStream(jobId);
     if (!obs) throw new BadRequestException('진행 중인 문서 분석 작업이 없습니다.');
+    return obs;
+  }
+
+  // *********** //
+  // Image OCR   //
+  // *********** //
+  @Post('image-ocr/enqueue')
+  @HttpCode(202)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 20 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) cb(null, true);
+        else cb(new BadRequestException(`이미지 파일만 지원합니다: ${file.mimetype}`), false);
+      },
+    }),
+  )
+  enqueueImageOcr(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('model') model?: string,
+  ): { jobId: string } {
+    if (!file) throw new BadRequestException('파일이 없습니다.');
+    const jobId = this.imageOcrQueue.enqueue(file.buffer, file.mimetype, file.originalname, model ?? 'gemini-2.0-flash');
+    return { jobId };
+  }
+
+  @Delete('image-ocr/:jobId')
+  cancelImageOcr(@Param('jobId') jobId: string) {
+    this.imageOcrQueue.cancel(jobId);
+    return { ok: true };
+  }
+
+  @Sse('image-ocr/:jobId/stream')
+  streamImageOcr(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.imageOcrQueue.getStream(jobId);
+    if (!obs) throw new BadRequestException('진행 중인 OCR 작업이 없습니다.');
     return obs;
   }
 }

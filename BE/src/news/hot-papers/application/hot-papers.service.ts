@@ -1,9 +1,10 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { load } from 'cheerio';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { HotPaperEntity } from '../domain/entity/hot-paper.entity';
 import { ContentRefreshStateEntity } from '../../../shared/entity/content-refresh-state.entity';
+import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
 
 export interface HotPaperSource {
   id: string;
@@ -25,6 +26,9 @@ export interface HotPaper {
   pdfUrl?: string;
   codeUrl?: string;
   tags: string[];
+  aiSummary?: string;
+  aiSummaryModel?: string;
+  aiSummaryAt?: string;
 }
 
 export interface HotPaperListResult {
@@ -43,6 +47,7 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const DAILY_REFRESH_MS = 24 * 60 * 60 * 1000;
 const REFRESH_CHECK_MS = 60 * 60 * 1000;
 const REFRESH_STATE_KEY = 'content-refresh:hot-papers';
+const DEFAULT_AI_SUMMARY_MODEL = 'claude-haiku-4-5-20251001';
 
 @Injectable()
 export class HotPapersService implements OnModuleInit, OnModuleDestroy {
@@ -55,6 +60,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     private readonly paperRepo: Repository<HotPaperEntity>,
     @InjectRepository(ContentRefreshStateEntity)
     private readonly refreshStateRepo: Repository<ContentRefreshStateEntity>,
+    private readonly aiProvider: AiProviderService,
   ) {}
 
   onModuleInit() {
@@ -101,6 +107,40 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     return this.filterResult(result, options.source, options.limit);
   }
 
+  async summarizePaper(
+    id: string,
+    options: { model?: string; refresh?: boolean } = {},
+  ): Promise<{ id: string; aiSummary: string; aiSummaryModel: string; aiSummaryAt: string; cached: boolean }> {
+    const paper = await this.paperRepo.findOne({ where: { id } });
+    if (!paper) throw new Error('논문을 찾을 수 없습니다.');
+
+    const model = options.model?.trim() || DEFAULT_AI_SUMMARY_MODEL;
+    if (!options.refresh && paper.aiSummary && paper.aiSummaryModel === model && paper.aiSummaryAt) {
+      return {
+        id,
+        aiSummary: paper.aiSummary,
+        aiSummaryModel: paper.aiSummaryModel,
+        aiSummaryAt: paper.aiSummaryAt,
+        cached: true,
+      };
+    }
+
+    const hotPaper = this.toPaper(paper);
+    const system = `당신은 AI/ML 최신 논문을 한국어로 읽기 쉽게 설명하는 연구 애널리스트입니다.
+제공된 논문 메타데이터와 초록에 없는 내용은 만들지 말고, 실무자와 연구자가 빠르게 판단할 수 있게 요약하세요.`;
+    const prompt = this.buildAiSummaryPrompt(hotPaper);
+    const { text } = await this.aiProvider.call(model, system, prompt, { caller: 'hot-paper-ai-summary' });
+    const aiSummary = text.trim();
+    const aiSummaryAt = new Date().toISOString();
+
+    paper.aiSummary = aiSummary;
+    paper.aiSummaryModel = model;
+    paper.aiSummaryAt = aiSummaryAt;
+    await this.paperRepo.save(paper);
+
+    return { id, aiSummary, aiSummaryModel: model, aiSummaryAt, cached: false };
+  }
+
   private async refreshCacheIfStale(): Promise<void> {
     const lastRefreshAt = await this.getLastRefreshAt();
     const empty = (await this.paperRepo.count()) === 0;
@@ -139,7 +179,20 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
 
     const deduped = this.dedupe(papers);
     if (deduped.length > 0) {
-      await this.paperRepo.save(deduped.map((paper) => this.toPaperEntity(paper)));
+      const existing = await this.paperRepo.find({
+        where: { id: In(deduped.map((paper) => paper.id)) },
+      });
+      const existingById = new Map(existing.map((paper) => [paper.id, paper]));
+      await this.paperRepo.save(deduped.map((paper) => {
+        const entity = this.toPaperEntity(paper);
+        const previous = existingById.get(paper.id);
+        if (previous?.aiSummary) {
+          entity.aiSummary = previous.aiSummary;
+          entity.aiSummaryModel = previous.aiSummaryModel;
+          entity.aiSummaryAt = previous.aiSummaryAt;
+        }
+        return entity;
+      }));
     }
     await this.setLastRefreshAt(new Date().toISOString());
     return errors;
@@ -305,6 +358,9 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
       title: this.cleanText(paper.title),
       url: paper.url,
       summary: paper.summary ? this.cleanText(paper.summary) : null,
+      aiSummary: paper.aiSummary ? this.cleanText(paper.aiSummary) : null,
+      aiSummaryModel: paper.aiSummaryModel ?? null,
+      aiSummaryAt: paper.aiSummaryAt ?? null,
       authorsJson: JSON.stringify(paper.authors ?? []),
       publishedAt: paper.publishedAt ?? null,
       venue: paper.venue ?? null,
@@ -323,6 +379,9 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
       title: entity.title,
       url: entity.url,
       summary: entity.summary ?? undefined,
+      aiSummary: entity.aiSummary ?? undefined,
+      aiSummaryModel: entity.aiSummaryModel ?? undefined,
+      aiSummaryAt: entity.aiSummaryAt ?? undefined,
       authors: this.parseJsonArray(entity.authorsJson),
       publishedAt: entity.publishedAt ?? undefined,
       venue: entity.venue ?? undefined,
@@ -331,6 +390,49 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
       codeUrl: entity.codeUrl ?? undefined,
       tags: this.parseJsonArray(entity.tagsJson),
     };
+  }
+
+  private buildAiSummaryPrompt(paper: HotPaper): string {
+    const authors = paper.authors.length ? paper.authors.slice(0, 12).join(', ') : '저자 정보 없음';
+    const tags = paper.tags.length ? paper.tags.join(', ') : '태그 없음';
+    const summary = paper.summary?.trim() || '수집된 초록/요약이 없습니다. 제목과 메타데이터만 근거로 제한적으로 요약하세요.';
+
+    return `아래 논문을 한국어로 요약해줘.
+
+## 논문 정보
+- 제목: ${paper.title}
+- 출처: ${paper.sourceName}
+- 게재/분류: ${paper.venue ?? '정보 없음'}
+- 날짜: ${paper.publishedAt ?? '정보 없음'}
+- 저자: ${authors}
+- 태그: ${tags}
+- 원문: ${paper.url}
+- PDF/arXiv: ${paper.pdfUrl ?? '정보 없음'}
+- Code: ${paper.codeUrl ?? '정보 없음'}
+
+## 수집된 초록/요약
+${summary}
+
+## 출력 형식
+
+### 한 줄 요약
+- 논문의 핵심 기여를 한 문장으로 요약
+
+### 무엇을 해결하나
+- 문제 배경과 기존 접근의 한계
+
+### 핵심 아이디어
+- 방법론/모델/데이터/실험 설계의 핵심 3~5개
+
+### 왜 핫한가
+- 연구적 의미, 실무 적용 가능성, 생태계 영향
+
+### 읽을 때 볼 포인트
+- 논문을 읽을 때 확인할 질문 3개
+
+주의:
+- 제공된 정보에 없는 수치나 성능을 만들지 마세요.
+- 초록이 부족하면 제목과 메타데이터 기반의 제한적 해석이라고 명시하세요.`;
   }
 
   private async getLastRefreshAt(): Promise<string | null> {

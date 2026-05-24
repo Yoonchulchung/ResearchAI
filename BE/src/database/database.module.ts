@@ -21,6 +21,7 @@ import { LoginHistoryEntity } from '../auth/domain/entity/login-history.entity';
 import { SessionJobEntity } from '../sessions/domain/entity/session-job.entity';
 import { HotPaperEntity } from '../news/hot-papers/domain/entity/hot-paper.entity';
 import { TechBlogPostEntity } from '../news/tech-blog/domain/entity/tech-blog-post.entity';
+import { TechBlogTrendSummaryEntity } from '../news/tech-blog/domain/entity/tech-blog-trend-summary.entity';
 import { ContentRefreshStateEntity } from '../shared/entity/content-refresh-state.entity';
 import { ExamEventEntity } from '../recruit/domain/exam/entity/exam-event.entity';
 import { ResumeEntity } from '../recruit/domain/resume/resume.entity';
@@ -55,7 +56,7 @@ mkdirSync(dirname(databasePath), { recursive: true });
                  ExperienceEntity, DocumentEntity,
                  CompanyAnalysisEntity, SessionJobEntity,
                  AiCallLogEntity, UserEntity, LoginHistoryEntity,
-                 HotPaperEntity, TechBlogPostEntity, ContentRefreshStateEntity,
+                 HotPaperEntity, TechBlogPostEntity, TechBlogTrendSummaryEntity, ContentRefreshStateEntity,
                  ExamEventEntity, ResumeEntity, CoverLetterEntity,
                 CoverLetterSpecAnalysisEntity],
       synchronize: true,

@@ -268,7 +268,7 @@ export function MarketCard() {
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="space-y-1.5 p-3 rounded-xl bg-slate-50">
                 <div className="h-3 bg-slate-200 rounded animate-pulse w-16" />
@@ -286,7 +286,7 @@ export function MarketCard() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {items.map((item) => {
               const up = item.change >= 0;
               return (
@@ -297,12 +297,12 @@ export function MarketCard() {
                 >
                   <div className="flex items-center gap-1 mb-1">
                     <span className="text-xs">{SYMBOL_ICON[item.symbol] ?? "📈"}</span>
-                    <span className="text-xs font-semibold text-slate-500">{item.name}</span>
+                    <span className="text-2xs sm:text-xs font-semibold text-slate-500 truncate">{item.name}</span>
                   </div>
-                  <p className="text-base font-bold text-slate-800 leading-tight">
+                  <p className="text-sm sm:text-base font-bold text-slate-800 leading-tight">
                     {formatPrice(item.price, item.symbol)}
                   </p>
-                  <p className={`text-xs font-medium mt-0.5 ${up ? "text-red-500" : "text-blue-500"}`}>
+                  <p className={`text-2xs sm:text-xs font-medium mt-0.5 ${up ? "text-red-500" : "text-blue-500"}`}>
                     {formatChange(item.change, item.changePercent)}
                   </p>
                 </button>

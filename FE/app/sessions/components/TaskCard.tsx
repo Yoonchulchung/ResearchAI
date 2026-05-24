@@ -316,7 +316,7 @@ export function TaskCard({
           {!expanded && <div className={`text-xs mt-0.5 truncate ${isDark ? "text-white/50" : "text-slate-400"}`}>{animatedText}</div>}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 shrink-0 justify-end max-w-full sm:max-w-none">
           {(task.referenceCount != null && task.referenceCount > 0) && (
             <button
               onClick={(e) => { e.stopPropagation(); onOpen?.("duckduckgo"); }}
@@ -355,7 +355,7 @@ export function TaskCard({
                   value={selectedRunModel}
                   onChange={(e) => { e.stopPropagation(); setSelectedRunModel(e.target.value); }}
                   onClick={(e) => e.stopPropagation()}
-                  className="text-xs text-slate-500 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 focus:outline-none cursor-pointer max-w-28 truncate"
+                  className="text-2xs sm:text-xs text-slate-500 bg-white border border-slate-200 rounded-md px-1 py-0.5 sm:px-1.5 focus:outline-none cursor-pointer max-w-[76px] sm:max-w-28 truncate"
                 >
                   {cloudAiModels.map((m) => (
                     <option key={m.id} value={m.id}>{m.name}</option>
@@ -367,7 +367,7 @@ export function TaskCard({
                   value={selectedRunWebModel}
                   onChange={(e) => { e.stopPropagation(); setSelectedRunWebModel(e.target.value); }}
                   onClick={(e) => e.stopPropagation()}
-                  className="text-xs text-slate-500 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 focus:outline-none cursor-pointer max-w-28 truncate"
+                  className="text-2xs sm:text-xs text-slate-500 bg-white border border-slate-200 rounded-md px-1 py-0.5 sm:px-1.5 focus:outline-none cursor-pointer max-w-[76px] sm:max-w-28 truncate"
                 >
                   {webEngines.map((e) => (
                     <option key={e.id} value={e.id}>{e.name}</option>
@@ -379,7 +379,7 @@ export function TaskCard({
                   value={selectedRunFilterModel}
                   onChange={(e) => { e.stopPropagation(); setSelectedRunFilterModel(e.target.value); }}
                   onClick={(e) => e.stopPropagation()}
-                  className="text-xs text-slate-500 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 focus:outline-none cursor-pointer max-w-28 truncate"
+                  className="text-2xs sm:text-xs text-slate-500 bg-white border border-slate-200 rounded-md px-1 py-0.5 sm:px-1.5 focus:outline-none cursor-pointer max-w-[76px] sm:max-w-28 truncate"
                   title="필터 모델"
                 >
                   {filterModels.map((m) => (

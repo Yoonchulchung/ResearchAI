@@ -1,11 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useTheme } from "@/contexts/ThemeContext";
-import { listHotPapers, type HotPaper, type HotPaperListResult } from "@/lib/api/hot-papers";
+import {
+  cancelHotPaperSummary,
+  enqueueHotPaperSummary,
+  listHotPapers,
+  subscribeHotPaperSummary,
+  type HotPaper,
+  type HotPaperListResult,
+} from "@/lib/api/hot-papers";
 
 const SOURCE_ALL = "all";
+
+function getInitialSearchParam(name: string, fallback = "") {
+  if (typeof window === "undefined") return fallback;
+  return new URLSearchParams(window.location.search).get(name) ?? fallback;
+}
 
 function IconRefresh({ spinning = false }: { spinning?: boolean }) {
   return (
@@ -28,7 +42,28 @@ function formatDate(value?: string) {
   return date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
-function PaperCard({ paper, isDark }: { paper: HotPaper; isDark: boolean }) {
+function IconSparkles({ spinning = false }: { spinning?: boolean }) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" className={spinning ? "animate-spin" : ""}>
+      <path d="M8.5 1.8L9.7 5.1L13 6.3L9.7 7.5L8.5 10.8L7.3 7.5L4 6.3L7.3 5.1L8.5 1.8Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M3.2 9.4L3.8 11L5.4 11.6L3.8 12.2L3.2 13.8L2.6 12.2L1 11.6L2.6 11L3.2 9.4Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PaperCard({
+  paper,
+  isDark,
+  summarizing,
+  onSummarize,
+  onOpenSummary,
+}: {
+  paper: HotPaper;
+  isDark: boolean;
+  summarizing: boolean;
+  onSummarize: (paper: HotPaper, refresh?: boolean) => void;
+  onOpenSummary: (paper: HotPaper) => void;
+}) {
   return (
     <article className={`rounded-xl border p-4 shadow-sm transition ${isDark ? "border-white/10 bg-white/5 hover:border-indigo-400/30" : "border-slate-200 bg-white hover:border-indigo-200 hover:shadow-md"}`}>
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -50,11 +85,116 @@ function PaperCard({ paper, isDark }: { paper: HotPaper; isDark: boolean }) {
         </div>
       )}
       <div className="mt-4 flex flex-wrap justify-end gap-2">
+        <button
+          onClick={() => paper.aiSummary ? onOpenSummary(paper) : onSummarize(paper)}
+          disabled={summarizing}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition disabled:opacity-60 ${isDark ? "border-indigo-400/20 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/15" : "border-indigo-100 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"}`}
+        >
+          <IconSparkles spinning={summarizing} />
+          {summarizing ? "요약 중..." : paper.aiSummary ? "AI 요약 보기" : "AI 요약"}
+        </button>
         {paper.codeUrl && <a href={paper.codeUrl} target="_blank" rel="noreferrer" className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>Code</a>}
         {paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer" className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>arXiv</a>}
         <a href={paper.url} target="_blank" rel="noreferrer" className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${isDark ? "bg-white/10 text-white hover:bg-indigo-500/30" : "bg-slate-900 text-white hover:bg-indigo-600"}`}>원문 보기</a>
       </div>
     </article>
+  );
+}
+
+function SummaryModal({
+  paper,
+  isDark,
+  onClose,
+  onRefresh,
+  refreshing,
+}: {
+  paper: HotPaper;
+  isDark: boolean;
+  onClose: () => void;
+  onRefresh: (paper: HotPaper) => void;
+  refreshing: boolean;
+}) {
+  const markdownComponents = {
+    h1: ({ children }: { children?: ReactNode }) => <h1 className="mb-3 mt-6 text-lg font-bold leading-snug first:mt-0 sm:text-xl">{children}</h1>,
+    h2: ({ children }: { children?: ReactNode }) => <h2 className="mb-2.5 mt-5 text-base font-bold leading-snug first:mt-0 sm:text-lg">{children}</h2>,
+    h3: ({ children }: { children?: ReactNode }) => <h3 className="mb-2 mt-4 text-sm font-bold leading-snug first:mt-0 sm:text-base">{children}</h3>,
+    p: ({ children }: { children?: ReactNode }) => <p className="my-3.5 text-sm sm:text-base leading-relaxed">{children}</p>,
+    ul: ({ children }: { children?: ReactNode }) => <ul className="my-3.5 list-disc space-y-2 pl-5 text-sm sm:text-base leading-relaxed">{children}</ul>,
+    ol: ({ children }: { children?: ReactNode }) => <ol className="my-3.5 list-decimal space-y-2 pl-5 text-sm sm:text-base leading-relaxed">{children}</ol>,
+    li: ({ children }: { children?: ReactNode }) => <li>{children}</li>,
+    strong: ({ children }: { children?: ReactNode }) => <strong className="font-bold">{children}</strong>,
+    blockquote: ({ children }: { children?: ReactNode }) => (
+      <blockquote className={`my-3 border-l-4 pl-4 text-sm sm:text-base ${isDark ? "border-indigo-400/50 text-white/65" : "border-indigo-200 text-slate-600"}`}>
+        {children}
+      </blockquote>
+    ),
+    code: ({ children }: { children?: ReactNode }) => (
+      <code className={`rounded px-1.5 py-0.5 text-[0.85em] ${isDark ? "bg-white/10 text-indigo-200" : "bg-slate-100 text-indigo-700"}`}>
+        {children}
+      </code>
+    ),
+    pre: ({ children }: { children?: ReactNode }) => (
+      <pre className={`my-3 overflow-x-auto rounded-xl p-4 text-[11px] sm:text-xs leading-relaxed ${isDark ? "bg-black/30 text-white/80" : "bg-slate-100 text-slate-700"}`}>
+        {children}
+      </pre>
+    ),
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-6 backdrop-blur-sm" onClick={onClose}>
+      <section
+        className={`flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border shadow-2xl ${isDark ? "border-white/10 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-900"}`}
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="논문 AI 요약"
+      >
+        <header className={`border-b px-5 py-4 ${isDark ? "border-white/10" : "border-slate-200"}`}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className={`mb-2 flex flex-wrap items-center gap-2 text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>
+                <span className={`rounded-md px-2 py-1 font-semibold ${isDark ? "bg-indigo-500/15 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>{paper.sourceName}</span>
+                {paper.aiSummaryModel && <span>{paper.aiSummaryModel}</span>}
+                {paper.aiSummaryAt && <span>{new Date(paper.aiSummaryAt).toLocaleString("ko-KR")}</span>}
+              </div>
+              <h2 className="line-clamp-2 text-lg font-bold leading-snug">{paper.title}</h2>
+            </div>
+            <button
+              onClick={onClose}
+              className={`shrink-0 rounded-lg border px-2 py-1 text-sm font-bold transition ${isDark ? "border-white/10 text-white/70 hover:bg-white/10" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+              aria-label="닫기"
+            >
+              ×
+            </button>
+          </div>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 sm:px-8">
+          <div className={`${isDark ? "text-white/85" : "text-slate-900"}`}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {paper.aiSummary || "아직 AI 요약이 없습니다."}
+            </ReactMarkdown>
+          </div>
+        </div>
+        <footer className={`flex flex-wrap justify-end gap-2 border-t px-5 py-3 ${isDark ? "border-white/10" : "border-slate-200"}`}>
+          <button
+            onClick={() => onRefresh(paper)}
+            disabled={refreshing}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:opacity-60 ${isDark ? "border-indigo-400/20 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/15" : "border-indigo-100 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"}`}
+          >
+            <IconSparkles spinning={refreshing} />
+            {refreshing ? "재요약 중..." : "AI 재요약"}
+          </button>
+          <a
+            href={paper.url}
+            target="_blank"
+            rel="noreferrer"
+            className={`rounded-lg px-3 py-2 text-xs font-semibold ${isDark ? "bg-white/10 text-white hover:bg-indigo-500/30" : "bg-slate-900 text-white hover:bg-indigo-600"}`}
+          >
+            원문 보기
+          </a>
+        </footer>
+      </section>
+    </div>
   );
 }
 
@@ -76,11 +216,14 @@ export default function NewsPapersPage() {
   const isGlass = uiStyle === "glass";
 
   const [data, setData] = useState<HotPaperListResult | null>(null);
-  const [source, setSource] = useState(SOURCE_ALL);
-  const [query, setQuery] = useState("");
+  const [source, setSource] = useState(() => getInitialSearchParam("source", SOURCE_ALL));
+  const [query, setQuery] = useState(() => getInitialSearchParam("q", ""));
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [summarizingIds, setSummarizingIds] = useState<Set<string>>(new Set());
+  const [summaryPaper, setSummaryPaper] = useState<HotPaper | null>(null);
+  const summaryJobsRef = useRef<Map<string, { jobId: string; close: () => void }>>(new Map());
 
   const pageClass = isGlass ? "bg-transparent" : isDark ? "bg-slate-950" : "bg-slate-50";
   const panelClass = isGlass ? "glass-panel border-white/20" : isDark ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white";
@@ -102,6 +245,85 @@ export default function NewsPapersPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    return () => {
+      for (const { jobId, close } of summaryJobsRef.current.values()) {
+        close();
+        cancelHotPaperSummary(jobId).catch(() => {});
+      }
+      summaryJobsRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!summaryPaper) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSummaryPaper(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [summaryPaper]);
+
+  const handleSummarize = useCallback(async (paper: HotPaper, refresh = false) => {
+    const running = summaryJobsRef.current.get(paper.id);
+    if (running) {
+      running.close();
+      cancelHotPaperSummary(running.jobId).catch(() => {});
+      summaryJobsRef.current.delete(paper.id);
+    }
+
+    setSummarizingIds((prev) => new Set(prev).add(paper.id));
+    try {
+      const { jobId } = await enqueueHotPaperSummary(paper.id, { refresh });
+      const cleanup = () => {
+        summaryJobsRef.current.delete(paper.id);
+        setSummarizingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(paper.id);
+          return next;
+        });
+      };
+
+      const close = subscribeHotPaperSummary(
+        jobId,
+        (result) => {
+          setData((prev) => {
+            if (!prev) return prev;
+            let updatedPaper: HotPaper | null = null;
+            const nextPapers = prev.papers.map((item) => {
+              if (item.id !== paper.id) return item;
+              updatedPaper = {
+                ...item,
+                aiSummary: result.aiSummary,
+                aiSummaryModel: result.aiSummaryModel,
+                aiSummaryAt: result.aiSummaryAt,
+              };
+              return updatedPaper;
+            });
+            if (summaryPaper?.id === paper.id && updatedPaper) setSummaryPaper(updatedPaper);
+            return {
+              ...prev,
+              papers: nextPapers,
+            };
+          });
+          cleanup();
+        },
+        (msg) => {
+          setError(msg || "AI 요약에 실패했습니다.");
+          cleanup();
+        },
+      );
+      summaryJobsRef.current.set(paper.id, { jobId, close });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "AI 요약에 실패했습니다.");
+      setSummarizingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(paper.id);
+        return next;
+      });
+    }
+  }, [summaryPaper?.id]);
+
   const papers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return (data?.papers ?? []).filter((paper) => {
@@ -119,6 +341,15 @@ export default function NewsPapersPage() {
 
   return (
     <main className={`h-full overflow-y-auto ${pageClass}`}>
+      {summaryPaper && (
+        <SummaryModal
+          paper={summaryPaper}
+          isDark={isDark}
+          onClose={() => setSummaryPaper(null)}
+          onRefresh={(paper) => handleSummarize(paper, true)}
+          refreshing={summarizingIds.has(summaryPaper.id)}
+        />
+      )}
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
         {/* Header */}
         <section className={`rounded-2xl border p-5 shadow-sm ${panelClass}`}>
@@ -170,7 +401,18 @@ export default function NewsPapersPage() {
             ) : papers.length === 0 ? (
               <div className={`py-16 text-center text-sm ${textSub}`}>{query ? `"${query}"에 해당하는 논문이 없습니다.` : "논문이 없습니다."}</div>
             ) : (
-              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">{papers.map((paper) => <PaperCard key={paper.id} paper={paper} isDark={isDark} />)}</div>
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                {papers.map((paper) => (
+                  <PaperCard
+                    key={paper.id}
+                    paper={paper}
+                    isDark={isDark}
+                    summarizing={summarizingIds.has(paper.id)}
+                    onSummarize={handleSummarize}
+                    onOpenSummary={setSummaryPaper}
+                  />
+                ))}
+              </div>
             )}
           </div>
         </div>

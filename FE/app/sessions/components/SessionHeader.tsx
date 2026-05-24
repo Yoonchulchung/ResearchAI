@@ -88,7 +88,7 @@ export function SessionHeader({
   return (
     <div className={containerClasses}>
       {/* Row 1: Title + Badges + Model Selectors + Actions */}
-      <div className="flex items-center gap-2 sm:gap-3 mb-1.5 sm:mb-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5 sm:mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap min-w-0">
             <h1 className="font-bold text-slate-900 leading-tight text-[15px] sm:text-base truncate min-w-0">
@@ -121,7 +121,7 @@ export function SessionHeader({
         </div>
 
         {/* Action Buttons */}
-        <div className="w-auto flex flex-nowrap items-center gap-1.5 shrink-0 justify-end overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+        <div className="w-full sm:w-auto flex flex-nowrap items-center gap-1 sm:gap-1.5 shrink-0 justify-start sm:justify-end overflow-x-auto pb-1 sm:pb-0" style={{ scrollbarWidth: "none" }}>
           {/* Model selectors — shown inline before run button */}
           {hasRunSelectors && !allDone && (
             <>
@@ -129,7 +129,7 @@ export function SessionHeader({
                 <select
                   value={selectedCloudAiModel ?? ""}
                   onChange={(e) => onCloudAiModelChange?.(e.target.value)}
-                  className="flex-1 sm:flex-none min-w-0 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-2 sm:py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-none sm:max-w-36 truncate cursor-pointer"
+                  className="flex-1 sm:flex-none min-w-0 text-2xs sm:text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-1.5 sm:px-2 py-1.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-[100px] sm:max-w-36 truncate cursor-pointer"
                 >
                   {cloudAiModels.map((m) => (
                     <option key={m.id} value={m.id}>{m.name}</option>
@@ -140,7 +140,7 @@ export function SessionHeader({
                 <select
                   value={selectedWebModel ?? ""}
                   onChange={(e) => onWebModelChange?.(e.target.value)}
-                  className="flex-1 sm:flex-none min-w-0 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-2 sm:py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-none sm:max-w-36 truncate cursor-pointer"
+                  className="flex-1 sm:flex-none min-w-0 text-2xs sm:text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-1.5 sm:px-2 py-1.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-[100px] sm:max-w-36 truncate cursor-pointer"
                 >
                   {webEngines.map((e) => (
                     <option key={e.id} value={e.id}>{e.name}</option>
@@ -151,7 +151,7 @@ export function SessionHeader({
                 <select
                   value={selectedFilterModel ?? ""}
                   onChange={(e) => onFilterModelChange?.(e.target.value)}
-                  className="flex-1 sm:flex-none min-w-0 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-2 py-2 sm:py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-none sm:max-w-36 truncate cursor-pointer"
+                  className="flex-1 sm:flex-none min-w-0 text-2xs sm:text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-md px-1.5 sm:px-2 py-1.5 sm:py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200 max-w-[100px] sm:max-w-36 truncate cursor-pointer"
                 >
                   {filterModels.map((m) => (
                     <option key={m.id} value={m.id}>{m.name}</option>

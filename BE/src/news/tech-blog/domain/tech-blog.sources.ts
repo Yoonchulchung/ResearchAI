@@ -60,4 +60,20 @@ export const TECH_BLOG_SOURCES: TechBlogSource[] = [
   { id: 'apple', name: 'Apple Developer News', url: 'https://developer.apple.com/news/', feedUrl: 'https://developer.apple.com/news/rss/news.rss', category: '데이터/통신', description: ['한국어 보기 기능과 애플 신제품 뉴스를 확인할 수 있습니다.', '제품별 사용 기술과 앱 테스트 정보를 볼 수 있습니다.'] },
   { id: 'dropbox', name: 'Dropbox Tech', url: 'https://dropbox.tech/', feedUrl: 'https://dropbox.tech/feed', category: '데이터/통신', description: ['프론트엔드 카테고리가 따로 있습니다.', 'Dropbox에서 사용하는 프레임워크 업데이트 과정을 볼 수 있습니다.'] },
   { id: 'github', name: 'GitHub Engineering', url: 'https://github.blog/engineering/', feedUrl: 'https://github.blog/engineering.atom', category: '데이터/통신', description: ['GitHub가 미숙한 개발 초심자에게 추천합니다.', 'GitHub Copilot 등 새로운 기능 사용 방법을 알려줍니다.'] },
+
+  // 인프라/오픈소스
+  { id: 'ubuntu', name: 'Ubuntu Blog', url: 'https://ubuntu.com/blog', feedUrl: 'https://ubuntu.com/blog/feed', category: '인프라/오픈소스' },
+  { id: 'cloudflare', name: 'Cloudflare Blog', url: 'https://blog.cloudflare.com/', feedUrl: 'https://blog.cloudflare.com/rss/', category: '인프라/오픈소스' },
+  { id: 'docker', name: 'Docker Blog', url: 'https://www.docker.com/blog/', feedUrl: 'https://www.docker.com/blog/feed/', category: '인프라/오픈소스' },
+  { id: 'hashicorp', name: 'HashiCorp Blog', url: 'https://www.hashicorp.com/blog', feedUrl: 'https://www.hashicorp.com/blog/feed.xml', category: '인프라/오픈소스' },
+  { id: 'vercel', name: 'Vercel Blog', url: 'https://vercel.com/blog', feedUrl: 'https://vercel.com/atom', category: '인프라/오픈소스' },
+  { id: 'aws-blog', name: 'AWS News', url: 'https://aws.amazon.com/blogs/aws/', feedUrl: 'https://aws.amazon.com/blogs/aws/feed/', category: '인프라/오픈소스' },
+  { id: 'kubernetes', name: 'Kubernetes Blog', url: 'https://kubernetes.io/blog/', feedUrl: 'https://kubernetes.io/feed.xml', category: '인프라/오픈소스' },
+
+  // AI/ML
+  { id: 'openai', name: 'OpenAI Research', url: 'https://openai.com/research/', feedUrl: 'https://openai.com/news/rss.xml', category: 'AI/ML' },
+  { id: 'anthropic', name: 'Anthropic News', url: 'https://www.anthropic.com/news', feedUrl: 'https://www.anthropic.com/rss/news.xml', category: 'AI/ML' },
+  { id: 'google-ai', name: 'Google AI Blog', url: 'https://ai.googleblog.com/', feedUrl: 'https://ai.googleblog.com/feeds/posts/default', category: 'AI/ML' },
+  { id: 'deepmind', name: 'DeepMind Blog', url: 'https://deepmind.google/discover/blog/', feedUrl: 'https://deepmind.google/discover/blog/rss.xml', category: 'AI/ML' },
+  { id: 'meta-ai', name: 'Meta AI', url: 'https://ai.meta.com/blog/', feedUrl: 'https://ai.meta.com/blog/feed/', category: 'AI/ML' },
 ];

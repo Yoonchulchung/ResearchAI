@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { HotPapersService } from '../application/hot-papers.service';
 import type { HotPaperListResult } from '../application/hot-papers.service';
 
@@ -17,6 +17,17 @@ export class HotPapersController {
       source,
       limit,
       refresh: refresh === 'true' || refresh === '1',
+    });
+  }
+
+  @Post(':id/ai-summary')
+  summarizePaper(
+    @Param('id') id: string,
+    @Body() body: { model?: string; refresh?: boolean } = {},
+  ) {
+    return this.hotPapersService.summarizePaper(id, {
+      model: body.model,
+      refresh: body.refresh === true,
     });
   }
 }

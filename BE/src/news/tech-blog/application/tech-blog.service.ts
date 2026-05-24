@@ -6,6 +6,7 @@ import { AiProviderService } from '../../../ai/infrastructure/ai-provider.servic
 import { AppConfigService, CONFIG_KEYS } from '../../../config/application/app-config.service';
 import { ContentRefreshStateEntity } from '../../../shared/entity/content-refresh-state.entity';
 import { TechBlogPostEntity } from '../domain/entity/tech-blog-post.entity';
+import { TechBlogTrendSummaryEntity } from '../domain/entity/tech-blog-trend-summary.entity';
 import type { TechBlogListResult, TechBlogPost, TechBlogSource, TechBlogTrendKeyword, TechBlogTrendSummary } from '../domain/tech-blog.types';
 import { TechBlogCrawlerService } from '../infrastructure/tech-blog-crawler.service';
 import { cleanText, dateValue } from '../infrastructure/tech-blog-crawler.util';
@@ -35,6 +36,8 @@ export class TechBlogService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @InjectRepository(TechBlogPostEntity)
     private readonly postRepo: Repository<TechBlogPostEntity>,
+    @InjectRepository(TechBlogTrendSummaryEntity)
+    private readonly trendRepo: Repository<TechBlogTrendSummaryEntity>,
     @InjectRepository(ContentRefreshStateEntity)
     private readonly refreshStateRepo: Repository<ContentRefreshStateEntity>,
     private readonly crawler: TechBlogCrawlerService,
@@ -90,7 +93,7 @@ export class TechBlogService implements OnModuleInit, OnModuleDestroy {
     return this.filterResult(result, options.source, options.limit);
   }
 
-  async getTrendSummary(options: { days?: number; source?: string; model?: string; refresh?: boolean } = {}): Promise<TechBlogTrendSummary> {
+  async getTrendSummary(options: { days?: number; source?: string; model?: string; refresh?: boolean; onChunk?: (chunk: string) => void } = {}): Promise<TechBlogTrendSummary> {
     const days = Math.min(Math.max(options.days ?? DEFAULT_TREND_DAYS, 1), 60);
     const source = options.source && options.source !== 'all' ? options.source : 'all';
     const model = options.model || await this.appConfig.get(CONFIG_KEYS.DEFAULT_CLOUD_MODEL, 'claude-haiku-4-5-20251001');
@@ -112,8 +115,16 @@ export class TechBlogService implements OnModuleInit, OnModuleDestroy {
       return { ...this.trendCache.value, cached: true };
     }
 
+    if (!options.refresh) {
+      const stored = await this.readStoredTrendSummary(cacheKey, now);
+      if (stored) {
+        this.trendCache = { key: cacheKey, expiresAt: stored.expiresAtMs, value: stored.value };
+        return { ...stored.value, cached: true };
+      }
+    }
+
     if (trendPosts.length === 0) {
-      return {
+      const value: TechBlogTrendSummary = {
         summary: '최근 기간에 분석할 기술 블로그 글이 없습니다. 먼저 새로고침으로 글을 수집해 주세요.',
         keywords,
         postCount: 0,
@@ -124,16 +135,25 @@ export class TechBlogService implements OnModuleInit, OnModuleDestroy {
         cached: false,
         model,
       };
+      await this.storeTrendSummary(cacheKey, value);
+      return value;
     }
 
     const sourceCount = new Set(trendPosts.map((post) => post.sourceId)).size;
     const prompt = this.buildTrendPrompt(trendPosts, keywords, days);
-    const { text } = await this.aiProvider.call(
-      model,
-      '너는 여러 기업 기술 블로그를 분석하는 한국어 기술 트렌드 애널리스트다. 제공된 글 목록에 없는 사실을 만들지 말고, 반복적으로 등장하는 키워드와 기업별 채택 흐름을 근거로 요약한다.',
-      prompt,
-      { caller: 'tech-blog-trend-summary' },
-    );
+    const systemPrompt = '너는 여러 기업 기술 블로그를 분석하는 한국어 기술 트렌드 애널리스트다. 제공된 글 목록에 없는 사실을 만들지 말고, 반복적으로 등장하는 키워드와 기업별 채택 흐름을 근거로 요약한다.';
+
+    let text: string;
+    if (options.onChunk) {
+      const onChunk = options.onChunk;
+      text = '';
+      for await (const chunk of this.aiProvider.stream(model, systemPrompt, [{ role: 'user', content: prompt }])) {
+        text += chunk;
+        onChunk(chunk);
+      }
+    } else {
+      ({ text } = await this.aiProvider.call(model, systemPrompt, prompt, { caller: 'tech-blog-trend-summary' }));
+    }
 
     const value: TechBlogTrendSummary = {
       summary: text.trim(),
@@ -147,7 +167,38 @@ export class TechBlogService implements OnModuleInit, OnModuleDestroy {
       model,
     };
     this.trendCache = { key: cacheKey, expiresAt: Date.now() + TREND_CACHE_MS, value };
+    await this.storeTrendSummary(cacheKey, value);
     return value;
+  }
+
+  async getLatestStoredTrendSummary(options: { days?: number; source?: string; model?: string } = {}): Promise<TechBlogTrendSummary | null> {
+    const days = Math.min(Math.max(options.days ?? DEFAULT_TREND_DAYS, 1), 60);
+    const source = options.source && options.source !== 'all' ? options.source : 'all';
+    const prefix = `${days}:${source}:`;
+    const candidates = await this.trendRepo.find({
+      order: { generatedAt: 'DESC' },
+      take: 80,
+    });
+
+    const model = options.model?.trim();
+    const entity = candidates.find((item) => {
+      if (!item.cacheKey.startsWith(prefix)) return false;
+      if (!model) return true;
+      return item.model === model;
+    });
+    if (!entity) return null;
+
+    return {
+      summary: entity.summary,
+      keywords: this.parseTrendKeywords(entity.keywordsJson),
+      postCount: entity.postCount,
+      sourceCount: entity.sourceCount,
+      from: entity.from,
+      to: entity.to,
+      generatedAt: entity.generatedAt,
+      cached: true,
+      model: entity.model,
+    };
   }
 
   private async refreshCacheIfStale(): Promise<void> {
@@ -308,6 +359,63 @@ ${postLines}
       .digest('hex')
       .slice(0, 16);
     return `${options.days}:${options.source}:${options.model}:${hash}`;
+  }
+
+  private async readStoredTrendSummary(
+    cacheKey: string,
+    now = Date.now(),
+  ): Promise<{ value: TechBlogTrendSummary; expiresAtMs: number } | null> {
+    const entity = await this.trendRepo.findOne({ where: { cacheKey } });
+    if (!entity) return null;
+    const expiresAtMs = new Date(entity.expiresAt).getTime();
+    if (expiresAtMs <= now) return null;
+
+    return {
+      expiresAtMs,
+      value: {
+        summary: entity.summary,
+        keywords: this.parseTrendKeywords(entity.keywordsJson),
+        postCount: entity.postCount,
+        sourceCount: entity.sourceCount,
+        from: entity.from,
+        to: entity.to,
+        generatedAt: entity.generatedAt,
+        cached: true,
+        model: entity.model,
+      },
+    };
+  }
+
+  private async storeTrendSummary(cacheKey: string, value: TechBlogTrendSummary): Promise<void> {
+    const expiresAt = new Date(Date.now() + TREND_CACHE_MS).toISOString();
+    await this.trendRepo.save(this.trendRepo.create({
+      cacheKey,
+      summary: value.summary,
+      keywordsJson: JSON.stringify(value.keywords ?? []),
+      postCount: value.postCount,
+      sourceCount: value.sourceCount,
+      from: value.from,
+      to: value.to,
+      generatedAt: value.generatedAt,
+      expiresAt,
+      model: value.model,
+    }));
+  }
+
+  private parseTrendKeywords(value: string): TechBlogTrendKeyword[] {
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter((item): item is TechBlogTrendKeyword => (
+          item &&
+          typeof item === 'object' &&
+          typeof item.keyword === 'string' &&
+          typeof item.count === 'number'
+        ));
+    } catch {
+      return [];
+    }
   }
 
   private async deletePostsFromDisabledSources(): Promise<void> {

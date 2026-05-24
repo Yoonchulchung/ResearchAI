@@ -53,22 +53,66 @@ function normalizeResumeProfile(profile: ResumeProfile): ResumeProfile {
   return { ...profile, resumeTargets: [createResumeTarget()] };
 }
 
-async function extractJdTextFromImage(file: File): Promise<string> {
+async function extractJdTextFromImage(file: File, model: string, onChunk?: (text: string) => void): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("model", "gemini-2.0-flash");
+  formData.append("model", model);
 
-  const res = await fetch(`${API_BASE}/media/extract-image-text`, {
+  const enqueueRes = await fetch(`${API_BASE}/queue/image-ocr/enqueue`, {
     method: "POST",
     headers: getAuthHeaders(),
     body: formData,
   });
-  const raw = await res.json().catch(() => ({}));
-  const data = raw?.isSuccess === true && "result" in raw ? raw.result : raw;
-  if (!res.ok) {
-    throw new Error(typeof data?.message === "string" ? data.message : "이미지 텍스트 추출에 실패했습니다.");
+  const enqueueRaw = await enqueueRes.json().catch(() => ({}));
+  const enqueueData = enqueueRaw?.isSuccess === true && "result" in enqueueRaw ? enqueueRaw.result : enqueueRaw;
+  if (!enqueueRes.ok) {
+    throw new Error(typeof enqueueData?.message === "string" ? enqueueData.message : "이미지 OCR 요청에 실패했습니다.");
   }
-  return String(data?.text ?? "").trim();
+  const { jobId } = enqueueData as { jobId: string };
+
+  return new Promise<string>((resolve, reject) => {
+    const headers = getAuthHeaders() as Record<string, string>;
+    const url = new URL(`${API_BASE}/queue/image-ocr/${jobId}/stream`);
+    // EventSource doesn't support custom headers; use fetch-based SSE
+    let fullText = "";
+    const ctrl = new AbortController();
+    fetch(url.toString(), { headers, signal: ctrl.signal })
+      .then(async (r) => {
+        if (!r.ok || !r.body) throw new Error("SSE 연결 실패");
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data:")) continue;
+            try {
+              const event = JSON.parse(line.slice(5).trim()) as { type: string; text?: string; message?: string };
+              if (event.type === "chunk" && event.text) {
+                fullText += event.text;
+                onChunk?.(fullText);
+              } else if (event.type === "done") {
+                ctrl.abort();
+                resolve(fullText.trim());
+                return;
+              } else if (event.type === "error") {
+                ctrl.abort();
+                reject(new Error(event.message ?? "OCR 오류"));
+                return;
+              }
+            } catch { /* ignore malformed lines */ }
+          }
+        }
+        resolve(fullText.trim());
+      })
+      .catch((e) => {
+        if ((e as Error).name !== "AbortError") reject(e);
+      });
+  });
 }
 
 // ─── Shared UI atoms ──────────────────────────────────────────────────────────
@@ -434,6 +478,7 @@ function ResumeEdit({
   const [jdDragOver, setJdDragOver] = useState(false);
   const [jdImageLoading, setJdImageLoading] = useState(false);
   const [jdImageError, setJdImageError] = useState<string | null>(null);
+  const [jdOcrModel, setJdOcrModel] = useState(MODELS[0].id);
 
   const updateTargets = (nextTargets: ResumeTarget[]) => update({ resumeTargets: nextTargets });
   const updateActiveTarget = (patch: Partial<ResumeTarget>) => {
@@ -463,7 +508,7 @@ function ResumeEdit({
     setJdImageLoading(true);
     setJdImageError(null);
     try {
-      const texts = (await Promise.all(imageFiles.map(extractJdTextFromImage))).filter(Boolean);
+      const texts = (await Promise.all(imageFiles.map((f) => extractJdTextFromImage(f, jdOcrModel)))).filter(Boolean);
       if (texts.length === 0) {
         setJdImageError("이미지에서 추출된 텍스트가 없습니다.");
         return;
@@ -573,6 +618,17 @@ function ResumeEdit({
               >
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">JD (채용공고)</span>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      value={jdOcrModel}
+                      onChange={(e) => setJdOcrModel(e.target.value)}
+                      className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-500 outline-none"
+                      title="OCR 모델"
+                    >
+                      {MODELS.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
                   <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 transition-colors hover:border-indigo-200 hover:text-indigo-600">
                     {jdImageLoading ? (
                       <span className="h-3 w-3 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin" />
@@ -595,6 +651,7 @@ function ResumeEdit({
                       }}
                     />
                   </label>
+                  </div>
                 </div>
                 <textarea
                   value={activeTarget.jd}

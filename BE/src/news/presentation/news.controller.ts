@@ -39,6 +39,15 @@ export class NewsController {
     return this.newsService.getHuggingFaceTrending(category);
   }
 
+  @Get('stackoverflow')
+  async getStackOverflow(
+    @Query('site') site = 'stackoverflow',
+    @Query('limit') limitStr = '20',
+  ) {
+    const limit = Math.min(parseInt(limitStr, 10) || 20, 50);
+    return this.newsService.getStackOverflowHot(site, limit);
+  }
+
   @Get('keywords')
   async getKeywords(@Query('limit') limitStr = '30'): Promise<KeywordItem[]> {
     const limit = Math.min(parseInt(limitStr, 10) || 30, 60);

@@ -239,7 +239,7 @@ function RadarChart({ metrics, isDark }: { metrics: SpecMetric[]; isDark: boolea
   const gridLevels = [0.25, 0.5, 0.75, 1];
 
   return (
-    <div className="relative mx-auto h-[360px] w-full max-w-[420px]">
+    <div className="relative mx-auto h-[260px] sm:h-[360px] w-full max-w-[420px]">
       <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full overflow-visible">
         {gridLevels.map((level) => (
           <polygon
@@ -266,7 +266,7 @@ function RadarChart({ metrics, isDark }: { metrics: SpecMetric[]; isDark: boolea
                 y={ly}
                 textAnchor={lx < center - 12 ? "end" : lx > center + 12 ? "start" : "middle"}
                 dominantBaseline="middle"
-                className={`fill-current text-[13px] font-bold ${isDark ? "text-white/60" : "text-slate-500"}`}
+                className={`fill-current text-[10px] sm:text-[13px] font-bold ${isDark ? "text-white/60" : "text-slate-500"}`}
               >
                 {metric.label}
               </text>
@@ -274,8 +274,8 @@ function RadarChart({ metrics, isDark }: { metrics: SpecMetric[]; isDark: boolea
           );
         })}
       </svg>
-      <div className={`absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-2 text-sm font-bold ${isDark ? "text-blue-300" : "text-blue-500"}`}>
-        <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+      <div className={`absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-2 text-xs sm:text-sm font-bold ${isDark ? "text-blue-300" : "text-blue-500"}`}>
+        <span className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full bg-blue-500" />
         합격자
       </div>
     </div>
@@ -463,11 +463,11 @@ export default function RecruitSpecPage() {
               </p>
             </div>
 
-            <div className={`flex overflow-hidden rounded-xl border ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
+            <div className={`flex w-full overflow-hidden rounded-xl border ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
               <select
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
-                className={`min-w-[150px] border-0 px-3 py-2 text-xs font-semibold outline-none ${isDark ? "bg-transparent text-white" : "bg-transparent text-slate-700"}`}
+                className={`flex-1 min-w-[110px] border-0 px-3 py-2 text-xs font-semibold outline-none ${isDark ? "bg-transparent text-white" : "bg-transparent text-slate-700"}`}
                 title="AI 모델 선택"
               >
                 {MODELS.map((item) => (
@@ -477,7 +477,7 @@ export default function RecruitSpecPage() {
               <button
                 onClick={runAnalysis}
                 disabled={analyzing || loading || items.length === 0}
-                className="inline-flex min-w-[132px] items-center justify-center gap-2 bg-indigo-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                className="flex-[1.2] inline-flex items-center justify-center gap-2 bg-indigo-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap"
               >
                 {analyzing && <span className="h-3 w-3 rounded-full border-2 border-white/35 border-t-white animate-spin" />}
                 {selectedIds.size > 0 ? `선택 ${selectedIds.size}건 분석` : "AI 스펙 분석"}
@@ -525,12 +525,12 @@ export default function RecruitSpecPage() {
                 <option key={item || "all"} value={item}>{item || "기업분류 전체"}</option>
               ))}
             </select>
-            <div className={`grid grid-cols-3 overflow-hidden rounded-lg border text-xs font-bold ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
+            <div className={`flex overflow-x-auto sm:grid sm:grid-cols-5 md:grid-cols-10 overflow-hidden rounded-lg border text-xs font-bold whitespace-nowrap scrollbar-none ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
               {TARGET_FILTERS.map((item) => (
                 <button
                   key={item.value}
                   onClick={() => setTarget(item.value)}
-                  className={`px-3 py-2 transition-colors ${
+                  className={`flex-shrink-0 px-4 py-2 sm:px-2.5 transition-colors ${
                     target === item.value
                       ? "bg-indigo-600 text-white"
                       : isDark ? "text-white/55 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
@@ -675,7 +675,7 @@ export default function RecruitSpecPage() {
                       <span className={`rounded-full border px-4 py-1.5 text-sm font-black ${isDark ? "border-blue-400/40 bg-blue-500/10 text-blue-200" : "border-blue-300 bg-blue-50 text-blue-500"}`}>
                         평균 스펙
                       </span>
-                      <h2 className={`text-3xl font-black tracking-tight ${isDark ? "text-blue-300" : "text-blue-500"}`}>
+                      <h2 className={`text-xl sm:text-3xl font-black tracking-tight ${isDark ? "text-blue-300" : "text-blue-500"}`}>
                         {selectedAverage.category}
                       </h2>
                       <span className={`rounded-full px-3 py-1 text-xs font-bold ${categoryTone(selectedAverage.category, isDark)}`}>
@@ -685,8 +685,8 @@ export default function RecruitSpecPage() {
 
                     <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
                       <div>
-                        <p className={`text-3xl font-black ${textMain}`}>{selectedAverage.category} 합격자 평균</p>
-                        <p className={`mt-3 max-w-3xl text-sm font-semibold leading-relaxed ${textSub}`}>
+                        <p className={`text-xl sm:text-3xl font-black ${textMain}`}>{selectedAverage.category} 합격자 평균</p>
+                        <p className={`mt-3 max-w-3xl text-xs sm:text-sm font-semibold leading-relaxed ${textSub}`}>
                           {selectedAverage.summary || "아직 평균 요약에 사용할 스펙 항목이 충분하지 않습니다."}
                         </p>
                       </div>
@@ -702,12 +702,14 @@ export default function RecruitSpecPage() {
                       {selectedAverage.metrics.map((metric) => (
                         <div
                           key={`${selectedAverage.category}-${metric.label}`}
-                          className={`flex min-h-32 w-full flex-col items-center justify-center overflow-hidden border-b border-r p-2 text-center last:border-r-0 ${isDark ? "border-white/10" : "border-slate-200"}`}
+                          className={`flex min-h-[5.5rem] sm:min-h-32 w-full flex-col items-center justify-center overflow-hidden border-b border-r p-1.5 sm:p-2 text-center last:border-r-0 ${isDark ? "border-white/10" : "border-slate-200"}`}
                         >
-                          <span className={`w-full overflow-hidden text-ellipsis whitespace-nowrap font-black tracking-tight ${textMain} ${metric.value.length > 7 ? "text-base" : metric.value.length > 5 ? "text-xl" : metric.value.length > 3 ? "text-2xl" : "text-4xl"}`}>
+                          <span className={`w-full overflow-hidden text-ellipsis whitespace-nowrap font-black tracking-tight ${textMain} ${
+                            metric.value.length > 7 ? "text-[11px] sm:text-base" : metric.value.length > 5 ? "text-xs sm:text-xl" : metric.value.length > 3 ? "text-sm sm:text-2xl" : "text-lg sm:text-4xl"
+                          }`}>
                             {metric.value}
                           </span>
-                          <span className={`mt-2 text-xs font-bold ${isDark ? "text-white/55" : "text-slate-500"}`}>{metric.sub}</span>
+                          <span className={`mt-1.5 text-[10px] sm:text-xs font-bold ${isDark ? "text-white/55" : "text-slate-500"}`}>{metric.sub}</span>
                         </div>
                       ))}
                     </div>
@@ -717,7 +719,7 @@ export default function RecruitSpecPage() {
                         <span className={`text-xs ${textSub}`}>추출된 대표 스펙 키워드가 없습니다.</span>
                       ) : (
                         selectedAverage.chips.map((chip, index) => (
-                          <span key={`${selectedAverage.category}-${chip}-${index}`} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${isDark ? "border-white/10 bg-white/5 text-white/60" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
+                          <span key={`${selectedAverage.category}-${chip}-${index}`} className={`rounded-full border px-2 py-0.5 sm:px-2.5 sm:py-1 text-[11px] sm:text-xs font-semibold ${isDark ? "border-white/10 bg-white/5 text-white/60" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
                             {chip}
                           </span>
                         ))
@@ -727,8 +729,8 @@ export default function RecruitSpecPage() {
 
                   <div className="flex flex-col items-center justify-center">
                     <div className="text-center">
-                      <p className={`text-sm font-black ${textSub}`}>평균 스펙지수</p>
-                      <p className={`text-7xl font-black leading-none ${isDark ? "text-blue-300" : "text-blue-500"}`}>{selectedAverage.specIndex}</p>
+                      <p className={`text-xs sm:text-sm font-black ${textSub}`}>평균 스펙지수</p>
+                      <p className={`text-4xl sm:text-7xl font-black leading-none ${isDark ? "text-blue-300" : "text-blue-500"}`}>{selectedAverage.specIndex}</p>
                     </div>
                     <RadarChart metrics={selectedAverage.metrics} isDark={isDark} />
                   </div>

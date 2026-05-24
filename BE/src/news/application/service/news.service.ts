@@ -248,6 +248,16 @@ export class NewsService {
     return items;
   }
 
+  async getStackOverflowHot(site: string, limit: number) {
+    const cacheKey = `raw-stackoverflow-${site}-${this.getTodayKey()}`;
+    const cached = await this.getRawCache(cacheKey);
+    if (cached) return cached;
+
+    const items = await this.newsProvider.fetchStackOverflowHot(site, limit);
+    await this.setRawCache(cacheKey, items);
+    return items;
+  }
+
   async getKeywords(limit: number): Promise<KeywordItem[]> {
     const rawCacheKey = `raw-kw-titles-${this.getTodayKey()}`;
     let allTitles = await this.getRawCache<string[]>(rawCacheKey);

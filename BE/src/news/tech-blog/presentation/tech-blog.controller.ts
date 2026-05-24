@@ -40,4 +40,18 @@ export class TechBlogController {
       refresh: refresh === 'true' || refresh === '1',
     });
   }
+
+  @Get('trends/latest')
+  getLatestTrendSummary(
+    @Query('days') daysStr = '14',
+    @Query('source') source = 'all',
+    @Query('model') model = '',
+  ): Promise<TechBlogTrendSummary | null> {
+    const days = parseInt(daysStr, 10) || 14;
+    return this.techBlogService.getLatestStoredTrendSummary({
+      days,
+      source,
+      model,
+    });
+  }
 }

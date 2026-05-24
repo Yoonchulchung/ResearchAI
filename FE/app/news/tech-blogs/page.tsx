@@ -1,17 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
-  getTechBlogTrendSummary,
+  cancelTechBlogTrend,
+  enqueueTechBlogTrend,
+  getLatestTechBlogTrendSummary,
   listTechBlogPosts,
+  subscribeTechBlogTrend,
   type TechBlogListResult,
   type TechBlogPost,
   type TechBlogTrendSummary,
 } from "@/lib/api/tech-blogs";
 
 const SOURCE_ALL = "all";
+
+function getInitialSearchParam(name: string, fallback = "") {
+  if (typeof window === "undefined") return fallback;
+  return new URLSearchParams(window.location.search).get(name) ?? fallback;
+}
 
 function IconRefresh({ spinning = false }: { spinning?: boolean }) {
   return (
@@ -108,13 +118,19 @@ export default function NewsTechBlogsPage() {
   const [data, setData] = useState<TechBlogListResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [source, setSource] = useState(SOURCE_ALL);
-  const [query, setQuery] = useState("");
+  const [source, setSource] = useState(() => getInitialSearchParam("source", SOURCE_ALL));
+  const [query, setQuery] = useState(() => getInitialSearchParam("q", ""));
   const [error, setError] = useState<string | null>(null);
   const [sourceCount, setSourceCount] = useState<Map<string, number>>(new Map());
   const [trend, setTrend] = useState<TechBlogTrendSummary | null>(null);
+  const [trendStreaming, setTrendStreaming] = useState("");
   const [trendLoading, setTrendLoading] = useState(false);
   const [trendError, setTrendError] = useState<string | null>(null);
+  const [trendOpen, setTrendOpen] = useState(false);
+  const [hideTrendPanel, setHideTrendPanel] = useState(false);
+  const trendJobRef = useRef<{ jobId: string; cancel: () => void } | null>(null);
+  const scrollRef = useRef<HTMLElement | null>(null);
+  const revealTrendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pageClass = isGlass ? "bg-transparent" : isDark ? "bg-slate-950" : "bg-slate-50";
   const panelClass = isGlass ? "glass-panel border-white/20" : isDark ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white";
@@ -141,17 +157,83 @@ export default function NewsTechBlogsPage() {
   }, []);
 
   const loadTrend = useCallback(async (force = false) => {
+    // 진행 중인 작업 취소
+    if (trendJobRef.current) {
+      trendJobRef.current.cancel();
+      cancelTechBlogTrend(trendJobRef.current.jobId).catch(() => {});
+      trendJobRef.current = null;
+    }
+
     setTrendError(null);
+    setTrendStreaming("");
+    setTrend(null);
     setTrendLoading(true);
+    setTrendOpen(true);
+
     try {
-      const result = await getTechBlogTrendSummary({ days: 14, source, refresh: force });
-      setTrend(result);
+      const { jobId } = await enqueueTechBlogTrend({ days: 14, source, refresh: force });
+      const cancel = subscribeTechBlogTrend(
+        jobId,
+        (chunk) => setTrendStreaming((prev) => prev + chunk),
+        (result) => {
+          setTrend(result);
+          setTrendStreaming("");
+          setTrendLoading(false);
+          trendJobRef.current = null;
+        },
+        (msg) => {
+          setTrendError(msg);
+          setTrendStreaming("");
+          setTrendLoading(false);
+          trendJobRef.current = null;
+        },
+      );
+      trendJobRef.current = { jobId, cancel };
     } catch (e) {
       setTrendError(e instanceof Error ? e.message : "트렌드 분석에 실패했습니다.");
-    } finally { setTrendLoading(false); }
+      setTrendLoading(false);
+    }
   }, [source]);
 
+  const loadLatestTrend = useCallback(async (requestedSource = SOURCE_ALL) => {
+    try {
+      const result = await getLatestTechBlogTrendSummary({ days: 14, source: requestedSource });
+      setTrend(result);
+      setTrendStreaming("");
+      setTrendError(null);
+      setTrendOpen(false);
+    } catch {
+      // 저장된 트렌드 조회 실패는 목록 사용을 막지 않는다.
+    }
+  }, []);
+
   useEffect(() => { load(false, source); }, [load, source]);
+  useEffect(() => { loadLatestTrend(source); }, [loadLatestTrend, source]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      const scrollTop = el.scrollTop;
+      const max = el.scrollHeight - el.clientHeight;
+      const nearBottom = max - scrollTop < 32;
+
+      if (revealTrendTimerRef.current) clearTimeout(revealTrendTimerRef.current);
+      if (nearBottom || scrollTop <= 8) {
+        setHideTrendPanel(false);
+      } else {
+        setHideTrendPanel(true);
+        revealTrendTimerRef.current = setTimeout(() => setHideTrendPanel(false), 220);
+      }
+    };
+
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", handleScroll);
+      if (revealTrendTimerRef.current) clearTimeout(revealTrendTimerRef.current);
+    };
+  }, []);
 
   const posts = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -172,10 +254,98 @@ export default function NewsTechBlogsPage() {
   }, [data?.sources]);
 
   const selectedSource = source === SOURCE_ALL ? null : data?.sources.find((s) => s.id === source) ?? null;
+  const markdownComponents = useMemo(() => ({
+    h1: ({ children }: { children?: ReactNode }) => <h1 className="mb-2.5 mt-4 text-base font-bold first:mt-0 sm:text-lg">{children}</h1>,
+    h2: ({ children }: { children?: ReactNode }) => <h2 className="mb-2 mt-3.5 text-sm font-bold first:mt-0 sm:text-base">{children}</h2>,
+    h3: ({ children }: { children?: ReactNode }) => <h3 className="mb-1.5 mt-3 text-sm font-bold first:mt-0">{children}</h3>,
+    p: ({ children }: { children?: ReactNode }) => <p className="my-2.5 text-sm leading-relaxed">{children}</p>,
+    ul: ({ children }: { children?: ReactNode }) => <ul className="my-2.5 list-disc space-y-1.5 pl-5 text-sm leading-relaxed">{children}</ul>,
+    ol: ({ children }: { children?: ReactNode }) => <ol className="my-2.5 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed">{children}</ol>,
+    li: ({ children }: { children?: ReactNode }) => <li className="leading-relaxed">{children}</li>,
+    strong: ({ children }: { children?: ReactNode }) => <strong className="font-bold">{children}</strong>,
+  }), []);
+  const trendFloatingPanel = (
+    <div className={`pointer-events-none fixed inset-x-0 bottom-20 sm:bottom-4 z-30 px-4 transition-all duration-200 ease-out sm:px-6 lg:px-8 ${
+      hideTrendPanel ? "translate-y-[calc(100%+5rem)] opacity-0" : "translate-y-0 opacity-100"
+    }`}>
+      <div className="pointer-events-auto mx-auto w-full max-w-3xl">
+        {trendOpen && (trendStreaming || (trend && !trendLoading) || trendError) && (
+          <div className={`mb-2 max-h-[45vh] overflow-y-auto rounded-2xl border p-4 text-sm leading-7 shadow-xl backdrop-blur ${isDark ? "border-white/10 bg-slate-950/90 text-white/70" : "border-slate-200 bg-white/95 text-slate-700"}`}>
+            {trendError ? (
+              <p className={isDark ? "text-red-300" : "text-red-600"}>{trendError}</p>
+            ) : (
+              <>
+                <div className="mb-2 flex items-center gap-2">
+                  <IconSparkles spinning={trendLoading} />
+                  <span className={`text-xs font-bold ${isDark ? "text-indigo-300" : "text-indigo-700"}`}>AI 트렌드 분석 결과</span>
+                </div>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {trendStreaming || trend?.summary || ""}
+                </ReactMarkdown>
+                {trendLoading && trendStreaming && (
+                  <span className="ml-0.5 inline-block h-4 w-1 animate-pulse bg-indigo-400 align-text-bottom" />
+                )}
+                {!trendLoading && (trend?.keywords ?? []).length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {(trend!.keywords).map((kw) => (
+                      <span key={kw.keyword} className={`rounded-lg px-2 py-1 text-xs font-medium ${isDark ? "bg-indigo-500/15 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>
+                        {kw.keyword}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {!trendLoading && trend?.generatedAt && (
+                  <div className={`mt-3 text-[11px] ${isDark ? "text-white/35" : "text-slate-400"}`}>
+                    저장된 분석 · {new Date(trend.generatedAt).toLocaleString("ko-KR")}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+        <div className={`rounded-xl border px-3 py-2 shadow-xl backdrop-blur transition-colors ${isDark ? "border-slate-700/70 bg-[#0f172a]/95" : "border-slate-200 bg-slate-50/95"}`}>
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <div className={`truncate text-xs font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>
+                AI 트렌드 분석
+              </div>
+              <div className={`truncate text-[11px] ${isDark ? "text-white/40" : "text-slate-400"}`}>
+                {trend
+                  ? "저장된 분석 결과가 있습니다. 펼쳐서 확인할 수 있습니다."
+                  : "최근 2주 기술 블로그의 반복 키워드와 기업별 작성 흐름을 요약합니다."}
+              </div>
+            </div>
+            {(trend || trendError || trendStreaming) && (
+              <button
+                onClick={() => setTrendOpen((open) => !open)}
+                className={`h-9 shrink-0 rounded-lg border px-3 text-xs font-semibold transition-colors ${isDark ? "border-white/10 text-white/70 hover:bg-white/10" : "border-slate-200 text-slate-600 hover:bg-white"}`}
+              >
+                {trendOpen ? "접기" : "펼치기"}
+              </button>
+            )}
+            <button
+              onClick={() => loadTrend(!!trend)}
+              disabled={trendLoading}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-primary text-white shadow-md shadow-brand-primary/30 transition-all hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={trend ? "트렌드 재분석" : "AI 트렌드 분석"}
+            >
+              {trendLoading ? (
+                <IconSparkles spinning />
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 12V4M4 8l4-4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
-    <main className={`h-full overflow-y-auto ${pageClass}`}>
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
+    <main ref={scrollRef} className={`h-full overflow-y-auto ${pageClass}`}>
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 pb-36 pt-5 sm:px-6 lg:px-8">
         {/* Header */}
         <section className={`rounded-2xl border p-5 shadow-sm ${panelClass}`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -196,9 +366,9 @@ export default function NewsTechBlogsPage() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_1fr]">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_1fr] lg:items-start">
           {/* Sidebar */}
-          <aside className={`hidden h-fit rounded-2xl border p-3 shadow-sm lg:block ${panelClass}`}>
+          <aside className={`hidden lg:sticky lg:top-5 lg:max-h-[calc(100vh-2.5rem)] lg:overflow-y-auto rounded-2xl border p-3 shadow-sm lg:block ${panelClass}`}>
             <div className={`px-2 pb-2 text-xs font-semibold ${textSub}`}>출처</div>
             <div className="space-y-0.5">
               <button onClick={() => setSource(SOURCE_ALL)} className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${source === SOURCE_ALL ? isDark ? "bg-indigo-500/15 font-semibold text-indigo-300" : "bg-indigo-50 font-semibold text-indigo-700" : isDark ? "text-white/60 hover:bg-white/5" : "text-slate-600 hover:bg-slate-50"}`}>
@@ -216,24 +386,6 @@ export default function NewsTechBlogsPage() {
                   ))}
                 </div>
               ))}
-            </div>
-            {/* Trend */}
-            <div className={`mt-3 border-t pt-3 ${isDark ? "border-white/10" : "border-slate-100"}`}>
-              <button onClick={() => !trend && loadTrend()} disabled={trendLoading} className={`w-full inline-flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold transition disabled:opacity-60 ${isDark ? "bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/20" : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"}`}>
-                <IconSparkles spinning={trendLoading} />
-                {trendLoading ? "분석 중..." : trend ? "트렌드 재분석" : "AI 트렌드 분석"}
-              </button>
-              {trendError && <p className={`mt-2 px-1 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{trendError}</p>}
-              {trend && !trendLoading && (
-                <div className={`mt-2 rounded-lg p-2.5 text-xs leading-5 ${isDark ? "bg-white/5 text-white/60" : "bg-slate-50 text-slate-600"}`}>
-                  {trend.summary}
-                  {(trend.keywords ?? []).length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {(trend.keywords ?? []).map((kw) => <span key={kw.keyword} className={`rounded px-1.5 py-0.5 font-medium ${isDark ? "bg-indigo-500/15 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>{kw.keyword}</span>)}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
             {selectedSource && (
               <div className={`mt-3 border-t pt-3 ${isDark ? "border-white/10" : "border-slate-100"}`}>
@@ -264,6 +416,7 @@ export default function NewsTechBlogsPage() {
           </div>
         </div>
       </div>
+      {trendFloatingPanel}
     </main>
   );
 }

@@ -39,6 +39,9 @@ export namespace QueueJob {
     COMPANYANALYSIS        = 'companyanalysis',
     DOCPARSE_ASK           = 'docparse_ask',
     DOCPARSE_ACTION        = 'docparse_action',
+    SPEC_ANALYSIS          = 'spec_analysis',
+    TECH_BLOG_TREND        = 'tech_blog_trend',
+    HOT_PAPER_SUMMARY      = 'hot_paper_summary',
   }
 
   export function isWriteAssist(type: TaskType): boolean {

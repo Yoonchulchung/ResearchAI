@@ -22,6 +22,9 @@ import { WriteAssistExecutorService, WriteAssistExtras } from './job/write-assis
 import { CompanyProfileExecutorService } from './job/company-profile-executor.service';
 import { CompanyAnalysisExecutorService } from './job/company-analysis-executor.service';
 import { DocParseExecutorService } from './job/doc-parse-executor.service';
+import { SpecAnalysisExecutorService } from './job/spec-analysis-executor.service';
+import { TechBlogTrendExecutorService, TechBlogTrendRequest } from './job/tech-blog-trend-executor.service';
+import { HotPaperSummaryExecutorService, HotPaperSummaryRequest } from './job/hot-paper-summary-executor.service';
 import { QueueJobRepository } from '../domain/repository/queue-job.repository';
 import { QueueJobDbStatus } from '../domain/entity/queue-job.entity';
 import { randomUUID } from 'crypto';
@@ -44,6 +47,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private companyAnalysisAccumulated = new Map<string, CompanyAnalysisProgress[]>();
   private docParseSubjects = new Map<string, Subject<MessageEvent>>();
   private docParseAccumulated = new Map<string, string>();
+  private specAnalysisSubjects = new Map<string, Subject<MessageEvent>>();
+  private techBlogTrendSubjects = new Map<string, Subject<MessageEvent>>();
+  private techBlogTrendAccumulated = new Map<string, string>();
+  private hotPaperSummarySubjects = new Map<string, Subject<MessageEvent>>();
   private cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private runningCount = 0;
 
@@ -64,6 +71,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     private readonly companyProfileExecutor: CompanyProfileExecutorService,
     private readonly companyAnalysisExecutor: CompanyAnalysisExecutorService,
     private readonly docParseExecutor: DocParseExecutorService,
+    private readonly specAnalysisExecutor: SpecAnalysisExecutorService,
+    private readonly techBlogTrendExecutor: TechBlogTrendExecutorService,
+    private readonly hotPaperSummaryExecutor: HotPaperSummaryExecutorService,
     private readonly queueJobRepository: QueueJobRepository,
     private readonly sessionGateway: SessionGateway,
     private readonly aiProvider: AiProviderService,
@@ -151,6 +161,15 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       subject.complete();
     }
     for (const subject of this.docParseSubjects.values()) {
+      subject.complete();
+    }
+    for (const subject of this.specAnalysisSubjects.values()) {
+      subject.complete();
+    }
+    for (const subject of this.techBlogTrendSubjects.values()) {
+      subject.complete();
+    }
+    for (const subject of this.hotPaperSummarySubjects.values()) {
       subject.complete();
     }
     for (const timer of this.cleanupTimers.values()) {
@@ -250,6 +269,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       [QueueJob.TaskType.COMPANYANALYSIS]: '기업 분석',
       [QueueJob.TaskType.DOCPARSE_ASK]: '문서 질문',
       [QueueJob.TaskType.DOCPARSE_ACTION]: '문서 분석',
+      [QueueJob.TaskType.SPEC_ANALYSIS]: '스펙 분석',
+      [QueueJob.TaskType.TECH_BLOG_TREND]: 'AI 트렌드 분석',
+      [QueueJob.TaskType.HOT_PAPER_SUMMARY]: '논문 AI 요약',
     };
     return labels[taskType] ?? taskType;
   }
@@ -693,6 +715,118 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     this.docParseAccumulated.delete(jobId);
   }
 
+  // ************* //
+  // Spec Analysis //
+  // ************* //
+  async enqueueSpecAnalysis(request: {
+    ids?: string[];
+    target?: string;
+    model?: string;
+    limit?: number;
+  }): Promise<{ jobId: string }> {
+    const jobId = randomUUID();
+    this.specAnalysisSubjects.set(jobId, new Subject<MessageEvent>());
+    await this.pushJob({
+      jobId,
+      sessionId: jobId,
+      itemId: '',
+      itemContent: JSON.stringify(request),
+      taskType: QueueJob.TaskType.SPEC_ANALYSIS,
+      localAIModel: '',
+      CloudAIModel: request.model ?? '',
+      status: QueueJobStatus.PENDING,
+    });
+    return { jobId };
+  }
+
+  getSpecAnalysisStream(jobId: string): Observable<MessageEvent> | null {
+    return this.specAnalysisSubjects.get(jobId) ?? null;
+  }
+
+  cancelSpecAnalysis(jobId: string): void {
+    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.SPEC_ANALYSIS);
+    if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
+      this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
+      this.abortControllers.get(job.jobId)?.abort();
+    }
+    const subject = this.specAnalysisSubjects.get(jobId);
+    subject?.next({ data: { type: SseEventType.ERROR, message: '작업이 중단되었습니다.' } });
+    subject?.complete();
+    this.specAnalysisSubjects.delete(jobId);
+  }
+
+  // **************** //
+  // Tech Blog Trend  //
+  // **************** //
+  async enqueueTechBlogTrend(request: TechBlogTrendRequest): Promise<{ jobId: string }> {
+    const jobId = randomUUID();
+    this.techBlogTrendSubjects.set(jobId, new Subject<MessageEvent>());
+    this.techBlogTrendAccumulated.set(jobId, '');
+    await this.pushJob({
+      jobId,
+      sessionId: jobId,
+      itemId: '',
+      itemContent: JSON.stringify(request),
+      taskType: QueueJob.TaskType.TECH_BLOG_TREND,
+      localAIModel: '',
+      CloudAIModel: request.model ?? '',
+      status: QueueJobStatus.PENDING,
+    });
+    return { jobId };
+  }
+
+  getTechBlogTrendStream(jobId: string): Observable<MessageEvent> | null {
+    return this.techBlogTrendSubjects.get(jobId) ?? null;
+  }
+
+  cancelTechBlogTrend(jobId: string): void {
+    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.TECH_BLOG_TREND);
+    if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
+      this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
+      this.abortControllers.get(job.jobId)?.abort();
+    }
+    const subject = this.techBlogTrendSubjects.get(jobId);
+    subject?.next({ data: { type: SseEventType.ERROR, message: '작업이 중단되었습니다.' } });
+    subject?.complete();
+    this.techBlogTrendSubjects.delete(jobId);
+    this.techBlogTrendAccumulated.delete(jobId);
+  }
+
+  // ***************** //
+  // Hot Paper Summary //
+  // ***************** //
+  async enqueueHotPaperSummary(request: HotPaperSummaryRequest): Promise<{ jobId: string }> {
+    const jobId = randomUUID();
+    this.hotPaperSummarySubjects.set(jobId, new Subject<MessageEvent>());
+    await this.pushJob({
+      jobId,
+      sessionId: jobId,
+      itemId: request.id,
+      itemContent: JSON.stringify(request),
+      taskType: QueueJob.TaskType.HOT_PAPER_SUMMARY,
+      localAIModel: '',
+      CloudAIModel: request.model ?? '',
+      status: QueueJobStatus.PENDING,
+    });
+    return { jobId };
+  }
+
+  getHotPaperSummaryStream(jobId: string): Observable<MessageEvent> | null {
+    return this.hotPaperSummarySubjects.get(jobId) ?? null;
+  }
+
+  cancelHotPaperSummary(jobId: string): void {
+    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.HOT_PAPER_SUMMARY);
+    if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
+      this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
+      this.abortControllers.get(job.jobId)?.abort();
+    }
+    const subject = this.hotPaperSummarySubjects.get(jobId);
+    subject?.next({ data: { type: SseEventType.ERROR, message: '작업이 중단되었습니다.' } });
+    subject?.complete();
+    this.hotPaperSummarySubjects.delete(jobId);
+  }
+
   // ********* //
   // 큐 작업 중단 //
   // ********* //
@@ -980,6 +1114,44 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.docParseAccumulated.delete(job.jobId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
 
+      } else if (job.taskType === QueueJob.TaskType.SPEC_ANALYSIS) {
+
+        const subject = this.specAnalysisSubjects.get(job.jobId);
+        const request = JSON.parse(job.itemContent) as import('../../recruit/domain/cover-letter/cover-letter.model').CoverLetterJobAnalysisRequest;
+        const result = await this.specAnalysisExecutor.execute(request, (message) => {
+          subject?.next({ data: { type: SseEventType.LOG, message } });
+        });
+
+        subject?.next({ data: { type: SseEventType.DONE, payload: result } });
+        subject?.complete();
+        this.specAnalysisSubjects.delete(job.jobId);
+        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: JSON.stringify(result) });
+
+      } else if (job.taskType === QueueJob.TaskType.TECH_BLOG_TREND) {
+
+        const subject = this.techBlogTrendSubjects.get(job.jobId);
+        const request = JSON.parse(job.itemContent) as TechBlogTrendRequest;
+        const result = await this.techBlogTrendExecutor.execute(request, (chunk) => {
+          this.techBlogTrendAccumulated.set(job.jobId, (this.techBlogTrendAccumulated.get(job.jobId) ?? '') + chunk);
+          subject?.next({ data: { type: SseEventType.CHUNK, text: chunk } });
+        });
+        subject?.next({ data: { type: SseEventType.DONE, payload: result } });
+        subject?.complete();
+        this.techBlogTrendSubjects.delete(job.jobId);
+        this.techBlogTrendAccumulated.delete(job.jobId);
+        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: JSON.stringify(result) });
+
+      } else if (job.taskType === QueueJob.TaskType.HOT_PAPER_SUMMARY) {
+
+        const subject = this.hotPaperSummarySubjects.get(job.jobId);
+        const request = JSON.parse(job.itemContent) as HotPaperSummaryRequest;
+        subject?.next({ data: { type: SseEventType.LOG, message: '논문 AI 요약을 생성하는 중입니다.' } });
+        const result = await this.hotPaperSummaryExecutor.execute(request);
+        subject?.next({ data: { type: SseEventType.DONE, payload: result } });
+        subject?.complete();
+        this.hotPaperSummarySubjects.delete(job.jobId);
+        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: JSON.stringify(result) });
+
       } else if (job.taskType === QueueJob.TaskType.SUMMARY) {
 
         const subject = this.summarySubjects.get(job.sessionId);
@@ -1062,8 +1234,28 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.docParseSubjects.delete(job.jobId);
         this.docParseAccumulated.delete(job.jobId);
 
-      } else {
-        console.log("Unsupported taskType is called");
+      } else if (job.taskType === QueueJob.TaskType.SPEC_ANALYSIS) {
+
+        const subject = this.specAnalysisSubjects.get(job.jobId);
+        subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
+        subject?.complete();
+        this.specAnalysisSubjects.delete(job.jobId);
+
+      } else if (job.taskType === QueueJob.TaskType.TECH_BLOG_TREND) {
+
+        const subject = this.techBlogTrendSubjects.get(job.jobId);
+        subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
+        subject?.complete();
+        this.techBlogTrendSubjects.delete(job.jobId);
+        this.techBlogTrendAccumulated.delete(job.jobId);
+
+      } else if (job.taskType === QueueJob.TaskType.HOT_PAPER_SUMMARY) {
+
+        const subject = this.hotPaperSummarySubjects.get(job.jobId);
+        subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
+        subject?.complete();
+        this.hotPaperSummarySubjects.delete(job.jobId);
+
       }
     } finally {
       this.abortControllers.delete(job.jobId);

@@ -21,6 +21,15 @@ export class HotPaperEntity {
   @Column({ type: 'text', nullable: true })
   summary: string | null;
 
+  @Column({ name: 'ai_summary', type: 'text', nullable: true })
+  aiSummary: string | null;
+
+  @Column({ name: 'ai_summary_model', type: 'text', nullable: true })
+  aiSummaryModel: string | null;
+
+  @Column({ name: 'ai_summary_at', type: 'text', nullable: true })
+  aiSummaryAt: string | null;
+
   @Column({ name: 'authors_json', type: 'text', default: '[]' })
   authorsJson: string;
 

@@ -1,4 +1,4 @@
-import { apiFetch } from "./base";
+import { apiFetch, API_BASE, getAuthHeaders } from "./base";
 
 export interface TechBlogSource {
   id: string;
@@ -65,3 +65,61 @@ export const getTechBlogTrendSummary = (params?: { days?: number; source?: strin
   const qs = query.toString();
   return apiFetch<TechBlogTrendSummary>(`/tech-blogs/trends${qs ? `?${qs}` : ""}`);
 };
+
+export const getLatestTechBlogTrendSummary = (params?: { days?: number; source?: string; model?: string }) => {
+  const query = new URLSearchParams();
+  if (params?.days) query.set("days", String(params.days));
+  if (params?.source) query.set("source", params.source);
+  if (params?.model) query.set("model", params.model);
+
+  const qs = query.toString();
+  return apiFetch<TechBlogTrendSummary | null>(`/tech-blogs/trends/latest${qs ? `?${qs}` : ""}`);
+};
+
+export const enqueueTechBlogTrend = (params?: {
+  days?: number;
+  source?: string;
+  model?: string;
+  refresh?: boolean;
+}) =>
+  apiFetch<{ jobId: string }>("/queue/tech-blog-trend", {
+    method: "POST",
+    body: JSON.stringify(params ?? {}),
+  });
+
+export function subscribeTechBlogTrend(
+  jobId: string,
+  onChunk: (chunk: string) => void,
+  onDone: (result: TechBlogTrendSummary) => void,
+  onError: (msg: string) => void,
+  signal?: AbortSignal,
+): () => void {
+  const url = `${API_BASE}/queue/tech-blog-trend/${jobId}/stream`;
+  const es = new EventSource(url);
+  let closed = false;
+
+  const close = () => {
+    if (!closed) { closed = true; es.close(); }
+  };
+
+  signal?.addEventListener("abort", close);
+
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === "chunk" && typeof data.text === "string") onChunk(data.text);
+      else if (data.type === "done") { onDone(data.payload as TechBlogTrendSummary); close(); }
+      else if (data.type === "error") { onError(data.message ?? "오류"); close(); }
+    } catch { /* 무시 */ }
+  };
+
+  es.onerror = () => { onError("스트림 연결이 끊겼습니다."); close(); };
+
+  return close;
+}
+
+export const cancelTechBlogTrend = (jobId: string) =>
+  fetch(`${API_BASE}/queue/tech-blog-trend/${jobId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });

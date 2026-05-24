@@ -9,6 +9,7 @@ import { listCoverLetters, type CoverLetter } from "@/lib/api/recruit/cover-lett
 import { listCompanyAnalyses, type CompanyAnalysis } from "@/lib/api/company-analysis";
 import { getExperiences, type Experience } from "@/lib/api/experiences";
 import { API_BASE, getAuthHeaders } from "@/lib/api/base";
+import { pdfFileCache } from "@/lib/cache/pdfFileCache";
 import { useTheme } from "@/contexts/ThemeContext";
 import { IconEvaluate, IconSpellcheck } from "./_components/icons";
 import { PROSE_CLASS } from "./_constants";
@@ -233,16 +234,24 @@ export default function RecruitPage() {
 
   const handlePdfFile = async (file: File) => {
     if (!file || !file.name.toLowerCase().endsWith(".pdf")) return;
+    pdfFileCache.set(file);
     setPdfUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch(`${API_BASE}/doc-parse/upload`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: formData,
-      });
-      const raw = await res.json();
+      const [formRes, pdfDataUrl] = await Promise.all([
+        fetch(`${API_BASE}/doc-parse/upload`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: (() => { const fd = new FormData(); fd.append("file", file); return fd; })(),
+        }),
+        file.size < 10 * 1024 * 1024
+          ? new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.readAsDataURL(file);
+            })
+          : Promise.resolve(null as string | null),
+      ]);
+      const raw = await formRes.json();
       const data = raw?.isSuccess === true && "result" in raw ? raw.result : raw;
       const draft = {
         docText: data.text ?? "",
@@ -258,9 +267,13 @@ export default function RecruitPage() {
             : `**${file.name}** 파일이 업로드되었습니다.\n\n텍스트를 추출하지 못했습니다. 스캔된 이미지 PDF이거나 암호화된 파일일 수 있습니다.`,
         }],
         selectedModel: "",
-        pdfDataUrl: null,
+        pdfDataUrl,
       };
-      sessionStorage.setItem("doc-parse-draft", JSON.stringify(draft));
+      try {
+        sessionStorage.setItem("doc-parse-draft", JSON.stringify(draft));
+      } catch {
+        sessionStorage.setItem("doc-parse-draft", JSON.stringify({ ...draft, pdfDataUrl: null }));
+      }
       router.push("/recruit/doc-parse");
     } catch {
       setPdfUploading(false);
@@ -423,11 +436,28 @@ export default function RecruitPage() {
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col p-5">
-              <div className="flex items-center justify-between">
-                <h2 className={`text-lg font-bold sm:text-xl ${textMain}`}>
-                  {activeTab === "jobs" ? "채용 정보" : activeTab === "letters" ? "최근 자소서" : "스펙"}
-                </h2>
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                {/* 1층: 타이틀 & 모바일 상세 페이지 (동일한 가로 행 정렬) */}
+                <div className="flex w-full items-center justify-between sm:w-auto">
+                  <h2 className={`text-base font-bold sm:text-lg ${textMain}`}>
+                    {activeTab === "jobs" ? "채용 정보" : activeTab === "letters" ? "최근 자소서" : "스펙"}
+                  </h2>
+                  <button
+                    onClick={() => router.push(
+                      activeTab === "jobs"
+                        ? "/recruit/job-posting"
+                        : activeTab === "letters"
+                          ? "/recruit/cover-letter"
+                          : "/recruit/spec",
+                    )}
+                    className="rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors sm:hidden text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-white/10"
+                  >
+                    상세 페이지
+                  </button>
+                </div>
+
+                {/* 2층: 필터 & 데스크탑 상세 페이지 */}
+                <div className="flex items-center justify-start gap-2 w-full sm:w-auto sm:justify-end">
                   {activeTab === "jobs" && (
                     <div className={`flex overflow-hidden rounded-lg border text-xs font-bold ${
                       isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"
@@ -455,7 +485,7 @@ export default function RecruitPage() {
                           ? "/recruit/cover-letter"
                           : "/recruit/spec",
                     )}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${isDark ? "text-indigo-300 hover:bg-white/10" : "text-indigo-600 hover:bg-indigo-50"}`}
+                    className="hidden sm:inline-flex rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-white/10"
                   >
                     상세 페이지
                   </button>
@@ -480,14 +510,14 @@ export default function RecruitPage() {
                               onClick={() => router.push(`/recruit/job-posting?job=${encodeURIComponent(job.id)}`)}
                               className={`grid w-full grid-cols-[2rem_1fr_auto] items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
                             >
-                              <span className={`text-base font-black tabular-nums ${isDark ? "text-white/35" : "text-slate-400"}`}>
+                              <span className={`text-sm sm:text-base font-black tabular-nums ${isDark ? "text-white/35" : "text-slate-400"}`}>
                                 {String(index + 1).padStart(2, "0")}
                               </span>
                               <span className="min-w-0">
-                                <span className={`block truncate text-sm font-bold ${textMain}`}>{job.company}</span>
-                                <span className={`block truncate text-xs ${textSub}`}>{job.title} · {jobMeta(job)}</span>
+                                <span className={`block truncate text-xs sm:text-sm font-bold ${textMain}`}>{job.company}</span>
+                                <span className={`block truncate text-[11px] sm:text-xs ${textSub}`}>{job.title} · {jobMeta(job)}</span>
                               </span>
-                              <span className={`rounded-md border px-2 py-1 text-xs font-bold ${
+                              <span className={`rounded-md border px-1.5 py-0.5 sm:px-2 sm:py-1 text-[10px] sm:text-xs font-bold ${
                                 badge.urgent
                                   ? "border-rose-200 bg-rose-50 text-rose-600"
                                   : "border-amber-200 bg-amber-50 text-amber-600"
@@ -593,12 +623,12 @@ export default function RecruitPage() {
                       onClick={() => router.push("/recruit/resume")}
                       className={`grid w-full grid-cols-[2rem_1fr] items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
                     >
-                      <span className={`text-base font-black tabular-nums ${isDark ? "text-white/35" : "text-slate-400"}`}>
+                      <span className={`text-sm sm:text-base font-black tabular-nums ${isDark ? "text-white/35" : "text-slate-400"}`}>
                         {String(index + 1).padStart(2, "0")}
                       </span>
                       <span className="min-w-0">
-                        <span className={`block truncate text-sm font-bold ${textMain}`}>{exp.title}</span>
-                        <span className={`block truncate text-xs ${textSub}`}>{experienceMeta(exp)}</span>
+                        <span className={`block truncate text-xs sm:text-sm font-bold ${textMain}`}>{exp.title}</span>
+                        <span className={`block truncate text-[11px] sm:text-xs ${textSub}`}>{experienceMeta(exp)}</span>
                       </span>
                     </button>
                   </li>

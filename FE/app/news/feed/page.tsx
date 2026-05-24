@@ -97,7 +97,10 @@ export default function NewsFeedPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("q") ?? "";
+  });
 
   const pageClass = isGlass ? "bg-transparent" : isDark ? "bg-slate-950" : "bg-slate-50";
   const panelClass = isGlass ? "glass-panel border-white/20" : isDark ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white";
@@ -122,10 +125,7 @@ export default function NewsFeedPage() {
     }
   }, []);
 
-  useEffect(() => {
-    setQuery("");
-    load(category);
-  }, [load, category]);
+  useEffect(() => { load(category); }, [load, category]);
 
   const filtered = query.trim()
     ? items.filter((item) => {

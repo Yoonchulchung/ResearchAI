@@ -1,4 +1,4 @@
-import { apiFetch } from "./base";
+import { apiFetch, API_BASE, getAuthHeaders } from "./base";
 
 export interface HotPaperSource {
   id: string;
@@ -20,6 +20,9 @@ export interface HotPaper {
   pdfUrl?: string;
   codeUrl?: string;
   tags: string[];
+  aiSummary?: string;
+  aiSummaryModel?: string;
+  aiSummaryAt?: string;
 }
 
 export interface HotPaperListResult {
@@ -38,3 +41,79 @@ export const listHotPapers = (params?: { source?: string; limit?: number; refres
   const qs = query.toString();
   return apiFetch<HotPaperListResult>(`/hot-papers${qs ? `?${qs}` : ""}`);
 };
+
+export interface HotPaperAiSummaryResult {
+  id: string;
+  aiSummary: string;
+  aiSummaryModel: string;
+  aiSummaryAt: string;
+  cached: boolean;
+}
+
+export const summarizeHotPaper = (
+  id: string,
+  params?: { model?: string; refresh?: boolean },
+) =>
+  apiFetch<HotPaperAiSummaryResult>(`/hot-papers/${encodeURIComponent(id)}/ai-summary`, {
+    method: "POST",
+    body: JSON.stringify(params ?? {}),
+  });
+
+export const enqueueHotPaperSummary = (
+  id: string,
+  params?: { model?: string; refresh?: boolean },
+) =>
+  apiFetch<{ jobId: string }>("/queue/hot-paper-summary", {
+    method: "POST",
+    body: JSON.stringify({ id, ...(params ?? {}) }),
+  });
+
+export function subscribeHotPaperSummary(
+  jobId: string,
+  onDone: (result: HotPaperAiSummaryResult) => void,
+  onError: (msg: string) => void,
+  onLog?: (msg: string) => void,
+  signal?: AbortSignal,
+): () => void {
+  const url = `${API_BASE}/queue/hot-paper-summary/${jobId}/stream`;
+  const es = new EventSource(url);
+  let closed = false;
+
+  const close = () => {
+    if (!closed) {
+      closed = true;
+      es.close();
+    }
+  };
+
+  signal?.addEventListener("abort", close);
+
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === "log" && typeof data.message === "string") onLog?.(data.message);
+      else if (data.type === "done") {
+        onDone(data.payload as HotPaperAiSummaryResult);
+        close();
+      } else if (data.type === "error") {
+        onError(data.message ?? "오류");
+        close();
+      }
+    } catch {
+      // ignore malformed SSE payloads
+    }
+  };
+
+  es.onerror = () => {
+    onError("스트림 연결이 끊겼습니다.");
+    close();
+  };
+
+  return close;
+}
+
+export const cancelHotPaperSummary = (jobId: string) =>
+  fetch(`${API_BASE}/queue/hot-paper-summary/${jobId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { Task } from "@/types";
 import { TaskCard } from "@/sessions/components/TaskCard";
@@ -30,9 +30,11 @@ export default function SessionPage() {
   const { session, loading, models } = useSessionData(id);
   const { statuses, phases, aiResult, webModel, isRunning, handleRunTask, handleRunAll, handleCancelAll, handleCancelItem, handleDeleteItem } = useTaskRunner(session, id);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const chatInputWrapRef = useRef<HTMLDivElement>(null);
   const [hideSessionHeader, setHideSessionHeader] = useState(false);
   const [hideChatInput, setHideChatInput] = useState(false);
   const lastScrollTopRef = useRef(0);
+  const suppressRatioRestoreUntilRef = useRef(0);
   const chatInputRevealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 세션별 스크롤 위치 — 비율 기반으로 저장/복원 (데스크탑↔모바일 reflow 대응)
@@ -55,11 +57,11 @@ export default function SessionPage() {
 
       const nearBottom = isNearScrollBottom(el);
       if (chatInputRevealTimerRef.current) clearTimeout(chatInputRevealTimerRef.current);
-      if (nearBottom) {
+      if (nearBottom || scrollTop <= 8) {
         setHideChatInput(false);
       } else {
         setHideChatInput(true);
-        chatInputRevealTimerRef.current = setTimeout(() => setHideChatInput(false), 180);
+        chatInputRevealTimerRef.current = setTimeout(() => setHideChatInput(false), 220);
       }
 
       const max = el.scrollHeight - el.clientHeight;
@@ -87,6 +89,7 @@ export default function SessionPage() {
     const restoreToRatio = () => {
       // 사용자가 스크롤 중이면 건너뜀 (모바일 스크롤 끊김 방지)
       if (performance.now() - lastScrollTime < 300) return;
+      if (performance.now() < suppressRatioRestoreUntilRef.current) return;
       ignoreScrollUntil = performance.now() + 200;
       const max = el.scrollHeight - el.clientHeight;
       el.scrollTop = lastRatio * max;
@@ -112,6 +115,8 @@ export default function SessionPage() {
       if (chatInputRevealTimerRef.current) clearTimeout(chatInputRevealTimerRef.current);
     };
   }, [id, loading]);
+
+
 
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const [showDetail, setShowDetail] = useState(() => {
@@ -315,7 +320,7 @@ export default function SessionPage() {
       <div className="flex flex-1 min-h-0">
         {/* 왼쪽: 태스크 목록 + 채팅 */}
         <div className={`flex flex-col flex-1 min-w-0 overflow-hidden relative transition-[padding-right] duration-300 ease-in-out ${expandedDetail ? "hidden" : (showDetail || showTaskPanel) ? "md:pr-[52%]" : "pr-0"}`}>
-          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain px-1.5 sm:px-8 py-2 sm:py-6">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain px-1.5 sm:px-8 py-2 sm:py-6 pb-28 sm:pb-36">
             <SummarySection
               sessionId={id}
               topic={session.topic}
@@ -398,21 +403,23 @@ export default function SessionPage() {
             />
           </div>
 
-          <div className={`px-1.5 sm:px-8 relative z-10 pb-2 sm:pb-4 transition-opacity duration-200 ease-out ${
+          <div ref={chatInputWrapRef} className={`pointer-events-none absolute inset-x-0 bottom-0 z-10 px-1.5 sm:px-8 pb-2 sm:pb-4 transition-all duration-200 ease-out ${
             hideChatInput
-              ? "opacity-0 pointer-events-none"
-              : "opacity-100"
+              ? "translate-y-[calc(100%+1rem)] opacity-0"
+              : "translate-y-0 opacity-100"
           }`}>
-            <ChatInputArea
-              onSend={(msg, model, attachedTexts) => handleChatSend(msg, model, attachedTexts)}
-              onAbort={handleChatAbort}
-              generating={chatLoading}
-              cloudAiModels={cloudAiModels}
-              localAiModels={models.filter((m) => m.provider === "ollama")}
-              webEngines={webEngines}
-              defaultModel={session.researchCloudAIModel}
-              defaultWebModel={session.researchWebModel ?? "anthropic-builtin"}
-            />
+            <div className="pointer-events-auto">
+              <ChatInputArea
+                onSend={(msg, model, attachedTexts) => handleChatSend(msg, model, attachedTexts)}
+                onAbort={handleChatAbort}
+                generating={chatLoading}
+                cloudAiModels={cloudAiModels}
+                localAiModels={models.filter((m) => m.provider === "ollama")}
+                webEngines={webEngines}
+                defaultModel={session.researchCloudAIModel}
+                defaultWebModel={session.researchWebModel ?? "anthropic-builtin"}
+              />
+            </div>
           </div>
         </div>
 

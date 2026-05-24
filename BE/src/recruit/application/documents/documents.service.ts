@@ -7,6 +7,10 @@ import { ExperienceEntity } from '../../domain/documents/entity/experience.entit
 import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
 import { VectorService } from '../../../vector/vector.service';
 import { QueueService } from '../../../queue/application/queue.service';
+import {
+  buildPortfolioEvaluationPrompt,
+  PORTFOLIO_EVALUATION_SYSTEM_PROMPT,
+} from '../../domain/documents/doc-parse.prompts';
 import pdfParse from 'pdf-parse';
 
 export interface DocAskResult {
@@ -99,79 +103,11 @@ export class DocumentsService {
       return { answer: '평가할 페이지가 없습니다.' };
     }
 
-    const pagesBlock = pages
-      .map((p, i) => `### 📄 페이지 ${i + 1}\n${p.trim() || '(텍스트 없음 — 이미지 위주 페이지일 가능성)'}`)
-      .join('\n\n---\n\n');
-
-    const system = `당신은 10년차 시니어 포트폴리오 리뷰어이자 채용 심사 전문가입니다.
-지원자의 포트폴리오를 페이지 단위로 엄격하게 분석하여 합격 가능성을 높이는 구체적 피드백을 제공합니다.`;
-
-    const prompt = `# 포트폴리오 페이지 분석 요청
-
-다음은 페이지별로 추출된 포트폴리오 텍스트입니다. 각 페이지를 개별 분석한 뒤 종합 평가를 작성하세요.
-
-## 평가 기준 (각 25점, 합계 100점)
-
-1. **직무 적합성** — 지원 직무·분야가 명확한가, 페이지 내용이 직무와 연관되는가
-2. **콘텐츠 완성도** — STAR(상황·과제·행동·결과) 구조 + 정량적 성과(수치·지표)
-3. **시각·구조적 완성도** — 정보 위계, 가독성, 페이지별 메시지 명확성, 빈 페이지·정보 부족 페이지 식별
-4. **차별화·임팩트** — 평범한 자기소개를 넘는 독창성, 첫인상·결말의 강도
-
-## 출력 형식 (반드시 이 마크다운 구조 그대로)
-
-\`\`\`
-# 📊 포트폴리오 평가
-
-## 🎯 종합
-
-| 항목 | 점수 | 등급 |
-|------|------|------|
-| 직무 적합성 | __/25 | A/B/C/D |
-| 콘텐츠 완성도 | __/25 | A/B/C/D |
-| 시각·구조적 완성도 | __/25 | A/B/C/D |
-| 차별화·임팩트 | __/25 | A/B/C/D |
-| **종합** | **__/100** | **__** |
-
-**합격 가능성**: 매우 높음 / 높음 / 보통 / 낮음 / 매우 낮음
-**한 줄 총평**: (한 문장)
-
----
-
-## 📄 페이지별 분석
-
-### 페이지 1
-- **🟢 좋은 점**: (구체적)
-- **🔴 문제점**: (원문 인용 가능 시 \`> "..."\` 인용)
-- **💡 개선 제안**: (실행 가능한 액션)
-
-### 페이지 2
-(같은 형식)
-
-(... 모든 페이지 반복)
-
----
-
-## 🎯 우선 개선 5가지
-1. (가장 시급한 항목, 어느 페이지의 어떤 부분을 어떻게 고칠지)
-2. ...
-3. ...
-4. ...
-5. ...
-\`\`\`
-
-## 평가 원칙
-- **엄격하게**: 적당히 좋다는 평가 금지. 구체적 근거 없는 긍정 평가 금지.
-- **페이지 단위로**: 각 페이지가 어떤 메시지를 전달하는지, 어떤 페이지가 약한지 명시.
-- **빈 페이지 / 텍스트 없는 페이지** ("(텍스트 없음 ..."): 이미지 위주 페이지로 간주하고 "텍스트만으로는 평가 어려움. 캡션·설명 추가 권장" 같은 방향으로 평가.
-- **실행 가능하게**: "더 잘 만들어라" 같은 막연한 조언 금지. 구체적 수정안 제시.
-
----
-
-## 분석 대상 포트폴리오 (총 ${pages.length}페이지)
-
-${pagesBlock}`;
-
-    const { text: answer } = await this.aiProvider.call(aiModel, system, prompt);
+    const { text: answer } = await this.aiProvider.call(
+      aiModel,
+      PORTFOLIO_EVALUATION_SYSTEM_PROMPT,
+      buildPortfolioEvaluationPrompt(pages),
+    );
     return { answer };
   }
 
