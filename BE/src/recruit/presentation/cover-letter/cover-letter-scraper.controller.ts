@@ -44,17 +44,24 @@ export class CoverLetterScraperController {
   async data(
     @Query('page') page = '1',
     @Query('limit') limit = '20',
+    @Query('offset') offset?: string,
     @Query('source') source?: string,
     @Query('companyType') companyType?: string,
     @Query('search') search?: string,
     @Query('sort') sort?: string,
   ) {
-    return this.service.getData(Number(page), Number(limit), {
-      source,
-      companyType,
-      search,
-      sort: sort === 'latest' ? 'latest' : undefined,
-    });
+    const parsedOffset = offset === undefined ? undefined : Number(offset);
+    return this.service.getData(
+      Number(page),
+      Number(limit),
+      {
+        source,
+        companyType,
+        search,
+        sort: sort === 'latest' ? 'latest' : undefined,
+      },
+      Number.isFinite(parsedOffset) ? parsedOffset : undefined,
+    );
   }
 
   @Get('data/:id')
@@ -67,5 +74,11 @@ export class CoverLetterScraperController {
   @Post('ai-job-analysis')
   analyzeJobs(@Body() body: CoverLetterJobAnalysisRequest) {
     return this.service.analyzeJobsWithAi(body);
+  }
+
+  @Get('spec-analyses')
+  async specAnalyses(@Query('ids') ids: string) {
+    const idList = (ids ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    return this.service.getSpecAnalyses(idList);
   }
 }

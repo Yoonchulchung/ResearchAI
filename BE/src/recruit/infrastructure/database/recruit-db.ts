@@ -50,14 +50,52 @@ export class RecruitDb implements OnModuleInit, OnModuleDestroy {
         detail_html  TEXT,
         cached_at    TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS company_profiles (
+        normalized_name TEXT PRIMARY KEY,
+        company_name    TEXT NOT NULL,
+        company_type    TEXT NOT NULL,
+        source          TEXT NOT NULL,
+        evidence        TEXT,
+        updated_at      TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS job_posting_crawl_checkpoints (
+        id         TEXT PRIMARY KEY,
+        data       TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `);
     // Add new columns if they don't exist (SQLite doesn't support IF NOT EXISTS for columns)
-    const addCol = (col: string) => { try { this.db.exec(`ALTER TABLE job_posting_detail_cache ADD COLUMN ${col}`); } catch {} };
-    addCol('ai_analysis TEXT');
-    addCol('ai_interview TEXT');
-    addCol('ai_analysis_at TEXT');
-    addCol('ai_interview_at TEXT');
-    addCol('image_texts TEXT');
+    const addCol = (table: string, col: string) => { try { this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${col}`); } catch {} };
+    addCol('job_posting_detail_cache', 'ai_analysis TEXT');
+    addCol('job_posting_detail_cache', 'ai_interview TEXT');
+    addCol('job_posting_detail_cache', 'ai_analysis_at TEXT');
+    addCol('job_posting_detail_cache', 'ai_interview_at TEXT');
+    addCol('job_posting_detail_cache', 'image_texts TEXT');
+    addCol('job_posting_detail_cache', 'ai_analysis_doc_id TEXT');
+    addCol('job_posting_detail_cache', 'ai_interview_doc_id TEXT');
+
+    addCol('job_postings', 'company_type TEXT');
+    addCol('job_postings', 'type TEXT');
+    addCol('job_postings', 'start_date TEXT');
+    addCol('job_postings', 'end_date TEXT');
+    addCol('job_postings', 'deadline TEXT');
+    addCol('job_postings', 'jobs TEXT');
+    addCol('job_postings', 'homepage TEXT');
+    addCol('job_postings', 'category TEXT');
+    addCol('job_postings', 'view_count INTEGER');
+    addCol('job_postings', 'detail_content TEXT');
+    addCol('job_postings', 'detail_html TEXT');
+    addCol('job_postings', 'search_text TEXT');
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_job_postings_company_type ON job_postings(company_type);
+      CREATE INDEX IF NOT EXISTS idx_job_postings_type ON job_postings(type);
+      CREATE INDEX IF NOT EXISTS idx_job_postings_category ON job_postings(category);
+      CREATE INDEX IF NOT EXISTS idx_job_postings_start_date ON job_postings(start_date);
+      CREATE INDEX IF NOT EXISTS idx_job_postings_end_date ON job_postings(end_date);
+    `);
   }
 
   onModuleDestroy() {
@@ -85,32 +123,44 @@ export class RecruitDb implements OnModuleInit, OnModuleDestroy {
 
   setDetailCache(id: string, data: { companyType?: string; jobs?: string; detailContent?: string; detailHtml?: string }): void {
     this.db.prepare(
-      `INSERT OR REPLACE INTO job_posting_detail_cache
+      `INSERT INTO job_posting_detail_cache
          (id, company_type, jobs, detail_content, detail_html, cached_at)
-       VALUES (?, ?, ?, ?, ?, DATETIME('now'))`,
+       VALUES (?, ?, ?, ?, ?, DATETIME('now'))
+       ON CONFLICT(id) DO UPDATE SET
+         company_type   = excluded.company_type,
+         jobs           = excluded.jobs,
+         detail_content = excluded.detail_content,
+         detail_html    = excluded.detail_html,
+         cached_at      = excluded.cached_at`,
     ).run(id, data.companyType ?? null, data.jobs ?? null, data.detailContent ?? null, data.detailHtml ?? null);
   }
 
   pruneDetailCache(): void {
     this.db.prepare(
-      `DELETE FROM job_posting_detail_cache WHERE cached_at <= DATETIME('now', '-2 days')`,
+      `DELETE FROM job_posting_detail_cache
+       WHERE cached_at <= DATETIME('now', '-2 days')
+         AND ai_analysis IS NULL
+         AND ai_interview IS NULL`,
     ).run();
   }
 
-  getAiAnalysisCache(id: string, mode: 'analysis' | 'interview'): string | null {
+  getAiAnalysisCache(id: string, mode: 'analysis' | 'interview'): { text: string; docId: string | null } | null {
     const col = mode === 'analysis' ? 'ai_analysis' : 'ai_interview';
-    const row = this.db.prepare(`SELECT ${col} FROM job_posting_detail_cache WHERE id = ?`).get(id) as Record<string, string | null> | undefined;
-    return row?.[col] ?? null;
+    const docCol = mode === 'analysis' ? 'ai_analysis_doc_id' : 'ai_interview_doc_id';
+    const row = this.db.prepare(`SELECT ${col}, ${docCol} FROM job_posting_detail_cache WHERE id = ?`).get(id) as Record<string, string | null> | undefined;
+    if (!row?.[col]) return null;
+    return { text: row[col] as string, docId: row[docCol] ?? null };
   }
 
-  setAiAnalysisCache(id: string, mode: 'analysis' | 'interview', text: string): void {
+  setAiAnalysisCache(id: string, mode: 'analysis' | 'interview', text: string, docId?: string | null): void {
     const col = mode === 'analysis' ? 'ai_analysis' : 'ai_interview';
     const atCol = mode === 'analysis' ? 'ai_analysis_at' : 'ai_interview_at';
+    const docCol = mode === 'analysis' ? 'ai_analysis_doc_id' : 'ai_interview_doc_id';
     this.db.prepare(
-      `INSERT INTO job_posting_detail_cache (id, cached_at, ${col}, ${atCol})
-       VALUES (?, DATETIME('now'), ?, DATETIME('now'))
-       ON CONFLICT(id) DO UPDATE SET ${col} = excluded.${col}, ${atCol} = excluded.${atCol}`,
-    ).run(id, text);
+      `INSERT INTO job_posting_detail_cache (id, cached_at, ${col}, ${atCol}, ${docCol})
+       VALUES (?, DATETIME('now'), ?, DATETIME('now'), ?)
+       ON CONFLICT(id) DO UPDATE SET ${col} = excluded.${col}, ${atCol} = excluded.${atCol}, ${docCol} = excluded.${docCol}`,
+    ).run(id, text, docId ?? null);
   }
 
   getImageTextsCache(id: string): string | null {

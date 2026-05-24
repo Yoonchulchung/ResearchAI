@@ -12,9 +12,11 @@ import { NewsBriefingEntity } from './domain/entity/news-briefing.entity';
 import { AiModule } from '../ai/ai.module';
 import { AppConfigModule } from '../config/config.module';
 import { SharedModule } from '../shared/shared.module';
+import { TechBlogModule } from './tech-blog/tech-blog.module';
+import { HotPapersModule } from './hot-papers/hot-papers.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([NewsBriefingEntity]), AiModule, AppConfigModule, SharedModule],
+  imports: [TypeOrmModule.forFeature([NewsBriefingEntity]), AiModule, AppConfigModule, SharedModule, TechBlogModule, HotPapersModule],
   controllers: [NewsController],
   providers: [NewsService, MarketService, GithubApi, HuggingfaceApi, GoogleNewsApi, NewsProviderService, NewsSummaryService],
 })

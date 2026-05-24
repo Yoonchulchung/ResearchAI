@@ -12,11 +12,6 @@ const SOURCE_FILTERS = [
   { value: "linkareer", label: "링커리어" },
 ] as const;
 const COMPANY_TYPE_FILTERS = ["", "대기업", "중견기업", "중소기업", "금융권"] as const;
-const AI_JOB_FILTERS = [
-  { value: "all", label: "전체" },
-  { value: "IT", label: "IT" },
-  { value: "전자", label: "전자" },
-] as const;
 
 function CoverLetterPageContent() {
   const searchParams = useSearchParams();
@@ -27,8 +22,6 @@ function CoverLetterPageContent() {
 
   const list = useCoverLetterList(coverId);
   const scraping = useCoverLetterScraping(list.reload);
-
-  const selectedJobAnalysis = list.selected ? list.jobAnalyses[list.selected.id] : undefined;
 
   return (
     <div className={`h-full flex flex-col overflow-hidden ${isGlass ? "p-3 pr-4 pb-4 bg-transparent" : "bg-slate-100"}`}>
@@ -52,6 +45,14 @@ function CoverLetterPageContent() {
             <span className={`text-sm font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>합격 자소서</span>
             <span className={`text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>{list.total.toLocaleString()}건</span>
             <div className="flex-1" />
+            <button
+              onClick={() => window.location.assign("/recruit/spec")}
+              className={`hidden sm:inline-flex shrink-0 items-center rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                isDark ? "text-indigo-300 hover:bg-white/10" : "text-indigo-600 hover:bg-indigo-50"
+              }`}
+            >
+              스펙 분석
+            </button>
             <div className={`hidden sm:flex shrink-0 items-center gap-1 rounded-lg p-0.5 border ${
               isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
             }`}>
@@ -161,44 +162,16 @@ function CoverLetterPageContent() {
                     <option key={type || "all"} value={type}>{type || "기업분류 전체"}</option>
                   ))}
                 </select>
-                <div className={`grid grid-cols-3 gap-1 rounded-lg p-0.5 border ${
-                  isGlass && isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
-                }`}>
-                  {AI_JOB_FILTERS.map((item) => (
-                    <button
-                      key={item.value}
-                      onClick={() => list.setAiJobFilter(item.value)}
-                      className={`h-7 rounded-md text-xs font-semibold transition-all ${
-                        list.aiJobFilter === item.value
-                          ? isGlass && isDark ? "bg-indigo-500/80 text-white" : "bg-indigo-600 text-white shadow-sm"
-                          : isGlass && isDark ? "text-white/45 hover:text-white/80" : "text-slate-400 hover:text-slate-700"
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
                 <button
-                  onClick={list.handleAnalyzeJobs}
-                  disabled={list.jobAnalysisLoading || list.rawFiltered.length === 0}
+                  onClick={() => window.location.assign("/recruit/spec")}
                   className={`flex h-8 items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-50 ${
                     isGlass && isDark
                       ? "border-indigo-400/30 bg-indigo-500/20 text-indigo-100 hover:bg-indigo-500/30"
                       : "border-indigo-100 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
                   }`}
                 >
-                  {list.jobAnalysisLoading ? (
-                    <span className="h-3 w-3 rounded-full border-2 border-indigo-300 border-t-indigo-700 animate-spin" />
-                  ) : (
-                    <span className="text-[11px]">AI</span>
-                  )}
-                  직무 분류 · 스펙 추출
+                  스펙 분석 페이지
                 </button>
-                {list.jobAnalysisError && (
-                  <p className={`text-xs leading-relaxed ${isGlass && isDark ? "text-red-300" : "text-red-500"}`}>
-                    {list.jobAnalysisError}
-                  </p>
-                )}
               </div>
             </div>
 
@@ -210,16 +183,7 @@ function CoverLetterPageContent() {
                     <path d="M6 4h20v24H6V4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
                     <path d="M10 10h12M10 15h12M10 20h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
                   </svg>
-                  <p className="text-sm">{list.aiJobFilter === "all" ? "자소서가 없습니다" : "AI 분류 결과가 없습니다"}</p>
-                  {list.aiJobFilter !== "all" && (
-                    <button
-                      onClick={list.handleAnalyzeJobs}
-                      disabled={list.jobAnalysisLoading || list.rawFiltered.length === 0}
-                      className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                    >
-                      AI 분류 실행
-                    </button>
-                  )}
+                  <p className="text-sm">자소서가 없습니다</p>
                 </div>
               )}
               {list.filtered.map((cl) => (
@@ -253,23 +217,7 @@ function CoverLetterPageContent() {
                     {cl.questions.length > 0 && (
                       <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full ${isDark ? "bg-white/10 text-white/50" : "bg-slate-100 text-slate-400"}`}>{cl.questions.length}문항</span>
                     )}
-                    {list.jobAnalyses[cl.id] && (
-                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full ${
-                        list.jobAnalyses[cl.id].jobCategory === "IT"
-                          ? isDark ? "bg-indigo-500/20 text-indigo-300" : "bg-indigo-50 text-indigo-600"
-                          : list.jobAnalyses[cl.id].jobCategory === "전자"
-                            ? isDark ? "bg-amber-500/20 text-amber-300" : "bg-amber-50 text-amber-600"
-                            : isDark ? "bg-white/10 text-white/45" : "bg-slate-100 text-slate-500"
-                      }`}>
-                        {list.jobAnalyses[cl.id].jobCategory}
-                      </span>
-                    )}
                   </div>
-                  {list.jobAnalyses[cl.id]?.extractedSpec?.summary && (
-                    <p className={`text-xs mt-1.5 line-clamp-1 ${isDark ? "text-indigo-200/55" : "text-indigo-500"}`}>
-                      {list.jobAnalyses[cl.id].extractedSpec.summary}
-                    </p>
-                  )}
                   {cl.questions[0] && (
                     <p className={`text-xs mt-1.5 line-clamp-2 leading-relaxed ${isDark ? "text-white/35" : "text-slate-400"}`}>
                       {cl.questions[0].answer || cl.questions[0].question}
@@ -307,55 +255,6 @@ function CoverLetterPageContent() {
                   </div>
                   {list.selected.spec && (
                     <p className={`mt-2 text-[15px] leading-relaxed ${isDark ? "text-white/40" : "text-slate-400"}`}>{list.selected.spec}</p>
-                  )}
-                  {selectedJobAnalysis && (
-                    <div className={`mt-4 rounded-2xl border p-4 ${isDark ? "border-white/10 bg-white/5" : "border-indigo-100 bg-indigo-50/50"}`}>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                          selectedJobAnalysis.jobCategory === "IT" ? "bg-indigo-600 text-white"
-                            : selectedJobAnalysis.jobCategory === "전자" ? "bg-amber-500 text-white"
-                            : isDark ? "bg-white/10 text-white/70" : "bg-slate-200 text-slate-600"
-                        }`}>
-                          AI 분류: {selectedJobAnalysis.jobCategory}
-                        </span>
-                        <span className={`text-xs font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>신뢰도 {selectedJobAnalysis.confidence}%</span>
-                      </div>
-                      {selectedJobAnalysis.reason && (
-                        <p className={`mt-2 text-xs leading-relaxed ${isDark ? "text-white/45" : "text-slate-500"}`}>{selectedJobAnalysis.reason}</p>
-                      )}
-                      {selectedJobAnalysis.extractedSpec.summary && (
-                        <p className={`mt-3 text-sm font-semibold leading-relaxed ${isDark ? "text-white/80" : "text-slate-800"}`}>{selectedJobAnalysis.extractedSpec.summary}</p>
-                      )}
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {[
-                          selectedJobAnalysis.extractedSpec.school,
-                          selectedJobAnalysis.extractedSpec.major,
-                          selectedJobAnalysis.extractedSpec.gpa,
-                          ...(selectedJobAnalysis.extractedSpec.languages ?? []),
-                          ...(selectedJobAnalysis.extractedSpec.certificates ?? []),
-                          ...(selectedJobAnalysis.extractedSpec.internships ?? []),
-                          ...(selectedJobAnalysis.extractedSpec.activities ?? []),
-                          ...(selectedJobAnalysis.extractedSpec.awards ?? []),
-                          ...(selectedJobAnalysis.extractedSpec.skills ?? []),
-                        ].filter(Boolean).slice(0, 16).map((spec, index) => (
-                          <span key={`${spec}-${index}`} className={`rounded-full border px-2 py-1 text-xs font-medium ${isDark ? "border-white/10 bg-white/5 text-white/55" : "border-slate-200 bg-white text-slate-600"}`}>
-                            {spec}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {!selectedJobAnalysis && (
-                    <button
-                      onClick={list.handleAnalyzeJobs}
-                      disabled={list.jobAnalysisLoading}
-                      className={`mt-4 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-50 ${
-                        isDark ? "border-indigo-400/30 bg-indigo-500/15 text-indigo-200 hover:bg-indigo-500/25" : "border-indigo-100 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
-                      }`}
-                    >
-                      {list.jobAnalysisLoading && <span className="h-3 w-3 rounded-full border-2 border-indigo-300 border-t-indigo-700 animate-spin" />}
-                      AI로 직무 분류 및 스펙 추출
-                    </button>
                   )}
                 </div>
 

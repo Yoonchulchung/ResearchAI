@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   getResume, saveResume,
-  type ResumeProfile, type ResumeEducation,
+  type ResumeProfile,
   type ResumeLanguage, type ResumeSkill,
   type ResumeAward, type ResumeActivity, type ResumeOverseas,
   type ResumeSelfIntro, type ResumeTarget,
@@ -14,6 +14,7 @@ import {
 import { createExperience, updateExperience, getExperiences, type Experience } from "@/lib/api/experiences";
 import { streamWriteAssist } from "@/lib/api/ai";
 import { enqueueRecruitAssist } from "@/lib/api/recruit/assist";
+import { API_BASE, getAuthHeaders } from "@/lib/api/base";
 import { IconEvaluate } from "../_components/icons";
 import { MODELS, PROSE_CLASS } from "../_constants";
 
@@ -50,6 +51,24 @@ function normalizeResumeProfile(profile: ResumeProfile): ResumeProfile {
     return { ...profile, resumeTargets: [...groups.values()] };
   }
   return { ...profile, resumeTargets: [createResumeTarget()] };
+}
+
+async function extractJdTextFromImage(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("model", "gemini-2.0-flash");
+
+  const res = await fetch(`${API_BASE}/media/extract-image-text`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: formData,
+  });
+  const raw = await res.json().catch(() => ({}));
+  const data = raw?.isSuccess === true && "result" in raw ? raw.result : raw;
+  if (!res.ok) {
+    throw new Error(typeof data?.message === "string" ? data.message : "이미지 텍스트 추출에 실패했습니다.");
+  }
+  return String(data?.text ?? "").trim();
 }
 
 // ─── Shared UI atoms ──────────────────────────────────────────────────────────
@@ -107,8 +126,8 @@ function ViewSection({ title, children }: { title: string; children: React.React
   );
 }
 
-function ExpandableCard({ title, sub, content }: { title: string; sub?: string; content?: string }) {
-  const [open, setOpen] = useState(false);
+function ExpandableCard({ title, sub, content, defaultOpen = false }: { title: string; sub?: string; content?: string; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden">
       <button onClick={() => setOpen((v) => !v)}
@@ -133,6 +152,16 @@ function ExpandableCard({ title, sub, content }: { title: string; sub?: string; 
   );
 }
 
+function parseSelfIntroExperienceContent(content?: string) {
+  const text = content ?? "";
+  const question = text.match(/(?:^|\n)문항:\s*([\s\S]*?)(?=\n\s*\n답변:|$)/)?.[1]?.trim();
+  const answer = text.match(/(?:^|\n)답변:\s*([\s\S]*)$/)?.[1]?.trim();
+  return {
+    question,
+    answer: answer || text.trim(),
+  };
+}
+
 function ExperienceLibrarySection({ allExperiences, linkedIds }: { allExperiences: Experience[]; linkedIds: Set<string> }) {
   if (allExperiences.length === 0) return null;
 
@@ -150,12 +179,17 @@ function ExperienceLibrarySection({ allExperiences, linkedIds }: { allExperience
             <p className="text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">{cat}</p>
             <div className="flex flex-col gap-1.5">
               {exps.map((exp) => (
-                <ExpandableCard
-                  key={exp.id}
-                  title={exp.title}
-                  sub={linkedIds.has(exp.id) ? "이력서 연동" : undefined}
-                  content={exp.content}
-                />
+                (() => {
+                  const isSelfIntro = exp.category === "자기소개서";
+                  const parsed = isSelfIntro ? parseSelfIntroExperienceContent(exp.content) : null;
+                  return (
+                    <ExpandableCard
+                      key={exp.id}
+                      title={isSelfIntro && parsed?.question ? `${exp.title} · ${parsed.question}` : exp.title}
+                      content={isSelfIntro ? parsed?.answer : exp.content}
+                    />
+                  );
+                })()
               ))}
             </div>
           </div>
@@ -172,6 +206,7 @@ function ResumeView({
   selectedTargetId,
   onSelectTarget,
   onBackToList,
+  hideExperienceLibrary = false,
 }: {
   profile: ResumeProfile;
   onEdit: () => void;
@@ -179,10 +214,11 @@ function ResumeView({
   selectedTargetId: string | null;
   onSelectTarget: (id: string) => void;
   onBackToList: () => void;
+  hideExperienceLibrary?: boolean;
 }) {
   const targets = profile.resumeTargets ?? [];
   const selectedTarget = targets.find((target) => target.id === selectedTargetId);
-  const isEmpty = profile.education.length === 0 && profile.awards.length === 0 &&
+  const isEmpty = profile.awards.length === 0 &&
     profile.activities.length === 0 && profile.overseas.length === 0 && targets.length === 0;
 
   const linkedIds = new Set<string>([
@@ -207,7 +243,7 @@ function ResumeView({
             이력서 추가
           </button>
         </div>
-        <ExperienceLibrarySection allExperiences={allExperiences} linkedIds={linkedIds} />
+        {!hideExperienceLibrary && <ExperienceLibrarySection allExperiences={allExperiences} linkedIds={linkedIds} />}
       </div>
     );
   }
@@ -239,7 +275,7 @@ function ResumeView({
             })}
           </div>
         </ViewSection>
-        <ExperienceLibrarySection allExperiences={allExperiences} linkedIds={linkedIds} />
+        {!hideExperienceLibrary && <ExperienceLibrarySection allExperiences={allExperiences} linkedIds={linkedIds} />}
       </div>
     );
   }
@@ -270,43 +306,24 @@ function ResumeView({
           </div>
         </ViewSection>
 
-      {/* 학력 */}
-      {profile.education.length > 0 && (
-        <ViewSection title="학력사항">
-          <div className="flex flex-col gap-3">
-            {profile.education.map((edu) => (
-              <div key={edu.id} className="flex items-start gap-3 py-2 border-b border-slate-100 last:border-0">
-                <div className={`mt-0.5 shrink-0 w-2 h-2 rounded-full ${edu.type === "university" || edu.type === "graduate" ? "bg-indigo-400" : "bg-slate-300"}`} />
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-slate-800">{edu.school}</p>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {edu.major && <ViewTag>{edu.major}</ViewTag>}
-                    {edu.status && <ViewTag>{edu.status}</ViewTag>}
-                    {edu.gpa && <ViewTag>학점 {edu.gpa}{edu.gpaMax ? `/${edu.gpaMax}` : ""}</ViewTag>}
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1">{edu.startDate} ~ {edu.endDate} · {edu.location}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </ViewSection>
-      )}
-
-      {/* 병역 */}
-      {profile.military && (
-        <ViewSection title="병역">
-          <div className="flex flex-wrap gap-2">
-            <ViewTag>{profile.military.status}</ViewTag>
-            {profile.military.rank && <ViewTag>계급 {profile.military.rank}</ViewTag>}
-            {profile.military.dischargeType && <ViewTag>{profile.military.dischargeType}</ViewTag>}
-            {profile.military.startDate && (
-              <span className="text-xs text-slate-400 self-center">
-                {profile.military.startDate} ~ {profile.military.endDate}
-              </span>
-            )}
-          </div>
-        </ViewSection>
-      )}
+        {selectedTarget.selfIntroductions.length > 0 && (
+          <ViewSection title={`자기소개서 (${selectedTarget.selfIntroductions.length}문항)`}>
+            <div className="flex flex-col gap-2">
+              {selectedTarget.selfIntroductions.map((si) => (
+                <ExpandableCard
+                  key={si.id}
+                  title={[
+                    selectedTarget.companyName || "기업명 미입력",
+                    selectedTarget.jobTitle || "직무 미입력",
+                    si.question || "문항 미입력",
+                  ].join(" · ")}
+                  content={si.answer}
+                  defaultOpen
+                />
+              ))}
+            </div>
+          </ViewSection>
+        )}
 
       {/* 어학 + 기술 */}
       {(profile.languages.length > 0 || profile.skills.length > 0) && (
@@ -391,7 +408,7 @@ function ResumeView({
       )}
 
       {/* 경험 라이브러리 */}
-      <ExperienceLibrarySection allExperiences={allExperiences} linkedIds={linkedIds} />
+      {!hideExperienceLibrary && <ExperienceLibrarySection allExperiences={allExperiences} linkedIds={linkedIds} />}
     </div>
   );
 }
@@ -414,6 +431,9 @@ function ResumeEdit({
   const targets = profile.resumeTargets && profile.resumeTargets.length > 0 ? profile.resumeTargets : [createResumeTarget()];
   const activeTarget = targets.find((target) => target.id === activeTargetId) ?? targets[0];
   const [evaluation, setEvaluation] = useState<{ title: string; result: string; loading: boolean; error: string | null } | null>(null);
+  const [jdDragOver, setJdDragOver] = useState(false);
+  const [jdImageLoading, setJdImageLoading] = useState(false);
+  const [jdImageError, setJdImageError] = useState<string | null>(null);
 
   const updateTargets = (nextTargets: ResumeTarget[]) => update({ resumeTargets: nextTargets });
   const updateActiveTarget = (patch: Partial<ResumeTarget>) => {
@@ -434,6 +454,29 @@ function ResumeEdit({
     }
     updateTargets(nextTargets);
     if (activeTarget.id === id) setActiveTargetId(nextTargets[0].id);
+  };
+
+  const handleJdImageFiles = async (files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
+    if (imageFiles.length === 0 || jdImageLoading) return;
+
+    setJdImageLoading(true);
+    setJdImageError(null);
+    try {
+      const texts = (await Promise.all(imageFiles.map(extractJdTextFromImage))).filter(Boolean);
+      if (texts.length === 0) {
+        setJdImageError("이미지에서 추출된 텍스트가 없습니다.");
+        return;
+      }
+      updateActiveTarget({
+        jd: [activeTarget.jd.trim(), ...texts].filter(Boolean).join("\n\n"),
+      });
+    } catch (e) {
+      setJdImageError(e instanceof Error ? e.message : "이미지 텍스트 추출에 실패했습니다.");
+    } finally {
+      setJdImageLoading(false);
+      setJdDragOver(false);
+    }
   };
 
   const runSelfIntroEvaluation = async (si: ResumeSelfIntro, index: number) => {
@@ -512,81 +555,64 @@ function ResumeEdit({
             <Field label="기업명" value={activeTarget.companyName} onChange={(v) => updateActiveTarget({ companyName: v })} placeholder="삼성전자 / 카카오" />
             <Field label="직무" value={activeTarget.jobTitle} onChange={(v) => updateActiveTarget({ jobTitle: v })} placeholder="SW 개발 / 데이터 분석" />
             <div className="sm:col-span-2">
-              <Field label="JD (채용공고)" value={activeTarget.jd} onChange={(v) => updateActiveTarget({ jd: v })} placeholder="지원할 채용공고 내용을 붙여넣으세요." multiline />
+              <div
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setJdDragOver(true);
+                }}
+                onDragLeave={() => setJdDragOver(false)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  handleJdImageFiles(event.dataTransfer.files);
+                }}
+                className={`rounded-xl border p-3 transition-colors ${
+                  jdDragOver
+                    ? "border-indigo-300 bg-indigo-50"
+                    : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">JD (채용공고)</span>
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 transition-colors hover:border-indigo-200 hover:text-indigo-600">
+                    {jdImageLoading ? (
+                      <span className="h-3 w-3 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin" />
+                    ) : (
+                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                        <path d="M2 10.5L4.8 7.7C5.15 7.35 5.72 7.35 6.07 7.7L7 8.63L8.93 6.7C9.28 6.35 9.85 6.35 10.2 6.7L11 7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                        <rect x="1.5" y="2" width="10" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+                        <circle cx="4.4" cy="4.8" r="0.8" fill="currentColor" />
+                      </svg>
+                    )}
+                    이미지에서 추출
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(event) => {
+                        if (event.target.files) handleJdImageFiles(event.target.files);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                </div>
+                <textarea
+                  value={activeTarget.jd}
+                  onChange={(event) => updateActiveTarget({ jd: event.target.value })}
+                  placeholder="지원할 채용공고 내용을 붙여넣거나, 채용공고 이미지를 이 영역에 끌어다 놓으세요."
+                  rows={7}
+                  className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-relaxed text-slate-800 outline-none transition-colors focus:border-indigo-300"
+                />
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-slate-400">
+                    이미지 파일을 끌어다 놓으면 JD 텍스트로 추출해서 아래 내용에 추가합니다.
+                  </p>
+                  {jdImageError && <p className="text-xs font-semibold text-red-500">{jdImageError}</p>}
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </section>
-
-      {/* 학력 */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <SectionTitle>학력사항</SectionTitle>
-          <button onClick={() => update({ education: [...profile.education, { id: uid(), type: "university", school: "", location: "", startDate: "", endDate: "", status: "졸업" }] })}
-            className="text-xs font-semibold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1">
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
-            추가
-          </button>
-        </div>
-        {profile.education.length === 0 && <EmptyHint>학력을 추가해주세요.</EmptyHint>}
-        <div className="flex flex-col gap-4">
-          {profile.education.map((edu, i) => (
-            <div key={edu.id} className="border border-slate-200 rounded-xl p-4 flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <select value={edu.type} onChange={(e) => { const ed = [...profile.education]; ed[i] = { ...ed[i], type: e.target.value as ResumeEducation["type"] }; update({ education: ed }); }}
-                  className="text-xs font-semibold border border-slate-200 rounded-md px-2 py-1 text-slate-600 focus:outline-none">
-                  <option value="high">고등학교</option>
-                  <option value="university">대학교</option>
-                  <option value="graduate">대학원</option>
-                  <option value="other">기타</option>
-                </select>
-                <DeleteBtn onClick={() => update({ education: profile.education.filter((_, j) => j !== i) })} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="학교명" value={edu.school} onChange={(v) => { const ed = [...profile.education]; ed[i] = { ...ed[i], school: v }; update({ education: ed }); }} />
-                <Field label="소재지" value={edu.location} onChange={(v) => { const ed = [...profile.education]; ed[i] = { ...ed[i], location: v }; update({ education: ed }); }} />
-                <Field label="입학일" value={edu.startDate} onChange={(v) => { const ed = [...profile.education]; ed[i] = { ...ed[i], startDate: v }; update({ education: ed }); }} placeholder="2020.03.02" />
-                <Field label="졸업일" value={edu.endDate} onChange={(v) => { const ed = [...profile.education]; ed[i] = { ...ed[i], endDate: v }; update({ education: ed }); }} placeholder="2026.02.26" />
-                {edu.type !== "high" && (
-                  <Field label="전공" value={edu.major ?? ""} onChange={(v) => { const ed = [...profile.education]; ed[i] = { ...ed[i], major: v }; update({ education: ed }); }} />
-                )}
-                <Field label="졸업구분" value={edu.status} onChange={(v) => { const ed = [...profile.education]; ed[i] = { ...ed[i], status: v }; update({ education: ed }); }} placeholder="졸업 / 재학 / 중퇴" />
-                {edu.type !== "high" && (
-                  <>
-                    <Field label="학점" value={edu.gpa ?? ""} onChange={(v) => { const ed = [...profile.education]; ed[i] = { ...ed[i], gpa: v }; update({ education: ed }); }} placeholder="3.43" />
-                    <Field label="만점" value={edu.gpaMax ?? ""} onChange={(v) => { const ed = [...profile.education]; ed[i] = { ...ed[i], gpaMax: v }; update({ education: ed }); }} placeholder="4.5" />
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* 병역 */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <SectionTitle>병역</SectionTitle>
-          {!profile.military ? (
-            <button onClick={() => update({ military: { status: "군필", rank: "", dischargeType: "", startDate: "", endDate: "" } })}
-              className="text-xs font-semibold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg transition-colors">추가</button>
-          ) : (
-            <button onClick={() => update({ military: undefined })}
-              className="text-xs font-semibold text-red-400 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors">삭제</button>
-          )}
-        </div>
-        {!profile.military && <EmptyHint>해당 없으면 비워두세요.</EmptyHint>}
-        {profile.military && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="복무구분" value={profile.military.status} onChange={(v) => update({ military: { ...profile.military!, status: v } })} placeholder="군필 / 미필 / 면제" />
-            <Field label="계급" value={profile.military.rank ?? ""} onChange={(v) => update({ military: { ...profile.military!, rank: v } })} placeholder="상병" />
-            <Field label="제대구분" value={profile.military.dischargeType ?? ""} onChange={(v) => update({ military: { ...profile.military!, dischargeType: v } })} placeholder="의병제대 / 만기제대" />
-            <Field label="복무기간" value={`${profile.military.startDate ?? ""}${profile.military.endDate ? `~${profile.military.endDate}` : ""}`} onChange={(v) => {
-              const [s, e] = v.split("~");
-              update({ military: { ...profile.military!, startDate: s ?? "", endDate: e ?? "" } });
-            }} placeholder="2022.05~2023.05" />
-          </div>
-        )}
       </section>
 
       {/* 어학 */}
@@ -813,18 +839,12 @@ function ResumeEdit({
 type SyncableItem = (ResumeAward | ResumeActivity | ResumeOverseas | ResumeSelfIntro) & { experienceId?: string };
 
 function selfIntroExperienceTitle(si: ResumeSelfIntro) {
-  const target = [si.companyName?.trim(), si.jobTitle?.trim()].filter(Boolean).join(" · ");
-  return target || si.question || "자기소개서";
+  const title = [si.companyName?.trim(), si.jobTitle?.trim(), si.question?.trim()].filter(Boolean).join(" · ");
+  return title || "자기소개서";
 }
 
 function selfIntroExperienceContent(si: ResumeSelfIntro) {
-  return [
-    si.companyName?.trim() ? `기업명: ${si.companyName.trim()}` : "",
-    si.jobTitle?.trim() ? `직무: ${si.jobTitle.trim()}` : "",
-    si.jd?.trim() ? `JD:\n${si.jd.trim()}` : "",
-    si.question?.trim() ? `문항: ${si.question.trim()}` : "",
-    si.answer?.trim() ? `답변:\n${si.answer.trim()}` : "",
-  ].filter(Boolean).join("\n\n");
+  return si.answer?.trim() ?? "";
 }
 
 function targetSelfIntro(target: ResumeTarget, si: ResumeSelfIntro): ResumeSelfIntro {
@@ -912,8 +932,15 @@ async function syncToExperienceLibrary(profile: ResumeProfile): Promise<ResumePr
 
 type ResumeMode = "view" | "edit";
 
+function parseResumeQueryId(raw: string | null): { id: string | null; edit: boolean } {
+  if (!raw) return { id: null, edit: false };
+  if (raw.endsWith("/edit")) return { id: raw.slice(0, -"/edit".length), edit: true };
+  return { id: raw, edit: false };
+}
+
 export function ResumePageContent({ initialMode = "view", createNewOnLoad = false }: { initialMode?: ResumeMode; createNewOnLoad?: boolean }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [profile, setProfile] = useState<ResumeProfile>(EMPTY_PROFILE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -922,6 +949,7 @@ export function ResumePageContent({ initialMode = "view", createNewOnLoad = fals
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [activeTargetId, setActiveTargetId] = useState<string | null>(null);
   const [viewTargetId, setViewTargetId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -941,28 +969,25 @@ export function ResumePageContent({ initialMode = "view", createNewOnLoad = fals
       } else {
         setActiveTargetId(normalized.resumeTargets?.[0]?.id ?? null);
       }
-      const queryId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("id") : null;
-      const validQueryId = queryId && normalized.resumeTargets?.some((target) => target.id === queryId) ? queryId : null;
+      const query = parseResumeQueryId(searchParams.get("id"));
+      const validQueryId = query.id && normalized.resumeTargets?.some((target) => target.id === query.id) ? query.id : null;
       setViewTargetId(validQueryId);
       if (validQueryId) setActiveTargetId(validQueryId);
+      setMode(validQueryId && query.edit ? "edit" : initialMode);
       setProfile(normalized);
       setExperiences(exps);
       setLoading(false);
     });
-  }, [createNewOnLoad]);
+  }, [createNewOnLoad, initialMode, searchParams]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const syncFromUrl = () => {
-      const queryId = new URLSearchParams(window.location.search).get("id");
-      const validQueryId = queryId && profile.resumeTargets?.some((target) => target.id === queryId) ? queryId : null;
-      setViewTargetId(validQueryId);
-      if (validQueryId) setActiveTargetId(validQueryId);
-    };
-
-    window.addEventListener("popstate", syncFromUrl);
-    return () => window.removeEventListener("popstate", syncFromUrl);
-  }, [profile.resumeTargets]);
+    if (loading) return;
+    const query = parseResumeQueryId(searchParams.get("id"));
+    const validQueryId = query.id && profile.resumeTargets?.some((target) => target.id === query.id) ? query.id : null;
+    setViewTargetId(validQueryId);
+    if (validQueryId) setActiveTargetId(validQueryId);
+    setMode(validQueryId && query.edit ? "edit" : initialMode);
+  }, [initialMode, loading, profile.resumeTargets, searchParams]);
 
   const update = useCallback((patch: Partial<ResumeProfile>) => {
     setProfile((prev) => ({ ...prev, ...patch }));
@@ -978,6 +1003,10 @@ export function ResumePageContent({ initialMode = "view", createNewOnLoad = fals
       setSaved(true);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => setSaved(false), 2500);
+      if (viewTargetId) {
+        setMode("view");
+        router.push(`/recruit/resume?id=${viewTargetId}`);
+      }
     } finally {
       setSaving(false);
     }
@@ -989,12 +1018,10 @@ export function ResumePageContent({ initialMode = "view", createNewOnLoad = fals
   };
 
   const goEdit = () => {
-    setMode("edit");
     router.push("/recruit/resume/write");
   };
 
   const addResume = () => {
-    setMode("edit");
     router.push("/recruit/resume/write?new=1");
   };
 
@@ -1004,16 +1031,32 @@ export function ResumePageContent({ initialMode = "view", createNewOnLoad = fals
     router.push(`/recruit/resume?id=${encodeURIComponent(id)}`);
   };
 
+  const editResume = (id: string) => {
+    setViewTargetId(id);
+    setActiveTargetId(id);
+    setMode("edit");
+    router.push(`/recruit/resume?id=${id}/edit`);
+  };
+
   const backToResumeList = () => {
+    setDeleteConfirm(false);
     setViewTargetId(null);
+    setMode("view");
     router.push("/recruit/resume");
+  };
+
+  const handleDeleteTarget = async () => {
+    if (!viewTargetId) return;
+    const nextTargets = (profile.resumeTargets ?? []).filter((t) => t.id !== viewTargetId);
+    const nextProfile = { ...profile, resumeTargets: nextTargets };
+    setProfile(nextProfile);
+    await saveResume(nextProfile).catch(() => {});
+    backToResumeList();
   };
 
   if (loading) {
     return <div className="h-full flex items-center justify-center text-slate-400 text-sm">이력서를 불러오는 중...</div>;
   }
-
-  const isTargetWriteView = mode === "view" && Boolean(viewTargetId);
 
   return (
     <div className="h-full overflow-y-auto bg-slate-50">
@@ -1026,49 +1069,60 @@ export function ResumePageContent({ initialMode = "view", createNewOnLoad = fals
         </button>
         <h1 className="text-sm font-bold text-slate-800">이력서</h1>
         <div className="flex-1" />
-        {(mode === "edit" || isTargetWriteView) && (
+        {mode === "edit" && (
           <button onClick={handleSave} disabled={saving}
             className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5">
             {saving && <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
             {saved ? "저장됨 ✓" : saving ? "저장 중..." : "저장"}
           </button>
         )}
-        {mode === "view" && !isTargetWriteView && (
+        {mode === "view" && viewTargetId && (
           <div className="flex items-center gap-2">
-            <button onClick={addResume}
-              className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition-colors">
-              이력서 추가
-            </button>
+            {deleteConfirm ? (
+              <>
+                <span className="text-xs text-slate-500">정말 삭제할까요?</span>
+                <button
+                  onClick={handleDeleteTarget}
+                  className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  확인
+                </button>
+                <button
+                  onClick={() => setDeleteConfirm(false)}
+                  className="text-xs font-semibold text-slate-500 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  취소
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setDeleteConfirm(true)}
+                  className="text-xs font-semibold text-red-500 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  삭제
+                </button>
+                <button
+                  onClick={() => editResume(viewTargetId)}
+                  className="text-xs font-semibold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  편집
+                </button>
+              </>
+            )}
           </div>
+        )}
+        {mode === "view" && !viewTargetId && (
+          <button onClick={addResume}
+            className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition-colors">
+            이력서 추가
+          </button>
         )}
       </div>
 
       {/* Content */}
       <div className="max-w-3xl mx-auto px-4 py-6">
-        {isTargetWriteView ? (
-          <>
-            <button
-              onClick={backToResumeList}
-              className="mb-4 w-fit rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800"
-            >
-              ← 이력서 목록
-            </button>
-            <ResumeEdit
-              profile={profile}
-              update={update}
-              activeTargetId={activeTargetId}
-              setActiveTargetId={setActiveTargetId}
-              hideTargetSelector
-            />
-            <div className="flex justify-end py-6">
-              <button onClick={handleSave} disabled={saving}
-                className="text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-6 py-2.5 rounded-xl transition-colors disabled:opacity-50 shadow-sm flex items-center gap-2">
-                {saving && <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
-                {saved ? "저장됨 ✓" : saving ? "저장 중..." : "이력서 저장"}
-              </button>
-            </div>
-          </>
-        ) : mode === "view" ? (
+        {mode === "view" ? (
           <ResumeView
             profile={profile}
             onEdit={goEdit}
@@ -1076,15 +1130,27 @@ export function ResumePageContent({ initialMode = "view", createNewOnLoad = fals
             selectedTargetId={viewTargetId}
             onSelectTarget={selectResume}
             onBackToList={backToResumeList}
+            hideExperienceLibrary={Boolean(viewTargetId)}
           />
         ) : (
           <>
+            {viewTargetId && (
+              <button
+                onClick={() => {
+                  setMode("view");
+                  if (viewTargetId) router.push(`/recruit/resume?id=${viewTargetId}`);
+                }}
+                className="mb-4 w-fit rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800"
+              >
+                ← 보기로 돌아가기
+              </button>
+            )}
             <ResumeEdit
               profile={profile}
               update={update}
               activeTargetId={activeTargetId}
               setActiveTargetId={setActiveTargetId}
-              hideTargetSelector={createNewOnLoad}
+              hideTargetSelector={Boolean(viewTargetId) || createNewOnLoad}
             />
             <div className="flex justify-end py-6">
               <button onClick={handleSave} disabled={saving}
@@ -1101,5 +1167,9 @@ export function ResumePageContent({ initialMode = "view", createNewOnLoad = fals
 }
 
 export default function ResumePage() {
-  return <ResumePageContent initialMode="view" />;
+  return (
+    <Suspense fallback={<div className="h-full flex items-center justify-center text-slate-400 text-sm">이력서를 불러오는 중...</div>}>
+      <ResumePageContent initialMode="view" />
+    </Suspense>
+  );
 }

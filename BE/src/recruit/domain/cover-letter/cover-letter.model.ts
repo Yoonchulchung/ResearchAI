@@ -35,9 +35,11 @@ export interface CoverLetterListFilters {
   sort?: 'latest';
 }
 
+export type JobCategory = 'IT' | '전자' | '영업' | '경영/기획' | '마케팅' | '인사/총무' | '재무/회계' | '생산/제조' | '기타';
+
 export interface CoverLetterJobAnalysis {
   id: string;
-  jobCategory: 'IT' | '전자' | '기타';
+  jobCategory: JobCategory;
   confidence: number;
   reason: string;
   extractedSpec: {
@@ -56,7 +58,7 @@ export interface CoverLetterJobAnalysis {
 
 export interface CoverLetterJobAnalysisRequest {
   ids?: string[];
-  target?: 'IT' | '전자' | 'all';
+  target?: JobCategory | 'all';
   model?: string;
   limit?: number;
 }

@@ -98,15 +98,6 @@ function IconFeed() {
   );
 }
 
-function IconPaper() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
-      <path d="M4.5 2H9.5L12 4.5V13.5C12 14.05 11.55 14.5 11 14.5H4.5C3.95 14.5 3.5 14.05 3.5 13.5V3C3.5 2.45 3.95 2 4.5 2Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M9.5 2V4.5H12" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M5.8 8H10M5.8 10.5H8.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function IconPlus() {
   return (
@@ -162,7 +153,11 @@ export function Sidebar() {
     pathname?.startsWith("/recruit/write") ||
     pathname?.startsWith("/recruit/job-posting") ||
     pathname?.startsWith("/recruit/cover-letter") ||
+    pathname?.startsWith("/recruit/spec") ||
     pathname?.startsWith("/recruit/doc-store");
+  const isNewsActive =
+    pathname === "/news" ||
+    pathname?.startsWith("/news/");
 
   const updateCollapsed = useCallback((v: boolean) => {
     setCollapsed(v);
@@ -304,26 +299,15 @@ export function Sidebar() {
             <IconChart />
           </button>
           <button
-            onClick={() => router.push("/tech-blogs")}
+            onClick={() => router.push("/news")}
             className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
-              pathname?.startsWith("/tech-blogs")
+              isNewsActive
                 ? "bg-brand-primary/10 text-brand-primary"
                 : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
             }`}
-            title="기술 블로그"
+            title="뉴스"
           >
             <IconFeed />
-          </button>
-          <button
-            onClick={() => router.push("/hot-papers")}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
-              pathname?.startsWith("/hot-papers")
-                ? "bg-brand-primary/10 text-brand-primary"
-                : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
-            }`}
-            title="핫한 논문"
-          >
-            <IconPaper />
           </button>
         </div>
         {/* Session dots */}
@@ -418,26 +402,15 @@ export function Sidebar() {
           기업 분석
         </button>
         <button
-          onClick={() => router.push("/tech-blogs")}
+          onClick={() => router.push("/news")}
           className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-            pathname?.startsWith("/tech-blogs")
+            isNewsActive
               ? "bg-brand-primary/10 text-brand-primary"
               : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
           }`}
         >
           <IconFeed />
-          기술 블로그
-        </button>
-        <button
-          onClick={() => router.push("/hot-papers")}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-            pathname?.startsWith("/hot-papers")
-              ? "bg-brand-primary/10 text-brand-primary"
-              : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
-          }`}
-        >
-          <IconPaper />
-          핫한 논문
+          뉴스
         </button>
       </div>
 

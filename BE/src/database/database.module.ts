@@ -12,19 +12,20 @@ import { TokenHistoryEntity } from 'src/overview/domain/entity/token-history.ent
 import { QueueJobEntity } from '../queue/domain/entity/queue-job.entity';
 import { NewsBriefingEntity } from '../news/domain/entity/news-briefing.entity';
 import { AppConfigEntity } from '../config/domain/entity/app-config.entity';
-import { GmailTokenEntity } from '../gmail/domain/entity/gmail-token.entity';
 import { ExperienceEntity } from '../recruit/domain/documents/entity/experience.entity';
 import { DocumentEntity } from '../recruit/domain/documents/entity/document.entity';
-import { CompanyAnalysisEntity } from '../recruit/domain/documents/entity/company-analysis.entity';
+import { CompanyAnalysisEntity } from '../company-analysis/domain/entity/company-analysis.entity';
 import { AiCallLogEntity } from '../ai/domain/entity/ai-call-log.entity';
 import { UserEntity } from '../auth/domain/entity/user.entity';
 import { LoginHistoryEntity } from '../auth/domain/entity/login-history.entity';
 import { SessionJobEntity } from '../sessions/domain/entity/session-job.entity';
-import { HotPaperEntity } from '../hot-papers/domain/entity/hot-paper.entity';
-import { TechBlogPostEntity } from '../tech-blog/domain/entity/tech-blog-post.entity';
+import { HotPaperEntity } from '../news/hot-papers/domain/entity/hot-paper.entity';
+import { TechBlogPostEntity } from '../news/tech-blog/domain/entity/tech-blog-post.entity';
 import { ContentRefreshStateEntity } from '../shared/entity/content-refresh-state.entity';
-import { ExamEventEntity } from '../exam/domain/entity/exam-event.entity';
-import { ResumeEntity } from '../resume/domain/resume.entity';
+import { ExamEventEntity } from '../recruit/domain/exam/entity/exam-event.entity';
+import { ResumeEntity } from '../recruit/domain/resume/resume.entity';
+import { CoverLetterEntity } from '../recruit/domain/cover-letter/entity/cover-letter.entity';
+import { CoverLetterSpecAnalysisEntity } from '../recruit/domain/cover-letter/entity/cover-letter-spec-analysis.entity';
 
 function resolveSqlitePath(): string {
   const explicitPath = process.env.DATABASE_PATH;
@@ -51,11 +52,12 @@ mkdirSync(dirname(databasePath), { recursive: true });
                  LightResearchEntity, SearchListEntity,
                  TokenHistoryEntity, QueueJobEntity,
                  NewsBriefingEntity, AppConfigEntity,
-                 GmailTokenEntity, ExperienceEntity, DocumentEntity,
+                 ExperienceEntity, DocumentEntity,
                  CompanyAnalysisEntity, SessionJobEntity,
                  AiCallLogEntity, UserEntity, LoginHistoryEntity,
                  HotPaperEntity, TechBlogPostEntity, ContentRefreshStateEntity,
-                 ExamEventEntity, ResumeEntity],
+                 ExamEventEntity, ResumeEntity, CoverLetterEntity,
+                CoverLetterSpecAnalysisEntity],
       synchronize: true,
       // WAL 모드: 동시 읽기/쓰기 성능 향상 (다중 기기 동시 접속 대응)
       prepareDatabase: (db: { pragma: (s: string) => void }) => {

@@ -1,12 +1,15 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
+import { In, Repository } from 'typeorm';
 import {
   CoverLetter,
   CoverLetterJobAnalysis,
   CoverLetterJobAnalysisRequest,
   CoverLetterListFilters,
+  JobCategory,
   ScrapeOptions,
   ScrapeStatus,
 } from '../../domain/cover-letter/cover-letter.model';
@@ -15,10 +18,14 @@ import { CatchCoverLetterCrawler } from '../../infrastructure/cover-letter/catch
 import { CatchAuthService } from '../../../shared/infrastructure/auth/catch-auth.service';
 import { requestContext } from '../../../shared/request-context';
 import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
+import { CoverLetterEntity } from '../../domain/cover-letter/entity/cover-letter.entity';
+import { CoverLetterSpecAnalysisEntity } from '../../domain/cover-letter/entity/cover-letter-spec-analysis.entity';
 
 const DATA_DIR = path.resolve(__dirname, '../../../../data/cover-letters');
 const JSONL_FILE = path.join(DATA_DIR, 'cover-letters.jsonl');
-const IDS_FILE = path.join(DATA_DIR, 'collected-ids.json');
+const SPEC_ANALYSIS_MAX_ITEMS = 20;
+const SPEC_ANALYSIS_TOKEN_BUDGET = 120_000;
+const SPEC_ANALYSIS_ANSWER_PREVIEW_CHARS = 550;
 
 type CatchCredentials = { id: string; password: string };
 type InternalScrapeOptions = ScrapeOptions & { catchCredentials?: CatchCredentials };
@@ -43,13 +50,18 @@ export class CoverLetterScraperService implements OnModuleInit {
   constructor(
     private readonly catchAuth: CatchAuthService,
     private readonly aiProvider: AiProviderService,
+    @InjectRepository(CoverLetterEntity)
+    private readonly coverLetterRepo: Repository<CoverLetterEntity>,
+    @InjectRepository(CoverLetterSpecAnalysisEntity)
+    private readonly specAnalysisRepo: Repository<CoverLetterSpecAnalysisEntity>,
   ) {
     this.catchCrawler = new CatchCoverLetterCrawler(catchAuth);
   }
 
   async onModuleInit() {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    await this.loadCollectedIds();
+    await this.migrateJsonlToDb();
+    await this.loadCollectedIdsFromDb();
     this.status.totalCollected = this.collectedIds.size;
   }
 
@@ -110,56 +122,131 @@ export class CoverLetterScraperService implements OnModuleInit {
     page: number,
     limit: number,
     filters: CoverLetterListFilters = {},
-  ): Promise<{ items: CoverLetter[]; total: number }> {
-    const all = (await this.readAllFromJsonl()).map((item) => this.normalizeCoverLetterForView(item));
-    const filtered = this.sortCoverLetters(this.applyFilters(all, filters), filters.sort);
-    const total = filtered.length;
-    const items = filtered.slice((page - 1) * limit, page * limit);
-    return { items, total };
+    offset?: number,
+  ): Promise<{ items: CoverLetter[]; total: number; page: number; limit: number; offset: number; hasNext: boolean }> {
+    const safePage = Math.max(Number(page) || 1, 1);
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const safeOffset = offset !== undefined && Number.isFinite(offset)
+      ? Math.max(Number(offset), 0)
+      : (safePage - 1) * safeLimit;
+    const source = filters.source?.trim();
+    const companyType = filters.companyType?.trim();
+    const search = this.normalizeSearchText(filters.search);
+
+    const qb = this.coverLetterRepo.createQueryBuilder('coverLetter');
+    if (source && source !== 'all' && source !== '전체') {
+      qb.andWhere('coverLetter.source = :source', { source });
+    }
+    if (companyType && companyType !== '전체') {
+      qb.andWhere('coverLetter.companyType = :companyType', { companyType });
+    }
+    if (search) {
+      qb.andWhere('coverLetter.searchText LIKE :search', { search: `%${search}%` });
+    }
+
+    qb.orderBy('coverLetter.collectedAt', filters.sort === 'latest' ? 'DESC' : 'DESC')
+      .addOrderBy('coverLetter.createdAt', 'DESC')
+      .skip(safeOffset)
+      .take(safeLimit);
+
+    const [entities, total] = await qb.getManyAndCount();
+    const items = entities.map((entity) => this.toCoverLetter(entity));
+    return {
+      items,
+      total,
+      page: safePage,
+      limit: safeLimit,
+      offset: safeOffset,
+      hasNext: safeOffset + items.length < total,
+    };
   }
 
   async getById(id: string): Promise<CoverLetter | null> {
-    const all = await this.readAllFromJsonl();
-    return all.find((item) => item.id === id) ?? null;
+    const entity = await this.coverLetterRepo.findOne({ where: { id } });
+    return entity ? this.toCoverLetter(entity) : null;
   }
 
   async analyzeJobsWithAi(
     request: CoverLetterJobAnalysisRequest = {},
-  ): Promise<{ items: CoverLetterJobAnalysis[]; target: 'IT' | '전자' | 'all'; analyzedAt: string; model: string }> {
+  ): Promise<{ items: CoverLetterJobAnalysis[]; target: JobCategory | 'all'; analyzedAt: string; model: string }> {
     const target = request.target ?? 'all';
-    const limit = Math.min(Math.max(request.limit ?? 30, 1), 50);
+    const limit = Math.min(Math.max(request.limit ?? 20, 1), SPEC_ANALYSIS_MAX_ITEMS);
     const idSet = new Set((request.ids ?? []).filter(Boolean));
-    const all = (await this.readAllFromJsonl()).map((item) => this.normalizeCoverLetterForView(item));
-    const candidates = (idSet.size > 0 ? all.filter((item) => idSet.has(item.id)) : all).slice(0, limit);
+    const entities = idSet.size > 0
+      ? await this.coverLetterRepo.find({ where: { id: In([...idSet]) } })
+      : await this.coverLetterRepo.find({
+        order: { collectedAt: 'DESC', createdAt: 'DESC' },
+        take: limit,
+      });
+    const allCoverLetters = entities.map((entity) => this.toCoverLetter(entity));
+
+    // DB에서 이미 분석된 결과 조회
+    const allIds = allCoverLetters.map((item) => item.id);
+    const cached = allIds.length > 0
+      ? await this.specAnalysisRepo.find({ where: { coverLetterId: In(allIds) } })
+      : [];
+    const cachedMap = new Map(cached.map((row) => [row.coverLetterId, row]));
+
+    const cachedResults: CoverLetterJobAnalysis[] = cached
+      .map((row) => this.entityToJobAnalysis(row))
+      .filter((item) => target === 'all' || item.jobCategory === target);
+
+    const unanalyzed = allCoverLetters.filter((item) => !cachedMap.has(item.id));
+    const candidates = this.limitSpecAnalysisCandidates(unanalyzed, limit, SPEC_ANALYSIS_TOKEN_BUDGET);
 
     if (candidates.length === 0) {
-      return { items: [], target, analyzedAt: new Date().toISOString(), model: request.model || '' };
+      return { items: cachedResults, target, analyzedAt: new Date().toISOString(), model: request.model || '' };
     }
 
     const model = request.model || '';
     const system = [
       '너는 채용 자기소개서 데이터를 분류하는 한국어 HR 데이터 분석 에이전트다.',
-      '목표는 직무명이 IT/전자/기타 중 어디에 가까운지 보수적으로 판단하고, 지원자 스펙을 구조화하는 것이다.',
+      '목표는 자소서 본문과 메타 정보에서 지원자의 학력, 전공, 학점, 어학, 자격증, 인턴/경력, 대외활동, 수상, 직무 기술을 최대한 구조화하는 것이다.',
+      '직무 분류는 보조 정보이며, 스펙 추출을 더 중요하게 처리한다.',
       '직무명이 애매하면 본문을 근거로 판단하되, 호텔/영업/서비스/인사/회계/마케팅/리서치 등은 IT나 전자로 과분류하지 않는다.',
       '반드시 JSON만 출력한다.',
     ].join('\n');
     const prompt = this.buildJobAnalysisPrompt(candidates, target);
+    const effectiveModel = this.aiProvider.resolveEffectiveModel(model);
     const { text } = await this.aiProvider.call(model, system, prompt, {
       caller: 'cover-letter-job-analysis',
     });
     const parsed = this.parseJobAnalysisJson(text);
     const validIds = new Set(candidates.map((item) => item.id));
-    const items = parsed
-      .filter((item) => validIds.has(item.id))
-      .map((item) => this.normalizeJobAnalysis(item))
-      .filter((item) => target === 'all' || item.jobCategory === target);
+    const newItems = parsed
+      .filter((item: CoverLetterJobAnalysis) => validIds.has(item.id))
+      .map((item: CoverLetterJobAnalysis) => this.normalizeJobAnalysis(item));
+
+    // 새 분석 결과 DB에 저장
+    if (newItems.length > 0) {
+      const specEntities = newItems.map((item) =>
+        this.specAnalysisRepo.create({
+          coverLetterId: item.id,
+          jobCategory: item.jobCategory,
+          confidence: item.confidence / 100,
+          reason: item.reason || null,
+          extractedSpec: JSON.stringify(item.extractedSpec),
+          model: effectiveModel || null,
+        }),
+      );
+      await this.specAnalysisRepo.save(specEntities);
+    }
+
+    const filteredNew = newItems.filter((item) => target === 'all' || item.jobCategory === target);
+    const items = [...cachedResults, ...filteredNew];
 
     return {
       items,
       target,
       analyzedAt: new Date().toISOString(),
-      model: this.aiProvider.resolveEffectiveModel(model),
+      model: effectiveModel,
     };
+  }
+
+  async getSpecAnalyses(ids: string[]): Promise<CoverLetterJobAnalysis[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.specAnalysisRepo.find({ where: { coverLetterId: In(ids) } });
+    return rows.map((row) => this.entityToJobAnalysis(row));
   }
 
   // ────────────────────────────────────────────────────────
@@ -256,10 +343,9 @@ export class CoverLetterScraperService implements OnModuleInit {
   }
 
   private async saveCoverLetter(cl: CoverLetter) {
-    const line = JSON.stringify(cl) + '\n';
-    fs.appendFileSync(JSONL_FILE, line, 'utf-8');
+    const normalized = this.normalizeCoverLetterForView(cl);
+    await this.coverLetterRepo.save(this.toEntity(normalized));
     this.collectedIds.add(cl.id);
-    fs.writeFileSync(IDS_FILE, JSON.stringify([...this.collectedIds]), 'utf-8');
   }
 
   private getCatchCredentials(): { id: string; password: string } | undefined {
@@ -276,44 +362,123 @@ export class CoverLetterScraperService implements OnModuleInit {
       ...item,
       source: item.source ?? (item.id.startsWith('catch-') ? 'catch' : 'linkareer'),
       companyType: item.companyType ?? this.inferCompanyType(item.company),
+      questions: Array.isArray(item.questions) ? item.questions : [],
+      collectedAt: item.collectedAt ?? new Date().toISOString(),
     };
   }
 
-  private applyFilters(items: CoverLetter[], filters: CoverLetterListFilters): CoverLetter[] {
-    const source = filters.source?.trim();
-    const companyType = filters.companyType?.trim();
-    const search = this.normalize(filters.search);
-
-    return items.filter((item) => {
-      if (source && item.source !== source) return false;
-      if (companyType && companyType !== '전체' && item.companyType !== companyType) return false;
-      if (!search) return true;
-
-      return [
-        item.company,
-        item.position,
-        item.season,
-        item.spec,
-        item.companyType,
-        ...item.questions.flatMap((q) => [q.question, q.answer]),
-      ].some((value) => this.normalize(value).includes(search));
+  private toEntity(item: CoverLetter): CoverLetterEntity {
+    const normalized = this.normalizeCoverLetterForView(item);
+    return this.coverLetterRepo.create({
+      id: normalized.id,
+      url: normalized.url,
+      source: normalized.source ?? null,
+      companyType: normalized.companyType ?? null,
+      company: normalized.company,
+      position: normalized.position,
+      season: normalized.season,
+      spec: normalized.spec,
+      viewCount: normalized.viewCount ?? null,
+      questions: JSON.stringify(normalized.questions ?? []),
+      searchText: this.buildSearchText(normalized),
+      collectedAt: this.parseDate(normalized.collectedAt),
     });
   }
 
-  private sortCoverLetters(items: CoverLetter[], sort?: CoverLetterListFilters['sort']): CoverLetter[] {
-    const copy = [...items];
-    if (sort === 'latest') {
-      return copy.sort((a, b) => this.getCollectedAtSortValue(b) - this.getCollectedAtSortValue(a));
+  private toCoverLetter(entity: CoverLetterEntity): CoverLetter {
+    let questions: CoverLetter['questions'] = [];
+    try {
+      const parsed = JSON.parse(entity.questions || '[]');
+      questions = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      questions = [];
     }
-    return copy;
+
+    return this.normalizeCoverLetterForView({
+      id: entity.id,
+      url: entity.url,
+      source: entity.source as CoverLetter['source'],
+      companyType: entity.companyType ?? undefined,
+      company: entity.company,
+      position: entity.position,
+      season: entity.season,
+      spec: entity.spec,
+      viewCount: entity.viewCount ?? undefined,
+      questions,
+      collectedAt: entity.collectedAt.toISOString(),
+    });
   }
 
-  private getCollectedAtSortValue(item: CoverLetter): number {
-    const time = new Date(item.collectedAt).getTime();
-    return Number.isNaN(time) ? 0 : time;
+  private buildSearchText(item: CoverLetter): string {
+    return this.normalizeSearchText([
+      item.id,
+      item.source,
+      item.companyType,
+      item.company,
+      item.position,
+      item.season,
+      item.spec,
+      ...item.questions.flatMap((question) => [question.question, question.answer]),
+    ].filter(Boolean).join('\n'));
   }
 
-  private buildJobAnalysisPrompt(items: CoverLetter[], target: 'IT' | '전자' | 'all'): string {
+  private parseDate(value?: string | Date | null): Date {
+    const date = value instanceof Date ? value : new Date(value ?? Date.now());
+    return Number.isNaN(date.getTime()) ? new Date() : date;
+  }
+
+  private limitSpecAnalysisCandidates(items: CoverLetter[], limit: number, tokenBudget: number): CoverLetter[] {
+    const result: CoverLetter[] = [];
+    let usedTokens = 0;
+
+    for (const item of items) {
+      if (result.length >= limit) break;
+      const estimated = this.estimateCoverLetterAnalysisTokens(item);
+      if (result.length > 0 && usedTokens + estimated > tokenBudget) break;
+      result.push(item);
+      usedTokens += estimated;
+    }
+
+    if (items.length > result.length) {
+      this.logger.warn(
+        `스펙 분석 입력 제한 적용: requested=${items.length}, selected=${result.length}, estimatedTokens=${usedTokens}, budget=${tokenBudget}`,
+      );
+    }
+
+    return result;
+  }
+
+  private estimateCoverLetterAnalysisTokens(item: CoverLetter): number {
+    const text = [
+      item.company,
+      item.position,
+      item.season,
+      item.spec,
+      ...item.questions.slice(0, 3).flatMap((question) => [
+        question.question,
+        question.answer.slice(0, SPEC_ANALYSIS_ANSWER_PREVIEW_CHARS),
+      ]),
+    ].filter(Boolean).join('\n');
+
+    return this.estimateTokens(text);
+  }
+
+  private estimateTokens(text: string): number {
+    let cjk = 0;
+    let ascii = 0;
+    let other = 0;
+
+    for (const char of text) {
+      if (/\s/.test(char)) continue;
+      if (/[\u3131-\u318E\uAC00-\uD7A3\u3040-\u30FF\u3400-\u9FFF]/.test(char)) cjk++;
+      else if (char.charCodeAt(0) < 128) ascii++;
+      else other++;
+    }
+
+    return Math.ceil(cjk + other * 0.8 + ascii / 4);
+  }
+
+  private buildJobAnalysisPrompt(items: CoverLetter[], target: JobCategory | 'all'): string {
     const rows = items.map((item) => ({
       id: item.id,
       company: item.company,
@@ -322,17 +487,35 @@ export class CoverLetterScraperService implements OnModuleInit {
       spec: item.spec,
       sampleQuestions: item.questions.slice(0, 3).map((q) => ({
         question: q.question,
-        answerPreview: q.answer.slice(0, 900),
+        answerPreview: q.answer.slice(0, SPEC_ANALYSIS_ANSWER_PREVIEW_CHARS),
       })),
     }));
 
     return `
-다음 자기소개서 목록을 분석해줘.
+다음 자기소개서 목록을 분석해줘. 가장 중요한 작업은 합격자의 정량/정성 스펙을 뽑는 것이다.
 
-분류 기준:
-- IT: 백엔드, 프론트엔드, 풀스택, 앱, 웹, 소프트웨어, 데이터, AI, ML, 보안, 클라우드, 인프라, 서버, 네트워크, QA, PM/서비스기획 중 디지털/플랫폼 중심 직무.
-- 전자: 반도체, 회로, 하드웨어, 임베디드, 펌웨어, 디스플레이, 전기전자, 제어, 통신장비, 생산기술 중 전자/반도체/하드웨어 중심 직무.
-- 기타: 위 둘에 명확히 해당하지 않는 직무.
+직무 카테고리 분류 기준:
+- IT: 백엔드, 프론트엔드, 풀스택, 앱, 웹, 소프트웨어, 데이터, AI, ML, 보안, 클라우드, 인프라, 서버, 네트워크, QA, 디지털/플랫폼 중심 서비스기획.
+- 전자: 반도체, 회로, 하드웨어, 임베디드, 펌웨어, 디스플레이, 전기전자, 제어, 통신장비, 생산기술 중 전자/반도체/하드웨어 중심.
+- 영업: 국내영업, 해외영업, B2B/B2C 영업, 세일즈, 거래처 관리, 고객 관리.
+- 경영/기획: 전략기획, 사업기획, 사업개발, 경영기획, 컨설팅, 프로젝트 매니저(비IT), BM.
+- 마케팅: 브랜드마케팅, 디지털마케팅, 콘텐츠, 광고, 홍보, PR, SNS, 퍼포먼스마케팅.
+- 인사/총무: 채용, HR, 인재개발, 교육, 노무, 총무, 경영지원, 조직문화.
+- 재무/회계: 회계, 세무, 재무, 자금, 원가, 재무분석, 금융, 투자.
+- 생산/제조: 품질관리, 생산관리, 공정관리, SCM, 물류, 구매, 설비.
+- 기타: 위 카테고리에 명확히 해당하지 않는 직무.
+
+스펙 추출 지침:
+- school: 학교명이 있으면 원문 그대로. 없으면 빈 문자열.
+- major: 전공/학부/계열이 있으면 원문 그대로. 없으면 빈 문자열.
+- gpa: "3.7/4.5", "학점 4.13", "3.6"처럼 학점만 간결히. 없으면 빈 문자열.
+- languages: 토익, 토익스피킹, OPIC, 토플, JLPT, HSK 등 어학 성적/등급을 원문에 가깝게 배열로.
+- certificates: 자격증/면허/기사/SQLD/ADsP/정보처리기사 등.
+- internships: 인턴, 현장실습, 경력, 계약직, 산학 경험.
+- activities: 프로젝트, 교육, 연구, 대외활동, 교내/사회/봉사, 해외연수/교환학생 등.
+- awards: 수상/공모전/대회 입상.
+- skills: 언어, 프레임워크, 툴, 직무 기술.
+- summary: "학교 / 전공 / 학점 / 어학 / 인턴 / 활동 / 자격증" 형태의 한 줄 요약. 없는 항목은 생략.
 
 target=${target}
 
@@ -341,7 +524,7 @@ target=${target}
   "items": [
     {
       "id": "원본 id",
-      "jobCategory": "IT" | "전자" | "기타",
+      "jobCategory": "IT" | "전자" | "영업" | "경영/기획" | "마케팅" | "인사/총무" | "재무/회계" | "생산/제조" | "기타",
       "confidence": 0부터 100 사이 숫자,
       "reason": "분류 근거 한 문장",
       "extractedSpec": {
@@ -380,8 +563,40 @@ ${JSON.stringify(rows, null, 2)}
     return raw.trim();
   }
 
+  private entityToJobAnalysis(row: CoverLetterSpecAnalysisEntity): CoverLetterJobAnalysis {
+    let extractedSpec: CoverLetterJobAnalysis['extractedSpec'] = { summary: '' };
+    try {
+      const parsed = JSON.parse(row.extractedSpec || '{}');
+      extractedSpec = {
+        school: parsed.school || '',
+        major: parsed.major || '',
+        gpa: parsed.gpa || '',
+        languages: Array.isArray(parsed.languages) ? parsed.languages : [],
+        certificates: Array.isArray(parsed.certificates) ? parsed.certificates : [],
+        internships: Array.isArray(parsed.internships) ? parsed.internships : [],
+        activities: Array.isArray(parsed.activities) ? parsed.activities : [],
+        awards: Array.isArray(parsed.awards) ? parsed.awards : [],
+        skills: Array.isArray(parsed.skills) ? parsed.skills : [],
+        summary: parsed.summary || '',
+      };
+    } catch {
+      // ignore
+    }
+    return {
+      id: row.coverLetterId,
+      jobCategory: row.jobCategory as CoverLetterJobAnalysis['jobCategory'],
+      confidence: Math.round(row.confidence * 100),
+      reason: row.reason ?? '',
+      extractedSpec,
+    };
+  }
+
+  private static readonly VALID_CATEGORIES: JobCategory[] = ['IT', '전자', '영업', '경영/기획', '마케팅', '인사/총무', '재무/회계', '생산/제조', '기타'];
+
   private normalizeJobAnalysis(item: CoverLetterJobAnalysis): CoverLetterJobAnalysis {
-    const category = item.jobCategory === 'IT' || item.jobCategory === '전자' ? item.jobCategory : '기타';
+    const category: JobCategory = CoverLetterScraperService.VALID_CATEGORIES.includes(item.jobCategory as JobCategory)
+      ? item.jobCategory as JobCategory
+      : '기타';
     const spec = item.extractedSpec ?? { summary: '' };
     return {
       id: item.id,
@@ -417,24 +632,45 @@ ${JSON.stringify(rows, null, 2)}
     return '중소기업';
   }
 
-  private normalize(value?: string | null): string {
+  private normalizeSearchText(value?: string | null): string {
     return (value ?? '').toLowerCase().replace(/\s+/g, '');
   }
 
-  private async loadCollectedIds() {
-    if (!fs.existsSync(IDS_FILE)) return;
-    try {
-      const raw = fs.readFileSync(IDS_FILE, 'utf-8');
-      const arr: string[] = JSON.parse(raw);
-      this.collectedIds = new Set(arr);
-      this.logger.log(`기존 수집 ID ${this.collectedIds.size}개 로드`);
-    } catch {
-      this.logger.warn('collected-ids.json 로드 실패 — 초기화');
+  private async loadCollectedIdsFromDb() {
+    const rows = await this.coverLetterRepo.find({ select: { id: true } });
+    this.collectedIds = new Set(rows.map((row) => row.id));
+    this.logger.log(`자소서 DB 수집 ID ${this.collectedIds.size}개 로드`);
+  }
+
+  private async migrateJsonlToDb() {
+    const dbCount = await this.coverLetterRepo.count();
+    if (dbCount > 0) return;
+    if (!fs.existsSync(JSONL_FILE)) return;
+
+    const items = await this.readAllFromJsonl();
+    if (items.length === 0) return;
+
+    const seenIds = new Set<string>();
+    const entities = items
+      .filter((item) => {
+        if (!item.id || seenIds.has(item.id)) return false;
+        seenIds.add(item.id);
+        return true;
+      })
+      .map((item) => this.toEntity(item));
+
+    if (entities.length === 0) return;
+
+    const chunkSize = 100;
+    for (let i = 0; i < entities.length; i += chunkSize) {
+      await this.coverLetterRepo.save(entities.slice(i, i + chunkSize));
     }
+    this.logger.log(`JSONL 자소서 ${entities.length}건을 DB로 마이그레이션 완료`);
   }
 
   private async readAllFromJsonl(): Promise<CoverLetter[]> {
     if (!fs.existsSync(JSONL_FILE)) return [];
+
     const results: CoverLetter[] = [];
     const rl = readline.createInterface({
       input: fs.createReadStream(JSONL_FILE, 'utf-8'),

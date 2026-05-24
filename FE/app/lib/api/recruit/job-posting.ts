@@ -123,14 +123,14 @@ export const setJobPostingFavorite = (id: string, favorite: boolean) =>
 export type AiAnalysisMode = "analysis" | "interview";
 
 export const getJobPostingAiAnalysis = (id: string, mode: AiAnalysisMode) =>
-  apiFetch<{ id: string; mode: AiAnalysisMode; text: string | null }>(
+  apiFetch<{ id: string; mode: AiAnalysisMode; text: string | null; docId: string | null }>(
     `${JOB_POSTING_API_BASE}/data/${encodeURIComponent(id)}/ai-analysis?mode=${mode}`,
   );
 
-export const saveJobPostingAiAnalysis = (id: string, mode: AiAnalysisMode, text: string) =>
+export const saveJobPostingAiAnalysis = (id: string, mode: AiAnalysisMode, text: string, docId?: string | null) =>
   apiFetch<{ ok: boolean }>(`${JOB_POSTING_API_BASE}/data/${encodeURIComponent(id)}/ai-analysis`, {
     method: "POST",
-    body: JSON.stringify({ mode, text }),
+    body: JSON.stringify({ mode, text, docId }),
   });
 
 export const getPostingImageFiles = (html: string) =>

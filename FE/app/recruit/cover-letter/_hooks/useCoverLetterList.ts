@@ -60,7 +60,7 @@ export function useCoverLetterList(coverId: string | null) {
         });
         setTotal(res.total);
         setItems((prev) => (reset ? res.items : [...prev, ...res.items]));
-        setHasMore(res.items.length === PAGE_SIZE);
+        setHasMore(res.hasNext ?? res.items.length === PAGE_SIZE);
       } finally {
         setLoading(false);
       }

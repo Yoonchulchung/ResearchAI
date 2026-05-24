@@ -154,7 +154,11 @@ export function useJobPostings(jobId: string | null) {
         types: res.filterOptions.types.length > 0 ? res.filterOptions.types : DEFAULT_FILTER_OPTIONS.types,
       });
       const firstNewItem = !reset && selectFirstNewItemAfterLoadRef.current ? res.items[0] : undefined;
-      setItems((prev) => (reset ? res.items : [...prev, ...res.items]));
+      setItems((prev) => {
+        if (reset) return res.items;
+        const seen = new Set(prev.map((item) => item.id));
+        return [...prev, ...res.items.filter((item) => !seen.has(item.id))];
+      });
       if (firstNewItem) {
         selectFirstNewItemAfterLoadRef.current = false;
         selectPosting(firstNewItem);

@@ -15,7 +15,7 @@ import { PROSE_CLASS } from "./_constants";
 import { useDraftAssist } from "./_hooks/useDraftAssist";
 import { useExamCalendar, type CalendarJobTypeFilter, type RecruitCalendarEvent } from "./_hooks/useExamCalendar";
 
-type InfoTab = "jobs" | "letters";
+type InfoTab = "jobs" | "letters" | "spec";
 type JobCategoryFilter = "" | "IT" | "전자";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -170,26 +170,18 @@ export default function RecruitPage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab !== "letters" || coverLetters.length > 0 || coverLoading) return;
+    if (activeTab !== "letters" || coverLetters.length > 0) return;
     let cancelled = false;
-    const load = async () => {
-      setCoverLoading(true);
-      setCoverError(null);
-      try {
-        const res = await listCoverLetters(1, 10, { sort: "latest" });
-        if (cancelled) return;
-        setCoverLetters(res.items);
-      } catch (e) {
-        if (!cancelled) setCoverError(e instanceof Error ? e.message : "자소서를 불러오지 못했습니다");
-      } finally {
-        if (!cancelled) setCoverLoading(false);
-      }
-    };
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, coverLetters.length, coverLoading]);
+    setCoverLoading(true);
+    setCoverError(null);
+    listCoverLetters(1, 6, { sort: "latest" })
+      .then((res) => { if (!cancelled) setCoverLetters(res.items); })
+      .catch((e) => { if (!cancelled) setCoverError(e instanceof Error ? e.message : "자소서를 불러오지 못했습니다"); })
+      .finally(() => { if (!cancelled) setCoverLoading(false); });
+    return () => { cancelled = true; };
+  // coverLoading은 이 effect 내부에서만 변경되므로 dependency 제외
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, coverLetters.length]);
 
   const topJobs = jobs;
   const filteredCompanyAnalyses = useMemo(() => {
@@ -397,7 +389,7 @@ export default function RecruitPage() {
           </section>
 
           <section className={`flex min-h-[20rem] flex-col overflow-hidden rounded-2xl border shadow-sm ${boxClass}`}>
-            <div className="grid grid-cols-2 border-b border-slate-200 dark:border-white/10">
+            <div className="grid grid-cols-3 border-b border-slate-200 dark:border-white/10">
               <button
                 onClick={() => setActiveTab("jobs")}
                 className={`py-2.5 text-sm font-semibold transition-colors ${
@@ -418,11 +410,23 @@ export default function RecruitPage() {
               >
                 자소서
               </button>
+              <button
+                onClick={() => setActiveTab("spec")}
+                className={`border-l border-slate-200 py-2.5 text-sm font-semibold transition-colors dark:border-white/10 ${
+                  activeTab === "spec"
+                    ? isDark ? "bg-white/10 text-white" : "bg-slate-100 text-slate-950"
+                    : isDark ? "text-white/55 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                스펙
+              </button>
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col p-5">
               <div className="flex items-center justify-between">
-                <h2 className={`text-lg font-bold sm:text-xl ${textMain}`}>{activeTab === "jobs" ? "채용 정보" : "최근 자소서"}</h2>
+                <h2 className={`text-lg font-bold sm:text-xl ${textMain}`}>
+                  {activeTab === "jobs" ? "채용 정보" : activeTab === "letters" ? "최근 자소서" : "스펙"}
+                </h2>
                 <div className="flex items-center gap-2">
                   {activeTab === "jobs" && (
                     <div className={`flex overflow-hidden rounded-lg border text-xs font-bold ${
@@ -444,7 +448,13 @@ export default function RecruitPage() {
                     </div>
                   )}
                   <button
-                    onClick={() => router.push(activeTab === "jobs" ? "/recruit/job-posting" : "/recruit/cover-letter")}
+                    onClick={() => router.push(
+                      activeTab === "jobs"
+                        ? "/recruit/job-posting"
+                        : activeTab === "letters"
+                          ? "/recruit/cover-letter"
+                          : "/recruit/spec",
+                    )}
                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${isDark ? "text-indigo-300 hover:bg-white/10" : "text-indigo-600 hover:bg-indigo-50"}`}
                   >
                     상세 페이지
@@ -491,7 +501,7 @@ export default function RecruitPage() {
                     </ol>
                   )}
                 </div>
-              ) : (
+              ) : activeTab === "letters" ? (
                 <div className="mt-4 flex-1">
                   {coverLoading ? (
                     <div className={`flex h-44 items-center justify-center text-sm ${textSub}`}>최근 자소서를 불러오는 중...</div>
@@ -524,6 +534,12 @@ export default function RecruitPage() {
                       ))}
                     </ol>
                   )}
+                </div>
+              ) : (
+                <div className={`mt-4 flex flex-1 items-center justify-center rounded-xl border border-dashed text-sm ${
+                  isDark ? "border-white/10 text-white/35" : "border-slate-200 text-slate-400"
+                }`}>
+                  스펙 영역은 아직 구성 전입니다.
                 </div>
               )}
             </div>
@@ -694,7 +710,7 @@ export default function RecruitPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_18rem]">
+          <div className="mt-4 grid items-start gap-4 lg:grid-cols-[1fr_18rem]">
             <div className={`overflow-hidden rounded-xl border ${isDark ? "border-white/10" : "border-slate-200"}`}>
               <div className={`grid grid-cols-7 border-b text-center text-[11px] font-bold ${isDark ? "border-white/10 bg-white/5 text-white/45" : "border-slate-200 bg-slate-50 text-slate-400"}`}>
                 {WEEKDAYS.map((day) => (
@@ -767,12 +783,12 @@ export default function RecruitPage() {
               )}
             </div>
 
-            <div className={`rounded-xl border p-3 ${subtleBoxClass}`}>
+            <div className={`flex max-h-[28rem] min-h-0 flex-col overflow-hidden rounded-xl border p-3 lg:h-[26.25rem] lg:max-h-[26.25rem] ${subtleBoxClass}`}>
               <div className="flex items-center justify-between">
                 <h3 className={`text-sm font-bold ${textMain}`}>이번 달 일정</h3>
                 <span className={`text-xs font-semibold ${textSub}`}>{calendarEvents.length}건</span>
               </div>
-              <div className="mt-3 max-h-[21rem] space-y-2 overflow-y-auto pr-1">
+              <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                 {examLoading ? (
                   Array.from({ length: 3 }).map((_, index) => (
                     <div key={index} className={`h-11 rounded-lg ${isDark ? "bg-white/5" : "bg-white"} animate-pulse`} />

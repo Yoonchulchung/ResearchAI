@@ -20,9 +20,11 @@ export interface CoverLetter {
   collectedAt: string;
 }
 
+export type JobCategory = "IT" | "전자" | "영업" | "경영/기획" | "마케팅" | "인사/총무" | "재무/회계" | "생산/제조" | "기타";
+
 export interface CoverLetterJobAnalysis {
   id: string;
-  jobCategory: "IT" | "전자" | "기타";
+  jobCategory: JobCategory;
   confidence: number;
   reason: string;
   extractedSpec: {
@@ -41,7 +43,7 @@ export interface CoverLetterJobAnalysis {
 
 export interface CoverLetterJobAnalysisResponse {
   items: CoverLetterJobAnalysis[];
-  target: "IT" | "전자" | "all";
+  target: JobCategory | "all";
   analyzedAt: string;
   model: string;
 }
@@ -49,6 +51,10 @@ export interface CoverLetterJobAnalysisResponse {
 export interface CoverLetterListResponse {
   items: CoverLetter[];
   total: number;
+  page?: number;
+  limit?: number;
+  offset?: number;
+  hasNext?: boolean;
 }
 
 export interface ScrapeStatus {
@@ -64,9 +70,10 @@ export interface ScrapeStatus {
 export const listCoverLetters = (
   page = 1,
   limit = 20,
-  filters: { source?: string; companyType?: string; search?: string; sort?: "latest" } = {},
+  filters: { source?: string; companyType?: string; search?: string; sort?: "latest"; offset?: number } = {},
 ) => {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (typeof filters.offset === "number" && Number.isFinite(filters.offset)) params.set("offset", String(filters.offset));
   if (filters.source) params.set("source", filters.source);
   if (filters.companyType) params.set("companyType", filters.companyType);
   if (filters.search) params.set("search", filters.search);
@@ -88,7 +95,7 @@ export const getScrapingStatus = () =>
 
 export const analyzeCoverLetterJobs = (opts: {
   ids?: string[];
-  target?: "IT" | "전자" | "all";
+  target?: JobCategory | "all";
   model?: string;
   limit?: number;
 }) =>
@@ -96,3 +103,9 @@ export const analyzeCoverLetterJobs = (opts: {
     method: "POST",
     body: JSON.stringify(opts),
   });
+
+export const getSpecAnalyses = (ids: string[]) => {
+  if (ids.length === 0) return Promise.resolve([] as CoverLetterJobAnalysis[]);
+  const params = new URLSearchParams({ ids: ids.join(",") });
+  return apiFetch<CoverLetterJobAnalysis[]>(`/cover-letter-scraper/spec-analyses?${params}`);
+};

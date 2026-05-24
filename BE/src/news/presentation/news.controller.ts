@@ -1,6 +1,14 @@
 import { Controller, Get, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { NewsService, NewsItem, CountryNewsItem, KeywordItem, ConflictZone } from '../application/service/news.service';
+import {
+  NewsService,
+  NewsItem,
+  CountryNewsItem,
+  KeywordItem,
+  ConflictZone,
+  GithubNewsItem,
+  HuggingFaceNewsItem,
+} from '../application/service/news.service';
 import { MarketService, MarketItem, ChartPoint } from '../application/service/market.service';
 import { NewsSummaryService } from '../application/service/news-summary.service';
 import { PuppeteerService } from '../../shared/infrastructure/browser/puppeteer.service';
@@ -19,6 +27,16 @@ export class NewsController {
   @Get('google')
   async getGoogleNews(@Query('category') category = 'it'): Promise<NewsItem[]> {
     return this.newsService.getGoogleNews(category);
+  }
+
+  @Get('github')
+  async getGithubTrending(@Query('since') since = 'daily'): Promise<GithubNewsItem[]> {
+    return this.newsService.getGithubTrending(since);
+  }
+
+  @Get('huggingface')
+  async getHuggingFaceTrending(@Query('category') category = 'models'): Promise<HuggingFaceNewsItem[]> {
+    return this.newsService.getHuggingFaceTrending(category);
   }
 
   @Get('keywords')
@@ -133,7 +151,7 @@ export class NewsController {
   ): Promise<{ title: string; url: string; snippet: string }[]> {
     if (!q.trim()) return [];
     const limit = Math.min(parseInt(limitStr, 10) || 8, 20);
-    return this.puppeteerService.searchGoogle(q, limit);
+    return this.puppeteerService.searchGoogle(q, limit).catch(() => []);
   }
 
   @Get('refresh')

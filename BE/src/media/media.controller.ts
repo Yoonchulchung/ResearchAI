@@ -4,6 +4,7 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
+  Body,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -13,6 +14,8 @@ const ALLOWED_MIMETYPES: MimeType[] = [
   MimeType.JPEG,
   MimeType.JPG,
   MimeType.PNG,
+  MimeType.GIF,
+  MimeType.WEBP,
   MimeType.PDF,
   MimeType.DOCX,
   MimeType.DOC,
@@ -43,5 +46,27 @@ export class MediaController {
   ): Promise<ParsedMedia> {
     if (!file) throw new BadRequestException('파일이 없습니다.');
     return this.mediaService.parse(file);
+  }
+
+  @Post('extract-image-text')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_SIZE_MB * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+          cb(null, true);
+        } else {
+          cb(new BadRequestException(`이미지 파일만 지원합니다: ${file.mimetype}`), false);
+        }
+      },
+    }),
+  )
+  async extractImageText(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('model') model?: string,
+  ): Promise<{ text: string; filename: string; model: string }> {
+    if (!file) throw new BadRequestException('파일이 없습니다.');
+    return this.mediaService.extractImageText(file, model || 'gemini-2.0-flash');
   }
 }

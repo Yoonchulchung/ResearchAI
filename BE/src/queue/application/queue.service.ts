@@ -25,7 +25,7 @@ import { DocParseExecutorService } from './job/doc-parse-executor.service';
 import { QueueJobRepository } from '../domain/repository/queue-job.repository';
 import { QueueJobDbStatus } from '../domain/entity/queue-job.entity';
 import { randomUUID } from 'crypto';
-import { CompanyAnalysisProgress } from '../../recruit/domain/documents/company-analysis.types';
+import { CompanyAnalysisProgress } from '../../company-analysis/domain/company-analysis.types';
 import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 
 @Injectable()

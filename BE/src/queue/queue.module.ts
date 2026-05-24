@@ -12,7 +12,7 @@ import { QueueController } from './presentation/queue.controller';
 import { ResearchModule } from '../research/research.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { AiModule } from '../ai/ai.module';
-import { DocumentsModule } from '../recruit/documents.module';
+import { CompanyAnalysisModule } from '../company-analysis/company-analysis.module';
 import { QueueJobEntity } from './domain/entity/queue-job.entity';
 import { QueueJobRepository } from './domain/repository/queue-job.repository';
 import { AppConfigModule } from '../config/config.module';
@@ -22,7 +22,7 @@ import { AppConfigModule } from '../config/config.module';
     forwardRef(() => ResearchModule),
     forwardRef(() => SessionsModule),
     forwardRef(() => AiModule),
-    forwardRef(() => DocumentsModule),
+    forwardRef(() => CompanyAnalysisModule),
     TypeOrmModule.forFeature([QueueJobEntity]),
     AppConfigModule,
   ],

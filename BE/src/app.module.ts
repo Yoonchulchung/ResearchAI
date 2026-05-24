@@ -12,15 +12,13 @@ import { RecruitModule } from './recruit/recruit.module';
 import { NewsModule } from './news/news.module';
 import { MediaModule } from './media/media.module';
 import { AppConfigModule } from './config/config.module';
-import { GmailModule } from './gmail/gmail.module';
 import { DocumentsModule } from './recruit/documents.module';
+import { CompanyAnalysisModule } from './company-analysis/company-analysis.module';
 import { BackgroundsModule } from './backgrounds/backgrounds.module';
 import { CoverLetterModule } from './recruit/cover-letter.module';
 import { MetricsModule } from './metrics/metrics.module';
-import { TechBlogModule } from './tech-blog/tech-blog.module';
-import { HotPapersModule } from './hot-papers/hot-papers.module';
-import { ExamModule } from './exam/exam.module';
-import { ResumeModule } from './resume/resume.module';
+import { ExamModule } from './recruit/exam.module';
+import { ResumeModule } from './recruit/resume.module';
 
 @Module({
   imports: [
@@ -37,13 +35,11 @@ import { ResumeModule } from './resume/resume.module';
     NewsModule,
     MediaModule,
     AppConfigModule,
-    GmailModule,
     DocumentsModule,
+    CompanyAnalysisModule,
     BackgroundsModule,
     CoverLetterModule,
     MetricsModule,
-    TechBlogModule,
-    HotPapersModule,
     ExamModule,
     ResumeModule,
   ],

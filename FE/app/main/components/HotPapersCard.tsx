@@ -54,7 +54,7 @@ export function HotPapersCard() {
           <IconPaper />
           <h2 className="text-m font-bold text-slate-700">핫한 논문</h2>
         </div>
-        <Link href="/hot-papers" className="text-2xs font-semibold text-slate-400 hover:text-indigo-500 transition-colors">
+        <Link href="/news/papers" className="text-2xs font-semibold text-slate-400 hover:text-indigo-500 transition-colors">
           전체 보기
         </Link>
       </div>
@@ -71,7 +71,7 @@ export function HotPapersCard() {
       ) : failed ? (
         <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
           <p className="text-xs text-slate-400">논문 목록을 불러오지 못했습니다</p>
-          <Link href="/hot-papers" className="text-xs font-semibold text-indigo-500 hover:text-indigo-600">
+          <Link href="/news/papers" className="text-xs font-semibold text-indigo-500 hover:text-indigo-600">
             페이지에서 다시 시도
           </Link>
         </div>

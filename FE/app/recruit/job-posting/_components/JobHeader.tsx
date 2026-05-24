@@ -66,16 +66,6 @@ export function JobHeader({
           {total.toLocaleString()}건
         </span>
         <div className="flex-1" />
-        <button
-          onClick={() => router.push("/recruit/doc-parse")}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all shrink-0"
-        >
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-            <path d="M7 1H3C2.44772 1 2 1.44772 2 2V10C2 10.5523 2.44772 11 3 11H9C9.55228 11 10 10.5523 10 10V4L7 1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-            <path d="M7 1V4H10" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-          </svg>
-          문서 파싱
-        </button>
         {status?.running ? (
           <button
             onClick={handleStop}

@@ -106,16 +106,16 @@ export class JobPostingScraperController {
 
   @Get('data/:id/ai-analysis')
   getAiAnalysis(@Param('id') id: string, @Query('mode') mode: AiMode = 'analysis') {
-    const text = this.service.getAiAnalysis(id, mode);
-    return { id, mode, text };
+    const result = this.service.getAiAnalysis(id, mode);
+    return { id, mode, text: result?.text ?? null, docId: result?.docId ?? null };
   }
 
   @Post('data/:id/ai-analysis')
   saveAiAnalysis(
     @Param('id') id: string,
-    @Body() body: { mode: AiMode; text: string },
+    @Body() body: { mode: AiMode; text: string; docId?: string | null },
   ) {
-    this.service.setAiAnalysis(id, body.mode ?? 'analysis', body.text);
+    this.service.setAiAnalysis(id, body.mode ?? 'analysis', body.text, body.docId);
     return { ok: true };
   }
 

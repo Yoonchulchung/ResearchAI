@@ -295,11 +295,13 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/recruit/doc-parse")) return "문서 파싱";
   if (pathname.startsWith("/recruit/doc-store")) return "문서 보관함";
   if (pathname.startsWith("/recruit/job-posting")) return "채용 공고";
+  if (pathname.startsWith("/recruit/spec")) return "스펙 분석";
   if (pathname.startsWith("/recruit/cover-letter")) return "자기소개서";
   if (pathname.startsWith("/recruit")) return "채용";
+  if (pathname.startsWith("/news/tech-blogs")) return "기술 블로그";
+  if (pathname.startsWith("/news/papers")) return "핫한 논문";
+  if (pathname.startsWith("/news")) return "뉴스";
   if (pathname.startsWith("/company-analysis")) return "기업 분석";
-  if (pathname.startsWith("/tech-blogs")) return "기술 블로그";
-  if (pathname.startsWith("/hot-papers")) return "핫한 논문";
   if (pathname.startsWith("/settings")) return "설정";
   return "ResearchAI";
 }
@@ -309,7 +311,7 @@ function getActiveTab(pathname: string): NavTab {
   if (pathname.startsWith("/sessions")) return "sessions";
   if (pathname.startsWith("/recruit")) return "write";
   if (pathname.startsWith("/settings")) return "settings";
-  if (pathname.startsWith("/company-analysis") || pathname.startsWith("/tech-blogs") || pathname.startsWith("/hot-papers")) return "more";
+  if (pathname.startsWith("/company-analysis") || pathname.startsWith("/news")) return "more";
   return "home";
 }
 
@@ -431,8 +433,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/sessions/") ||
     pathname.startsWith("/recruit") ||
     pathname.startsWith("/company-analysis") ||
-    pathname.startsWith("/tech-blogs") ||
-    pathname.startsWith("/hot-papers") ||
+    pathname.startsWith("/news") ||
     pathname.startsWith("/settings");
 
   return (

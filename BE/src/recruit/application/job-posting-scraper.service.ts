@@ -23,9 +23,9 @@ import { requestContext } from '../../shared/request-context';
 const DATA_DIR = path.resolve(__dirname, '../../../data/job-postings');
 const IMAGE_CACHE_DIR = path.join(process.cwd(), 'data/recruit/image-cache');
 const JSONL_FILE = path.join(DATA_DIR, 'job-postings.jsonl');
-const IDS_FILE = path.join(DATA_DIR, 'collected-ids.json');
 const COMPANY_PROFILES_FILE = path.join(DATA_DIR, 'company-profiles.json');
 const CHECKPOINT_FILE = path.join(DATA_DIR, 'crawl-checkpoint.json');
+const CHECKPOINT_ID = 'job-posting-scraper';
 const COMPANY_TYPE_OPTIONS = ['대기업', '중견기업', '중소기업', '외국계기업', '공공기관', '금융기관'];
 const COMPANY_PROFILE_SOURCE_PRIORITY: Record<CompanyProfileSource, number> = {
   manual: 100,
@@ -217,6 +217,31 @@ interface CrawlCheckpointFile {
   sources: Record<string, CrawlSourceCheckpoint>;
 }
 
+interface JobPostingSqlRow {
+  id: string;
+  source: string | null;
+  source_type: string | null;
+  title: string;
+  company: string;
+  location: string | null;
+  description: string | null;
+  skills: string | null;
+  url: string;
+  company_type: string | null;
+  type: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  deadline: string | null;
+  jobs: string | null;
+  homepage: string | null;
+  category: string | null;
+  view_count: number | null;
+  detail_content: string | null;
+  detail_html: string | null;
+  posted_at: string | null;
+  collected_at: string;
+}
+
 @Injectable()
 export class JobPostingScraperService implements OnModuleInit {
   private readonly logger = new Logger(JobPostingScraperService.name);
@@ -244,7 +269,9 @@ export class JobPostingScraperService implements OnModuleInit {
 
   async onModuleInit() {
     fs.mkdirSync(DATA_DIR, { recursive: true });
+    await this.migratePostingsJsonlToDb();
     await this.loadCollectedIds();
+    await this.migrateCompanyProfilesJsonToDb();
     await this.loadCompanyProfiles();
     await this.bootstrapCompanyProfilesFromPostings();
     await this.loadCheckpoint();
@@ -424,12 +451,12 @@ export class JobPostingScraperService implements OnModuleInit {
     return result;
   }
 
-  getAiAnalysis(id: string, mode: 'analysis' | 'interview'): string | null {
+  getAiAnalysis(id: string, mode: 'analysis' | 'interview'): { text: string; docId: string | null } | null {
     return this.recruitDb.getAiAnalysisCache(id, mode);
   }
 
-  setAiAnalysis(id: string, mode: 'analysis' | 'interview', text: string): void {
-    this.recruitDb.setAiAnalysisCache(id, mode, text);
+  setAiAnalysis(id: string, mode: 'analysis' | 'interview', text: string, docId?: string | null): void {
+    this.recruitDb.setAiAnalysisCache(id, mode, text, docId);
   }
 
   getPostingImageFiles(html: string): string[] {
@@ -674,7 +701,7 @@ export class JobPostingScraperService implements OnModuleInit {
   ): Promise<{ items: JobPosting[]; total: number; filterOptions: JobPostingFilterOptions }> {
     await this.ensureInitialCatchPostings();
 
-    const all = (await this.readAllFromJsonl()).map((posting) => this.normalizePostingForView(posting));
+    const all = (await this.readAllFromDb()).map((posting) => this.normalizePostingForView(posting));
 
     const favoriteIds = this.getFavoriteIds();
     const visible = all.filter((p) => !this.isIgnoredPosting(p));
@@ -693,8 +720,7 @@ export class JobPostingScraperService implements OnModuleInit {
   }
 
   async getPostingById(id: string): Promise<JobPosting | null> {
-    const all = await this.readAllFromJsonl();
-    const posting = all.find((p) => p.id === id);
+    const posting = await this.readPostingFromDb(id);
     return posting ? this.withFavorite(this.normalizePostingForView(posting)) : null;
   }
 
@@ -736,7 +762,7 @@ export class JobPostingScraperService implements OnModuleInit {
   }
 
   private async seedInitialCatchPostings(): Promise<void> {
-    const existingPostings = await this.readAllFromJsonl();
+    const existingPostings = await this.readAllFromDb();
     const hasCatchPostings = existingPostings.some((posting) => this.getPostingSource(posting) === 'catch');
 
     try {
@@ -766,20 +792,46 @@ export class JobPostingScraperService implements OnModuleInit {
   }
 
   private async loadCheckpoint() {
+    const row = this.recruitDb.get().prepare(`
+      SELECT data
+      FROM job_posting_crawl_checkpoints
+      WHERE id = ?
+    `).get(CHECKPOINT_ID) as { data: string } | undefined;
+
+    if (row?.data) {
+      try {
+        this.crawlCheckpoint = JSON.parse(row.data) as CrawlCheckpointFile;
+        const sources = Object.entries(this.crawlCheckpoint.sources)
+          .map(([k, v]) => `${k}:p${v.lastCompletedPage}${v.done ? '(완료)' : ''}`)
+          .join(', ');
+        this.logger.log(`체크포인트 DB 로드 — ${this.crawlCheckpoint.date} [${sources || '없음'}]`);
+        return;
+      } catch {
+        this.logger.warn('체크포인트 DB 로드 실패 — 초기화');
+      }
+    }
+
     if (!fs.existsSync(CHECKPOINT_FILE)) return;
     try {
       this.crawlCheckpoint = JSON.parse(fs.readFileSync(CHECKPOINT_FILE, 'utf-8'));
       const sources = Object.entries(this.crawlCheckpoint.sources)
         .map(([k, v]) => `${k}:p${v.lastCompletedPage}${v.done ? '(완료)' : ''}`)
         .join(', ');
-      this.logger.log(`체크포인트 로드 — ${this.crawlCheckpoint.date} [${sources || '없음'}]`);
+      this.logger.log(`체크포인트 JSON 로드 — ${this.crawlCheckpoint.date} [${sources || '없음'}]`);
+      this.saveCheckpoint();
     } catch {
       this.logger.warn('체크포인트 로드 실패 — 초기화');
     }
   }
 
   private saveCheckpoint() {
-    fs.writeFileSync(CHECKPOINT_FILE, JSON.stringify(this.crawlCheckpoint, null, 2), 'utf-8');
+    this.recruitDb.get().prepare(`
+      INSERT INTO job_posting_crawl_checkpoints (id, data, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        data = excluded.data,
+        updated_at = excluded.updated_at
+    `).run(CHECKPOINT_ID, JSON.stringify(this.crawlCheckpoint), new Date().toISOString());
   }
 
   private updateSourceCheckpoint(label: string, lastPage: number, done: boolean) {
@@ -887,7 +939,6 @@ export class JobPostingScraperService implements OnModuleInit {
         }
         if (this.isIgnoredPosting(posting)) {
           this.collectedIds.add(posting.id);
-          fs.writeFileSync(IDS_FILE, JSON.stringify([...this.collectedIds]), 'utf-8');
           this.status.totalSkipped++;
           continue;
         }
@@ -913,39 +964,47 @@ export class JobPostingScraperService implements OnModuleInit {
   }
 
   private async savePosting(p: JobPosting) {
-    fs.appendFileSync(JSONL_FILE, JSON.stringify(p) + '\n', 'utf-8');
+    this.upsertPostingToDb(p);
     this.collectedIds.add(p.id);
-    fs.writeFileSync(IDS_FILE, JSON.stringify([...this.collectedIds]), 'utf-8');
     if (this.upsertCompanyProfileFromPosting(p)) {
       this.saveCompanyProfiles();
     }
   }
 
   private async loadCollectedIds() {
-    if (!fs.existsSync(IDS_FILE)) return;
-    try {
-      const arr: string[] = JSON.parse(fs.readFileSync(IDS_FILE, 'utf-8'));
-      this.collectedIds = new Set(arr);
-      this.logger.log(`기존 수집 ID ${this.collectedIds.size}개 로드`);
-    } catch {
-      this.logger.warn('collected-ids.json 로드 실패 — 초기화');
-    }
+    const rows = this.recruitDb.get()
+      .prepare(`SELECT id FROM job_postings`)
+      .all() as { id: string }[];
+    this.collectedIds = new Set(rows.map((row) => row.id));
+    this.logger.log(`채용공고 DB 수집 ID ${this.collectedIds.size}개 로드`);
   }
 
   private async loadCompanyProfiles() {
-    if (!fs.existsSync(COMPANY_PROFILES_FILE)) return;
-    try {
-      const file = JSON.parse(fs.readFileSync(COMPANY_PROFILES_FILE, 'utf-8')) as Partial<CompanyProfileFile>;
-      this.companyProfiles = new Map(Object.entries(file.profiles ?? {}));
-      this.logger.log(`기업 프로필 ${this.companyProfiles.size}개 로드`);
-    } catch {
-      this.logger.warn('company-profiles.json 로드 실패 — 초기화');
-      this.companyProfiles = new Map();
-    }
+    const rows = this.recruitDb.get().prepare(`
+      SELECT normalized_name, company_name, company_type, source, evidence, updated_at
+      FROM company_profiles
+    `).all() as Array<{
+      normalized_name: string;
+      company_name: string;
+      company_type: string;
+      source: CompanyProfileSource;
+      evidence: string | null;
+      updated_at: string;
+    }>;
+
+    this.companyProfiles = new Map(rows.map((row) => [row.normalized_name, {
+      normalizedName: row.normalized_name,
+      companyName: row.company_name,
+      companyType: row.company_type,
+      source: row.source,
+      evidence: row.evidence ?? undefined,
+      updatedAt: row.updated_at,
+    }]));
+    this.logger.log(`기업 프로필 DB ${this.companyProfiles.size}개 로드`);
   }
 
   private async bootstrapCompanyProfilesFromPostings() {
-    const postings = await this.readAllFromJsonl();
+    const postings = await this.readAllFromDb();
     let changed = false;
     for (const posting of postings) {
       changed = this.upsertCompanyProfileFromPosting(posting) || changed;
@@ -956,12 +1015,227 @@ export class JobPostingScraperService implements OnModuleInit {
   private saveCompanyProfiles() {
     const sortedProfiles = [...this.companyProfiles.entries()]
       .sort(([a], [b]) => a.localeCompare(b, 'ko'));
-    const file: CompanyProfileFile = {
-      version: 1,
-      updatedAt: new Date().toISOString(),
-      profiles: Object.fromEntries(sortedProfiles),
+    const db = this.recruitDb.get();
+    const transaction = db.transaction((profiles: CompanyProfile[]) => {
+      db.prepare(`DELETE FROM company_profiles`).run();
+      const stmt = db.prepare(`
+        INSERT INTO company_profiles
+          (normalized_name, company_name, company_type, source, evidence, updated_at)
+        VALUES
+          (@normalizedName, @companyName, @companyType, @source, @evidence, @updatedAt)
+      `);
+      for (const profile of profiles) {
+        stmt.run({
+          ...profile,
+          evidence: profile.evidence ?? null,
+        });
+      }
+    });
+    transaction(sortedProfiles.map(([, profile]) => profile));
+  }
+
+  private async migrateCompanyProfilesJsonToDb() {
+    const existing = this.recruitDb.get()
+      .prepare(`SELECT COUNT(*) as count FROM company_profiles`)
+      .get() as { count: number };
+    if (existing.count > 0 || !fs.existsSync(COMPANY_PROFILES_FILE)) return;
+
+    try {
+      const file = JSON.parse(fs.readFileSync(COMPANY_PROFILES_FILE, 'utf-8')) as Partial<CompanyProfileFile>;
+      const profiles = Object.values(file.profiles ?? {});
+      if (profiles.length === 0) return;
+
+      const stmt = this.recruitDb.get().prepare(`
+        INSERT OR REPLACE INTO company_profiles
+          (normalized_name, company_name, company_type, source, evidence, updated_at)
+        VALUES
+          (@normalizedName, @companyName, @companyType, @source, @evidence, @updatedAt)
+      `);
+      const transaction = this.recruitDb.get().transaction((rows: CompanyProfile[]) => {
+        for (const profile of rows) {
+          stmt.run({
+            ...profile,
+            evidence: profile.evidence ?? null,
+          });
+        }
+      });
+      transaction(profiles);
+      this.logger.log(`기업 프로필 JSON ${profiles.length}건을 DB로 마이그레이션 완료`);
+    } catch {
+      this.logger.warn('company-profiles.json 마이그레이션 실패 — 건너뜀');
+    }
+  }
+
+  private async migratePostingsJsonlToDb() {
+    if (!fs.existsSync(JSONL_FILE)) return;
+
+    const postings = await this.readAllFromJsonl();
+    const existingRows = this.recruitDb.get()
+      .prepare(`SELECT id, url FROM job_postings`)
+      .all() as { id: string; url: string }[];
+    const existingIds = new Set(existingRows.map((row) => row.id));
+    const existingUrls = new Set(existingRows.map((row) => row.url));
+    const seenIds = new Set<string>();
+    const seenUrls = new Set<string>();
+    let savedCount = 0;
+    for (const posting of postings) {
+      if (
+        !posting.id ||
+        existingIds.has(posting.id) ||
+        existingUrls.has(posting.url) ||
+        seenIds.has(posting.id) ||
+        seenUrls.has(posting.url)
+      ) {
+        continue;
+      }
+      seenIds.add(posting.id);
+      seenUrls.add(posting.url);
+      this.upsertPostingToDb(posting);
+      savedCount++;
+    }
+    if (savedCount > 0) {
+      this.logger.log(`채용공고 JSONL ${savedCount}건을 DB로 마이그레이션 완료`);
+    }
+  }
+
+  private upsertPostingToDb(posting: JobPosting) {
+    const normalized = this.normalizePostingForStorage(posting);
+    this.recruitDb.get().prepare(`
+      INSERT INTO job_postings
+        (
+          id, source, source_type, title, company, location, description, skills, url,
+          company_type, type, start_date, end_date, deadline, jobs, homepage, category,
+          view_count, detail_content, detail_html, posted_at, collected_at, search_text
+        )
+      VALUES
+        (
+          @id, @source, @sourceType, @title, @company, @location, @description, @skills, @url,
+          @companyType, @type, @startDate, @endDate, @deadline, @jobs, @homepage, @category,
+          @viewCount, @detailContent, @detailHtml, @postedAt, @collectedAt, @searchText
+        )
+      ON CONFLICT(id) DO UPDATE SET
+        source         = excluded.source,
+        source_type    = excluded.source_type,
+        title          = excluded.title,
+        company        = excluded.company,
+        location       = excluded.location,
+        description    = excluded.description,
+        skills         = excluded.skills,
+        url            = excluded.url,
+        company_type   = excluded.company_type,
+        type           = excluded.type,
+        start_date     = excluded.start_date,
+        end_date       = excluded.end_date,
+        deadline       = excluded.deadline,
+        jobs           = excluded.jobs,
+        homepage       = excluded.homepage,
+        category       = excluded.category,
+        view_count     = excluded.view_count,
+        detail_content = COALESCE(excluded.detail_content, job_postings.detail_content),
+        detail_html    = COALESCE(excluded.detail_html, job_postings.detail_html),
+        posted_at      = excluded.posted_at,
+        collected_at   = excluded.collected_at,
+        search_text    = excluded.search_text
+    `).run({
+      ...normalized,
+      sourceType: normalized.sourceType ?? 'crawler',
+      description: normalized.description ?? '',
+      skills: JSON.stringify(normalized.skills ?? []),
+      companyType: normalized.companyType ?? null,
+      type: normalized.type ?? null,
+      startDate: normalized.startDate ?? null,
+      endDate: normalized.endDate ?? null,
+      deadline: normalized.deadline ?? null,
+      jobs: normalized.jobs ?? null,
+      homepage: normalized.homepage ?? null,
+      category: normalized.category ?? null,
+      viewCount: normalized.viewCount ?? null,
+      detailContent: normalized.detailContent ?? null,
+      detailHtml: normalized.detailHtml ?? null,
+      postedAt: normalized.postedAt ?? null,
+      searchText: this.buildPostingSearchText(normalized),
+    });
+  }
+
+  private async readAllFromDb(): Promise<JobPosting[]> {
+    const rows = this.recruitDb.get().prepare(`
+      SELECT *
+      FROM job_postings
+      ORDER BY collected_at DESC
+    `).all() as JobPostingSqlRow[];
+    return rows.map((row) => this.toPosting(row));
+  }
+
+  private async readPostingFromDb(id: string): Promise<JobPosting | null> {
+    const row = this.recruitDb.get().prepare(`
+      SELECT *
+      FROM job_postings
+      WHERE id = ?
+    `).get(id) as JobPostingSqlRow | undefined;
+    return row ? this.toPosting(row) : null;
+  }
+
+  private toPosting(row: JobPostingSqlRow): JobPosting {
+    let skills: string[] = [];
+    try {
+      const parsed = JSON.parse(row.skills || '[]');
+      skills = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      skills = [];
+    }
+
+    return {
+      id: row.id,
+      source: row.source ?? undefined,
+      sourceType: (row.source_type as JobPosting['sourceType']) ?? 'crawler',
+      title: row.title,
+      company: row.company,
+      location: row.location ?? '',
+      description: row.description ?? undefined,
+      skills,
+      url: row.url,
+      companyType: row.company_type ?? undefined,
+      type: row.type ?? undefined,
+      startDate: row.start_date ?? undefined,
+      endDate: row.end_date ?? undefined,
+      deadline: row.deadline ?? undefined,
+      jobs: row.jobs ?? undefined,
+      homepage: row.homepage ?? undefined,
+      category: row.category ?? undefined,
+      viewCount: row.view_count ?? undefined,
+      detailContent: row.detail_content ?? undefined,
+      detailHtml: row.detail_html ?? undefined,
+      postedAt: row.posted_at,
+      collectedAt: row.collected_at,
     };
-    fs.writeFileSync(COMPANY_PROFILES_FILE, `${JSON.stringify(file, null, 2)}\n`, 'utf-8');
+  }
+
+  private normalizePostingForStorage(posting: JobPosting): JobPosting {
+    return {
+      ...posting,
+      source: this.getPostingSource(posting),
+      sourceType: posting.sourceType ?? 'crawler',
+      url: this.getPostingUrl(posting),
+      location: posting.location ?? '',
+      skills: Array.isArray(posting.skills) ? posting.skills : [],
+      collectedAt: posting.collectedAt ?? new Date().toISOString(),
+    };
+  }
+
+  private buildPostingSearchText(posting: JobPosting): string {
+    return this.normalize([
+      posting.id,
+      posting.source,
+      posting.title,
+      posting.company,
+      posting.location,
+      posting.description,
+      posting.companyType,
+      posting.type,
+      posting.jobs,
+      posting.category,
+      posting.skills?.join(' '),
+    ].filter(Boolean).join(' '));
   }
 
   private async readAllFromJsonl(): Promise<JobPosting[]> {

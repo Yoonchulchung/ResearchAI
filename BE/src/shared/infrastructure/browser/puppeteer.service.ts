@@ -1,29 +1,80 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import puppeteer, { Browser, Page } from 'puppeteer';
-import { BROWSER_USER_AGENT } from './browser-automation.util';
+import { BROWSER_ARGS, BROWSER_USER_AGENT } from './browser-automation.util';
 
 @Injectable()
 export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PuppeteerService.name);
   private browser: Browser | null = null;
+  private launchPromise: Promise<Browser | null> | null = null;
 
   async onModuleInit() {
+    await this.ensureBrowser();
+  }
+
+  async onModuleDestroy() {
+    await this.browser?.close().catch(() => undefined);
+    this.browser = null;
+    this.logger.log('Puppeteer browser closed');
+  }
+
+  private async ensureBrowser(): Promise<Browser | null> {
+    if (this.browser?.connected) return this.browser;
+    if (this.launchPromise) return this.launchPromise;
+
+    this.launchPromise = this.launchBrowser().finally(() => {
+      this.launchPromise = null;
+    });
+
+    return this.launchPromise;
+  }
+
+  private async launchBrowser(): Promise<Browser | null> {
     try {
       this.browser = await puppeteer.launch({
         headless: true,
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'],
+        args: BROWSER_ARGS,
+        protocolTimeout: 15_000,
+      });
+      this.browser.once('disconnected', () => {
+        this.logger.warn('Puppeteer browser disconnected');
+        this.browser = null;
       });
       this.logger.log('Puppeteer browser launched');
+      return this.browser;
     } catch (e) {
       this.logger.warn(`Puppeteer 초기화 실패 - 웹 크롤링 비활성화: ${(e as Error).message}`);
       this.browser = null;
+      return null;
     }
   }
 
-  async onModuleDestroy() {
-    await this.browser?.close();
-    this.logger.log('Puppeteer browser closed');
+  private async recreateBrowser(): Promise<Browser | null> {
+    const previous = this.browser;
+    this.browser = null;
+    await previous?.close().catch(() => undefined);
+    return this.ensureBrowser();
+  }
+
+  private isConnectionClosedError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /Connection closed|Target closed|Session closed|Protocol error/i.test(message);
+  }
+
+  private async newPage(): Promise<Page> {
+    let browser = await this.ensureBrowser();
+    if (!browser) throw new Error('Browser not initialized');
+
+    try {
+      return await browser.newPage();
+    } catch (error) {
+      if (!this.isConnectionClosedError(error)) throw error;
+      this.logger.warn(`Puppeteer page 생성 실패 - 브라우저 재시작 후 재시도: ${(error as Error).message}`);
+      browser = await this.recreateBrowser();
+      if (!browser) throw new Error('Browser not initialized');
+      return browser.newPage();
+    }
   }
 
   async fetchArticle(url: string): Promise<{
@@ -32,9 +83,7 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
     image?: string;
     finalUrl: string;
   }> {
-    if (!this.browser) throw new Error('Browser not initialized');
-
-    const page: Page = await this.browser.newPage();
+    const page: Page = await this.newPage();
     try {
       await page.setUserAgent(BROWSER_USER_AGENT);
       await page.setExtraHTTPHeaders({ 'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8' });
@@ -127,9 +176,7 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
   }
 
   async searchGoogle(query: string, limit = 8): Promise<{ title: string; url: string; snippet: string }[]> {
-    if (!this.browser) throw new Error('Browser not initialized');
-
-    const page: Page = await this.browser.newPage();
+    const page: Page = await this.newPage();
     try {
       await page.setUserAgent(BROWSER_USER_AGENT);
       await page.setExtraHTTPHeaders({ 'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8' });

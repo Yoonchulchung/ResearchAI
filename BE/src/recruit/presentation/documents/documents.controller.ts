@@ -7,8 +7,7 @@ import puppeteer, { Browser } from 'puppeteer';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { DocumentsService } from '../../application/documents/documents.service';
-import { CompanyAnalysisService } from '../../application/documents/company-analysis.service';
-import { JobplanetScraperService } from '../../infrastructure/documents/jobplanet-scraper.service';
+import { JobplanetScraperService } from '../../../company-analysis/infrastructure/jobplanet-scraper.service';
 import { requestContext } from '../../../shared/request-context';
 import { CatchAuthService } from '../../../shared/infrastructure/auth/catch-auth.service';
 import {
@@ -38,66 +37,9 @@ class UpdateExperienceDto {
 export class DocumentsController {
   constructor(
     private readonly service: DocumentsService,
-    private readonly companyAnalysisService: CompanyAnalysisService,
     private readonly jobplanetScraper: JobplanetScraperService,
     private readonly catchAuth: CatchAuthService,
   ) {}
-
-  // ── Company Analysis (인재상 핵심 역량 매핑) ────────────────────────────
-
-  @Get('company-analysis')
-  listCompanyAnalyses() {
-    return this.companyAnalysisService.findAll();
-  }
-
-  @Get('company-analysis/:companyKey')
-  getCompanyAnalysis(@Param('companyKey') companyKey: string) {
-    return this.companyAnalysisService.findByKey(companyKey);
-  }
-
-  @Delete('company-analysis/:companyKey')
-  async deleteCompanyAnalysis(@Param('companyKey') companyKey: string) {
-    await this.companyAnalysisService.delete(companyKey);
-    return { ok: true };
-  }
-
-  /** AI Agent 가 회사 인재상을 분석 — SSE 스트리밍 */
-  @Post('company-analysis/analyze')
-  async analyzeCompany(
-    @Body() body: { companyName: string; aiModel?: string },
-    @Req() req: Request,
-    @Res() res: Response,
-  ) {
-    if (!body.companyName?.trim()) {
-      throw new BadRequestException('companyName 이 필요합니다');
-    }
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
-
-    const cleanup = () => res.end();
-    req.on('close', cleanup);
-
-    try {
-      for await (const event of this.companyAnalysisService.analyzeStream(
-        body.companyName,
-        body.aiModel ?? '',
-      )) {
-        if (res.writableEnded) break;
-        res.write(`data: ${JSON.stringify(event)}\n\n`);
-      }
-    } catch (e) {
-      if (!res.writableEnded) {
-        const msg = e instanceof Error ? e.message : '오류 발생';
-        res.write(`data: ${JSON.stringify({ type: 'error', message: msg })}\n\n`);
-      }
-    } finally {
-      req.off('close', cleanup);
-      res.end();
-    }
-  }
 
   // ── Jobplanet Test ──────────────────────────────────────────────────────
 

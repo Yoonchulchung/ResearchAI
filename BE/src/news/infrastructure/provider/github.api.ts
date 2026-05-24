@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
 export interface GHRepo {
+  id: number;
   full_name: string;
   description: string | null;
+  html_url: string;
   stargazers_count: number;
   language: string | null;
   forks_count: number;

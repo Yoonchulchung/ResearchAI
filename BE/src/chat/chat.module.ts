@@ -8,7 +8,7 @@ import { SessionsModule } from '../sessions/sessions.module';
 import { AiModule } from '../ai/ai.module';
 import { VectorModule } from '../vector/vector.module';
 import { ResearchModule } from '../research/research.module';
-import { DocumentsModule } from '../recruit/documents.module';
+import { CompanyAnalysisModule } from '../company-analysis/company-analysis.module';
 
 @Module({
   imports: [
@@ -17,7 +17,7 @@ import { DocumentsModule } from '../recruit/documents.module';
     AiModule,
     VectorModule,
     ResearchModule,
-    forwardRef(() => DocumentsModule),
+    forwardRef(() => CompanyAnalysisModule),
   ],
   controllers: [ChatController],
   providers: [ChatService, ChatRepository],

@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect, type MouseEvent } from "react
 import { useRouter } from "next/navigation";
 import type { JobPosting } from "@/lib/api/recruit/job-posting";
 import { getJobPostingAiAnalysis, saveJobPostingAiAnalysis, getPostingImageFiles, type AiAnalysisMode } from "@/lib/api/recruit/job-posting";
+import { listCoverLetters, type CoverLetter } from "@/lib/api/recruit/cover-letter";
 import { enqueueWriteAssist, streamWriteAssist } from "@/lib/api/ai";
 import { BE_BASE } from "@/lib/api/base";
 import { getDdayLabel, normalizeType } from "../_utils";
@@ -30,22 +31,56 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
   const abortRef = useRef<AbortController | null>(null);
   const prevIdRef = useRef<string>("");
 
+  // Cover letter picker state
+  const [coverLetter, setCoverLetter] = useState<CoverLetter | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
+  const [pickerItems, setPickerItems] = useState<CoverLetter[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [cachedDocIds, setCachedDocIds] = useState<{ analysis: string | null; interview: string | null }>({ analysis: null, interview: null });
+
   const selectedDday = getDdayLabel(selected);
 
-  // Reset state and load image files when posting changes
+  // Reset state and load image files + cached docIds when posting changes
   useEffect(() => {
     if (prevIdRef.current === selected.id) return;
     prevIdRef.current = selected.id;
     setAiMode(null);
     setAiResult("");
     setImageFiles([]);
+    setCoverLetter(null);
+    setPickerOpen(false);
+    setPickerSearch("");
+    setCachedDocIds({ analysis: null, interview: null });
 
     if (selected.detailHtml && /src=["']\/api\/recruit\/job-postings\/image\//.test(selected.detailHtml)) {
       getPostingImageFiles(selected.detailHtml)
         .then(({ files }) => setImageFiles(files))
         .catch(() => {});
     }
+
+    // Pre-load cached docIds so picker can show "분석됨" badges
+    Promise.all([
+      getJobPostingAiAnalysis(selected.id, "analysis").catch(() => null),
+      getJobPostingAiAnalysis(selected.id, "interview").catch(() => null),
+    ]).then(([a, b]) => {
+      setCachedDocIds({
+        analysis: a?.docId ?? null,
+        interview: b?.docId ?? null,
+      });
+    });
   }, [selected.id, selected.detailHtml]);
+
+  const openPicker = useCallback(async () => {
+    setPickerOpen((v) => !v);
+    if (pickerItems.length > 0) return;
+    setPickerLoading(true);
+    try {
+      const res = await listCoverLetters(1, 100);
+      setPickerItems(res.items);
+    } catch {}
+    setPickerLoading(false);
+  }, [pickerItems.length]);
 
   const getPostingContent = useCallback(() => {
     let detailText = selected.detailContent ?? "";
@@ -69,10 +104,11 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
 
   const loadCachedResult = useCallback(async (mode: AiAnalysisMode) => {
     try {
-      const { text } = await getJobPostingAiAnalysis(selected.id, mode);
+      const { text, docId } = await getJobPostingAiAnalysis(selected.id, mode);
       if (text) {
         setAiMode(mode);
         setAiResult(text);
+        setCachedDocIds((prev) => ({ ...prev, [mode]: docId }));
         return true;
       }
     } catch {}
@@ -97,10 +133,14 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
 
       const content = getPostingContent();
 
+      const coverLetterSection = coverLetter
+        ? `\n\n지원자 자기소개서:\n스펙: ${coverLetter.spec}\n\n${coverLetter.questions.map((q) => `Q. ${q.question}\nA. ${q.answer}`).join("\n\n")}`
+        : "";
+
       const instruction =
         mode === "analysis"
-          ? `다음 채용 공고를 분석해서 아래 형식으로 답변해주세요.\n\n**핵심 자격 요건**\n- ...\n\n**우대 사항**\n- ...\n\n**직무 핵심**\n- ...\n\n**숨겨진 요구사항**\n공고에 명시되지 않았지만 맥락상 예상되는 사항을 분석해주세요.\n\n**지원 전략**\n이 공고에 합격하기 위한 핵심 전략을 제시해주세요.\n\n채용 공고:\n${content}`
-          : `다음 채용 공고를 바탕으로 실제 면접에서 나올 수 있는 예상 질문 10개를 생성해주세요.\n\n**기술 면접 질문** (5개)\n각 질문마다 출제 의도와 핵심 답변 방향을 함께 제시해주세요.\n\n**인성/행동 면접 질문** (3개)\nSTAR 기법으로 답변할 수 있는 질문과 의도를 제시해주세요.\n\n**기업/산업 관련 질문** (2개)\n해당 기업과 산업에 특화된 질문과 답변 포인트를 제시해주세요.\n\n채용 공고:\n${content}`;
+          ? `다음 채용 공고를 분석해서 아래 형식으로 답변해주세요.\n\n**핵심 자격 요건**\n- ...\n\n**우대 사항**\n- ...\n\n**직무 핵심**\n- ...${coverLetter ? "\n\n**자기소개서 적합도**\n첨부된 자기소개서를 이 공고와 비교해 강점, 보완점, 지원 적합성을 분석해주세요." : ""}\n\n**숨겨진 요구사항**\n공고에 명시되지 않았지만 맥락상 예상되는 사항을 분석해주세요.\n\n**지원 전략**\n이 공고에 합격하기 위한 핵심 전략을 제시해주세요.\n\n채용 공고:\n${content}${coverLetterSection}`
+          : `다음 채용 공고를 바탕으로 실제 면접에서 나올 수 있는 예상 질문 10개를 생성해주세요.${coverLetter ? "\n첨부된 자기소개서를 참고해 자소서 기반 질문도 포함해주세요." : ""}\n\n**기술 면접 질문** (5개)\n각 질문마다 출제 의도와 핵심 답변 방향을 함께 제시해주세요.\n\n**인성/행동 면접 질문** (3개)\nSTAR 기법으로 답변할 수 있는 질문과 의도를 제시해주세요.\n\n**기업/산업 관련 질문** (2개)\n해당 기업과 산업에 특화된 질문과 답변 포인트를 제시해주세요.\n\n채용 공고:\n${content}${coverLetterSection}`;
 
       let finalResult = "";
       try {
@@ -115,19 +155,22 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
           },
           ctrl.signal,
         );
-        // Save result to DB
-        if (finalResult) {
-          saveJobPostingAiAnalysis(selected.id, mode as AiAnalysisMode, finalResult).catch(() => {});
-        }
       } catch (err: unknown) {
         if (err instanceof Error && err.name !== "AbortError") {
           setAiResult("분석 중 오류가 발생했습니다. 다시 시도해주세요.");
         }
       } finally {
         setAiLoading(false);
+        if (finalResult && !ctrl.signal.aborted) {
+          const docId = coverLetter?.id ?? null;
+          saveJobPostingAiAnalysis(selected.id, mode as AiAnalysisMode, finalResult, docId).catch((err) => {
+            console.error("[JobDetail] AI 분석 저장 실패:", err);
+          });
+          if (docId) setCachedDocIds((prev) => ({ ...prev, [mode]: docId }));
+        }
       }
     },
-    [selected.id, getPostingContent, loadCachedResult],
+    [selected.id, getPostingContent, loadCachedResult, coverLetter, imageFiles],
   );
 
   const handleCompanyAnalysis = () => {
@@ -316,15 +359,138 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
                   </svg>
                   기업 분석하기
                 </button>
+                {/* Cover letter picker button */}
+                <button
+                  onClick={openPicker}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                    coverLetter
+                      ? "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100"
+                      : pickerOpen
+                        ? "bg-slate-200 text-slate-700 border-slate-300"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 1.5h8a.5.5 0 01.5.5v8a.5.5 0 01-.5.5H2a.5.5 0 01-.5-.5V2a.5.5 0 01.5-.5z" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M4 4h4M4 6h4M4 8h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                  </svg>
+                  {coverLetter ? `자소서: ${coverLetter.company}` : "자소서 선택"}
+                  {coverLetter && (
+                    <span
+                      role="button"
+                      onClick={(e) => { e.stopPropagation(); setCoverLetter(null); }}
+                      className="ml-0.5 text-orange-400 hover:text-orange-700"
+                    >
+                      ×
+                    </span>
+                  )}
+                </button>
               </div>
+
+              {/* Cover letter picker panel */}
+              {pickerOpen && (
+                <div className="mt-3 border border-slate-200 rounded-lg bg-white overflow-hidden">
+                  <div className="p-2 border-b border-slate-100 flex items-center gap-2">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={pickerSearch}
+                      onChange={(e) => setPickerSearch(e.target.value)}
+                      placeholder="회사명·직무로 검색"
+                      className="flex-1 text-xs px-2 py-1.5 border border-slate-200 rounded-md outline-none focus:border-indigo-300 bg-slate-50"
+                    />
+                    <button onClick={() => setPickerOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm px-1">
+                      ✕
+                    </button>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto">
+                    {pickerLoading ? (
+                      <div className="flex items-center justify-center gap-2 py-6 text-xs text-slate-400">
+                        <span className="w-3 h-3 border-2 border-slate-200 border-t-indigo-400 rounded-full animate-spin" />
+                        불러오는 중...
+                      </div>
+                    ) : (() => {
+                      const q = pickerSearch.trim();
+                      const filtered = q
+                        ? pickerItems.filter(
+                            (cl) =>
+                              cl.company.includes(q) ||
+                              cl.position.includes(q) ||
+                              (cl.spec ?? "").includes(q),
+                          )
+                        : pickerItems;
+                      if (filtered.length === 0) {
+                        return (
+                          <p className="text-xs text-slate-400 text-center py-5">자소서가 없습니다</p>
+                        );
+                      }
+                      return filtered.map((cl) => {
+                        const isSelected = coverLetter?.id === cl.id;
+                        const analyzedModes = [
+                          cachedDocIds.analysis === cl.id ? "분석" : null,
+                          cachedDocIds.interview === cl.id ? "면접" : null,
+                        ].filter(Boolean);
+                        return (
+                          <button
+                            key={cl.id}
+                            onClick={() => {
+                              setCoverLetter(isSelected ? null : cl);
+                              setPickerOpen(false);
+                              setPickerSearch("");
+                            }}
+                            className={`w-full text-left px-3 py-2.5 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors ${
+                              isSelected ? "bg-orange-50" : ""
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-slate-800 truncate">
+                                  {cl.company}
+                                  <span className="text-slate-400 font-normal ml-1">{cl.position}</span>
+                                </p>
+                                {cl.spec && (
+                                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{cl.spec}</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {analyzedModes.map((m) => (
+                                  <span key={m} className="text-2xs font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100 whitespace-nowrap">
+                                    분석됨 ({m})
+                                  </span>
+                                ))}
+                                {isSelected && (
+                                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-orange-500">
+                                    <path d="M2.5 7l3 3 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              )}
 
               {/* AI Result */}
               {(aiResult || (aiLoading && aiMode)) && (
                 <div className="mt-4 border-t border-slate-200 pt-4">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-bold text-slate-500">
-                      {aiMode === "analysis" ? "AI 공고 분석 결과" : "면접 예상 질문"}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-bold text-slate-500">
+                        {aiMode === "analysis" ? "AI 공고 분석 결과" : "면접 예상 질문"}
+                      </p>
+                      {(() => {
+                        const docId = aiMode ? cachedDocIds[aiMode] : null;
+                        const usedCl = docId ? pickerItems.find((cl) => cl.id === docId) : null;
+                        return usedCl ? (
+                          <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-100">
+                            자소서: {usedCl.company}
+                          </span>
+                        ) : null;
+                      })()}
+                    </div>
                     {!aiLoading && aiResult && (
                       <button
                         onClick={() => { setAiMode(null); setAiResult(""); }}

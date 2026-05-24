@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/api/base";
+import { getGithubTrending, getHuggingFaceTrending } from "@/lib/api/news-feed";
 import { useTheme } from "@/contexts/ThemeContext";
 
 // ── Google News ──────────────────────────────────────────────
@@ -301,14 +303,8 @@ function GithubPanel() {
 
   const fetchRepos = useCallback((period: Since, signal: AbortSignal) => {
     setLoading(true); setError(false); setRepos([]);
-    const days = SINCE_OPTIONS.find((o) => o.value === period)!.days;
-    const from = new Date(Date.now() - days * 86400_000).toISOString().split("T")[0];
-    fetch(
-      `https://api.github.com/search/repositories?q=pushed:>${from}&sort=stars&order=desc&per_page=10`,
-      { signal, headers: { Accept: "application/vnd.github+json" } }
-    )
-      .then((r) => r.json())
-      .then((data) => { if (!signal.aborted) setRepos(data.items ?? []); })
+    getGithubTrending(period)
+      .then((data) => { if (!signal.aborted) setRepos(data); })
       .catch(() => { if (!signal.aborted) setError(true); })
       .finally(() => { if (!signal.aborted) setLoading(false); });
   }, []);
@@ -395,12 +391,8 @@ function HuggingFacePanel() {
     const ctrl = new AbortController();
     setLoading(true); setError(false); setItems([]);
 
-    fetch(
-      `https://huggingface.co/api/${category}?sort=trendingScore&direction=-1&limit=10`,
-      { signal: ctrl.signal }
-    )
-      .then((r) => r.json())
-      .then((data: HFItem[]) => { if (!ctrl.signal.aborted) setItems(data ?? []); })
+    getHuggingFaceTrending(category)
+      .then((data) => { if (!ctrl.signal.aborted) setItems(data ?? []); })
       .catch(() => { if (!ctrl.signal.aborted) setError(true); })
       .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
 
@@ -476,36 +468,50 @@ function HuggingFacePanel() {
 // ── Main component ────────────────────────────────────────────
 export function NewsSection() {
   const { theme } = useTheme();
+  const router = useRouter();
   const isDark = theme === "dark";
   const [tab, setTab] = useState<Tab>("naver");
+  const viewAllPath = tab === "github"
+    ? "/news/feed?category=github"
+    : tab === "hf"
+      ? "/news/feed?category=huggingface"
+      : "/news/feed";
 
   return (
     <div className="glass-panel rounded-2xl p-5 flex flex-col">
       {/* Tab bar */}
-      <div className="flex items-center gap-1 mb-4 flex-wrap">
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1 flex-wrap">
+          <button
+            onClick={() => setTab("naver")}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+              tab === "naver" ? "bg-blue-500 text-white" : isDark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
+            }`}
+          >
+            구글 뉴스
+          </button>
+          <button
+            onClick={() => setTab("github")}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+              tab === "github" ? isDark ? "bg-white/90 text-slate-900" : "bg-slate-800 text-white" : isDark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
+            }`}
+          >
+            GitHub
+          </button>
+          <button
+            onClick={() => setTab("hf")}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+              tab === "hf" ? "bg-yellow-400 text-yellow-900" : isDark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
+            }`}
+          >
+            Hugging Face
+          </button>
+        </div>
         <button
-          onClick={() => setTab("naver")}
-          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-            tab === "naver" ? "bg-blue-500 text-white" : isDark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
-          }`}
+          onClick={() => router.push(viewAllPath)}
+          className={`shrink-0 text-xs font-semibold transition-colors ${isDark ? "text-white/40 hover:text-white" : "text-slate-400 hover:text-slate-700"}`}
         >
-          구글 뉴스
-        </button>
-        <button
-          onClick={() => setTab("github")}
-          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-            tab === "github" ? isDark ? "bg-white/90 text-slate-900" : "bg-slate-800 text-white" : isDark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
-          }`}
-        >
-          GitHub
-        </button>
-        <button
-          onClick={() => setTab("hf")}
-          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-            tab === "hf" ? "bg-yellow-400 text-yellow-900" : isDark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
-          }`}
-        >
-          Hugging Face
+          전체보기
         </button>
       </div>
 

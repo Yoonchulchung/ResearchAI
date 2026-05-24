@@ -22,6 +22,26 @@ export interface NewsItem {
   description: string;
 }
 
+export interface GithubNewsItem {
+  id: number;
+  full_name: string;
+  description: string | null;
+  html_url: string;
+  stargazers_count: number;
+  language: string | null;
+  forks_count: number;
+}
+
+export interface HuggingFaceNewsItem {
+  id: string;
+  modelId?: string;
+  likes: number;
+  downloads?: number;
+  trendingScore?: number;
+  pipeline_tag?: string;
+  lastModified?: string;
+}
+
 export interface KeywordItem {
   keyword: string;
   count: number;
@@ -202,6 +222,28 @@ export class NewsService {
 
     const query = CATEGORY_QUERIES[category] ?? CATEGORY_QUERIES.it;
     const items = await this.newsProvider.fetchNewsByQuery(query);
+    await this.setRawCache(cacheKey, items);
+    return items;
+  }
+
+  async getGithubTrending(since: string): Promise<GithubNewsItem[]> {
+    const normalized = since === 'weekly' || since === 'monthly' ? since : 'daily';
+    const cacheKey = `raw-github-${normalized}-${this.getTodayKey()}`;
+    const cached = await this.getRawCache<GithubNewsItem[]>(cacheKey);
+    if (cached) return cached;
+
+    const items = await this.newsProvider.fetchTrendingRepos(normalized);
+    await this.setRawCache(cacheKey, items);
+    return items;
+  }
+
+  async getHuggingFaceTrending(category: string): Promise<HuggingFaceNewsItem[]> {
+    const normalized = category === 'datasets' || category === 'spaces' ? category : 'models';
+    const cacheKey = `raw-huggingface-${normalized}-${this.getTodayKey()}`;
+    const cached = await this.getRawCache<HuggingFaceNewsItem[]>(cacheKey);
+    if (cached) return cached;
+
+    const items = await this.newsProvider.fetchHfTrending(normalized, 20);
     await this.setRawCache(cacheKey, items);
     return items;
   }

@@ -18,6 +18,8 @@ import { requestContext, DEFAULT_AI_MODEL, DEFAULT_GOOGLE_API_KEY, DEFAULT_GROQ_
 import { randomUUID } from 'crypto';
 import { UndefinedAiAPIException } from '../../shared/exceptions/undefined-ai-api.exception';
 
+const MAX_AI_PROVIDER_INPUT_TOKENS = 1_000_000;
+
 
 /** Default Google 키(free tier) 전용 RPM throttle — 분당 12회(5초 간격) */
 class DefaultGoogleRateLimiter {
@@ -171,6 +173,7 @@ export class AiProviderService {
       ? prompt
       : prompt.map((m: any) => (typeof m.content === 'string' ? m.content : '')).filter(Boolean).join('\n');
     const messages = typeof prompt === 'string' ? [{ role: 'user' as const, content: prompt }] : prompt;
+    this.assertInputTokenBudget(system, promptText, opts?.caller ?? 'AiProvider/call');
 
     const signal = opts?.signal;
     const caller = opts?.caller ?? null;
@@ -284,6 +287,7 @@ export class AiProviderService {
         : m.content.filter((c): c is string => typeof c === 'string').join(' ');
       return `[${m.role}] ${text}`;
     }).join('\n');
+    this.assertInputTokenBudget(system, streamPreview, 'AiProvider/stream');
     this.logger.log(`model=${aiModel} | system=\n${system}\n[/system]\nstream=\n${streamPreview}\n[/stream]`);
 
     // **** 로컬 **** //
@@ -384,5 +388,30 @@ export class AiProviderService {
     if (model.startsWith(AI_MODEL_PREFIX.OLLAMA)) return null;
     const found = MODELS.find((m) => model.startsWith(m.id));
     return found?.inputPricePer1M ?? null;
+  }
+
+  private assertInputTokenBudget(system: string, promptText: string, caller: string): void {
+    const estimatedTokens = this.estimateInputTokens(`${system}\n${promptText}`);
+    if (estimatedTokens < MAX_AI_PROVIDER_INPUT_TOKENS) return;
+
+    throw new Error(
+      `AI 입력이 너무 큽니다. caller=${caller}, estimatedInputTokens=${estimatedTokens.toLocaleString()}, ` +
+      `limit=${MAX_AI_PROVIDER_INPUT_TOKENS.toLocaleString()}. 요청 데이터를 줄여주세요.`,
+    );
+  }
+
+  private estimateInputTokens(text: string): number {
+    let cjk = 0;
+    let ascii = 0;
+    let other = 0;
+
+    for (const char of text) {
+      if (/\s/.test(char)) continue;
+      if (/[\u3131-\u318E\uAC00-\uD7A3\u3040-\u30FF\u3400-\u9FFF]/.test(char)) cjk++;
+      else if (char.charCodeAt(0) < 128) ascii++;
+      else other++;
+    }
+
+    return Math.ceil(cjk + other * 0.8 + ascii / 4);
   }
 }

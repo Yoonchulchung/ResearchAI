@@ -310,18 +310,6 @@ export default function OverviewPage() {
           />
           <LoginHistoryCard />
 
-          <div className={`rounded-xl sm:rounded-2xl border px-4 sm:px-6 py-5 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between ${isGlass ? "border-white/20 bg-white/5" : "bg-white border-slate-200 shadow-sm"}`}>
-            <p className={`text-sm ${isGlass ? "text-white/60" : "text-slate-500"}`}>
-              Have any questions, feedback or need support? We&apos;d love to hear from you!
-            </p>
-            <a
-              href="mailto:yoonchul005@gmail.com"
-              className={`inline-block px-5 py-2 border rounded-xl text-sm font-medium transition-colors ${isGlass ? "border-white/20 text-white/70 hover:bg-white/10" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}
-            >
-              Contact us
-            </a>
-          </div>
-
           <button
             onClick={logout}
             className="md:hidden w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl border border-red-200 text-red-500 text-sm font-semibold bg-white hover:bg-red-50 transition-colors shadow-sm"
