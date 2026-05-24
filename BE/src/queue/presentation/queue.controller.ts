@@ -230,6 +230,30 @@ export class QueueController {
     return obs;
   }
 
+  // **************** //
+  // Hot Paper Trend  //
+  // **************** //
+  @Post('hot-paper-trend')
+  @HttpCode(202)
+  async enqueueHotPaperTrend(
+    @Body() body: { model?: string; refresh?: boolean },
+  ) {
+    return this.queueService.enqueueHotPaperTrend(body);
+  }
+
+  @Delete('hot-paper-trend/:jobId')
+  cancelHotPaperTrend(@Param('jobId') jobId: string) {
+    this.queueService.cancelHotPaperTrend(jobId);
+    return { ok: true };
+  }
+
+  @Sse('hot-paper-trend/:jobId/stream')
+  streamHotPaperTrend(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getHotPaperTrendStream(jobId);
+    if (!obs) throw new BadRequestException('진행 중인 논문 트렌드 분석 작업이 없습니다.');
+    return obs;
+  }
+
   // *********** //
   // Doc Parse   //
   // *********** //

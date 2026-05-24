@@ -42,6 +42,7 @@ export namespace QueueJob {
     SPEC_ANALYSIS          = 'spec_analysis',
     TECH_BLOG_TREND        = 'tech_blog_trend',
     HOT_PAPER_SUMMARY      = 'hot_paper_summary',
+    HOT_PAPER_TREND        = 'hot_paper_trend',
   }
 
   export function isWriteAssist(type: TaskType): boolean {

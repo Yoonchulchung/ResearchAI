@@ -20,6 +20,8 @@ import { UserEntity } from '../auth/domain/entity/user.entity';
 import { LoginHistoryEntity } from '../auth/domain/entity/login-history.entity';
 import { SessionJobEntity } from '../sessions/domain/entity/session-job.entity';
 import { HotPaperEntity } from '../news/hot-papers/domain/entity/hot-paper.entity';
+import { HotPaperTrendSummaryEntity } from '../news/hot-papers/domain/entity/hot-paper-trend-summary.entity';
+import { AiLeaderboardEntryEntity } from '../news/ai-leaderboard/domain/entity/ai-leaderboard-entry.entity';
 import { TechBlogPostEntity } from '../news/tech-blog/domain/entity/tech-blog-post.entity';
 import { TechBlogTrendSummaryEntity } from '../news/tech-blog/domain/entity/tech-blog-trend-summary.entity';
 import { ContentRefreshStateEntity } from '../shared/entity/content-refresh-state.entity';
@@ -56,9 +58,10 @@ mkdirSync(dirname(databasePath), { recursive: true });
                  ExperienceEntity, DocumentEntity,
                  CompanyAnalysisEntity, SessionJobEntity,
                  AiCallLogEntity, UserEntity, LoginHistoryEntity,
-                 HotPaperEntity, TechBlogPostEntity, TechBlogTrendSummaryEntity, ContentRefreshStateEntity,
+                 HotPaperEntity, HotPaperTrendSummaryEntity, AiLeaderboardEntryEntity,
+                 TechBlogPostEntity, TechBlogTrendSummaryEntity, ContentRefreshStateEntity,
                  ExamEventEntity, ResumeEntity, CoverLetterEntity,
-                CoverLetterSpecAnalysisEntity],
+                 CoverLetterSpecAnalysisEntity],
       synchronize: true,
       // WAL 모드: 동시 읽기/쓰기 성능 향상 (다중 기기 동시 접속 대응)
       prepareDatabase: (db: { pragma: (s: string) => void }) => {

@@ -36,6 +36,9 @@ export class UserEntity {
   @Column({ name: 'brave_api_key', type: 'text', nullable: true })
   braveApiKey: string | null;
 
+  @Column({ name: 'artificial_analysis_api_key', type: 'text', nullable: true })
+  artificialAnalysisApiKey: string | null;
+
   @Column({ name: 'dart_api_key', type: 'text', nullable: true })
   dartApiKey: string | null;
 

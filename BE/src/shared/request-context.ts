@@ -9,6 +9,7 @@ export interface UserApiKeys {
   naverClientId?: string | null;
   naverClientSecret?: string | null;
   braveApiKey?: string | null;
+  artificialAnalysisApiKey?: string | null;
 }
 
 export interface ServiceCredentials {

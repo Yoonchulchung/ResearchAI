@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm add cockatiel)"
+      "Bash(pnpm add cockatiel)",
+      "Bash(curl -s \"https://datasets-server.huggingface.co/info?dataset=open-llm-leaderboard%2Fcontents\")",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s \"https://datasets-server.huggingface.co/size?dataset=open-llm-leaderboard%2Fcontents\")",
+      "Bash(curl -s \"https://datasets-server.huggingface.co/rows?dataset=open-llm-leaderboard%2Fcontents&config=default&split=train&offset=0&length=100&orderby=Average+%E2%AC%86%EF%B8%8F+DESC\")",
+      "Bash(curl -s \"https://artificialanalysis.ai/api/models\")"
     ]
   }
 }

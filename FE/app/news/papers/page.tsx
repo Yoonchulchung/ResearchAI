@@ -7,11 +7,16 @@ import remarkGfm from "remark-gfm";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
   cancelHotPaperSummary,
+  cancelHotPaperTrend,
   enqueueHotPaperSummary,
+  enqueueHotPaperTrend,
+  getLatestHotPaperTrendSummary,
   listHotPapers,
   subscribeHotPaperSummary,
+  subscribeHotPaperTrend,
   type HotPaper,
   type HotPaperListResult,
+  type HotPaperTrendSummary,
 } from "@/lib/api/hot-papers";
 
 const SOURCE_ALL = "all";
@@ -57,13 +62,17 @@ function PaperCard({
   summarizing,
   onSummarize,
   onOpenSummary,
+  onOpenReader,
 }: {
   paper: HotPaper;
   isDark: boolean;
   summarizing: boolean;
   onSummarize: (paper: HotPaper, refresh?: boolean) => void;
   onOpenSummary: (paper: HotPaper) => void;
+  onOpenReader: (paper: HotPaper) => void;
 }) {
+  const [abstractOpen, setAbstractOpen] = useState(false);
+
   return (
     <article className={`rounded-xl border p-4 shadow-sm transition ${isDark ? "border-white/10 bg-white/5 hover:border-indigo-400/30" : "border-slate-200 bg-white hover:border-indigo-200 hover:shadow-md"}`}>
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -78,7 +87,22 @@ function PaperCard({
           {paper.authors.slice(0, 8).join(", ")}{paper.authors.length > 8 ? " 외" : ""}
         </p>
       )}
-      {paper.summary && <p className={`mt-3 line-clamp-4 text-sm leading-6 ${isDark ? "text-white/50" : "text-slate-500"}`}>{paper.summary}</p>}
+      {paper.summary && (
+        <div className="mt-3">
+          <p className={`${abstractOpen ? "" : "line-clamp-4"} whitespace-pre-line text-sm leading-6 ${isDark ? "text-white/55" : "text-slate-600"}`}>
+            {paper.summary}
+          </p>
+          {paper.summary.length > 220 && (
+            <button
+              type="button"
+              onClick={() => setAbstractOpen((open) => !open)}
+              className={`mt-2 text-xs font-semibold transition ${isDark ? "text-indigo-300 hover:text-indigo-200" : "text-indigo-600 hover:text-indigo-700"}`}
+            >
+              {abstractOpen ? "초록 접기" : "초록 전체 보기"}
+            </button>
+          )}
+        </div>
+      )}
       {paper.tags.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {Array.from(new Set(paper.tags)).slice(0, 4).map((tag) => <span key={tag} className={`rounded-md border px-1.5 py-0.5 text-2xs ${isDark ? "border-white/10 text-white/40" : "border-slate-200 text-slate-500"}`}>{tag}</span>)}
@@ -93,8 +117,16 @@ function PaperCard({
           <IconSparkles spinning={summarizing} />
           {summarizing ? "요약 중..." : paper.aiSummary ? "AI 요약 보기" : "AI 요약"}
         </button>
+        {paper.pdfUrl && (
+          <button
+            onClick={() => onOpenReader(paper)}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${isDark ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15" : "border-emerald-100 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M4 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.4"/><path d="M6 6h4M6 9h4M6 12h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+            PDF 읽기
+          </button>
+        )}
         {paper.codeUrl && <a href={paper.codeUrl} target="_blank" rel="noreferrer" className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>Code</a>}
-        {paper.pdfUrl && <a href={paper.pdfUrl} target="_blank" rel="noreferrer" className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>arXiv</a>}
         <a href={paper.url} target="_blank" rel="noreferrer" className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${isDark ? "bg-white/10 text-white hover:bg-indigo-500/30" : "bg-slate-900 text-white hover:bg-indigo-600"}`}>원문 보기</a>
       </div>
     </article>
@@ -225,25 +257,120 @@ export default function NewsPapersPage() {
   const [summaryPaper, setSummaryPaper] = useState<HotPaper | null>(null);
   const summaryJobsRef = useRef<Map<string, { jobId: string; close: () => void }>>(new Map());
 
+  const handleOpenReader = useCallback((paper: HotPaper) => {
+    router.push(`/news/papers/${encodeURIComponent(paper.id)}`);
+  }, [router]);
+
+  // Trend state
+  const [trend, setTrend] = useState<HotPaperTrendSummary | null>(null);
+  const [trendStreaming, setTrendStreaming] = useState("");
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState<string | null>(null);
+  const [trendOpen, setTrendOpen] = useState(false);
+  const [hideTrendPanel, setHideTrendPanel] = useState(false);
+  const trendJobRef = useRef<{ jobId: string; cancel: () => void } | null>(null);
+  const scrollRef = useRef<HTMLElement | null>(null);
+  const revealTrendTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const pageClass = isGlass ? "bg-transparent" : isDark ? "bg-slate-950" : "bg-slate-50";
   const panelClass = isGlass ? "glass-panel border-white/20" : isDark ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white";
   const inputClass = isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/30 focus:border-indigo-400/50" : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-indigo-300";
   const textMain = isDark ? "text-white" : "text-slate-900";
   const textSub = isDark ? "text-white/50" : "text-slate-500";
 
-  const load = useCallback(async (force = false) => {
+  const load = useCallback(async (force = false, requestedSource = source) => {
     setError(null);
     if (force) setRefreshing(true);
     else setLoading(true);
     try {
-      const result = await listHotPapers({ limit: 160, refresh: force });
+      const result = await listHotPapers({
+        source: requestedSource,
+        limit: requestedSource === SOURCE_ALL ? 300 : 800,
+        refresh: force,
+      });
       setData(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "논문 목록을 불러오지 못했습니다.");
     } finally { setLoading(false); setRefreshing(false); }
+  }, [source]);
+
+  const loadTrend = useCallback(async (forceRefresh = false) => {
+    if (trendJobRef.current) {
+      trendJobRef.current.cancel();
+      cancelHotPaperTrend(trendJobRef.current.jobId).catch(() => {});
+      trendJobRef.current = null;
+    }
+
+    setTrendError(null);
+    setTrendStreaming("");
+    setTrend(null);
+    setTrendLoading(true);
+    setTrendOpen(true);
+
+    try {
+      const { jobId } = await enqueueHotPaperTrend({ refresh: forceRefresh });
+      const cancel = subscribeHotPaperTrend(
+        jobId,
+        (chunk) => setTrendStreaming((prev) => prev + chunk),
+        (result) => {
+          setTrend(result);
+          setTrendStreaming("");
+          setTrendLoading(false);
+          trendJobRef.current = null;
+        },
+        (msg) => {
+          setTrendError(msg);
+          setTrendStreaming("");
+          setTrendLoading(false);
+          trendJobRef.current = null;
+        },
+      );
+      trendJobRef.current = { jobId, cancel };
+    } catch (e) {
+      setTrendError(e instanceof Error ? e.message : "트렌드 분석에 실패했습니다.");
+      setTrendLoading(false);
+    }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  const loadLatestTrend = useCallback(async () => {
+    try {
+      const result = await getLatestHotPaperTrendSummary();
+      if (result) {
+        setTrend(result);
+        setTrendOpen(false);
+      }
+    } catch {
+      // 저장된 트렌드 조회 실패는 목록 사용을 막지 않는다.
+    }
+  }, []);
+
+  useEffect(() => { load(false, source); }, [load, source]);
+  useEffect(() => { loadLatestTrend(); }, [loadLatestTrend]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      const scrollTop = el.scrollTop;
+      const max = el.scrollHeight - el.clientHeight;
+      const nearBottom = max - scrollTop < 32;
+
+      if (revealTrendTimerRef.current) clearTimeout(revealTrendTimerRef.current);
+      if (nearBottom || scrollTop <= 8) {
+        setHideTrendPanel(false);
+      } else {
+        setHideTrendPanel(true);
+        revealTrendTimerRef.current = setTimeout(() => setHideTrendPanel(false), 220);
+      }
+    };
+
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", handleScroll);
+      if (revealTrendTimerRef.current) clearTimeout(revealTrendTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -252,6 +379,10 @@ export default function NewsPapersPage() {
         cancelHotPaperSummary(jobId).catch(() => {});
       }
       summaryJobsRef.current.clear();
+      if (trendJobRef.current) {
+        trendJobRef.current.cancel();
+        cancelHotPaperTrend(trendJobRef.current.jobId).catch(() => {});
+      }
     };
   }, []);
 
@@ -301,10 +432,7 @@ export default function NewsPapersPage() {
               return updatedPaper;
             });
             if (summaryPaper?.id === paper.id && updatedPaper) setSummaryPaper(updatedPaper);
-            return {
-              ...prev,
-              papers: nextPapers,
-            };
+            return { ...prev, papers: nextPapers };
           });
           cleanup();
         },
@@ -327,11 +455,9 @@ export default function NewsPapersPage() {
   const papers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return (data?.papers ?? []).filter((paper) => {
-      const sm = source === SOURCE_ALL || paper.sourceId === source;
-      const qm = !normalized || paper.title.toLowerCase().includes(normalized) || paper.sourceName.toLowerCase().includes(normalized) || (paper.summary ?? "").toLowerCase().includes(normalized) || paper.authors.some((a) => a.toLowerCase().includes(normalized)) || paper.tags.some((t) => t.toLowerCase().includes(normalized));
-      return sm && qm;
+      return !normalized || paper.title.toLowerCase().includes(normalized) || paper.sourceName.toLowerCase().includes(normalized) || (paper.summary ?? "").toLowerCase().includes(normalized) || paper.authors.some((a) => a.toLowerCase().includes(normalized)) || paper.tags.some((t) => t.toLowerCase().includes(normalized));
     });
-  }, [data?.papers, query, source]);
+  }, [data?.papers, query]);
 
   const sourceCount = useMemo(() => {
     const map = new Map<string, number>();
@@ -339,8 +465,98 @@ export default function NewsPapersPage() {
     return map;
   }, [data?.papers]);
 
+  const markdownComponents = useMemo(() => ({
+    h1: ({ children }: { children?: ReactNode }) => <h1 className="mb-2.5 mt-4 text-base font-bold first:mt-0 sm:text-lg">{children}</h1>,
+    h2: ({ children }: { children?: ReactNode }) => <h2 className="mb-2 mt-3.5 text-sm font-bold first:mt-0 sm:text-base">{children}</h2>,
+    h3: ({ children }: { children?: ReactNode }) => <h3 className="mb-1.5 mt-3 text-sm font-bold first:mt-0">{children}</h3>,
+    p: ({ children }: { children?: ReactNode }) => <p className="my-2.5 text-sm leading-relaxed">{children}</p>,
+    ul: ({ children }: { children?: ReactNode }) => <ul className="my-2.5 list-disc space-y-1.5 pl-5 text-sm leading-relaxed">{children}</ul>,
+    ol: ({ children }: { children?: ReactNode }) => <ol className="my-2.5 list-decimal space-y-1.5 pl-5 text-sm leading-relaxed">{children}</ol>,
+    li: ({ children }: { children?: ReactNode }) => <li className="leading-relaxed">{children}</li>,
+    strong: ({ children }: { children?: ReactNode }) => <strong className="font-bold">{children}</strong>,
+  }), []);
+
+  const trendFloatingPanel = (
+    <div className={`pointer-events-none fixed inset-x-0 bottom-20 sm:bottom-4 z-30 px-4 transition-all duration-200 ease-out sm:px-6 lg:px-8 ${
+      hideTrendPanel ? "translate-y-[calc(100%+5rem)] opacity-0" : "translate-y-0 opacity-100"
+    }`}>
+      <div className="pointer-events-auto mx-auto w-full max-w-3xl">
+        {trendOpen && (trendStreaming || (trend && !trendLoading) || trendError) && (
+          <div className={`mb-2 max-h-[45vh] overflow-y-auto rounded-2xl border p-4 text-sm leading-7 shadow-xl backdrop-blur ${isDark ? "border-white/10 bg-slate-950/90 text-white/70" : "border-slate-200 bg-white/95 text-slate-700"}`}>
+            {trendError ? (
+              <p className={isDark ? "text-red-300" : "text-red-600"}>{trendError}</p>
+            ) : (
+              <>
+                <div className="mb-2 flex items-center gap-2">
+                  <IconSparkles spinning={trendLoading} />
+                  <span className={`text-xs font-bold ${isDark ? "text-indigo-300" : "text-indigo-700"}`}>AI 연구 트렌드 분석</span>
+                </div>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {trendStreaming || trend?.summary || ""}
+                </ReactMarkdown>
+                {trendLoading && trendStreaming && (
+                  <span className="ml-0.5 inline-block h-4 w-1 animate-pulse bg-indigo-400 align-text-bottom" />
+                )}
+                {!trendLoading && (trend?.keywords ?? []).length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {(trend!.keywords).map((kw) => (
+                      <span key={kw.keyword} className={`rounded-lg px-2 py-1 text-xs font-medium ${isDark ? "bg-indigo-500/15 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>
+                        {kw.keyword}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {!trendLoading && trend?.generatedAt && (
+                  <div className={`mt-3 text-[11px] ${isDark ? "text-white/35" : "text-slate-400"}`}>
+                    저장된 분석 · {new Date(trend.generatedAt).toLocaleString("ko-KR")}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+        <div className={`rounded-xl border px-3 py-2 shadow-xl backdrop-blur transition-colors ${isDark ? "border-slate-700/70 bg-[#0f172a]/95" : "border-slate-200 bg-slate-50/95"}`}>
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <div className={`truncate text-xs font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>
+                AI 연구 트렌드 분석
+              </div>
+              <div className={`truncate text-[11px] ${isDark ? "text-white/40" : "text-slate-400"}`}>
+                {trend
+                  ? "저장된 분석 결과가 있습니다. 펼쳐서 확인할 수 있습니다."
+                  : "현재 핫한 논문들의 연구 주제, 방법론 흐름을 AI가 요약합니다."}
+              </div>
+            </div>
+            {(trend || trendError || trendStreaming) && (
+              <button
+                onClick={() => setTrendOpen((open) => !open)}
+                className={`h-9 shrink-0 rounded-lg border px-3 text-xs font-semibold transition-colors ${isDark ? "border-white/10 text-white/70 hover:bg-white/10" : "border-slate-200 text-slate-600 hover:bg-white"}`}
+              >
+                {trendOpen ? "접기" : "펼치기"}
+              </button>
+            )}
+            <button
+              onClick={() => loadTrend(!!trend)}
+              disabled={trendLoading}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-primary text-white shadow-md shadow-brand-primary/30 transition-all hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={trend ? "트렌드 재분석" : "AI 트렌드 분석"}
+            >
+              {trendLoading ? (
+                <IconSparkles spinning />
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 12V4M4 8l4-4 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <main className={`h-full overflow-y-auto ${pageClass}`}>
+    <main ref={scrollRef} className={`h-full overflow-y-auto ${pageClass}`}>
       {summaryPaper && (
         <SummaryModal
           paper={summaryPaper}
@@ -350,7 +566,7 @@ export default function NewsPapersPage() {
           refreshing={summarizingIds.has(summaryPaper.id)}
         />
       )}
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 pb-36 pt-5 sm:px-6 lg:px-8">
         {/* Header */}
         <section className={`rounded-2xl border p-5 shadow-sm ${panelClass}`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -371,7 +587,7 @@ export default function NewsPapersPage() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_1fr]">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_1fr] lg:items-start">
           {/* Sidebar */}
           <aside className={`hidden h-fit rounded-2xl border p-3 shadow-sm lg:block ${panelClass}`}>
             <div className={`px-2 pb-2 text-xs font-semibold ${textSub}`}>출처</div>
@@ -410,6 +626,7 @@ export default function NewsPapersPage() {
                     summarizing={summarizingIds.has(paper.id)}
                     onSummarize={handleSummarize}
                     onOpenSummary={setSummaryPaper}
+                    onOpenReader={handleOpenReader}
                   />
                 ))}
               </div>
@@ -417,6 +634,7 @@ export default function NewsPapersPage() {
           </div>
         </div>
       </div>
+      {trendFloatingPanel}
     </main>
   );
 }

@@ -234,6 +234,7 @@ export default function OverviewPage() {
       { key: "NAVER_CLIENT_ID", label: "Naver Client ID", masked: u.naverClientId ? `...${u.naverClientId.slice(-4)}` : null, configured: !!u.naverClientId },
       { key: "NAVER_CLIENT_SECRET", label: "Naver Client Secret", masked: u.naverClientSecret ? `...${u.naverClientSecret.slice(-4)}` : null, configured: !!u.naverClientSecret },
       { key: "BRAVE_API_KEY", label: "Brave", masked: u.braveApiKey ? `...${u.braveApiKey.slice(-4)}` : null, configured: !!u.braveApiKey },
+      { key: "ARTIFICIAL_ANALYSIS_API_KEY", label: "Artificial Analysis", masked: u.artificialAnalysisApiKey ? `aa_...${u.artificialAnalysisApiKey.slice(-4)}` : null, configured: !!u.artificialAnalysisApiKey },
     ];
   }, []);
 

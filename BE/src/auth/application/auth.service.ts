@@ -99,6 +99,7 @@ export class AuthService {
       naverClientId: keys.naverClientId ?? undefined,
       naverClientSecret: keys.naverClientSecret ?? undefined,
       braveApiKey: keys.braveApiKey ?? undefined,
+      artificialAnalysisApiKey: keys.artificialAnalysisApiKey ?? undefined,
     });
   }
 
@@ -119,6 +120,7 @@ export class AuthService {
       NAVER_CLIENT_ID: 'naverClientId',
       NAVER_CLIENT_SECRET: 'naverClientSecret',
       BRAVE_API_KEY: 'braveApiKey',
+      ARTIFICIAL_ANALYSIS_API_KEY: 'artificialAnalysisApiKey',
       DART_API_KEY: 'dartApiKey',
       JOBPLANET_ID: 'jobplanetId',
       JOBPLANET_PASSWORD: 'jobplanetPassword',

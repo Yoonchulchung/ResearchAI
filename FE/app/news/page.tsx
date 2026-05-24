@@ -8,6 +8,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { listTechBlogPosts, type TechBlogPost } from "@/lib/api/tech-blogs";
 import { listHotPapers, type HotPaper } from "@/lib/api/hot-papers";
 import { getNewsFeed, type NewsItem } from "@/lib/api/news-feed";
+import { getTopModels, MODEL_TYPE_LABELS, type AiModelEntry } from "@/lib/api/ai-leaderboard";
 
 function IconFeed() {
   return (
@@ -44,6 +45,54 @@ function IconNewspaper() {
       <rect x="2" y="3" width="14" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
       <path d="M5 7H13M5 10H10M5 13H9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
+  );
+}
+
+function IconTrophy() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+      <path d="M9 13v2.5M6 15.5h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M3.5 3.5H5v5a4 4 0 0 0 8 0V3.5h1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 5.5H3.5a1 1 0 0 0-1 1V8a2 2 0 0 0 2 2H5M13 5.5h1.5a1 1 0 0 1 1 1V8a2 2 0 0 1-2 2H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ModelListItem({ model, isDark, border, onClick }: { model: AiModelEntry; isDark: boolean; border: boolean; onClick: () => void }) {
+  const rankEmoji = model.rank <= 3 ? ["🥇", "🥈", "🥉"][model.rank - 1] : null;
+  const typeColors: Record<string, string> = {
+    chat: isDark ? "bg-indigo-500/15 text-indigo-300" : "bg-indigo-50 text-indigo-700",
+    pretrained: isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-700",
+    "fine-tuned": isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-700",
+    merge: isDark ? "bg-purple-500/15 text-purple-300" : "bg-purple-50 text-purple-700",
+  };
+  return (
+    <button
+      onClick={onClick}
+      className={`group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
+    >
+      <span className={`w-7 shrink-0 text-center text-sm font-bold tabular-nums ${isDark ? "text-white/30" : "text-slate-400"}`}>
+        {rankEmoji ?? `#${model.rank}`}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className={`truncate text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-indigo-300" : "text-slate-900 group-hover:text-indigo-600"}`}>
+            {model.modelName}
+          </span>
+          {model.modelType && (
+            <span className={`shrink-0 rounded px-1.5 py-0.5 text-2xs font-semibold ${typeColors[model.modelType] ?? (isDark ? "bg-white/10 text-white/50" : "bg-slate-100 text-slate-500")}`}>
+              {MODEL_TYPE_LABELS[model.modelType] ?? model.modelType}
+            </span>
+          )}
+        </div>
+        <p className={`truncate text-xs ${isDark ? "text-white/35" : "text-slate-400"}`}>
+          {model.org}{model.params != null ? ` · ${model.params >= 1 ? `${model.params.toFixed(0)}B` : `${(model.params * 1000).toFixed(0)}M`}` : ""}
+        </p>
+      </div>
+      <span className={`shrink-0 text-sm font-bold tabular-nums ${isDark ? "text-indigo-300" : "text-indigo-700"}`}>
+        {model.average?.toFixed(2) ?? "—"}
+      </span>
+    </button>
   );
 }
 
@@ -322,6 +371,10 @@ export default function NewsPage() {
   const [paperError, setPaperError] = useState<string | null>(null);
   const [summaryPaper, setSummaryPaper] = useState<HotPaper | null>(null);
 
+  const [models, setModels] = useState<AiModelEntry[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(true);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+
   const [feedCategory, setFeedCategory] = useState<FeedCategory>("it");
   const [feedItems, setFeedItems] = useState<NewsItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
@@ -332,6 +385,17 @@ export default function NewsPage() {
   const panelClass = isGlass ? "glass-panel border-white/20" : isDark ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white";
   const textMain = isDark ? "text-white" : "text-slate-900";
   const textSub = isDark ? "text-white/50" : "text-slate-500";
+
+  const loadModels = useCallback(async () => {
+    setModelsError(null);
+    setModelsLoading(true);
+    try {
+      const result = await getTopModels(5);
+      setModels(result);
+    } catch (e) {
+      setModelsError(e instanceof Error ? e.message : "불러오지 못했습니다.");
+    } finally { setModelsLoading(false); }
+  }, []);
 
   const loadBlogs = useCallback(async () => {
     setBlogError(null);
@@ -366,6 +430,7 @@ export default function NewsPage() {
     } finally { setFeedLoading(false); }
   }, []);
 
+  useEffect(() => { loadModels(); }, [loadModels]);
   useEffect(() => { loadBlogs(); }, [loadBlogs]);
   useEffect(() => { loadPapers(); }, [loadPapers]);
   useEffect(() => { loadFeed(feedCategory); }, [loadFeed, feedCategory]);
@@ -484,6 +549,40 @@ export default function NewsPage() {
             </div>
           </section>
         </div>
+
+        {/* AI 모델 랭킹 */}
+        <section className={`flex flex-col rounded-2xl border shadow-sm ${panelClass}`}>
+          <div className={`flex items-center justify-between px-4 py-3.5 ${isDark ? "border-b border-white/5" : "border-b border-slate-100"}`}>
+            <div className="flex items-center gap-2">
+              <span className={isDark ? "text-amber-400" : "text-amber-600"}><IconTrophy /></span>
+              <span className={`font-bold ${textMain}`}>AI 모델 랭킹</span>
+              <span className={`text-xs ${textSub}`}>HuggingFace Open LLM Leaderboard v2</span>
+            </div>
+            <button
+              onClick={() => router.push("/news/leaderboard")}
+              className={`text-xs font-semibold transition-colors ${isDark ? "text-white/40 hover:text-amber-400" : "text-slate-400 hover:text-amber-600"}`}
+            >
+              전체 보기
+            </button>
+          </div>
+          <div>
+            {modelsLoading ? (
+              Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} isDark={isDark} border={i > 0} />)
+            ) : modelsError ? (
+              <p className={`px-4 py-6 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{modelsError}</p>
+            ) : (
+              models.map((model, i) => (
+                <ModelListItem
+                  key={model.id}
+                  model={model}
+                  isDark={isDark}
+                  border={i > 0}
+                  onClick={() => router.push(`/news/leaderboard/${encodeURIComponent(model.id)}`)}
+                />
+              ))
+            )}
+          </div>
+        </section>
 
         {/* Bottom: 뉴스 피드 */}
         <section className={`flex flex-col rounded-2xl border shadow-sm ${panelClass}`}>

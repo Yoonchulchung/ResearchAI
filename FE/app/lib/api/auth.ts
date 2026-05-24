@@ -14,6 +14,7 @@ export interface AuthUser {
   naverClientId: string | null;
   naverClientSecret: string | null;
   braveApiKey: string | null;
+  artificialAnalysisApiKey: string | null;
   dartApiKey: string | null;
   jobplanetId: string | null;
   jobplanetPassword: string | null;

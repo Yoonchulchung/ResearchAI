@@ -11,6 +11,7 @@ import { DocParseExecutorService } from './application/job/doc-parse-executor.se
 import { SpecAnalysisExecutorService } from './application/job/spec-analysis-executor.service';
 import { TechBlogTrendExecutorService } from './application/job/tech-blog-trend-executor.service';
 import { HotPaperSummaryExecutorService } from './application/job/hot-paper-summary-executor.service';
+import { HotPaperTrendExecutorService } from './application/job/hot-paper-trend-executor.service';
 import { ImageOcrQueueService } from './application/image-ocr-queue.service';
 import { QueueController } from './presentation/queue.controller';
 import { ResearchModule } from '../research/research.module';
@@ -49,6 +50,7 @@ import { AppConfigModule } from '../config/config.module';
     SpecAnalysisExecutorService,
     TechBlogTrendExecutorService,
     HotPaperSummaryExecutorService,
+    HotPaperTrendExecutorService,
     ImageOcrQueueService,
     QueueJobRepository,
   ],
