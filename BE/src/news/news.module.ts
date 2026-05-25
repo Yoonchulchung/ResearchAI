@@ -14,11 +14,11 @@ import { AiModule } from '../ai/ai.module';
 import { AppConfigModule } from '../config/config.module';
 import { SharedModule } from '../shared/shared.module';
 import { TechBlogModule } from './tech-blog/tech-blog.module';
-import { HotPapersModule } from './hot-papers/hot-papers.module';
+import { PapersModule } from './papers/papers.module';
 import { AiLeaderboardModule } from './ai-leaderboard/ai-leaderboard.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([NewsBriefingEntity]), AiModule, AppConfigModule, SharedModule, TechBlogModule, HotPapersModule, AiLeaderboardModule],
+  imports: [TypeOrmModule.forFeature([NewsBriefingEntity]), AiModule, AppConfigModule, SharedModule, TechBlogModule, PapersModule, AiLeaderboardModule],
   controllers: [NewsController],
   providers: [NewsService, MarketService, GithubApi, HuggingfaceApi, GoogleNewsApi, StackOverflowApi, NewsProviderService, NewsSummaryService],
 })

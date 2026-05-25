@@ -2,7 +2,7 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColum
 
 @Entity('hot_paper')
 @Index(['url'], { unique: true })
-export class HotPaperEntity {
+export class PaperEntity {
   @PrimaryColumn()
   id: string;
 
@@ -50,6 +50,15 @@ export class HotPaperEntity {
 
   @Column({ name: 'tags_json', type: 'text', default: '[]' })
   tagsJson: string;
+
+  @Column({ name: 'chat_messages_json', type: 'text', default: '[]' })
+  chatMessagesJson: string;
+
+  @Column({ type: 'boolean', default: false })
+  bookmarked: boolean;
+
+  @Column({ name: 'read_at', type: 'text', nullable: true })
+  readAt: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

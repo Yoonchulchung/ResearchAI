@@ -6,17 +6,18 @@ import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getPaperById, type HotPaper } from "@/lib/api/hot-papers";
+import { getPaperById, markPaperRead, type Paper } from "@/lib/api/papers";
 import { API_BASE, getAuthHeaders, readSSE } from "@/lib/api/base";
 import type PdfVisualViewerType from "../../../recruit/doc-parse/_components/PdfVisualViewer";
+import type { PdfViewerPosition } from "../../../recruit/doc-parse/_components/PdfVisualViewer";
 
 const PdfVisualViewer = dynamic<React.ComponentProps<typeof PdfVisualViewerType>>(
   () => import("../../../recruit/doc-parse/_components/PdfVisualViewer"),
   { ssr: false },
 );
 
-const DOC_PARSE_BASE = `${API_BASE}/doc-parse`;
 const DOC_PARSE_QUEUE_BASE = `${API_BASE}/queue/doc-parse`;
+const paperReaderPositionCache = new Map<string, PdfViewerPosition>();
 
 interface Message {
   id: string;
@@ -32,7 +33,7 @@ const QUICK_ACTIONS = [
   { value: "keywords", label: "키워드 추출" },
 ] as const;
 
-function buildDocText(paper: HotPaper): string {
+function buildDocText(paper: Paper): string {
   const authors = paper.authors.slice(0, 10).join(", ");
   return [
     `제목: ${paper.title}`,
@@ -63,6 +64,40 @@ function MarkdownComponents(isDark: boolean) {
   };
 }
 
+// ─── Chat history API helpers ──────────────────────────────────────────────
+
+async function fetchChatHistory(paperId: string): Promise<{ role: string; content: string }[]> {
+  try {
+    const res = await fetch(`${API_BASE}/papers/${encodeURIComponent(paperId)}/chat`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) return [];
+    const data = await res.json() as { messages: { role: string; content: string }[] };
+    return Array.isArray(data.messages) ? data.messages : [];
+  } catch { return []; }
+}
+
+async function saveChatHistory(paperId: string, messages: Message[]): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/papers/${encodeURIComponent(paperId)}/chat`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({ messages: messages.map(({ role, content }) => ({ role, content })) }),
+    });
+  } catch { /* ignore */ }
+}
+
+async function clearChatHistory(paperId: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/papers/${encodeURIComponent(paperId)}/chat`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+  } catch { /* ignore */ }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+
 export default function PaperReaderPage() {
   const params = useParams<{ paperId: string }>();
   const router = useRouter();
@@ -71,19 +106,21 @@ export default function PaperReaderPage() {
   const isGlass = uiStyle === "glass";
 
   const paperId = decodeURIComponent(params.paperId);
-  const pdfProxyUrl = `${API_BASE}/hot-papers/${encodeURIComponent(paperId)}/pdf-proxy`;
+  const pdfProxyUrl = `${API_BASE}/papers/${encodeURIComponent(paperId)}/pdf-proxy`;
 
-  const [paper, setPaper] = useState<HotPaper | null>(null);
+  const [paper, setPaper] = useState<Paper | null>(null);
   const [paperError, setPaperError] = useState<string | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfFetchError, setPdfFetchError] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<"pdf" | "ai">("pdf");
   const [scrollRequest, setScrollRequest] = useState<{ page: number; id: number } | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
+  const pdfPositionRef = useRef<PdfViewerPosition | null>(paperReaderPositionCache.get(paperId) ?? null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -97,12 +134,45 @@ export default function PaperReaderPage() {
   const textSub = isDark ? "text-white/50" : "text-slate-500";
 
   useEffect(() => {
-    getPaperById(paperId)
-      .then((p) => setPaper(p))
-      .catch((e) => setPaperError(e instanceof Error ? e.message : "논문 정보를 불러오지 못했습니다."));
+    pdfPositionRef.current = paperReaderPositionCache.get(paperId) ?? null;
+    setCurrentPage(pdfPositionRef.current?.page ?? 0);
+    return () => {
+      paperReaderPositionCache.delete(paperId);
+    };
   }, [paperId]);
 
-  // Fetch PDF with auth headers → blob URL so react-pdf doesn't need credentials
+  const handlePdfPositionChange = useCallback((position: PdfViewerPosition) => {
+    pdfPositionRef.current = position;
+    paperReaderPositionCache.set(paperId, position);
+  }, [paperId]);
+
+  // Load paper + chat history
+  useEffect(() => {
+    let cancelled = false;
+    getPaperById(paperId)
+      .then(async (p) => {
+        if (cancelled) return;
+        setPaper(p);
+        if (!p.readAt) {
+          markPaperRead(p.id).then((updated) => {
+            if (!cancelled) setPaper(updated);
+          }).catch(() => {});
+        }
+        const stored = await fetchChatHistory(paperId);
+        if (cancelled) return;
+        if (stored.length > 0) {
+          setMessages(stored.map((m) => ({ id: crypto.randomUUID(), role: m.role as "user" | "assistant", content: m.content })));
+        } else if (p.aiSummary) {
+          setMessages([{ id: crypto.randomUUID(), role: "assistant", content: p.aiSummary }]);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) setPaperError(e instanceof Error ? e.message : "논문 정보를 불러오지 못했습니다.");
+      });
+    return () => { cancelled = true; };
+  }, [paperId]);
+
+  // Fetch PDF blob
   useEffect(() => {
     let objectUrl: string | null = null;
     setPdfBlobUrl(null);
@@ -134,26 +204,74 @@ export default function PaperReaderPage() {
   const runAiJob = useCallback(async (jobId: string, msgId: string) => {
     const abort = new AbortController();
     abortRef.current = abort;
-    const res = await fetch(`${DOC_PARSE_QUEUE_BASE}/${jobId}/stream`, {
-      headers: getAuthHeaders(),
-      signal: abort.signal,
-    });
-    await readSSE<{ type: string; text?: string; message?: string }>(res, (event) => {
-      if (event.type === "chunk" && event.text) {
-        setMessages((m) => m.map((msg) =>
-          msg.id === msgId ? { ...msg, content: msg.content + event.text } : msg,
-        ));
-        scrollToBottom();
-      }
-      if (event.type === "done" || event.type === "error") return true;
-    });
-    setMessages((m) => m.map((msg) => msg.id === msgId ? { ...msg, streaming: false } : msg));
-    setAiLoading(false);
-  }, [scrollToBottom]);
+    try {
+      const res = await fetch(`${DOC_PARSE_QUEUE_BASE}/${jobId}/stream`, {
+        headers: getAuthHeaders(),
+        signal: abort.signal,
+      });
 
-  const sendMessage = useCallback(async (question: string) => {
+      if (!res.ok) {
+        setMessages((prev) => prev.map((msg) =>
+          msg.id === msgId ? { ...msg, content: "스트림 연결 오류가 발생했습니다. 다시 시도해 주세요.", streaming: false } : msg,
+        ));
+        setAiLoading(false);
+        return;
+      }
+
+      let errorMsg = "";
+      await readSSE<{ type: string; text?: string; message?: string }>(res, (event) => {
+        if (event.type === "chunk" && event.text) {
+          setMessages((m) => m.map((msg) =>
+            msg.id === msgId ? { ...msg, content: msg.content + event.text } : msg,
+          ));
+          scrollToBottom();
+        }
+        if (event.type === "error") { errorMsg = event.message ?? "오류가 발생했습니다."; return true; }
+        if (event.type === "done") return true;
+      });
+
+      setMessages((prev) => {
+        const next = prev.map((msg) => {
+          if (msg.id !== msgId) return msg;
+          const content = msg.content || errorMsg || "응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요.";
+          return { ...msg, content, streaming: false };
+        });
+        saveChatHistory(paperId, next.filter((m) => !m.streaming));
+        return next;
+      });
+    } catch (e) {
+      if ((e as Error)?.name === "AbortError") { setAiLoading(false); return; }
+      setMessages((prev) => prev.map((msg) =>
+        msg.id === msgId ? { ...msg, content: "오류가 발생했습니다.", streaming: false } : msg,
+      ));
+    }
+    setAiLoading(false);
+  }, [scrollToBottom, paperId]);
+
+  const extractPageText = useCallback(async (pageIndex: number): Promise<string> => {
+    if (!pdfBlobUrl) return "";
+    try {
+      const { pdfjs } = await import("react-pdf");
+      if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+        pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+      }
+      const pdfDoc = await pdfjs.getDocument(pdfBlobUrl).promise;
+      const page = await pdfDoc.getPage(pageIndex + 1);
+      const textContent = await page.getTextContent();
+      pdfDoc.destroy();
+      return textContent.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+    } catch {
+      return "";
+    }
+  }, [pdfBlobUrl]);
+
+  const sendMessage = useCallback(async (question: string, customDocText?: string) => {
     if (!paper || !question.trim() || aiLoading) return;
-    const docText = buildDocText(paper);
+    const docText = customDocText ?? buildDocText(paper);
     const userMsgId = crypto.randomUUID();
     const asstMsgId = crypto.randomUUID();
     setMessages((m) => [
@@ -165,12 +283,13 @@ export default function PaperReaderPage() {
     setAiLoading(true);
     scrollToBottom();
     try {
-      const res = await fetch(`${DOC_PARSE_BASE}/ask`, {
+      const res = await fetch(`${DOC_PARSE_QUEUE_BASE}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ docText, question }),
       });
-      const { jobId } = await res.json() as { jobId: string };
+      const body = await res.json() as { result?: { jobId: string }; jobId?: string };
+      const jobId = body.result?.jobId ?? body.jobId ?? "";
       await runAiJob(jobId, asstMsgId);
     } catch (e) {
       if ((e as Error)?.name === "AbortError") return;
@@ -195,12 +314,13 @@ export default function PaperReaderPage() {
     setAiLoading(true);
     scrollToBottom();
     try {
-      const res = await fetch(`${DOC_PARSE_BASE}/quick-action`, {
+      const res = await fetch(`${DOC_PARSE_QUEUE_BASE}/action`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ docText, action }),
       });
-      const { jobId } = await res.json() as { jobId: string };
+      const body = await res.json() as { result?: { jobId: string }; jobId?: string };
+      const jobId = body.result?.jobId ?? body.jobId ?? "";
       await runAiJob(jobId, asstMsgId);
     } catch (e) {
       if ((e as Error)?.name === "AbortError") return;
@@ -211,6 +331,16 @@ export default function PaperReaderPage() {
     }
   }, [paper, aiLoading, runAiJob, scrollToBottom]);
 
+  const handleClearChat = useCallback(async () => {
+    if (clearing) return;
+    setClearing(true);
+    abortRef.current?.abort();
+    setAiLoading(false);
+    setMessages([]);
+    await clearChatHistory(paperId);
+    setClearing(false);
+  }, [clearing, paperId]);
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -218,13 +348,32 @@ export default function PaperReaderPage() {
     }
   }, [input, sendMessage]);
 
+  // PDF download
+  const handleDownload = useCallback(() => {
+    if (!pdfBlobUrl || !paper) return;
+    const a = document.createElement("a");
+    a.href = pdfBlobUrl;
+    a.download = `${paper.id.replace(/[:/\\]/g, "_")}.pdf`;
+    a.click();
+  }, [pdfBlobUrl, paper]);
+
   const markdownComponents = MarkdownComponents(isDark);
 
   const aiPanel = (
     <div className={`flex h-full flex-col border-l ${isDark ? "border-white/10" : "border-slate-200"}`}>
-      {/* Quick actions */}
+      {/* Quick actions + clear */}
       <div className={`border-b px-4 py-3 ${isDark ? "border-white/10" : "border-slate-100"}`}>
-        <p className={`mb-2 text-xs font-semibold uppercase tracking-wide ${textSub}`}>빠른 분석</p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className={`text-xs font-semibold uppercase tracking-wide ${textSub}`}>빠른 분석</p>
+          <button
+            onClick={handleClearChat}
+            disabled={clearing || messages.length === 0}
+            className={`text-xs transition disabled:opacity-40 ${isDark ? "text-white/35 hover:text-white/70" : "text-slate-400 hover:text-slate-600"}`}
+            title="대화 초기화"
+          >
+            대화 초기화
+          </button>
+        </div>
         <div className="flex flex-wrap gap-1.5">
           {QUICK_ACTIONS.map((action) => (
             <button
@@ -250,7 +399,7 @@ export default function PaperReaderPage() {
           {messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               {msg.role === "user" ? (
-                <div className={`max-w-[85%] rounded-2xl rounded-tr-sm px-3.5 py-2.5 text-sm ${isDark ? "bg-indigo-600 text-white" : "bg-indigo-600 text-white"}`}>
+                <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-indigo-600 px-3.5 py-2.5 text-sm text-white">
                   {msg.content}
                 </div>
               ) : (
@@ -258,7 +407,7 @@ export default function PaperReaderPage() {
                   {msg.streaming && !msg.content ? (
                     <div className="flex items-center gap-1 py-1">
                       {[0, 1, 2].map((i) => (
-                        <span key={i} className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                        <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: `${i * 0.15}s` }} />
                       ))}
                     </div>
                   ) : (
@@ -285,13 +434,13 @@ export default function PaperReaderPage() {
             disabled={aiLoading || !paper}
             placeholder="논문에 대해 질문하세요..."
             rows={1}
-            className={`min-h-[24px] flex-1 resize-none bg-transparent text-sm outline-none disabled:opacity-50 ${textMain}`}
+            className={`min-h-6 flex-1 resize-none bg-transparent text-sm outline-none disabled:opacity-50 ${textMain}`}
             style={{ maxHeight: "120px" }}
           />
           <button
             onClick={() => sendMessage(input)}
             disabled={aiLoading || !paper || !input.trim()}
-            className={`rounded-lg p-1.5 transition disabled:opacity-40 ${isDark ? "bg-indigo-600 text-white hover:bg-indigo-500" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
+            className="rounded-lg bg-indigo-600 p-1.5 text-white transition hover:bg-indigo-700 disabled:opacity-40"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path d="M2 8L14 8M14 8L9 3M14 8L9 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -313,9 +462,13 @@ export default function PaperReaderPage() {
         <PdfVisualViewer
           file={pdfBlobUrl}
           onPageChange={setCurrentPage}
-          onAnalyzePage={(page: number) => {
+          initialPosition={pdfPositionRef.current}
+          onPositionChange={handlePdfPositionChange}
+          onAnalyzePage={async (page: number) => {
             setMobileTab("ai");
-            sendMessage(`${page + 1}페이지의 내용을 설명해줘.`);
+            const pageText = await extractPageText(page);
+            const docText = pageText.length > 50 ? pageText : buildDocText(paper!);
+            sendMessage(`${page + 1}페이지를 분석해줘. 주요 내용과 핵심 개념을 정리해줘.`, docText);
           }}
           scrollRequest={scrollRequest}
           disabled={aiLoading}
@@ -373,9 +526,21 @@ export default function PaperReaderPage() {
             <div className={`h-4 w-64 animate-pulse rounded ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
           )}
         </div>
-        {/* page indicator */}
         {paper?.pdfUrl && (
           <span className={`shrink-0 text-xs ${textSub}`}>{currentPage + 1}p</span>
+        )}
+        {/* PDF download */}
+        {pdfBlobUrl && (
+          <button
+            onClick={handleDownload}
+            className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+            title="PDF 다운로드"
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" className="inline-block align-[-1px]">
+              <path d="M8 2v8M8 10l-3-3M8 10l3-3M3 13h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span className="ml-1 hidden sm:inline">PDF</span>
+          </button>
         )}
         {paper?.url && (
           <a href={paper.url} target="_blank" rel="noreferrer" className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>

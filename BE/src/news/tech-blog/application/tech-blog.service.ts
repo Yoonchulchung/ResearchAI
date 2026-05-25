@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
 import { createHash } from 'crypto';
@@ -70,7 +70,7 @@ export class TechBlogService implements OnModuleInit, OnModuleDestroy {
     return this.crawler.getSources();
   }
 
-  async getPosts(options: { source?: string; limit?: number; refresh?: boolean } = {}): Promise<TechBlogListResult> {
+  async getPosts(options: { source?: string; limit?: number; refresh?: boolean; bookmarked?: boolean } = {}): Promise<TechBlogListResult> {
     let errors: TechBlogListResult['errors'] = [];
     const cachedCount = await this.postRepo.count();
 
@@ -90,7 +90,21 @@ export class TechBlogService implements OnModuleInit, OnModuleDestroy {
       fetchedAt: (await this.getLastRefreshAt()) ?? new Date(0).toISOString(),
     };
 
-    return this.filterResult(result, options.source, options.limit);
+    return this.filterResult(result, options.source, options.limit, options.bookmarked);
+  }
+
+  async setBookmark(id: string, bookmarked: boolean): Promise<TechBlogPost> {
+    const entity = await this.postRepo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException('기술 블로그 글을 찾을 수 없습니다.');
+    entity.bookmarked = bookmarked;
+    return this.toPost(await this.postRepo.save(entity));
+  }
+
+  async setRead(id: string, read = true): Promise<TechBlogPost> {
+    const entity = await this.postRepo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException('기술 블로그 글을 찾을 수 없습니다.');
+    entity.readAt = read ? new Date().toISOString() : null;
+    return this.toPost(await this.postRepo.save(entity));
   }
 
   async getTrendSummary(options: { days?: number; source?: string; model?: string; refresh?: boolean; onChunk?: (chunk: string) => void } = {}): Promise<TechBlogTrendSummary> {
@@ -240,15 +254,18 @@ export class TechBlogService implements OnModuleInit, OnModuleDestroy {
       .sort((a, b) => dateValue(b.publishedAt) - dateValue(a.publishedAt));
   }
 
-  private filterResult(result: TechBlogListResult, source?: string, limit = DEFAULT_LIST_LIMIT): TechBlogListResult {
+  private filterResult(result: TechBlogListResult, source?: string, limit = DEFAULT_LIST_LIMIT, bookmarked = false): TechBlogListResult {
     const isSourceDetail = Boolean(source && source !== 'all');
     const resolvedLimit = Math.min(
       Math.max(limit, 1),
       isSourceDetail ? MAX_SOURCE_LIST_LIMIT : MAX_LIST_LIMIT,
     );
+    const filtered = bookmarked
+      ? result.posts.filter((post) => post.bookmarked)
+      : result.posts;
     const posts = isSourceDetail
-      ? result.posts.filter((post) => post.sourceId === source).slice(0, resolvedLimit)
-      : this.pickBalancedPosts(result.posts, result.sources, resolvedLimit);
+      ? filtered.filter((post) => post.sourceId === source).slice(0, resolvedLimit)
+      : this.pickBalancedPosts(filtered, result.sources, resolvedLimit);
 
     return {
       ...result,
@@ -453,6 +470,8 @@ ${postLines}
       publishedAt: entity.publishedAt ?? undefined,
       thumbnail: entity.thumbnail ?? undefined,
       tags: this.parseJsonArray(entity.tagsJson),
+      bookmarked: entity.bookmarked,
+      readAt: entity.readAt ?? undefined,
     };
   }
 

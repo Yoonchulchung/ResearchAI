@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { listHotPapers, type HotPaper } from "@/lib/api/hot-papers";
+import { listPapers, markPaperRead, type Paper } from "@/lib/api/papers";
 
 function IconPaper() {
   return (
@@ -14,6 +14,14 @@ function IconPaper() {
   );
 }
 
+function IconBookmark({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg className="h-3 w-3" viewBox="0 0 18 18" fill={filled ? "currentColor" : "none"} aria-hidden="true">
+      <path d="M5 3.25h8v11.5L9 12.3l-4 2.45V3.25Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function formatDate(value?: string) {
   if (!value) return "";
   const date = new Date(value);
@@ -21,8 +29,8 @@ function formatDate(value?: string) {
   return date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
-export function HotPapersCard() {
-  const [papers, setPapers] = useState<HotPaper[]>([]);
+export function PapersCard() {
+  const [papers, setPapers] = useState<Paper[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
@@ -31,7 +39,7 @@ export function HotPapersCard() {
     setLoading(true);
     setFailed(false);
 
-    listHotPapers({ limit: 50 })
+    listPapers({ limit: 50 })
       .then((result) => {
         if (!cancelled) setPapers(result.papers);
       })
@@ -46,6 +54,17 @@ export function HotPapersCard() {
       cancelled = true;
     };
   }, []);
+
+  const handleMarkRead = (paper: Paper) => {
+    if (paper.readAt) return;
+    const readAt = new Date().toISOString();
+    setPapers((prev) => prev.map((item) => item.id === paper.id ? { ...item, readAt } : item));
+    markPaperRead(paper.id).then((updated) => {
+      setPapers((prev) => prev.map((item) => item.id === paper.id ? updated : item));
+    }).catch(() => {
+      setPapers((prev) => prev.map((item) => item.id === paper.id ? { ...item, readAt: undefined } : item));
+    });
+  };
 
   return (
     <div className="glass-panel rounded-2xl p-5">
@@ -78,19 +97,27 @@ export function HotPapersCard() {
       ) : papers.length === 0 ? (
         <p className="text-xs text-slate-400 text-center py-6">표시할 논문이 없습니다</p>
       ) : (
-        <ul className="max-h-[480px] space-y-1 overflow-y-auto pr-1">
+        <ul className="max-h-[340px] space-y-1 overflow-y-auto pr-1">
           {papers.map((paper) => (
             <li key={paper.id}>
               <a
                 href={paper.url}
                 target="_blank"
                 rel="noreferrer"
-                className="block rounded-lg px-1 py-2 transition-colors hover:bg-slate-50"
+                onClick={() => handleMarkRead(paper)}
+                className={`block rounded-lg px-1 py-2 transition-colors hover:bg-slate-50 ${paper.readAt ? "opacity-60" : ""}`}
               >
                 <div className="flex items-center gap-2 text-2xs text-slate-400">
                   <span className="truncate font-semibold text-indigo-500">{paper.sourceName}</span>
                   {paper.publishedAt && <span className="shrink-0">{formatDate(paper.publishedAt)}</span>}
                   {typeof paper.upvotes === "number" && <span className="shrink-0 text-amber-500">▲ {paper.upvotes}</span>}
+                  {paper.bookmarked && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-600">
+                      <IconBookmark filled />
+                      북마크
+                    </span>
+                  )}
+                  {paper.readAt && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-400">읽음</span>}
                 </div>
                 <p className="mt-0.5 line-clamp-2 text-xs font-medium leading-relaxed text-slate-700">
                   {paper.title}

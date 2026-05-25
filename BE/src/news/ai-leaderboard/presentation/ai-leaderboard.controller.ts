@@ -31,6 +31,8 @@ export class AiLeaderboardController {
     @Query('maxParams') maxParamsStr?: string,
     @Query('minParams') minParamsStr?: string,
     @Query('refresh') refreshStr = 'false',
+    @Query('sortBy') sortBy = 'rank',
+    @Query('sortDir') sortDir = 'asc',
   ) {
     return this.service.getLeaderboard({
       limit: parseInt(limitStr, 10) || 50,
@@ -40,6 +42,8 @@ export class AiLeaderboardController {
       maxParams: maxParamsStr ? parseFloat(maxParamsStr) : undefined,
       minParams: minParamsStr ? parseFloat(minParamsStr) : undefined,
       refresh: refreshStr === 'true',
+      sortBy,
+      sortDir: sortDir === 'desc' ? 'desc' : 'asc',
     });
   }
 

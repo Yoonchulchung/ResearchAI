@@ -17,6 +17,8 @@ export interface TechBlogPost {
   publishedAt?: string;
   thumbnail?: string;
   tags: string[];
+  bookmarked?: boolean;
+  readAt?: string;
 }
 
 export interface TechBlogListResult {

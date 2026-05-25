@@ -9,4 +9,4 @@ export * from "./api/experiences";
 export * from "./api/documents";
 export * from "./api/company-analysis";
 export * from "./api/tech-blogs";
-export * from "./api/hot-papers";
+export * from "./api/papers";

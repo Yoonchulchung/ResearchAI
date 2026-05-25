@@ -19,6 +19,8 @@ export interface TechBlogPost {
   publishedAt?: string;
   thumbnail?: string;
   tags: string[];
+  bookmarked?: boolean;
+  readAt?: string;
 }
 
 export interface TechBlogListResult {
@@ -45,15 +47,28 @@ export interface TechBlogTrendSummary {
   model: string;
 }
 
-export const listTechBlogPosts = (params?: { source?: string; limit?: number; refresh?: boolean }) => {
+export const listTechBlogPosts = (params?: { source?: string; limit?: number; refresh?: boolean; bookmarked?: boolean }) => {
   const query = new URLSearchParams();
   if (params?.source) query.set("source", params.source);
   if (params?.limit) query.set("limit", String(params.limit));
   if (params?.refresh) query.set("refresh", "true");
+  if (params?.bookmarked) query.set("bookmarked", "true");
 
   const qs = query.toString();
   return apiFetch<TechBlogListResult>(`/tech-blogs/posts${qs ? `?${qs}` : ""}`);
 };
+
+export const updateTechBlogBookmark = (id: string, bookmarked: boolean) =>
+  apiFetch<TechBlogPost>(`/tech-blogs/posts/${encodeURIComponent(id)}/bookmark`, {
+    method: "PATCH",
+    body: JSON.stringify({ bookmarked }),
+  });
+
+export const markTechBlogRead = (id: string, read = true) =>
+  apiFetch<TechBlogPost>(`/tech-blogs/posts/${encodeURIComponent(id)}/read`, {
+    method: "PATCH",
+    body: JSON.stringify({ read }),
+  });
 
 export const getTechBlogTrendSummary = (params?: { days?: number; source?: string; model?: string; refresh?: boolean }) => {
   const query = new URLSearchParams();

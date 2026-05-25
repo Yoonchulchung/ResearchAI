@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTheme } from "@/contexts/ThemeContext";
-import { listTechBlogPosts, type TechBlogPost } from "@/lib/api/tech-blogs";
-import { listHotPapers, type HotPaper } from "@/lib/api/hot-papers";
+import { listTechBlogPosts, markTechBlogRead, type TechBlogPost } from "@/lib/api/tech-blogs";
+import { listPapers, markPaperRead, type Paper } from "@/lib/api/papers";
 import { getNewsFeed, type NewsItem } from "@/lib/api/news-feed";
 import { getTopModels, MODEL_TYPE_LABELS, type AiModelEntry } from "@/lib/api/ai-leaderboard";
 
@@ -26,6 +26,14 @@ function IconPaper() {
       <path d="M5 2.5H10.5L14 6V15C14 15.55 13.55 16 13 16H5C4.45 16 4 15.55 4 15V3.5C4 2.95 4.45 2.5 5 2.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
       <path d="M10.5 2.5V6H14" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
       <path d="M6.5 9H11.5M6.5 12H10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconBookmark({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg width="13" height="13" viewBox="0 0 18 18" fill={filled ? "currentColor" : "none"} aria-hidden="true">
+      <path d="M5 3.25h8v11.5L9 12.3l-4 2.45V3.25Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -112,17 +120,36 @@ function stripHtml(html: string) {
   return html.replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"');
 }
 
-function BlogListItem({ post, isDark, border }: { post: TechBlogPost; isDark: boolean; border: boolean }) {
+function BlogListItem({
+  post,
+  isDark,
+  border,
+  onMarkRead,
+}: {
+  post: TechBlogPost;
+  isDark: boolean;
+  border: boolean;
+  onMarkRead: (post: TechBlogPost) => void;
+}) {
+  const read = Boolean(post.readAt);
   return (
     <a
       href={post.url}
       target="_blank"
       rel="noreferrer"
-      className={`group block px-4 py-3 transition-colors ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
+      onClick={() => onMarkRead(post)}
+      className={`group block px-4 py-3 transition-colors ${read ? "opacity-60" : ""} ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
     >
       <div className="mb-1 flex items-center gap-2">
         <span className={`text-xs font-semibold ${isDark ? "text-indigo-400" : "text-indigo-600"}`}>{post.sourceName}</span>
         <span className={`text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>{formatDate(post.publishedAt)}</span>
+        {post.bookmarked && (
+          <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-semibold ${isDark ? "bg-amber-400/10 text-amber-300" : "bg-amber-50 text-amber-600"}`}>
+            <IconBookmark filled />
+            북마크
+          </span>
+        )}
+        {read && <span className={`rounded px-1.5 py-0.5 text-2xs font-semibold ${isDark ? "bg-white/5 text-white/35" : "bg-slate-100 text-slate-400"}`}>읽음</span>}
       </div>
       <p className={`line-clamp-1 text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-indigo-300" : "text-slate-900 group-hover:text-indigo-600"}`}>
         {post.title}
@@ -139,25 +166,36 @@ function PaperListItem({
   isDark,
   border,
   onOpenSummary,
+  onMarkRead,
 }: {
-  paper: HotPaper;
+  paper: Paper;
   isDark: boolean;
   border: boolean;
-  onOpenSummary: (paper: HotPaper) => void;
+  onOpenSummary: (paper: Paper) => void;
+  onMarkRead: (paper: Paper) => void;
 }) {
+  const read = Boolean(paper.readAt);
   return (
-    <div className={`group px-4 py-3 transition-colors ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}>
+    <div className={`group px-4 py-3 transition-colors ${read ? "opacity-60" : ""} ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}>
       <div className="mb-1 flex items-center gap-2">
         <span className={`text-xs font-semibold ${isDark ? "text-indigo-400" : "text-indigo-600"}`}>{paper.sourceName}</span>
         {typeof paper.upvotes === "number" && (
           <span className={`text-xs font-semibold ${isDark ? "text-amber-400" : "text-amber-600"}`}>▲ {paper.upvotes}</span>
         )}
         {paper.publishedAt && <span className={`text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>{formatDate(paper.publishedAt)}</span>}
+        {paper.bookmarked && (
+          <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-semibold ${isDark ? "bg-amber-400/10 text-amber-300" : "bg-amber-50 text-amber-600"}`}>
+            <IconBookmark filled />
+            북마크
+          </span>
+        )}
+        {read && <span className={`rounded px-1.5 py-0.5 text-2xs font-semibold ${isDark ? "bg-white/5 text-white/35" : "bg-slate-100 text-slate-400"}`}>읽음</span>}
       </div>
       <a
         href={paper.url}
         target="_blank"
         rel="noreferrer"
+        onClick={() => onMarkRead(paper)}
         className={`line-clamp-1 text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-indigo-300" : "text-slate-900 group-hover:text-indigo-600"}`}
       >
         {paper.title}
@@ -183,7 +221,7 @@ function PaperSummaryModal({
   isDark,
   onClose,
 }: {
-  paper: HotPaper;
+  paper: Paper;
   isDark: boolean;
   onClose: () => void;
 }) {
@@ -366,10 +404,10 @@ export default function NewsPage() {
   const [blogLoading, setBlogLoading] = useState(true);
   const [blogError, setBlogError] = useState<string | null>(null);
 
-  const [papers, setPapers] = useState<HotPaper[]>([]);
+  const [papers, setPapers] = useState<Paper[]>([]);
   const [paperLoading, setPaperLoading] = useState(true);
   const [paperError, setPaperError] = useState<string | null>(null);
-  const [summaryPaper, setSummaryPaper] = useState<HotPaper | null>(null);
+  const [summaryPaper, setSummaryPaper] = useState<Paper | null>(null);
 
   const [models, setModels] = useState<AiModelEntry[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
@@ -412,11 +450,34 @@ export default function NewsPage() {
     setPaperError(null);
     setPaperLoading(true);
     try {
-      const result = await listHotPapers({ limit: 50 });
+      const result = await listPapers({ limit: 50 });
       setPapers(result.papers);
     } catch (e) {
       setPaperError(e instanceof Error ? e.message : "불러오지 못했습니다.");
     } finally { setPaperLoading(false); }
+  }, []);
+
+  const handleMarkBlogRead = useCallback((post: TechBlogPost) => {
+    if (post.readAt) return;
+    const readAt = new Date().toISOString();
+    setBlogs((prev) => prev.map((item) => item.id === post.id ? { ...item, readAt } : item));
+    markTechBlogRead(post.id).then((updated) => {
+      setBlogs((prev) => prev.map((item) => item.id === post.id ? updated : item));
+    }).catch(() => {
+      setBlogs((prev) => prev.map((item) => item.id === post.id ? { ...item, readAt: undefined } : item));
+    });
+  }, []);
+
+  const handleMarkPaperRead = useCallback((paper: Paper) => {
+    if (paper.readAt) return;
+    const readAt = new Date().toISOString();
+    setPapers((prev) => prev.map((item) => item.id === paper.id ? { ...item, readAt } : item));
+    markPaperRead(paper.id).then((updated) => {
+      setPapers((prev) => prev.map((item) => item.id === paper.id ? updated : item));
+      setSummaryPaper((prev) => prev?.id === paper.id ? updated : prev);
+    }).catch(() => {
+      setPapers((prev) => prev.map((item) => item.id === paper.id ? { ...item, readAt: undefined } : item));
+    });
   }, []);
 
   const loadFeed = useCallback(async (category: FeedCategory) => {
@@ -512,13 +573,21 @@ export default function NewsPage() {
                 전체 보기
               </button>
             </div>
-            <div className="flex-1">
+            <div className="max-h-[22rem] overflow-y-auto">
               {blogLoading ? (
                 Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} isDark={isDark} border={i > 0} />)
               ) : blogError ? (
                 <p className={`px-4 py-6 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{blogError}</p>
               ) : (
-                blogs.slice(0, 10).map((post, i) => <BlogListItem key={post.id} post={post} isDark={isDark} border={i > 0} />)
+                blogs.map((post, i) => (
+                  <BlogListItem
+                    key={post.id}
+                    post={post}
+                    isDark={isDark}
+                    border={i > 0}
+                    onMarkRead={handleMarkBlogRead}
+                  />
+                ))
               )}
             </div>
           </section>
@@ -538,13 +607,22 @@ export default function NewsPage() {
                 전체 보기
               </button>
             </div>
-            <div className="flex-1">
+            <div className="max-h-[22rem] overflow-y-auto">
               {paperLoading ? (
                 Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} isDark={isDark} border={i > 0} />)
               ) : paperError ? (
                 <p className={`px-4 py-6 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{paperError}</p>
               ) : (
-                papers.slice(0, 10).map((paper, i) => <PaperListItem key={paper.id} paper={paper} isDark={isDark} border={i > 0} onOpenSummary={setSummaryPaper} />)
+                papers.map((paper, i) => (
+                  <PaperListItem
+                    key={paper.id}
+                    paper={paper}
+                    isDark={isDark}
+                    border={i > 0}
+                    onOpenSummary={setSummaryPaper}
+                    onMarkRead={handleMarkPaperRead}
+                  />
+                ))
               )}
             </div>
           </section>

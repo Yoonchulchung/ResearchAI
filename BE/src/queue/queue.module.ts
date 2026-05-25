@@ -10,8 +10,8 @@ import { CompanyAnalysisExecutorService } from './application/job/company-analys
 import { DocParseExecutorService } from './application/job/doc-parse-executor.service';
 import { SpecAnalysisExecutorService } from './application/job/spec-analysis-executor.service';
 import { TechBlogTrendExecutorService } from './application/job/tech-blog-trend-executor.service';
-import { HotPaperSummaryExecutorService } from './application/job/hot-paper-summary-executor.service';
-import { HotPaperTrendExecutorService } from './application/job/hot-paper-trend-executor.service';
+import { PaperSummaryExecutorService } from './application/job/paper-summary-executor.service';
+import { PaperTrendExecutorService } from './application/job/paper-trend-executor.service';
 import { ImageOcrQueueService } from './application/image-ocr-queue.service';
 import { QueueController } from './presentation/queue.controller';
 import { ResearchModule } from '../research/research.module';
@@ -20,7 +20,7 @@ import { AiModule } from '../ai/ai.module';
 import { CompanyAnalysisModule } from '../company-analysis/company-analysis.module';
 import { CoverLetterModule } from '../recruit/cover-letter.module';
 import { TechBlogModule } from '../news/tech-blog/tech-blog.module';
-import { HotPapersModule } from '../news/hot-papers/hot-papers.module';
+import { PapersModule } from '../news/papers/papers.module';
 import { QueueJobEntity } from './domain/entity/queue-job.entity';
 import { QueueJobRepository } from './domain/repository/queue-job.repository';
 import { AppConfigModule } from '../config/config.module';
@@ -33,7 +33,7 @@ import { AppConfigModule } from '../config/config.module';
     forwardRef(() => CompanyAnalysisModule),
     forwardRef(() => CoverLetterModule),
     forwardRef(() => TechBlogModule),
-    forwardRef(() => HotPapersModule),
+    forwardRef(() => PapersModule),
     TypeOrmModule.forFeature([QueueJobEntity]),
     AppConfigModule,
   ],
@@ -49,8 +49,8 @@ import { AppConfigModule } from '../config/config.module';
     DocParseExecutorService,
     SpecAnalysisExecutorService,
     TechBlogTrendExecutorService,
-    HotPaperSummaryExecutorService,
-    HotPaperTrendExecutorService,
+    PaperSummaryExecutorService,
+    PaperTrendExecutorService,
     ImageOcrQueueService,
     QueueJobRepository,
   ],

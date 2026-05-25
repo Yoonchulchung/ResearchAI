@@ -24,8 +24,8 @@ import { CompanyAnalysisExecutorService } from './job/company-analysis-executor.
 import { DocParseExecutorService } from './job/doc-parse-executor.service';
 import { SpecAnalysisExecutorService } from './job/spec-analysis-executor.service';
 import { TechBlogTrendExecutorService, TechBlogTrendRequest } from './job/tech-blog-trend-executor.service';
-import { HotPaperSummaryExecutorService, HotPaperSummaryRequest } from './job/hot-paper-summary-executor.service';
-import { HotPaperTrendExecutorService, HotPaperTrendRequest } from './job/hot-paper-trend-executor.service';
+import { PaperSummaryExecutorService, PaperSummaryRequest } from './job/paper-summary-executor.service';
+import { PaperTrendExecutorService, PaperTrendRequest } from './job/paper-trend-executor.service';
 import { QueueJobRepository } from '../domain/repository/queue-job.repository';
 import { QueueJobDbStatus } from '../domain/entity/queue-job.entity';
 import { randomUUID } from 'crypto';
@@ -51,9 +51,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private specAnalysisSubjects = new Map<string, Subject<MessageEvent>>();
   private techBlogTrendSubjects = new Map<string, Subject<MessageEvent>>();
   private techBlogTrendAccumulated = new Map<string, string>();
-  private hotPaperSummarySubjects = new Map<string, Subject<MessageEvent>>();
-  private hotPaperTrendSubjects = new Map<string, Subject<MessageEvent>>();
-  private hotPaperTrendAccumulated = new Map<string, string>();
+  private paperSummarySubjects = new Map<string, Subject<MessageEvent>>();
+  private paperTrendSubjects = new Map<string, Subject<MessageEvent>>();
+  private paperTrendAccumulated = new Map<string, string>();
   private cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private runningCount = 0;
 
@@ -76,8 +76,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     private readonly docParseExecutor: DocParseExecutorService,
     private readonly specAnalysisExecutor: SpecAnalysisExecutorService,
     private readonly techBlogTrendExecutor: TechBlogTrendExecutorService,
-    private readonly hotPaperSummaryExecutor: HotPaperSummaryExecutorService,
-    private readonly hotPaperTrendExecutor: HotPaperTrendExecutorService,
+    private readonly paperSummaryExecutor: PaperSummaryExecutorService,
+    private readonly paperTrendExecutor: PaperTrendExecutorService,
     private readonly queueJobRepository: QueueJobRepository,
     private readonly sessionGateway: SessionGateway,
     private readonly aiProvider: AiProviderService,
@@ -173,10 +173,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     for (const subject of this.techBlogTrendSubjects.values()) {
       subject.complete();
     }
-    for (const subject of this.hotPaperSummarySubjects.values()) {
+    for (const subject of this.paperSummarySubjects.values()) {
       subject.complete();
     }
-    for (const subject of this.hotPaperTrendSubjects.values()) {
+    for (const subject of this.paperTrendSubjects.values()) {
       subject.complete();
     }
     for (const timer of this.cleanupTimers.values()) {
@@ -278,8 +278,8 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       [QueueJob.TaskType.DOCPARSE_ACTION]: '문서 분석',
       [QueueJob.TaskType.SPEC_ANALYSIS]: '스펙 분석',
       [QueueJob.TaskType.TECH_BLOG_TREND]: 'AI 트렌드 분석',
-      [QueueJob.TaskType.HOT_PAPER_SUMMARY]: '논문 AI 요약',
-      [QueueJob.TaskType.HOT_PAPER_TREND]: '논문 트렌드 분석',
+      [QueueJob.TaskType.PAPER_SUMMARY]: '논문 AI 요약',
+      [QueueJob.TaskType.PAPER_TREND]: '논문 트렌드 분석',
     };
     return labels[taskType] ?? taskType;
   }
@@ -696,8 +696,19 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
 
   getDocParseStream(jobId: string): Observable<MessageEvent> | null {
     const subject = this.docParseSubjects.get(jobId);
-    if (!subject) return null;
     const accumulated = this.docParseAccumulated.get(jobId) ?? '';
+
+    if (!subject) {
+      // Job already completed before the client connected — replay accumulated text
+      if (accumulated) {
+        return of(
+          { data: { type: SseEventType.CHUNK, text: accumulated } } as MessageEvent,
+          { data: { type: SseEventType.DONE } } as MessageEvent,
+        );
+      }
+      return null;
+    }
+
     if (accumulated) {
       return concat(
         of({ data: { type: SseEventType.CHUNK, text: accumulated } } as MessageEvent),
@@ -800,18 +811,20 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     this.techBlogTrendAccumulated.delete(jobId);
   }
 
-  // ***************** //
-  // Hot Paper Summary //
-  // ***************** //
-  async enqueueHotPaperSummary(request: HotPaperSummaryRequest): Promise<{ jobId: string }> {
+  // ************* //
+  // Paper Summary //
+  // ************* //
+  async enqueuePaperSummary(request: PaperSummaryRequest): Promise<{ jobId: string }> {
+    console.log("!!");
+
     const jobId = randomUUID();
-    this.hotPaperSummarySubjects.set(jobId, new Subject<MessageEvent>());
+    this.paperSummarySubjects.set(jobId, new Subject<MessageEvent>());
     await this.pushJob({
       jobId,
       sessionId: jobId,
       itemId: request.id,
       itemContent: JSON.stringify(request),
-      taskType: QueueJob.TaskType.HOT_PAPER_SUMMARY,
+      taskType: QueueJob.TaskType.PAPER_SUMMARY,
       localAIModel: '',
       CloudAIModel: request.model ?? '',
       status: QueueJobStatus.PENDING,
@@ -819,35 +832,36 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     return { jobId };
   }
 
-  getHotPaperSummaryStream(jobId: string): Observable<MessageEvent> | null {
-    return this.hotPaperSummarySubjects.get(jobId) ?? null;
+  getPaperSummaryStream(jobId: string): Observable<MessageEvent> | null {
+    console.log("@@");
+    return this.paperSummarySubjects.get(jobId) ?? null;
   }
 
-  cancelHotPaperSummary(jobId: string): void {
-    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.HOT_PAPER_SUMMARY);
+  cancelPaperSummary(jobId: string): void {
+    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.PAPER_SUMMARY);
     if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
       this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
       this.abortControllers.get(job.jobId)?.abort();
     }
-    const subject = this.hotPaperSummarySubjects.get(jobId);
+    const subject = this.paperSummarySubjects.get(jobId);
     subject?.next({ data: { type: SseEventType.ERROR, message: '작업이 중단되었습니다.' } });
     subject?.complete();
-    this.hotPaperSummarySubjects.delete(jobId);
+    this.paperSummarySubjects.delete(jobId);
   }
 
-  // **************** //
-  // Hot Paper Trend  //
-  // **************** //
-  async enqueueHotPaperTrend(request: HotPaperTrendRequest): Promise<{ jobId: string }> {
+  // ************ //
+  // Paper Trend  //
+  // ************ //
+  async enqueuePaperTrend(request: PaperTrendRequest): Promise<{ jobId: string }> {
     const jobId = randomUUID();
-    this.hotPaperTrendSubjects.set(jobId, new Subject<MessageEvent>());
-    this.hotPaperTrendAccumulated.set(jobId, '');
+    this.paperTrendSubjects.set(jobId, new Subject<MessageEvent>());
+    this.paperTrendAccumulated.set(jobId, '');
     await this.pushJob({
       jobId,
       sessionId: jobId,
       itemId: '',
       itemContent: JSON.stringify(request),
-      taskType: QueueJob.TaskType.HOT_PAPER_TREND,
+      taskType: QueueJob.TaskType.PAPER_TREND,
       localAIModel: '',
       CloudAIModel: request.model ?? '',
       status: QueueJobStatus.PENDING,
@@ -855,10 +869,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     return { jobId };
   }
 
-  getHotPaperTrendStream(jobId: string): Observable<MessageEvent> | null {
-    const subject = this.hotPaperTrendSubjects.get(jobId);
+  getPaperTrendStream(jobId: string): Observable<MessageEvent> | null {
+    const subject = this.paperTrendSubjects.get(jobId);
     if (!subject) return null;
-    const accumulated = this.hotPaperTrendAccumulated.get(jobId) ?? '';
+    const accumulated = this.paperTrendAccumulated.get(jobId) ?? '';
     if (accumulated) {
       return concat(
         of({ data: { type: SseEventType.CHUNK, text: accumulated } } as MessageEvent),
@@ -868,17 +882,17 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     return subject.asObservable();
   }
 
-  cancelHotPaperTrend(jobId: string): void {
-    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.HOT_PAPER_TREND);
+  cancelPaperTrend(jobId: string): void {
+    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.PAPER_TREND);
     if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
       this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
       this.abortControllers.get(job.jobId)?.abort();
     }
-    const subject = this.hotPaperTrendSubjects.get(jobId);
+    const subject = this.paperTrendSubjects.get(jobId);
     subject?.next({ data: { type: SseEventType.ERROR, message: '작업이 중단되었습니다.' } });
     subject?.complete();
-    this.hotPaperTrendSubjects.delete(jobId);
-    this.hotPaperTrendAccumulated.delete(jobId);
+    this.paperTrendSubjects.delete(jobId);
+    this.paperTrendAccumulated.delete(jobId);
   }
 
   // ********* //
@@ -1004,6 +1018,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         if (existing) clearTimeout(existing);
         const timer = setTimeout(() => {
           this.jobs = this.jobs.filter((j) => j.jobId !== jobId);
+          this.docParseAccumulated.delete(jobId);
           this.cleanupTimers.delete(jobId);
         }, QueueService.DONE_JOB_TTL_MS);
         this.cleanupTimers.set(jobId, timer);
@@ -1165,7 +1180,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         subject?.next({ data: { type: SseEventType.DONE } });
         subject?.complete();
         this.docParseSubjects.delete(job.jobId);
-        this.docParseAccumulated.delete(job.jobId);
+        // Keep accumulated for late-connecting SSE clients; TTL cleanup handles deletion
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
 
       } else if (job.taskType === QueueJob.TaskType.SPEC_ANALYSIS) {
@@ -1195,29 +1210,29 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.techBlogTrendAccumulated.delete(job.jobId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: JSON.stringify(result) });
 
-      } else if (job.taskType === QueueJob.TaskType.HOT_PAPER_SUMMARY) {
+      } else if (job.taskType === QueueJob.TaskType.PAPER_SUMMARY) {
 
-        const subject = this.hotPaperSummarySubjects.get(job.jobId);
-        const request = JSON.parse(job.itemContent) as HotPaperSummaryRequest;
+        const subject = this.paperSummarySubjects.get(job.jobId);
+        const request = JSON.parse(job.itemContent) as PaperSummaryRequest;
         subject?.next({ data: { type: SseEventType.LOG, message: '논문 AI 요약을 생성하는 중입니다.' } });
-        const result = await this.hotPaperSummaryExecutor.execute(request);
+        const result = await this.paperSummaryExecutor.execute(request);
         subject?.next({ data: { type: SseEventType.DONE, payload: result } });
         subject?.complete();
-        this.hotPaperSummarySubjects.delete(job.jobId);
+        this.paperSummarySubjects.delete(job.jobId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: JSON.stringify(result) });
 
-      } else if (job.taskType === QueueJob.TaskType.HOT_PAPER_TREND) {
+      } else if (job.taskType === QueueJob.TaskType.PAPER_TREND) {
 
-        const subject = this.hotPaperTrendSubjects.get(job.jobId);
-        const request = JSON.parse(job.itemContent) as HotPaperTrendRequest;
-        const trendResult = await this.hotPaperTrendExecutor.execute(request, (chunk) => {
-          this.hotPaperTrendAccumulated.set(job.jobId, (this.hotPaperTrendAccumulated.get(job.jobId) ?? '') + chunk);
+        const subject = this.paperTrendSubjects.get(job.jobId);
+        const request = JSON.parse(job.itemContent) as PaperTrendRequest;
+        const trendResult = await this.paperTrendExecutor.execute(request, (chunk) => {
+          this.paperTrendAccumulated.set(job.jobId, (this.paperTrendAccumulated.get(job.jobId) ?? '') + chunk);
           subject?.next({ data: { type: SseEventType.CHUNK, text: chunk } });
         });
         subject?.next({ data: { type: SseEventType.DONE, payload: trendResult } });
         subject?.complete();
-        this.hotPaperTrendSubjects.delete(job.jobId);
-        this.hotPaperTrendAccumulated.delete(job.jobId);
+        this.paperTrendSubjects.delete(job.jobId);
+        this.paperTrendAccumulated.delete(job.jobId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: JSON.stringify(trendResult) });
 
       } else if (job.taskType === QueueJob.TaskType.SUMMARY) {
@@ -1317,20 +1332,20 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.techBlogTrendSubjects.delete(job.jobId);
         this.techBlogTrendAccumulated.delete(job.jobId);
 
-      } else if (job.taskType === QueueJob.TaskType.HOT_PAPER_SUMMARY) {
+      } else if (job.taskType === QueueJob.TaskType.PAPER_SUMMARY) {
 
-        const subject = this.hotPaperSummarySubjects.get(job.jobId);
+        const subject = this.paperSummarySubjects.get(job.jobId);
         subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
         subject?.complete();
-        this.hotPaperSummarySubjects.delete(job.jobId);
+        this.paperSummarySubjects.delete(job.jobId);
 
-      } else if (job.taskType === QueueJob.TaskType.HOT_PAPER_TREND) {
+      } else if (job.taskType === QueueJob.TaskType.PAPER_TREND) {
 
-        const subject = this.hotPaperTrendSubjects.get(job.jobId);
+        const subject = this.paperTrendSubjects.get(job.jobId);
         subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
         subject?.complete();
-        this.hotPaperTrendSubjects.delete(job.jobId);
-        this.hotPaperTrendAccumulated.delete(job.jobId);
+        this.paperTrendSubjects.delete(job.jobId);
+        this.paperTrendAccumulated.delete(job.jobId);
 
       }
     } finally {

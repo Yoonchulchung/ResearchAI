@@ -10,10 +10,12 @@ import {
   enqueueTechBlogTrend,
   getLatestTechBlogTrendSummary,
   listTechBlogPosts,
+  markTechBlogRead,
   subscribeTechBlogTrend,
   type TechBlogListResult,
   type TechBlogPost,
   type TechBlogTrendSummary,
+  updateTechBlogBookmark,
 } from "@/lib/api/tech-blogs";
 
 const SOURCE_ALL = "all";
@@ -51,6 +53,14 @@ function IconSparkles({ spinning = false }: { spinning?: boolean }) {
   );
 }
 
+function IconBookmark({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill={filled ? "currentColor" : "none"}>
+      <path d="M4.5 2.5h7v11L8 11.2l-3.5 2.3v-11Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function formatDate(value?: string) {
   if (!value) return "";
   const date = new Date(value);
@@ -63,22 +73,42 @@ function formatDate(value?: string) {
   return date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
-function BlogCard({ post, isDark }: { post: TechBlogPost; isDark: boolean }) {
+function BlogCard({
+  post,
+  isDark,
+  onToggleBookmark,
+  onMarkRead,
+}: {
+  post: TechBlogPost;
+  isDark: boolean;
+  onToggleBookmark: (post: TechBlogPost) => void;
+  onMarkRead: (post: TechBlogPost) => void;
+}) {
   const tags = Array.from(new Set(post.tags)).slice(0, 4);
+  const read = Boolean(post.readAt);
   return (
-    <article className={`group rounded-xl border p-4 shadow-sm transition-all hover:-translate-y-0.5 ${isDark ? "border-white/10 bg-white/5 hover:border-indigo-400/30" : "border-slate-200 bg-white hover:border-indigo-200 hover:shadow-md"}`}>
+    <article className={`group flex h-full min-h-[14rem] flex-col rounded-xl border p-4 shadow-sm transition-all hover:-translate-y-0.5 ${read ? "opacity-65" : ""} ${isDark ? read ? "border-white/5 bg-white/[0.025] hover:border-indigo-400/20" : "border-white/10 bg-white/5 hover:border-indigo-400/30" : read ? "border-slate-200 bg-slate-50 hover:border-indigo-100" : "border-slate-200 bg-white hover:border-indigo-200 hover:shadow-md"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <span className={`rounded-md px-2 py-1 text-2xs font-semibold ${isDark ? "bg-white/10 text-white/70" : "bg-slate-100 text-slate-600"}`}>{post.sourceName}</span>
             <span className={`text-2xs ${isDark ? "text-white/35" : "text-slate-400"}`}>{formatDate(post.publishedAt)}</span>
+            {read && <span className={`rounded-md px-1.5 py-0.5 text-2xs font-semibold ${isDark ? "bg-white/5 text-white/35" : "bg-slate-200 text-slate-500"}`}>읽음</span>}
           </div>
-          <a href={post.url} target="_blank" rel="noreferrer" className={`line-clamp-2 text-base font-semibold leading-snug transition-colors ${isDark ? "text-white hover:text-indigo-300" : "text-slate-900 hover:text-indigo-600"}`}>
+          <a href={post.url} target="_blank" rel="noreferrer" onClick={() => onMarkRead(post)} className={`line-clamp-2 text-base font-semibold leading-snug transition-colors ${isDark ? "text-white hover:text-indigo-300" : "text-slate-900 hover:text-indigo-600"}`}>
             {post.title}
           </a>
         </div>
+        <button
+          type="button"
+          onClick={() => onToggleBookmark(post)}
+          className={`shrink-0 rounded-lg border p-2 transition ${post.bookmarked ? isDark ? "border-amber-300/30 bg-amber-400/15 text-amber-300" : "border-amber-200 bg-amber-50 text-amber-600" : isDark ? "border-white/10 text-white/45 hover:bg-white/10 hover:text-white" : "border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-700"}`}
+          aria-label={post.bookmarked ? "북마크 해제" : "북마크"}
+        >
+          <IconBookmark filled={post.bookmarked} />
+        </button>
         {post.thumbnail && (
-          <a href={post.url} target="_blank" rel="noreferrer" className="shrink-0">
+          <a href={post.url} target="_blank" rel="noreferrer" onClick={() => onMarkRead(post)} className="shrink-0">
             <img src={post.thumbnail} alt="" className={`h-16 w-20 rounded-lg border object-cover ${isDark ? "border-white/10" : "border-slate-100"}`} />
           </a>
         )}
@@ -89,8 +119,8 @@ function BlogCard({ post, isDark }: { post: TechBlogPost; isDark: boolean }) {
           {tags.map((tag) => <span key={tag} className={`rounded-md border px-1.5 py-0.5 text-2xs ${isDark ? "border-white/10 text-white/40" : "border-slate-200 text-slate-500"}`}>{tag}</span>)}
         </div>
       )}
-      <div className="mt-4 flex items-center justify-end">
-        <a href={post.url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${isDark ? "bg-white/10 text-white hover:bg-indigo-500/30" : "bg-slate-900 text-white hover:bg-indigo-600"}`}>
+      <div className="mt-auto flex items-center justify-end pt-4">
+        <a href={post.url} target="_blank" rel="noreferrer" onClick={() => onMarkRead(post)} className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${isDark ? "bg-white/10 text-white hover:bg-indigo-500/30" : "bg-slate-900 text-white hover:bg-indigo-600"}`}>
           열기 <IconExternal />
         </a>
       </div>
@@ -120,6 +150,7 @@ export default function NewsTechBlogsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [source, setSource] = useState(() => getInitialSearchParam("source", SOURCE_ALL));
   const [query, setQuery] = useState(() => getInitialSearchParam("q", ""));
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(() => getInitialSearchParam("bookmarked") === "true");
   const [error, setError] = useState<string | null>(null);
   const [sourceCount, setSourceCount] = useState<Map<string, number>>(new Map());
   const [trend, setTrend] = useState<TechBlogTrendSummary | null>(null);
@@ -143,7 +174,12 @@ export default function NewsTechBlogsPage() {
     if (force) setRefreshing(true);
     else setLoading(true);
     try {
-      const result = await listTechBlogPosts({ source: requestedSource, limit: requestedSource === SOURCE_ALL ? 300 : 500, refresh: force });
+      const result = await listTechBlogPosts({
+        source: requestedSource,
+        limit: requestedSource === SOURCE_ALL ? 300 : 500,
+        refresh: force,
+        bookmarked: bookmarkedOnly,
+      });
       setData(result);
       setSourceCount((prev) => {
         const next = requestedSource === SOURCE_ALL ? new Map<string, number>() : new Map(prev);
@@ -154,7 +190,7 @@ export default function NewsTechBlogsPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "기술 블로그 목록을 불러오지 못했습니다.");
     } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [bookmarkedOnly]);
 
   const loadTrend = useCallback(async (force = false) => {
     // 진행 중인 작업 취소
@@ -206,6 +242,34 @@ export default function NewsTechBlogsPage() {
       // 저장된 트렌드 조회 실패는 목록 사용을 막지 않는다.
     }
   }, []);
+
+  const patchPost = useCallback((id: string, patch: Partial<TechBlogPost>) => {
+    setData((prev) => prev ? {
+      ...prev,
+      posts: prev.posts.map((post) => post.id === id ? { ...post, ...patch } : post),
+    } : prev);
+  }, []);
+
+  const handleToggleBookmark = useCallback((post: TechBlogPost) => {
+    const next = !post.bookmarked;
+    patchPost(post.id, { bookmarked: next });
+    updateTechBlogBookmark(post.id, next).then((updated) => {
+      patchPost(post.id, updated);
+    }).catch(() => {
+      patchPost(post.id, { bookmarked: post.bookmarked });
+    });
+  }, [patchPost]);
+
+  const handleMarkRead = useCallback((post: TechBlogPost) => {
+    if (post.readAt) return;
+    const readAt = new Date().toISOString();
+    patchPost(post.id, { readAt });
+    markTechBlogRead(post.id).then((updated) => {
+      patchPost(post.id, updated);
+    }).catch(() => {
+      patchPost(post.id, { readAt: undefined });
+    });
+  }, [patchPost]);
 
   useEffect(() => { load(false, source); }, [load, source]);
   useEffect(() => { loadLatestTrend(source); }, [loadLatestTrend, source]);
@@ -356,8 +420,20 @@ export default function NewsTechBlogsPage() {
               <h1 className={`text-3xl font-bold tracking-tight ${textMain}`}>기술 블로그</h1>
               <p className={`mt-1 text-sm ${textSub}`}>국내외 엔지니어링 블로그의 최신 글을 한 곳에서 모아봅니다.</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="제목, 출처, 태그 검색" className={`h-9 w-full rounded-xl border px-3 text-sm outline-none transition focus:ring-2 focus:ring-indigo-200/50 sm:w-60 ${inputClass}`} />
+              <button
+                type="button"
+                onClick={() => setBookmarkedOnly((value) => !value)}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition ${
+                  bookmarkedOnly
+                    ? isDark ? "border-amber-300/30 bg-amber-400/15 text-amber-300" : "border-amber-200 bg-amber-50 text-amber-700"
+                    : isDark ? "border-white/10 text-white/60 hover:bg-white/10" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <IconBookmark filled={bookmarkedOnly} />
+                북마크
+              </button>
               <button onClick={() => load(true, source)} disabled={refreshing} className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold transition disabled:opacity-60 ${isDark ? "bg-white/10 text-white hover:bg-white/15" : "bg-slate-900 text-white hover:bg-indigo-600"}`}>
                 <IconRefresh spinning={refreshing} />
                 새로고침
@@ -369,7 +445,14 @@ export default function NewsTechBlogsPage() {
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[220px_1fr] lg:items-start">
           {/* Sidebar */}
           <aside className={`hidden lg:sticky lg:top-5 lg:max-h-[calc(100vh-2.5rem)] lg:overflow-y-auto rounded-2xl border p-3 shadow-sm lg:block ${panelClass}`}>
-            <div className={`px-2 pb-2 text-xs font-semibold ${textSub}`}>출처</div>
+            <div className={`px-2 pb-2 text-xs font-semibold ${textSub}`}>필터</div>
+            <div className="space-y-0.5">
+              <button onClick={() => setBookmarkedOnly((value) => !value)} className={`mb-2 flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${bookmarkedOnly ? isDark ? "bg-amber-400/15 font-semibold text-amber-300" : "bg-amber-50 font-semibold text-amber-700" : isDark ? "text-white/60 hover:bg-white/5" : "text-slate-600 hover:bg-slate-50"}`}>
+                <span className="inline-flex items-center gap-1.5"><IconBookmark filled={bookmarkedOnly} />북마크만</span>
+                <span className={`text-xs ${textSub}`}>{data?.posts.filter((post) => post.bookmarked).length ?? 0}</span>
+              </button>
+            </div>
+            <div className={`px-2 pb-2 pt-2 text-xs font-semibold ${textSub}`}>출처</div>
             <div className="space-y-0.5">
               <button onClick={() => setSource(SOURCE_ALL)} className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${source === SOURCE_ALL ? isDark ? "bg-indigo-500/15 font-semibold text-indigo-300" : "bg-indigo-50 font-semibold text-indigo-700" : isDark ? "text-white/60 hover:bg-white/5" : "text-slate-600 hover:bg-slate-50"}`}>
                 <span>전체</span>
@@ -411,7 +494,17 @@ export default function NewsTechBlogsPage() {
             ) : posts.length === 0 ? (
               <div className={`py-16 text-center text-sm ${textSub}`}>{query ? `"${query}"에 해당하는 글이 없습니다.` : "블로그 글이 없습니다."}</div>
             ) : (
-              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">{posts.map((post) => <BlogCard key={post.id} post={post} isDark={isDark} />)}</div>
+              <div className="grid grid-cols-1 items-stretch gap-3 xl:grid-cols-2">
+                {posts.map((post) => (
+                  <BlogCard
+                    key={post.id}
+                    post={post}
+                    isDark={isDark}
+                    onToggleBookmark={handleToggleBookmark}
+                    onMarkRead={handleMarkRead}
+                  />
+                ))}
+              </div>
             )}
           </div>
         </div>

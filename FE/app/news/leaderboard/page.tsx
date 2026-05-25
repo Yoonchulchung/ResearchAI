@@ -31,6 +31,45 @@ const PARAM_OPTIONS = [
   { value: "35", label: "≤35B" },
   { value: "80", label: "≤80B" },
 ];
+type SortDir = "asc" | "desc";
+
+function defaultSortDir(sortBy: string): SortDir {
+  return sortBy === "rank" || sortBy === "modelName" || sortBy === "modelType" ? "asc" : "desc";
+}
+
+function SortHeader({
+  label,
+  sortKey,
+  activeSort,
+  activeDir,
+  align = "left",
+  className = "",
+  onSort,
+}: {
+  label: string;
+  sortKey: string;
+  activeSort: string;
+  activeDir: SortDir;
+  align?: "left" | "right";
+  className?: string;
+  onSort: (sortKey: string) => void;
+}) {
+  const active = activeSort === sortKey;
+  return (
+    <th className={className}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex w-full items-center gap-1.5 transition hover:text-indigo-500 ${align === "right" ? "justify-end" : "justify-start"} ${active ? "text-indigo-500" : ""}`}
+      >
+        <span>{label}</span>
+        <span className={`text-[10px] ${active ? "opacity-100" : "opacity-30"}`}>
+          {active ? (activeDir === "asc" ? "▲" : "▼") : "↕"}
+        </span>
+      </button>
+    </th>
+  );
+}
 
 function IconRefresh({ spinning = false }: { spinning?: boolean }) {
   return (
@@ -139,6 +178,8 @@ export default function LeaderboardPage() {
   const [type, setType] = useState("");
   const [maxParams, setMaxParams] = useState("");
   const [page, setPage] = useState(0);
+  const [sortBy, setSortBy] = useState("rank");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const abortRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async (opts: {
@@ -147,6 +188,8 @@ export default function LeaderboardPage() {
     newType?: string;
     newMaxParams?: string;
     newCategory?: string;
+    newSortBy?: string;
+    newSortDir?: SortDir;
   } = {}) => {
     abortRef.current?.abort();
     abortRef.current = new AbortController();
@@ -154,6 +197,8 @@ export default function LeaderboardPage() {
     const currentType = opts.newType ?? type;
     const currentMax = opts.newMaxParams ?? maxParams;
     const currentCategory = opts.newCategory ?? category;
+    const currentSortBy = opts.newSortBy ?? sortBy;
+    const currentSortDir = opts.newSortDir ?? sortDir;
 
     setError(null);
     if (opts.refresh) setRefreshing(true);
@@ -166,6 +211,8 @@ export default function LeaderboardPage() {
         type: currentType || undefined,
         maxParams: currentMax ? parseFloat(currentMax) : undefined,
         refresh: opts.refresh,
+        sortBy: currentSortBy,
+        sortDir: currentSortDir,
       });
       setData(result);
     } catch (e) {
@@ -174,7 +221,7 @@ export default function LeaderboardPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [page, type, maxParams, category]);
+  }, [page, type, maxParams, category, sortBy, sortDir]);
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -188,6 +235,13 @@ export default function LeaderboardPage() {
   const textMain = isDark ? "text-white" : "text-slate-900";
   const textSub = isDark ? "text-white/50" : "text-slate-500";
   const selectClass = `rounded-lg border px-2.5 py-1.5 text-xs font-medium transition ${isDark ? "border-white/10 bg-white/5 text-white" : "border-slate-200 bg-white text-slate-700"}`;
+  const handleSort = useCallback((nextSortBy: string) => {
+    const nextDir = sortBy === nextSortBy ? (sortDir === "asc" ? "desc" : "asc") : defaultSortDir(nextSortBy);
+    setSortBy(nextSortBy);
+    setSortDir(nextDir);
+    setPage(0);
+    load({ newPage: 0, newSortBy: nextSortBy, newSortDir: nextDir });
+  }, [load, sortBy, sortDir]);
 
   return (
     <main className={`h-full overflow-y-auto ${pageBase}`}>
@@ -245,7 +299,7 @@ export default function LeaderboardPage() {
           {ALL_CATEGORIES.map(([id, label]) => (
             <button
               key={id}
-              onClick={() => { setCategory(id); setPage(0); setType(""); load({ newCategory: id, newPage: 0, newType: "" }); }}
+              onClick={() => { setCategory(id); setPage(0); setType(""); setSortBy("rank"); setSortDir("asc"); load({ newCategory: id, newPage: 0, newType: "", newSortBy: "rank", newSortDir: "asc" }); }}
               className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
                 category === id
                   ? isDark ? "border-indigo-400/40 bg-indigo-500/15 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"
@@ -317,13 +371,41 @@ export default function LeaderboardPage() {
               <table className="w-full">
                 <thead>
                   <tr className={`border-b text-left text-xs font-semibold uppercase tracking-wide ${isDark ? "border-white/10 text-white/35" : "border-slate-200 text-slate-400"}`}>
-                    <th className="w-10 py-3 pl-4 pr-2">#</th>
-                    <th className="py-3 pr-4">모델</th>
-                    <th className="py-3 pr-4 text-right">{CATEGORY_SCORE_LABEL[category] ?? "점수"}</th>
+                    <SortHeader
+                      label="#"
+                      sortKey="rank"
+                      activeSort={sortBy}
+                      activeDir={sortDir}
+                      className="w-10 py-3 pl-4 pr-2"
+                      onSort={handleSort}
+                    />
+                    <SortHeader
+                      label="모델"
+                      sortKey="modelName"
+                      activeSort={sortBy}
+                      activeDir={sortDir}
+                      className="py-3 pr-4"
+                      onSort={handleSort}
+                    />
+                    <SortHeader
+                      label={CATEGORY_SCORE_LABEL[category] ?? "점수"}
+                      sortKey="average"
+                      activeSort={sortBy}
+                      activeDir={sortDir}
+                      align="right"
+                      className="py-3 pr-4 text-right"
+                      onSort={handleSort}
+                    />
                     {tableBenchmarks.slice(0, 4).map((key, i) => (
-                      <th key={key} className={`py-3 pr-4 ${i >= 2 ? "hidden xl:table-cell" : "hidden md:table-cell"}`}>
-                        {benchmarkDefs[key] ?? key}
-                      </th>
+                      <SortHeader
+                        key={key}
+                        label={benchmarkDefs[key] ?? key}
+                        sortKey={key}
+                        activeSort={sortBy}
+                        activeDir={sortDir}
+                        className={`py-3 pr-4 ${i >= 2 ? "hidden xl:table-cell" : "hidden md:table-cell"}`}
+                        onSort={handleSort}
+                      />
                     ))}
                   </tr>
                 </thead>

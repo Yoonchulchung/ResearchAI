@@ -30,6 +30,12 @@ export class TechBlogPostEntity {
   @Column({ name: 'tags_json', type: 'text', default: '[]' })
   tagsJson: string;
 
+  @Column({ type: 'boolean', default: false })
+  bookmarked: boolean;
+
+  @Column({ name: 'read_at', type: 'text', nullable: true })
+  readAt: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

@@ -6,7 +6,7 @@ import { WorldMapCard } from "./components/WorldMapCard";
 import { MarketCard } from "./components/MarketCard";
 import { WeatherCard } from "./components/WeatherCard";
 import { TechBlogCard } from "./components/TechBlogCard";
-import { HotPapersCard } from "./components/HotPapersCard";
+import { PapersCard } from "./components/PapersCard";
 
 export default function MainPage() {
   return (
@@ -20,7 +20,7 @@ export default function MainPage() {
           <div className="md:col-span-2 flex flex-col gap-4">
             <WorldMapCard />
             <TechBlogCard />
-            <HotPapersCard />
+            <PapersCard />
           </div>
           <div className="md:col-span-1 flex flex-col gap-4">
             <WeatherCard />

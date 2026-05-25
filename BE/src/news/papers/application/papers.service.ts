@@ -1,20 +1,20 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { In, Repository } from 'typeorm';
-import { HotPaperEntity } from '../domain/entity/hot-paper.entity';
-import { HotPaperTrendSummaryEntity } from '../domain/entity/hot-paper-trend-summary.entity';
+import { PaperEntity } from '../domain/entity/paper.entity';
+import { PaperTrendSummaryEntity } from '../domain/entity/paper-trend-summary.entity';
 import { ContentRefreshStateEntity } from '../../../shared/entity/content-refresh-state.entity';
 import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
 import { AppConfigService, CONFIG_KEYS } from '../../../config/application/app-config.service';
 
-export interface HotPaperSource {
+export interface PaperSource {
   id: string;
   name: string;
   url: string;
 }
 
-export interface HotPaper {
+export interface Paper {
   id: string;
   sourceId: string;
   sourceName: string;
@@ -31,23 +31,25 @@ export interface HotPaper {
   aiSummary?: string;
   aiSummaryModel?: string;
   aiSummaryAt?: string;
+  bookmarked?: boolean;
+  readAt?: string;
 }
 
-export interface HotPaperListResult {
-  sources: HotPaperSource[];
-  papers: HotPaper[];
+export interface PaperListResult {
+  sources: PaperSource[];
+  papers: Paper[];
   errors: { sourceId: string; message: string }[];
   fetchedAt: string;
 }
 
-export interface HotPaperTrendKeyword {
+export interface PaperTrendKeyword {
   keyword: string;
   count: number;
 }
 
-export interface HotPaperTrendSummary {
+export interface PaperTrendSummary {
   summary: string;
-  keywords: HotPaperTrendKeyword[];
+  keywords: PaperTrendKeyword[];
   paperCount: number;
   sourceCount: number;
   generatedAt: string;
@@ -62,7 +64,7 @@ const TREND_STOPWORDS = new Set([
   'we', 'we', 'its', 'their', 'large', 'new', 'model', 'models', 'learning',
 ]);
 
-const SOURCES: HotPaperSource[] = [
+const SOURCES: PaperSource[] = [
   { id: 'huggingface-trending', name: 'Hugging Face Trending Papers', url: 'https://huggingface.co/papers' },
   { id: 'openreview-iclr', name: 'ICLR (OpenReview)', url: 'https://openreview.net/group?id=ICLR.cc/2025/Conference' },
   { id: 'openreview-icml', name: 'ICML (OpenReview)', url: 'https://openreview.net/group?id=ICML.cc/2025/Conference' },
@@ -128,18 +130,18 @@ type DblpHit = {
 };
 
 @Injectable()
-export class HotPapersService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(HotPapersService.name);
+export class PapersService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(PapersService.name);
   private refreshTimer: NodeJS.Timeout | null = null;
-  private refreshPromise: Promise<HotPaperListResult['errors']> | null = null;
-  private sourceRefreshPromises = new Map<string, Promise<HotPaperListResult['errors']>>();
-  private trendCache: { key: string; expiresAt: number; value: HotPaperTrendSummary } | null = null;
+  private refreshPromise: Promise<PaperListResult['errors']> | null = null;
+  private sourceRefreshPromises = new Map<string, Promise<PaperListResult['errors']>>();
+  private trendCache: { key: string; expiresAt: number; value: PaperTrendSummary } | null = null;
 
   constructor(
-    @InjectRepository(HotPaperEntity)
-    private readonly paperRepo: Repository<HotPaperEntity>,
-    @InjectRepository(HotPaperTrendSummaryEntity)
-    private readonly trendRepo: Repository<HotPaperTrendSummaryEntity>,
+    @InjectRepository(PaperEntity)
+    private readonly paperRepo: Repository<PaperEntity>,
+    @InjectRepository(PaperTrendSummaryEntity)
+    private readonly trendRepo: Repository<PaperTrendSummaryEntity>,
     @InjectRepository(ContentRefreshStateEntity)
     private readonly refreshStateRepo: Repository<ContentRefreshStateEntity>,
     private readonly aiProvider: AiProviderService,
@@ -167,8 +169,8 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     if (this.refreshTimer) clearInterval(this.refreshTimer);
   }
 
-  async getPapers(options: { source?: string; limit?: number; refresh?: boolean } = {}): Promise<HotPaperListResult> {
-    let errors: HotPaperListResult['errors'] = [];
+  async getPapers(options: { source?: string; limit?: number; refresh?: boolean; bookmarked?: boolean } = {}): Promise<PaperListResult> {
+    let errors: PaperListResult['errors'] = [];
     const cachedCount = await this.paperRepo.count();
     const requestedSource = options.source && options.source !== 'all' ? options.source : undefined;
     const requestedSourceCount = requestedSource
@@ -191,14 +193,14 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    const result: HotPaperListResult = {
+    const result: PaperListResult = {
       sources: SOURCES,
       papers: await this.readCachedPapers(),
       errors,
       fetchedAt: (await this.getLastRefreshAt()) ?? new Date(0).toISOString(),
     };
 
-    return this.filterResult(result, options.source, options.limit);
+    return this.filterResult(result, options.source, options.limit, options.bookmarked);
   }
 
   async summarizePaper(
@@ -219,10 +221,10 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
-    const hotPaper = this.toPaper(paper);
+    const paperModel = this.toPaper(paper);
     const system = `당신은 AI/ML 최신 논문을 한국어로 읽기 쉽게 설명하는 연구 애널리스트입니다.
 제공된 논문 메타데이터와 초록에 없는 내용은 만들지 말고, 실무자와 연구자가 빠르게 판단할 수 있게 요약하세요.`;
-    const prompt = this.buildAiSummaryPrompt(hotPaper);
+    const prompt = this.buildAiSummaryPrompt(paperModel);
     const { text } = await this.aiProvider.call(model, system, prompt, { caller: 'hot-paper-ai-summary' });
     const aiSummary = text.trim();
     const aiSummaryAt = new Date().toISOString();
@@ -235,9 +237,43 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     return { id, aiSummary, aiSummaryModel: model, aiSummaryAt, cached: false };
   }
 
-  async findById(id: string): Promise<HotPaper | null> {
+  async findById(id: string): Promise<Paper | null> {
     const entity = await this.paperRepo.findOne({ where: { id } });
     return entity ? this.toPaper(entity) : null;
+  }
+
+  async setBookmark(id: string, bookmarked: boolean): Promise<Paper> {
+    const entity = await this.paperRepo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException('논문을 찾을 수 없습니다.');
+    entity.bookmarked = bookmarked;
+    return this.toPaper(await this.paperRepo.save(entity));
+  }
+
+  async setRead(id: string, read = true): Promise<Paper> {
+    const entity = await this.paperRepo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException('논문을 찾을 수 없습니다.');
+    entity.readAt = read ? new Date().toISOString() : null;
+    return this.toPaper(await this.paperRepo.save(entity));
+  }
+
+  async getChatMessages(id: string): Promise<{ role: string; content: string }[]> {
+    const entity = await this.paperRepo.findOne({ where: { id } });
+    if (!entity) return [];
+    try { return JSON.parse(entity.chatMessagesJson ?? '[]'); } catch { return []; }
+  }
+
+  async saveChatMessages(id: string, messages: { role: string; content: string }[]): Promise<void> {
+    const entity = await this.paperRepo.findOne({ where: { id } });
+    if (!entity) return;
+    entity.chatMessagesJson = JSON.stringify(messages);
+    await this.paperRepo.save(entity);
+  }
+
+  async clearChatMessages(id: string): Promise<void> {
+    const entity = await this.paperRepo.findOne({ where: { id } });
+    if (!entity) return;
+    entity.chatMessagesJson = '[]';
+    await this.paperRepo.save(entity);
   }
 
   async fetchPdfBuffer(id: string): Promise<{ buffer: Buffer; filename: string } | null> {
@@ -263,7 +299,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async getTrendSummary(options: { model?: string; refresh?: boolean; onChunk?: (chunk: string) => void } = {}): Promise<HotPaperTrendSummary> {
+  async getTrendSummary(options: { model?: string; refresh?: boolean; onChunk?: (chunk: string) => void } = {}): Promise<PaperTrendSummary> {
     const model = options.model || await this.appConfig.get(CONFIG_KEYS.DEFAULT_CLOUD_MODEL, 'claude-haiku-4-5-20251001');
     const papers = await this.readCachedPapers();
     const keywords = this.extractTrendKeywords(papers).slice(0, 20);
@@ -283,7 +319,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (papers.length === 0) {
-      const value: HotPaperTrendSummary = {
+      const value: PaperTrendSummary = {
         summary: '분석할 논문이 없습니다. 먼저 새로고침으로 논문을 수집해 주세요.',
         keywords,
         paperCount: 0,
@@ -312,7 +348,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
       ({ text } = await this.aiProvider.call(model, systemPrompt, prompt, { caller: 'hot-paper-trend-summary' }));
     }
 
-    const value: HotPaperTrendSummary = {
+    const value: PaperTrendSummary = {
       summary: text.trim(),
       keywords,
       paperCount: papers.length,
@@ -326,7 +362,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     return value;
   }
 
-  async getLatestStoredTrendSummary(options: { model?: string } = {}): Promise<HotPaperTrendSummary | null> {
+  async getLatestStoredTrendSummary(options: { model?: string } = {}): Promise<PaperTrendSummary | null> {
     const candidates = await this.trendRepo.find({
       order: { generatedAt: 'DESC' },
       take: 20,
@@ -376,7 +412,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     await this.refreshSourceCache(sourceId);
   }
 
-  private async refreshCache(): Promise<HotPaperListResult['errors']> {
+  private async refreshCache(): Promise<PaperListResult['errors']> {
     if (this.refreshPromise) return this.refreshPromise;
 
     this.refreshPromise = this.collectAndStorePapers()
@@ -386,7 +422,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     return this.refreshPromise;
   }
 
-  private getSourceFetchers(): [string, () => Promise<HotPaper[]>][] {
+  private getSourceFetchers(): [string, () => Promise<Paper[]>][] {
     return [
       ['huggingface-trending', () => this.fetchHuggingFaceTrending()],
       ['openreview-iclr', () => this.fetchOpenReviewConference('openreview-iclr')],
@@ -407,7 +443,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     ];
   }
 
-  private async refreshSourceCache(sourceId: string): Promise<HotPaperListResult['errors']> {
+  private async refreshSourceCache(sourceId: string): Promise<PaperListResult['errors']> {
     const running = this.sourceRefreshPromises.get(sourceId);
     if (running) return running;
 
@@ -415,7 +451,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     const fetcher = this.getSourceFetchers().find(([id]) => id === sourceId)?.[1];
     if (!source || !fetcher) return [{ sourceId, message: '지원하지 않는 논문 출처입니다.' }];
 
-    const promise = (async (): Promise<HotPaperListResult['errors']> => {
+    const promise = (async (): Promise<PaperListResult['errors']> => {
       try {
         const papers = await fetcher();
         await this.storePapers(papers);
@@ -437,11 +473,11 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     return promise;
   }
 
-  private async collectAndStorePapers(): Promise<HotPaperListResult['errors']> {
+  private async collectAndStorePapers(): Promise<PaperListResult['errors']> {
     const fetchers = this.getSourceFetchers();
     const settled = await Promise.allSettled(fetchers.map(([, fn]) => fn()));
-    const papers: HotPaper[] = [];
-    const errors: HotPaperListResult['errors'] = [];
+    const papers: Paper[] = [];
+    const errors: PaperListResult['errors'] = [];
     const refreshedSourceIds: string[] = [];
 
     settled.forEach((result, index) => {
@@ -464,7 +500,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     return errors;
   }
 
-  private async storePapers(papers: HotPaper[]): Promise<void> {
+  private async storePapers(papers: Paper[]): Promise<void> {
     const deduped = this.dedupe(papers);
     if (deduped.length > 0) {
       const existing = await this.paperRepo.find({
@@ -484,14 +520,14 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async readCachedPapers(): Promise<HotPaper[]> {
+  private async readCachedPapers(): Promise<Paper[]> {
     const entities = await this.paperRepo.find({ order: { publishedAt: 'DESC', updatedAt: 'DESC' } });
     return entities
       .map((entity) => this.toPaper(entity))
       .sort((a, b) => this.paperSortValue(b) - this.paperSortValue(a));
   }
 
-  private async fetchHuggingFaceTrending(): Promise<HotPaper[]> {
+  private async fetchHuggingFaceTrending(): Promise<Paper[]> {
     const source = SOURCES.find((s) => s.id === 'huggingface-trending')!;
     const json = await this.fetchJson('https://huggingface.co/api/daily_papers') as Array<{
       paper?: {
@@ -508,7 +544,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     if (!Array.isArray(json)) throw new Error('HuggingFace API 응답 형식이 올바르지 않습니다.');
 
     return json
-      .map((entry): HotPaper | null => {
+      .map((entry): Paper | null => {
         const paper = entry.paper;
         if (!paper?.id || !paper.title) return null;
         const url = `https://huggingface.co/papers/${paper.id}`;
@@ -528,10 +564,10 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
           tags: ['AI', 'Trending'],
         };
       })
-      .filter((paper): paper is HotPaper => paper !== null);
+      .filter((paper): paper is Paper => paper !== null);
   }
 
-  private async fetchOpenReviewConference(sourceId: string): Promise<HotPaper[]> {
+  private async fetchOpenReviewConference(sourceId: string): Promise<Paper[]> {
     const source = SOURCES.find((s) => s.id === sourceId)!;
     const config = OPENREVIEW_CONFERENCES[sourceId];
     if (!config) throw new Error(`지원하지 않는 OpenReview source입니다: ${sourceId}`);
@@ -625,11 +661,11 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
 
   private parseOpenReviewNotes(
     notes: unknown[],
-    source: HotPaperSource,
+    source: PaperSource,
     config: { shortName: string; venuePrefix: string },
-  ): HotPaper[] {
+  ): Paper[] {
     return (notes as Array<Record<string, unknown>>)
-      .map((note): HotPaper | null => {
+      .map((note): Paper | null => {
         const c = (note.content ?? {}) as Record<string, { value?: unknown }>;
         const title = typeof c.title?.value === 'string' ? c.title.value.trim() : '';
         if (!title) return null;
@@ -657,10 +693,10 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
           tags: Array.from(new Set([config.shortName, venueYear, ...keywords].filter(Boolean) as string[])).slice(0, 8),
         };
       })
-      .filter((p): p is HotPaper => p !== null);
+      .filter((p): p is Paper => p !== null);
   }
 
-  private async fetchDblpConference(sourceId: string): Promise<HotPaper[]> {
+  private async fetchDblpConference(sourceId: string): Promise<Paper[]> {
     const source = SOURCES.find((s) => s.id === sourceId)!;
     const config = DBLP_CONFERENCES[sourceId];
     if (!config) throw new Error(`지원하지 않는 DBLP source입니다: ${sourceId}`);
@@ -680,7 +716,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     const hitsValue = json?.result?.hits?.hit;
     const hits = Array.isArray(hitsValue) ? hitsValue : hitsValue ? [hitsValue] : [];
     const papers = hits
-      .map((hit): HotPaper | null => {
+      .map((hit): Paper | null => {
         const info = hit.info;
         const title = this.cleanText(info?.title ?? '');
         const url = info?.url || this.firstString(info?.ee) || '';
@@ -709,7 +745,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
           upvotes: undefined,
         };
       })
-      .filter((paper): paper is HotPaper => paper !== null)
+      .filter((paper): paper is Paper => paper !== null)
       .filter((paper) => !paper.title.toLowerCase().startsWith('proceedings of'));
 
     if (papers.length === 0) throw new Error(`DBLP에서 ${config.shortName} 논문을 가져오지 못했습니다.`);
@@ -735,10 +771,13 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private filterResult(result: HotPaperListResult, source?: string, limit = 120): HotPaperListResult {
-    const papers = source && source !== 'all'
-      ? result.papers.filter((paper) => paper.sourceId === source)
+  private filterResult(result: PaperListResult, source?: string, limit = 120, bookmarked = false): PaperListResult {
+    const filtered = bookmarked
+      ? result.papers.filter((paper) => paper.bookmarked)
       : result.papers;
+    const papers = source && source !== 'all'
+      ? filtered.filter((paper) => paper.sourceId === source)
+      : filtered;
 
     return {
       ...result,
@@ -746,7 +785,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private dedupe(papers: HotPaper[]): HotPaper[] {
+  private dedupe(papers: Paper[]): Paper[] {
     const seen = new Set<string>();
     return papers.filter((paper) => {
       // Use paper.id as the dedup key: stripping query params breaks OpenReview URLs
@@ -781,7 +820,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
       .filter(Boolean);
   }
 
-  private toPaperEntity(paper: HotPaper): HotPaperEntity {
+  private toPaperEntity(paper: Paper): PaperEntity {
     return this.paperRepo.create({
       id: paper.id,
       sourceId: paper.sourceId,
@@ -802,7 +841,7 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private toPaper(entity: HotPaperEntity): HotPaper {
+  private toPaper(entity: PaperEntity): Paper {
     return {
       id: entity.id,
       sourceId: entity.sourceId,
@@ -820,10 +859,12 @@ export class HotPapersService implements OnModuleInit, OnModuleDestroy {
       pdfUrl: entity.pdfUrl ?? undefined,
       codeUrl: entity.codeUrl ?? undefined,
       tags: this.parseJsonArray(entity.tagsJson),
+      bookmarked: entity.bookmarked,
+      readAt: entity.readAt ?? undefined,
     };
   }
 
-  private buildAiSummaryPrompt(paper: HotPaper): string {
+  private buildAiSummaryPrompt(paper: Paper): string {
     const authors = paper.authors.length ? paper.authors.slice(0, 12).join(', ') : '저자 정보 없음';
     const tags = paper.tags.length ? paper.tags.join(', ') : '태그 없음';
     const summary = paper.summary?.trim() || '수집된 초록/요약이 없습니다. 제목과 메타데이터만 근거로 제한적으로 요약하세요.';
@@ -891,7 +932,7 @@ ${summary}
     }));
   }
 
-  private paperSortValue(paper: HotPaper): number {
+  private paperSortValue(paper: Paper): number {
     const dateValue = paper.publishedAt ? new Date(paper.publishedAt).getTime() : 0;
     const safeDateValue = Number.isNaN(dateValue) ? 0 : dateValue;
     return safeDateValue + (paper.upvotes ?? 0);
@@ -906,7 +947,7 @@ ${summary}
     }
   }
 
-  private extractTrendKeywords(papers: HotPaper[]): HotPaperTrendKeyword[] {
+  private extractTrendKeywords(papers: Paper[]): PaperTrendKeyword[] {
     const counts = new Map<string, number>();
     for (const paper of papers) {
       const text = [paper.title, paper.summary ?? '', ...paper.tags].join(' ');
@@ -932,7 +973,7 @@ ${summary}
       .map((token) => token.length > 30 ? token.slice(0, 30) : token);
   }
 
-  private buildTrendPrompt(papers: HotPaper[], keywords: HotPaperTrendKeyword[]): string {
+  private buildTrendPrompt(papers: Paper[], keywords: PaperTrendKeyword[]): string {
     const paperLines = papers.slice(0, 120).map((paper, index) => {
       const authors = paper.authors.length ? ` / 저자: ${paper.authors.slice(0, 4).join(', ')}` : '';
       const summary = paper.summary ? ` - ${paper.summary.slice(0, 120)}` : '';
@@ -968,7 +1009,7 @@ ${paperLines}
 - 3~5개`;
   }
 
-  private trendCacheKey(options: { model: string; papers: HotPaper[] }): string {
+  private trendCacheKey(options: { model: string; papers: Paper[] }): string {
     const hash = createHash('sha256')
       .update(options.papers.map((p) => `${p.id}:${p.publishedAt ?? ''}`).join('|'))
       .digest('hex')
@@ -979,7 +1020,7 @@ ${paperLines}
   private async readStoredTrendSummary(
     cacheKey: string,
     now = Date.now(),
-  ): Promise<{ value: HotPaperTrendSummary; expiresAtMs: number } | null> {
+  ): Promise<{ value: PaperTrendSummary; expiresAtMs: number } | null> {
     const entity = await this.trendRepo.findOne({ where: { cacheKey } });
     if (!entity) return null;
     const expiresAtMs = new Date(entity.expiresAt).getTime();
@@ -999,7 +1040,7 @@ ${paperLines}
     };
   }
 
-  private async storeTrendSummary(cacheKey: string, value: HotPaperTrendSummary): Promise<void> {
+  private async storeTrendSummary(cacheKey: string, value: PaperTrendSummary): Promise<void> {
     const expiresAt = new Date(Date.now() + TREND_CACHE_MS).toISOString();
     await this.trendRepo.save(this.trendRepo.create({
       cacheKey,
@@ -1013,11 +1054,11 @@ ${paperLines}
     }));
   }
 
-  private parseTrendKeywords(value: string): HotPaperTrendKeyword[] {
+  private parseTrendKeywords(value: string): PaperTrendKeyword[] {
     try {
       const parsed = JSON.parse(value);
       if (!Array.isArray(parsed)) return [];
-      return parsed.filter((item): item is HotPaperTrendKeyword => (
+      return parsed.filter((item): item is PaperTrendKeyword => (
         item && typeof item === 'object' &&
         typeof item.keyword === 'string' &&
         typeof item.count === 'number'

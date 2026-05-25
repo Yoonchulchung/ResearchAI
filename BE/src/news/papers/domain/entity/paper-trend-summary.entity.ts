@@ -3,7 +3,7 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColum
 @Entity('hot_paper_trend_summary')
 @Index(['generatedAt'])
 @Index(['expiresAt'])
-export class HotPaperTrendSummaryEntity {
+export class PaperTrendSummaryEntity {
   @PrimaryColumn({ name: 'cache_key', type: 'text' })
   cacheKey: string;
 

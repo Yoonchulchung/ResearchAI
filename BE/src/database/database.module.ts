@@ -19,8 +19,8 @@ import { AiCallLogEntity } from '../ai/domain/entity/ai-call-log.entity';
 import { UserEntity } from '../auth/domain/entity/user.entity';
 import { LoginHistoryEntity } from '../auth/domain/entity/login-history.entity';
 import { SessionJobEntity } from '../sessions/domain/entity/session-job.entity';
-import { HotPaperEntity } from '../news/hot-papers/domain/entity/hot-paper.entity';
-import { HotPaperTrendSummaryEntity } from '../news/hot-papers/domain/entity/hot-paper-trend-summary.entity';
+import { PaperEntity } from '../news/papers/domain/entity/paper.entity';
+import { PaperTrendSummaryEntity } from '../news/papers/domain/entity/paper-trend-summary.entity';
 import { AiLeaderboardEntryEntity } from '../news/ai-leaderboard/domain/entity/ai-leaderboard-entry.entity';
 import { TechBlogPostEntity } from '../news/tech-blog/domain/entity/tech-blog-post.entity';
 import { TechBlogTrendSummaryEntity } from '../news/tech-blog/domain/entity/tech-blog-trend-summary.entity';
@@ -58,7 +58,7 @@ mkdirSync(dirname(databasePath), { recursive: true });
                  ExperienceEntity, DocumentEntity,
                  CompanyAnalysisEntity, SessionJobEntity,
                  AiCallLogEntity, UserEntity, LoginHistoryEntity,
-                 HotPaperEntity, HotPaperTrendSummaryEntity, AiLeaderboardEntryEntity,
+                 PaperEntity, PaperTrendSummaryEntity, AiLeaderboardEntryEntity,
                  TechBlogPostEntity, TechBlogTrendSummaryEntity, ContentRefreshStateEntity,
                  ExamEventEntity, ResumeEntity, CoverLetterEntity,
                  CoverLetterSpecAnalysisEntity],

@@ -37,28 +37,42 @@ export interface LeaderboardResult {
   category: string;
 }
 
+export type LeaderboardSortDir = 'asc' | 'desc';
+
 export const CATEGORY_LABELS: Record<string, string> = {
   llm: 'LLM',
   vlm: 'Vision-Language',
   asr: 'Speech (ASR)',
+  tts: 'Speech (TTS)',
   code: 'Code',
   'text-to-image': 'Text-to-Image',
+  'image-editing': 'Image Editing',
+  'text-to-video': 'Text-to-Video',
+  'image-to-video': 'Image-to-Video',
 };
 
 export const CATEGORY_SCORE_LABEL: Record<string, string> = {
   llm: '평균 점수',
   vlm: '평균 점수',
   asr: '정확도 (100-WER)',
+  tts: '품질 점수',
   code: 'Pass@1',
-  'text-to-image': 'HF 좋아요 (K)',
+  'text-to-image': '품질 점수',
+  'image-editing': '품질 점수',
+  'text-to-video': '품질 점수',
+  'image-to-video': '품질 점수',
 };
 
 export const CATEGORY_BENCHMARK_DEFS: Record<string, Record<string, string>> = {
   llm:    { ifeval: 'IFEval', bbh: 'BBH', mathLvl5: 'MATH Lvl 5', gpqa: 'GPQA', musr: 'MUSR', mmluPro: 'MMLU-PRO' },
   vlm:    { mmbench: 'MMBench', mmstar: 'MMStar', mmmu: 'MMMU', mathvista: 'MathVista', ai2d: 'AI2D', hallusionbench: 'HallusionBench', ocrbench: 'OCRBench' },
   asr:    { libriSpeechClean: 'LibriSpeech (clean)', libriSpeechOther: 'LibriSpeech (other)', commonVoice: 'Common Voice', voxpopuli: 'VoxPopuli', earnings22: 'Earnings22' },
+  tts:    { elo: 'AA Elo', appearances: 'Samples', categoryBestElo: 'Best Category Elo', categoryCount: 'Categories' },
   code:   { humanEval: 'HumanEval', mbpp: 'MBPP', humanEvalPlus: 'HumanEval+', mbppPlus: 'MBPP+', ds1000: 'DS-1000' },
-  'text-to-image': { hfLikes: 'HF 좋아요', hfDownloads: 'HF 다운로드 (K)' },
+  'text-to-image': { elo: 'AA Elo', appearances: 'Samples', categoryBestElo: 'Best Category Elo', categoryCount: 'Categories' },
+  'image-editing': { elo: 'AA Elo', appearances: 'Samples', aaRank: 'AA Rank', hfLikes: 'HF 좋아요' },
+  'text-to-video': { elo: 'AA Elo', appearances: 'Samples', categoryBestElo: 'Best Category Elo', categoryCount: 'Categories' },
+  'image-to-video': { elo: 'AA Elo', appearances: 'Samples', categoryBestElo: 'Best Category Elo', categoryCount: 'Categories' },
 };
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_LABELS);
@@ -80,6 +94,13 @@ interface NormalizedEntry {
 
 const LLM_DATASET_BASE = 'https://datasets-server.huggingface.co/rows?dataset=open-llm-leaderboard%2Fcontents&config=default&split=train&length=100';
 const ARTIFICIAL_ANALYSIS_LLM_MODELS_URL = 'https://artificialanalysis.ai/api/v2/data/llms/models';
+const ARTIFICIAL_ANALYSIS_MEDIA_ENDPOINTS: Record<string, string> = {
+  tts: 'https://artificialanalysis.ai/api/v2/data/media/text-to-speech',
+  'text-to-image': 'https://artificialanalysis.ai/api/v2/data/media/text-to-image?include_categories=true',
+  'image-editing': 'https://artificialanalysis.ai/api/v2/data/media/image-editing',
+  'text-to-video': 'https://artificialanalysis.ai/api/v2/data/media/text-to-video?include_categories=true',
+  'image-to-video': 'https://artificialanalysis.ai/api/v2/data/media/image-to-video?include_categories=true',
+};
 const OPEN_VLM_RESULTS_URL = 'http://opencompass.openxlab.space/assets/OpenVLM.json';
 const FETCH_TIMEOUT_MS = 20_000;
 const DAILY_REFRESH_MS = 24 * 60 * 60 * 1000;
@@ -146,6 +167,8 @@ export class AiLeaderboardService implements OnModuleInit, OnModuleDestroy {
     maxParams?: number;
     minParams?: number;
     refresh?: boolean;
+    sortBy?: string;
+    sortDir?: LeaderboardSortDir;
   } = {}): Promise<LeaderboardResult> {
     const category = options.category ?? 'llm';
     const count = await this.repo.count({ where: { category } });
@@ -159,21 +182,60 @@ export class AiLeaderboardService implements OnModuleInit, OnModuleDestroy {
     const offset = options.offset ?? 0;
 
     let qb = this.repo.createQueryBuilder('e')
-      .where('e.category = :category', { category })
-      .orderBy('e.rank', 'ASC');
+      .where('e.category = :category', { category });
     if (options.type) qb = qb.andWhere('e.modelType = :type', { type: options.type });
     if (options.maxParams != null) qb = qb.andWhere('e.params <= :maxP', { maxP: options.maxParams });
     if (options.minParams != null) qb = qb.andWhere('e.params >= :minP', { minP: options.minParams });
 
     const total = await qb.clone().getCount();
-    const entities = await qb.skip(offset).take(limit).getMany();
+    const entities = await qb.getMany();
+    const sorted = entities
+      .map((e) => this.toEntry(e))
+      .sort((a, b) => this.compareEntries(a, b, options.sortBy ?? 'rank', options.sortDir ?? 'asc'))
+      .slice(offset, offset + limit);
 
     return {
-      entries: entities.map((e) => this.toEntry(e)),
+      entries: sorted,
       total,
       fetchedAt: this.lastFetchedAt ?? entities[0]?.fetchedAt ?? null,
       category,
     };
+  }
+
+  private compareEntries(a: AiModelEntry, b: AiModelEntry, sortBy: string, sortDir: LeaderboardSortDir): number {
+    const dir = sortDir === 'desc' ? -1 : 1;
+    const valueOf = (entry: AiModelEntry): string | number | null => {
+      switch (sortBy) {
+        case 'rank': return entry.rank;
+        case 'model':
+        case 'modelName': return entry.modelName || entry.fullname;
+        case 'org': return entry.org;
+        case 'average': return entry.average;
+        case 'params': return entry.params;
+        case 'likes': return entry.likes;
+        case 'sourceCount': return entry.sourceCount;
+        case 'type':
+        case 'modelType': return entry.modelType;
+        default:
+          if (sortBy in entry) {
+            const value = (entry as unknown as Record<string, unknown>)[sortBy];
+            return typeof value === 'number' || typeof value === 'string' ? value : null;
+          }
+          return entry.benchmarks?.[sortBy] ?? null;
+      }
+    };
+
+    const av = valueOf(a);
+    const bv = valueOf(b);
+    if (av == null && bv == null) return a.rank - b.rank;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === 'string' || typeof bv === 'string') {
+      const result = String(av).localeCompare(String(bv), 'ko');
+      return result === 0 ? a.rank - b.rank : result * dir;
+    }
+    const result = av === bv ? 0 : av > bv ? 1 : -1;
+    return result === 0 ? a.rank - b.rank : result * dir;
   }
 
   async getTopN(n = 5, category = 'llm'): Promise<AiModelEntry[]> {
@@ -225,8 +287,12 @@ export class AiLeaderboardService implements OnModuleInit, OnModuleDestroy {
       this.fetchAndStoreLlm(),
       this.fetchAndStoreVlm(),
       this.fetchAndStoreAsr(),
+      this.fetchAndStoreTts(),
       this.fetchAndStoreCode(),
       this.fetchAndStoreTextToImage(),
+      this.fetchAndStoreImageEditing(),
+      this.fetchAndStoreTextToVideo(),
+      this.fetchAndStoreImageToVideo(),
     ]);
     this.lastFetchedAt = new Date().toISOString();
     this.logger.log('AI leaderboard refresh complete');
@@ -633,9 +699,114 @@ export class AiLeaderboardService implements OnModuleInit, OnModuleDestroy {
 
   private async fetchAndStoreTextToImage(): Promise<void> {
     this.logger.log('Fetching Text-to-Image models...');
-    const entries = await this.fetchHfPopularityEntries('text-to-image', 'text-to-image', 120);
+    const artificialAnalysisEntries = await this.fetchArtificialAnalysisMediaEntries('text-to-image');
+    const hfEntries = await this.fetchHfPopularityEntries('text-to-image', 'text-to-image', 120);
+    const entries = artificialAnalysisEntries.length > 0
+      ? this.mergeEntriesByModel('text-to-image', [artificialAnalysisEntries, hfEntries])
+      : hfEntries;
     await this.storeEntries(entries, 'text-to-image');
     this.logger.log(`Stored ${entries.length} Text-to-Image entries`);
+  }
+
+  // ─── Artificial Analysis Media Categories ───────────────────────────────────
+
+  private async fetchAndStoreTts(): Promise<void> {
+    this.logger.log('Fetching Text-to-Speech models...');
+    const entries = await this.fetchArtificialAnalysisMediaEntries('tts');
+    await this.storeEntries(entries, 'tts');
+    this.logger.log(`Stored ${entries.length} Text-to-Speech entries`);
+  }
+
+  private async fetchAndStoreImageEditing(): Promise<void> {
+    this.logger.log('Fetching Image Editing models...');
+    const entries = await this.fetchArtificialAnalysisMediaEntries('image-editing');
+    await this.storeEntries(entries, 'image-editing');
+    this.logger.log(`Stored ${entries.length} Image Editing entries`);
+  }
+
+  private async fetchAndStoreTextToVideo(): Promise<void> {
+    this.logger.log('Fetching Text-to-Video models...');
+    const entries = await this.fetchArtificialAnalysisMediaEntries('text-to-video');
+    await this.storeEntries(entries, 'text-to-video');
+    this.logger.log(`Stored ${entries.length} Text-to-Video entries`);
+  }
+
+  private async fetchAndStoreImageToVideo(): Promise<void> {
+    this.logger.log('Fetching Image-to-Video models...');
+    const entries = await this.fetchArtificialAnalysisMediaEntries('image-to-video');
+    await this.storeEntries(entries, 'image-to-video');
+    this.logger.log(`Stored ${entries.length} Image-to-Video entries`);
+  }
+
+  private async fetchArtificialAnalysisMediaEntries(category: string): Promise<NormalizedEntry[]> {
+    const endpoint = ARTIFICIAL_ANALYSIS_MEDIA_ENDPOINTS[category];
+    if (!endpoint) return [];
+
+    const apiKey = await this.getArtificialAnalysisApiKey();
+    if (!apiKey) {
+      this.logger.warn(`Artificial Analysis API key is not configured; skipping ${category}.`);
+      return [];
+    }
+
+    const response = await this.fetchJson(endpoint, {
+      'x-api-key': apiKey,
+      Accept: 'application/json',
+    }) as { data?: unknown[] };
+
+    type ArtificialMediaModel = {
+      id?: string;
+      name?: string;
+      slug?: string;
+      model_creator?: { name?: string; slug?: string };
+      elo?: unknown;
+      rank?: unknown;
+      ci95?: string;
+      appearances?: unknown;
+      release_date?: string;
+      categories?: Array<Record<string, unknown>>;
+    };
+
+    const rows = (Array.isArray(response.data) ? response.data : []) as ArtificialMediaModel[];
+    const eloValues = rows.map((row) => nAny(row.elo)).filter((value): value is number => value != null);
+    const minElo = Math.min(...eloValues);
+    const maxElo = Math.max(...eloValues);
+
+    return rows.map((row): NormalizedEntry | null => {
+      const fullname = String(row.name ?? row.slug ?? row.id ?? '').trim();
+      if (!fullname) return null;
+      const creator = row.model_creator ?? {};
+      const org = String(creator.name ?? creator.slug ?? '').trim();
+      const elo = nAny(row.elo);
+      const qualityScore = this.normalizeRangeScore(elo, minElo, maxElo);
+      const categoryElos = (row.categories ?? [])
+        .map((item) => nAny(item.elo))
+        .filter((value): value is number => value != null);
+      const categoryBestElo = categoryElos.length > 0 ? Math.max(...categoryElos) : null;
+      const appearances = nAny(row.appearances);
+
+      return {
+        id: this.entryId(category, fullname),
+        fullname,
+        org,
+        modelName: fullname,
+        average: qualityScore,
+        params: null,
+        modelType: null,
+        license: null,
+        architecture: row.release_date ?? null,
+        likes: null,
+        benchmarks: {
+          elo,
+          aaRank: nAny(row.rank),
+          appearances,
+          categoryBestElo,
+          categoryCount: categoryElos.length || null,
+        },
+        sourceScores: {
+          'Artificial Analysis Elo': qualityScore,
+        },
+      };
+    }).filter(Boolean) as NormalizedEntry[];
   }
 
   // ─── Shared helpers ──────────────────────────────────────────────────────────
@@ -821,6 +992,12 @@ export class AiLeaderboardService implements OnModuleInit, OnModuleDestroy {
     const valid = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
     if (valid.length === 0) return null;
     return Math.round((valid.reduce((sum, value) => sum + value, 0) / valid.length) * 100) / 100;
+  }
+
+  private normalizeRangeScore(value: number | null, min: number, max: number): number | null {
+    if (value == null || !Number.isFinite(min) || !Number.isFinite(max)) return value;
+    if (max <= min) return 100;
+    return Math.round(((value - min) / (max - min)) * 1000) / 10;
   }
 
   private percentScore(value: unknown): number | null {

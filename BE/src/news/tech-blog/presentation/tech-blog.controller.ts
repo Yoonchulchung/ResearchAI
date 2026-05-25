@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import { TechBlogService } from '../application/tech-blog.service';
 import type { TechBlogListResult, TechBlogSource, TechBlogTrendSummary } from '../domain/tech-blog.types';
 
@@ -16,13 +16,31 @@ export class TechBlogController {
     @Query('source') source = 'all',
     @Query('limit') limitStr = '120',
     @Query('refresh') refresh = 'false',
+    @Query('bookmarked') bookmarked = 'false',
   ): Promise<TechBlogListResult> {
     const limit = parseInt(limitStr, 10) || 120;
     return this.techBlogService.getPosts({
       source,
       limit,
       refresh: refresh === 'true' || refresh === '1',
+      bookmarked: bookmarked === 'true' || bookmarked === '1',
     });
+  }
+
+  @Patch('posts/:id/bookmark')
+  setBookmark(
+    @Param('id') id: string,
+    @Body() body: { bookmarked?: boolean } = {},
+  ) {
+    return this.techBlogService.setBookmark(decodeURIComponent(id), body.bookmarked === true);
+  }
+
+  @Patch('posts/:id/read')
+  setRead(
+    @Param('id') id: string,
+    @Body() body: { read?: boolean } = {},
+  ) {
+    return this.techBlogService.setRead(decodeURIComponent(id), body.read !== false);
   }
 
   @Get('trends')

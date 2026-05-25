@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { listTechBlogPosts, type TechBlogPost } from "@/lib/api/tech-blogs";
+import { listTechBlogPosts, markTechBlogRead, type TechBlogPost } from "@/lib/api/tech-blogs";
 
 function IconFeed() {
   return (
@@ -10,6 +10,14 @@ function IconFeed() {
       <circle cx="4.5" cy="13.5" r="1.4" fill="currentColor" />
       <path d="M3.5 8.5C6.8 8.5 9.5 11.2 9.5 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       <path d="M3.5 4C9.3 4 14 8.7 14 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconBookmark({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg className="h-3 w-3" viewBox="0 0 18 18" fill={filled ? "currentColor" : "none"} aria-hidden="true">
+      <path d="M5 3.25h8v11.5L9 12.3l-4 2.45V3.25Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -47,6 +55,17 @@ export function TechBlogCard() {
     };
   }, []);
 
+  const handleMarkRead = (post: TechBlogPost) => {
+    if (post.readAt) return;
+    const readAt = new Date().toISOString();
+    setPosts((prev) => prev.map((item) => item.id === post.id ? { ...item, readAt } : item));
+    markTechBlogRead(post.id).then((updated) => {
+      setPosts((prev) => prev.map((item) => item.id === post.id ? updated : item));
+    }).catch(() => {
+      setPosts((prev) => prev.map((item) => item.id === post.id ? { ...item, readAt: undefined } : item));
+    });
+  };
+
   return (
     <div className="glass-panel rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
@@ -78,18 +97,26 @@ export function TechBlogCard() {
       ) : posts.length === 0 ? (
         <p className="text-xs text-slate-400 text-center py-6">표시할 글이 없습니다</p>
       ) : (
-        <ul className="max-h-[480px] space-y-1 overflow-y-auto pr-1">
+        <ul className="max-h-[340px] space-y-1 overflow-y-auto pr-1">
           {posts.map((post) => (
             <li key={post.id}>
               <a
                 href={post.url}
                 target="_blank"
                 rel="noreferrer"
-                className="block rounded-lg px-1 py-2 transition-colors hover:bg-slate-50"
+                onClick={() => handleMarkRead(post)}
+                className={`block rounded-lg px-1 py-2 transition-colors hover:bg-slate-50 ${post.readAt ? "opacity-60" : ""}`}
               >
                 <div className="flex items-center gap-2 text-2xs text-slate-400">
                   <span className="truncate font-semibold text-indigo-500">{post.sourceName}</span>
                   {post.publishedAt && <span className="shrink-0">{formatDate(post.publishedAt)}</span>}
+                  {post.bookmarked && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-600">
+                      <IconBookmark filled />
+                      북마크
+                    </span>
+                  )}
+                  {post.readAt && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-400">읽음</span>}
                 </div>
                 <p className="mt-0.5 line-clamp-2 text-xs font-medium leading-relaxed text-slate-700">
                   {post.title}

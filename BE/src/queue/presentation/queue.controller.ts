@@ -201,31 +201,31 @@ export class QueueController {
     return obs;
   }
 
-  // ***************** //
-  // Hot Paper Summary //
-  // ***************** //
-  @Post('hot-paper-summary')
+  // ************* //
+  // Paper Summary //
+  // ************* //
+  @Post('paper-summary')
   @HttpCode(202)
-  async enqueueHotPaperSummary(
+  async enqueuePaperSummary(
     @Body() body: { id: string; model?: string; refresh?: boolean },
   ) {
     if (!body.id?.trim()) throw new BadRequestException('id가 필요합니다.');
-    return this.queueService.enqueueHotPaperSummary({
+    return this.queueService.enqueuePaperSummary({
       id: body.id,
       model: body.model,
       refresh: body.refresh === true,
     });
   }
 
-  @Delete('hot-paper-summary/:jobId')
-  cancelHotPaperSummary(@Param('jobId') jobId: string) {
-    this.queueService.cancelHotPaperSummary(jobId);
+  @Delete('paper-summary/:jobId')
+  cancelPaperSummary(@Param('jobId') jobId: string) {
+    this.queueService.cancelPaperSummary(jobId);
     return { ok: true };
   }
 
-  @Sse('hot-paper-summary/:jobId/stream')
-  streamHotPaperSummary(@Param('jobId') jobId: string): Observable<MessageEvent> {
-    const obs = this.queueService.getHotPaperSummaryStream(jobId);
+  @Sse('paper-summary/:jobId/stream')
+  streamPaperSummary(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getPaperSummaryStream(jobId);
     if (!obs) throw new BadRequestException('진행 중인 논문 요약 작업이 없습니다.');
     return obs;
   }
@@ -233,23 +233,23 @@ export class QueueController {
   // **************** //
   // Hot Paper Trend  //
   // **************** //
-  @Post('hot-paper-trend')
+  @Post('paper-trend')
   @HttpCode(202)
-  async enqueueHotPaperTrend(
+  async enqueuePaperTrend(
     @Body() body: { model?: string; refresh?: boolean },
   ) {
-    return this.queueService.enqueueHotPaperTrend(body);
+    return this.queueService.enqueuePaperTrend(body);
   }
 
-  @Delete('hot-paper-trend/:jobId')
-  cancelHotPaperTrend(@Param('jobId') jobId: string) {
-    this.queueService.cancelHotPaperTrend(jobId);
+  @Delete('paper-trend/:jobId')
+  cancelPaperTrend(@Param('jobId') jobId: string) {
+    this.queueService.cancelPaperTrend(jobId);
     return { ok: true };
   }
 
-  @Sse('hot-paper-trend/:jobId/stream')
-  streamHotPaperTrend(@Param('jobId') jobId: string): Observable<MessageEvent> {
-    const obs = this.queueService.getHotPaperTrendStream(jobId);
+  @Sse('paper-trend/:jobId/stream')
+  streamPaperTrend(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getPaperTrendStream(jobId);
     if (!obs) throw new BadRequestException('진행 중인 논문 트렌드 분석 작업이 없습니다.');
     return obs;
   }
@@ -257,6 +257,20 @@ export class QueueController {
   // *********** //
   // Doc Parse   //
   // *********** //
+  @Post('doc-parse/ask')
+  @HttpCode(202)
+  async enqueueDocParseAsk(@Body() body: { docText: string; question: string; model?: string }) {
+    if (!body.docText || !body.question) throw new BadRequestException('docText와 question이 필요합니다');
+    return this.queueService.enqueueDocParseAsk(body.docText, body.question, body.model ?? '');
+  }
+
+  @Post('doc-parse/action')
+  @HttpCode(202)
+  async enqueueDocParseAction(@Body() body: { action: string; docText?: string; pages?: string[]; model?: string }) {
+    if (!body.action) throw new BadRequestException('action이 필요합니다');
+    return this.queueService.enqueueDocParseAction(body.action, body.docText, body.pages, body.model ?? '');
+  }
+
   @Delete('doc-parse/:jobId')
   cancelDocParse(@Param('jobId') jobId: string) {
     this.queueService.cancelDocParse(jobId);
