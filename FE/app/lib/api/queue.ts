@@ -56,6 +56,16 @@ export interface QueueStatus {
 
 export const getQueueStatus = () => apiFetch<QueueStatus>("/queue/status");
 
+export interface DataSourceQueueStatus {
+  name: "dart" | "namu-wiki" | "saramin" | "jasoseol";
+  pending: number;
+  running: number;
+  cacheSize: number;
+}
+
+export const getDataSourceQueueStatus = () =>
+  apiFetch<DataSourceQueueStatus[]>("/queue/data-sources/status");
+
 export const cancelSummary = (sessionId: string) =>
   apiFetch(`/queue/sessions/${sessionId}/summary`, { method: "DELETE" });
 

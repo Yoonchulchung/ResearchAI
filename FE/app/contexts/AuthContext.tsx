@@ -30,7 +30,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (tokenStore.get()) {
+    const hasCookie = typeof document !== "undefined" &&
+      document.cookie.split(";").some((c) => c.trim().startsWith("auth_token="));
+    if (tokenStore.get() || hasCookie) {
       refreshUser().finally(() => setLoading(false));
     } else {
       setLoading(false);

@@ -37,22 +37,22 @@ export class NewsSummaryService {
     }
   }
 
-  private async getSummaryCache(cacheKey: string): Promise<{ summary: string; generatedAt: string } | null> {
+  private async getSummaryCache(cacheKey: string): Promise<{ summary: string; generatedAt: string; aiModel: string | null } | null> {
     const cached = await this.briefingRepo.findOneBy({ date: cacheKey });
-    if (cached?.summary) return { summary: cached.summary, generatedAt: cached.updatedAt.toISOString() };
+    if (cached?.summary) return { summary: cached.summary, generatedAt: cached.updatedAt.toISOString(), aiModel: cached.aiModel ?? null };
     return null;
   }
 
-  private async setSummaryCache(cacheKey: string, summary: string): Promise<void> {
+  private async setSummaryCache(cacheKey: string, summary: string, model: string): Promise<void> {
     const existing = await this.briefingRepo.findOneBy({ date: cacheKey });
     if (existing) {
-      await this.briefingRepo.update({ date: cacheKey }, { summary });
+      await this.briefingRepo.update({ date: cacheKey }, { summary, aiModel: model });
     } else {
-      await this.briefingRepo.save({ date: cacheKey, titlesHash: '', summary, rawData: null });
+      await this.briefingRepo.save({ date: cacheKey, titlesHash: '', summary, rawData: null, aiModel: model });
     }
   }
 
-  async getGithubSummary(since: string): Promise<{ summary: string; generatedAt: string; cached: boolean }> {
+  async getGithubSummary(since: string): Promise<{ summary: string; generatedAt: string; cached: boolean; aiModel: string | null }> {
     const validSince = ['daily', 'weekly', 'monthly'].includes(since) ? since : 'daily';
     const today = this.getTodayKey();
     const summaryCacheKey = `github-${validSince}-${today}`;
@@ -78,11 +78,11 @@ export class NewsSummaryService {
       '',
       `다음은 GitHub에서 ${periodLabel} 가장 핫한 저장소 목록이야.\n\n${repoList}\n\n위 저장소들을 분석해서 현재 개발자 커뮤니티에서 주목받는 트렌드 3~5개를 뽑아줘.\n각 항목은 아래 형식으로 작성해:\n\n• [트렌드]: 실제 저장소명을 포함해 한 문장으로 설명해줘.\n\n어떤 기능이 주요 관심사인지 알려줘.`,
     );
-    await this.setSummaryCache(summaryCacheKey, summary);
-    return { summary, generatedAt: new Date().toISOString(), cached: false };
+    await this.setSummaryCache(summaryCacheKey, summary, model);
+    return { summary, generatedAt: new Date().toISOString(), cached: false, aiModel: model };
   }
 
-  async getHfSummary(category: string): Promise<{ summary: string; generatedAt: string; cached: boolean }> {
+  async getHfSummary(category: string): Promise<{ summary: string; generatedAt: string; cached: boolean; aiModel: string | null }> {
     const validCategory = ['models', 'datasets', 'spaces'].includes(category) ? category : 'models';
     const today = this.getTodayKey();
     const summaryCacheKey = `hf-${validCategory}-${today}`;
@@ -108,11 +108,11 @@ export class NewsSummaryService {
       '',
       `다음은 Hugging Face에서 현재 가장 트렌딩인 ${categoryLabel} 목록이야.\n\n${itemList}\n\n위 항목들을 분석해서 현재 AI/ML 커뮤니티에서 주목받는 트렌드 3~5개를 뽑아줘.\n각 항목은 아래 형식으로 작성해:\n\n• [트렌드]: 실제 ${categoryLabel}명을 포함해 한 문장으로 설명해줘.\n\n어떤 기능이 주요 관심사인지 알려줘.`,
     );
-    await this.setSummaryCache(summaryCacheKey, summary);
-    return { summary, generatedAt: new Date().toISOString(), cached: false };
+    await this.setSummaryCache(summaryCacheKey, summary, model);
+    return { summary, generatedAt: new Date().toISOString(), cached: false, aiModel: model };
   }
 
-  async getNewsSummary(): Promise<{ summary: string; generatedAt: string; cached: boolean }> {
+  async getNewsSummary(): Promise<{ summary: string; generatedAt: string; cached: boolean; aiModel: string | null }> {
     const today = this.getTodayKey();
     const summaryCacheKey = `news-${today}`;
     const rawCacheKey = `raw-news-titles-${today}`;
@@ -140,7 +140,7 @@ export class NewsSummaryService {
       '',
       `다음은 오늘의 실시간 뉴스 헤드라인 목록이야.\n\n[헤드라인]\n${titleSample.join('\n')}\n\n위 헤드라인을 분석해서 오늘의 주요 뉴스 5개를 뽑아줘.\n각 항목은 아래 형식으로 작성해:\n\n• [구체적 사실]: 실제 기사에 등장한 기업명·인물명·수치·지명 등을 반드시 포함해서 한 문장으로 설명해줘. 검색하면 바로 찾을 수 있을 만큼 구체적으로 써줘.\n\n추상적인 표현("기술 발전", "경제 위기" 등) 없이, 헤드라인에 있는 고유명사와 구체적 내용만 사용해.`,
     );
-    await this.setSummaryCache(summaryCacheKey, summary);
-    return { summary, generatedAt: new Date().toISOString(), cached: false };
+    await this.setSummaryCache(summaryCacheKey, summary, model);
+    return { summary, generatedAt: new Date().toISOString(), cached: false, aiModel: model };
   }
 }

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CompanyAnalysisService } from '../../../company-analysis/application/company-analysis.service';
-import { CompanyAnalysisProgress, CompanyAnalysisDto } from '../../../company-analysis/domain/company-analysis.types';
+import { CompanyAnalysisService } from '../../../company/application/company-analysis.service';
+import { CompanyAnalysisProgress, CompanyAnalysisDto } from '../../../company/domain/company-analysis.types';
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1_500;
@@ -31,7 +31,7 @@ export class CompanyAnalysisExecutorService {
       try {
         let result: CompanyAnalysisDto | null = null;
 
-        for await (const event of this.companyAnalysisService.analyzeStream(companyName, model)) {
+        for await (const event of this.companyAnalysisService.analyzeStream(companyName, model, signal)) {
           if (signal?.aborted) return null;
           onEvent(event);
           if (event.type === 'error') {

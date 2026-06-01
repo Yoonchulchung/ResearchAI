@@ -26,10 +26,19 @@ import { SpecAnalysisExecutorService } from './job/spec-analysis-executor.servic
 import { TechBlogTrendExecutorService, TechBlogTrendRequest } from './job/tech-blog-trend-executor.service';
 import { PaperSummaryExecutorService, PaperSummaryRequest } from './job/paper-summary-executor.service';
 import { PaperTrendExecutorService, PaperTrendRequest } from './job/paper-trend-executor.service';
+import { NewsArticleSummaryExecutorService, NewsArticleSummaryRequest } from './job/news-article-summary-executor.service';
+import {
+  ResumeCoverLetterCategoryExecutorService,
+  ResumeCoverLetterCategoryRequest,
+} from './job/resume-cover-letter-category-executor.service';
+import {
+  ResumeCoverLetterRefinedTitleExecutorService,
+  ResumeCoverLetterRefinedTitleRequest,
+} from './job/resume-cover-letter-refined-title-executor.service';
 import { QueueJobRepository } from '../domain/repository/queue-job.repository';
 import { QueueJobDbStatus } from '../domain/entity/queue-job.entity';
 import { randomUUID } from 'crypto';
-import { CompanyAnalysisProgress } from '../../company-analysis/domain/company-analysis.types';
+import { CompanyAnalysisProgress } from '../../company/domain/company-analysis.types';
 import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 
 @Injectable()
@@ -54,6 +63,12 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   private paperSummarySubjects = new Map<string, Subject<MessageEvent>>();
   private paperTrendSubjects = new Map<string, Subject<MessageEvent>>();
   private paperTrendAccumulated = new Map<string, string>();
+  private newsArticleSummarySubjects = new Map<string, Subject<MessageEvent>>();
+  private newsArticleSummaryAccumulated = new Map<string, string>();
+  private resumeCoverLetterCategorySubjects = new Map<string, Subject<MessageEvent>>();
+  private resumeCoverLetterCategoryAccumulated = new Map<string, MessageEvent[]>();
+  private resumeCoverLetterRefinedTitleSubjects = new Map<string, Subject<MessageEvent>>();
+  private resumeCoverLetterRefinedTitleAccumulated = new Map<string, MessageEvent[]>();
   private cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private runningCount = 0;
 
@@ -78,6 +93,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     private readonly techBlogTrendExecutor: TechBlogTrendExecutorService,
     private readonly paperSummaryExecutor: PaperSummaryExecutorService,
     private readonly paperTrendExecutor: PaperTrendExecutorService,
+    private readonly newsArticleSummaryExecutor: NewsArticleSummaryExecutorService,
+    private readonly resumeCoverLetterCategoryExecutor: ResumeCoverLetterCategoryExecutorService,
+    private readonly resumeCoverLetterRefinedTitleExecutor: ResumeCoverLetterRefinedTitleExecutorService,
     private readonly queueJobRepository: QueueJobRepository,
     private readonly sessionGateway: SessionGateway,
     private readonly aiProvider: AiProviderService,
@@ -179,6 +197,15 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     for (const subject of this.paperTrendSubjects.values()) {
       subject.complete();
     }
+    for (const subject of this.newsArticleSummarySubjects.values()) {
+      subject.complete();
+    }
+    for (const subject of this.resumeCoverLetterCategorySubjects.values()) {
+      subject.complete();
+    }
+    for (const subject of this.resumeCoverLetterRefinedTitleSubjects.values()) {
+      subject.complete();
+    }
     for (const timer of this.cleanupTimers.values()) {
       clearTimeout(timer);
     }
@@ -272,6 +299,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       [QueueJob.TaskType.WRITEASSIST_SPELLCHECK]: '맞춤법',
       [QueueJob.TaskType.WRITEASSIST_SUMMARIZE]: '요약',
       [QueueJob.TaskType.WRITEASSIST_EXAMPLE]: '예시 생성',
+      [QueueJob.TaskType.WRITEASSIST_JD_EVALUATE]: 'JD 분석',
       [QueueJob.TaskType.COMPANYPROFILE]: '기업 프로필',
       [QueueJob.TaskType.COMPANYANALYSIS]: '기업 분석',
       [QueueJob.TaskType.DOCPARSE_ASK]: '문서 질문',
@@ -280,6 +308,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       [QueueJob.TaskType.TECH_BLOG_TREND]: 'AI 트렌드 분석',
       [QueueJob.TaskType.PAPER_SUMMARY]: '논문 AI 요약',
       [QueueJob.TaskType.PAPER_TREND]: '논문 트렌드 분석',
+      [QueueJob.TaskType.NEWS_ARTICLE_SUMMARY]: '뉴스 AI 요약',
+      [QueueJob.TaskType.RESUME_COVER_LETTER_CATEGORY]: '자기소개서 카테고리 분류',
+      [QueueJob.TaskType.RESUME_COVER_LETTER_REFINED_TITLE]: '자기소개서 제목 재작성',
     };
     return labels[taskType] ?? taskType;
   }
@@ -495,6 +526,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       spellcheck: QueueJob.TaskType.WRITEASSIST_SPELLCHECK,
       summarize: QueueJob.TaskType.WRITEASSIST_SUMMARIZE,
       example:   QueueJob.TaskType.WRITEASSIST_EXAMPLE,
+      jd_evaluate: QueueJob.TaskType.WRITEASSIST_JD_EVALUATE,
     };
     const taskType = ACTION_TO_TASK_TYPE[action];
     if (!taskType) throw new Error(`알 수 없는 액션: ${action}`);
@@ -815,7 +847,6 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   // Paper Summary //
   // ************* //
   async enqueuePaperSummary(request: PaperSummaryRequest): Promise<{ jobId: string }> {
-    console.log("!!");
 
     const jobId = randomUUID();
     this.paperSummarySubjects.set(jobId, new Subject<MessageEvent>());
@@ -833,7 +864,6 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   getPaperSummaryStream(jobId: string): Observable<MessageEvent> | null {
-    console.log("@@");
     return this.paperSummarySubjects.get(jobId) ?? null;
   }
 
@@ -893,6 +923,156 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     subject?.complete();
     this.paperTrendSubjects.delete(jobId);
     this.paperTrendAccumulated.delete(jobId);
+  }
+
+  // **************** //
+  // News AI Summary  //
+  // **************** //
+  async enqueueNewsArticleSummary(request: NewsArticleSummaryRequest): Promise<{ jobId: string }> {
+    const jobId = randomUUID();
+    this.newsArticleSummarySubjects.set(jobId, new Subject<MessageEvent>());
+    this.newsArticleSummaryAccumulated.set(jobId, '');
+    await this.pushJob({
+      jobId,
+      sessionId: jobId,
+      itemId: request.url || request.title,
+      itemContent: JSON.stringify(request),
+      taskType: QueueJob.TaskType.NEWS_ARTICLE_SUMMARY,
+      localAIModel: '',
+      CloudAIModel: request.model ?? '',
+      status: QueueJobStatus.PENDING,
+    });
+    return { jobId };
+  }
+
+  getNewsArticleSummaryStream(jobId: string): Observable<MessageEvent> | null {
+    const subject = this.newsArticleSummarySubjects.get(jobId);
+    const accumulated = this.newsArticleSummaryAccumulated.get(jobId) ?? '';
+    if (!subject) {
+      if (accumulated) {
+        return of(
+          { data: { type: SseEventType.CHUNK, text: accumulated } } as MessageEvent,
+          { data: { type: SseEventType.DONE } } as MessageEvent,
+        );
+      }
+      return null;
+    }
+    if (accumulated) {
+      return concat(
+        of({ data: { type: SseEventType.CHUNK, text: accumulated } } as MessageEvent),
+        subject.asObservable(),
+      );
+    }
+    return subject.asObservable();
+  }
+
+  cancelNewsArticleSummary(jobId: string): void {
+    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.NEWS_ARTICLE_SUMMARY);
+    if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
+      this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
+      this.abortControllers.get(job.jobId)?.abort();
+    }
+    const subject = this.newsArticleSummarySubjects.get(jobId);
+    subject?.next({ data: { type: SseEventType.ERROR, message: '뉴스 요약이 중단되었습니다.' } });
+    subject?.complete();
+    this.newsArticleSummarySubjects.delete(jobId);
+    this.newsArticleSummaryAccumulated.delete(jobId);
+  }
+
+  // ******************************* //
+  // Resume Cover Letter Categories  //
+  // ******************************* //
+  async enqueueResumeCoverLetterCategories(request: ResumeCoverLetterCategoryRequest): Promise<{ jobId: string }> {
+    const jobId = randomUUID();
+    this.resumeCoverLetterCategorySubjects.set(jobId, new Subject<MessageEvent>());
+    this.resumeCoverLetterCategoryAccumulated.set(jobId, []);
+    await this.pushJob({
+      jobId,
+      sessionId: jobId,
+      itemId: '',
+      itemContent: JSON.stringify(request),
+      taskType: QueueJob.TaskType.RESUME_COVER_LETTER_CATEGORY,
+      localAIModel: '',
+      CloudAIModel: request.model ?? 'gemini-2.0-flash',
+      status: QueueJobStatus.PENDING,
+    });
+    return { jobId };
+  }
+
+  getResumeCoverLetterCategoryStream(jobId: string): Observable<MessageEvent> | null {
+    const subject = this.resumeCoverLetterCategorySubjects.get(jobId);
+    const accumulated = this.resumeCoverLetterCategoryAccumulated.get(jobId) ?? [];
+    if (!subject) {
+      if (accumulated.length > 0) {
+        return concat(from(accumulated), of({ data: { type: SseEventType.DONE } } as MessageEvent));
+      }
+      return null;
+    }
+    if (accumulated.length > 0) {
+      return concat(from(accumulated), subject.asObservable());
+    }
+    return subject.asObservable();
+  }
+
+  cancelResumeCoverLetterCategories(jobId: string): void {
+    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.RESUME_COVER_LETTER_CATEGORY);
+    if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
+      this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
+      this.abortControllers.get(job.jobId)?.abort();
+    }
+    const subject = this.resumeCoverLetterCategorySubjects.get(jobId);
+    subject?.next({ data: { type: SseEventType.ERROR, message: '카테고리 분류가 중단되었습니다.' } });
+    subject?.complete();
+    this.resumeCoverLetterCategorySubjects.delete(jobId);
+    this.resumeCoverLetterCategoryAccumulated.delete(jobId);
+  }
+
+  // *************************************** //
+  // Resume Cover Letter Refined Title       //
+  // *************************************** //
+  async enqueueResumeCoverLetterRefinedTitle(request: ResumeCoverLetterRefinedTitleRequest): Promise<{ jobId: string }> {
+    const jobId = randomUUID();
+    this.resumeCoverLetterRefinedTitleSubjects.set(jobId, new Subject<MessageEvent>());
+    this.resumeCoverLetterRefinedTitleAccumulated.set(jobId, []);
+    await this.pushJob({
+      jobId,
+      sessionId: jobId,
+      itemId: '',
+      itemContent: JSON.stringify(request),
+      taskType: QueueJob.TaskType.RESUME_COVER_LETTER_REFINED_TITLE,
+      localAIModel: '',
+      CloudAIModel: request.model ?? 'gemini-2.0-flash',
+      status: QueueJobStatus.PENDING,
+    });
+    return { jobId };
+  }
+
+  getResumeCoverLetterRefinedTitleStream(jobId: string): Observable<MessageEvent> | null {
+    const subject = this.resumeCoverLetterRefinedTitleSubjects.get(jobId);
+    const accumulated = this.resumeCoverLetterRefinedTitleAccumulated.get(jobId) ?? [];
+    if (!subject) {
+      if (accumulated.length > 0) {
+        return concat(from(accumulated), of({ data: { type: SseEventType.DONE } } as MessageEvent));
+      }
+      return null;
+    }
+    if (accumulated.length > 0) {
+      return concat(from(accumulated), subject.asObservable());
+    }
+    return subject.asObservable();
+  }
+
+  cancelResumeCoverLetterRefinedTitle(jobId: string): void {
+    const job = this.jobs.find((j) => j.jobId === jobId && j.taskType === QueueJob.TaskType.RESUME_COVER_LETTER_REFINED_TITLE);
+    if (job && (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING)) {
+      this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
+      this.abortControllers.get(job.jobId)?.abort();
+    }
+    const subject = this.resumeCoverLetterRefinedTitleSubjects.get(jobId);
+    subject?.next({ data: { type: SseEventType.ERROR, message: '제목 재작성이 중단되었습니다.' } });
+    subject?.complete();
+    this.resumeCoverLetterRefinedTitleSubjects.delete(jobId);
+    this.resumeCoverLetterRefinedTitleAccumulated.delete(jobId);
   }
 
   // ********* //
@@ -1019,6 +1199,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         const timer = setTimeout(() => {
           this.jobs = this.jobs.filter((j) => j.jobId !== jobId);
           this.docParseAccumulated.delete(jobId);
+          this.newsArticleSummaryAccumulated.delete(jobId);
+          this.resumeCoverLetterCategoryAccumulated.delete(jobId);
+          this.resumeCoverLetterRefinedTitleAccumulated.delete(jobId);
           this.cleanupTimers.delete(jobId);
         }, QueueService.DONE_JOB_TTL_MS);
         this.cleanupTimers.set(jobId, timer);
@@ -1235,6 +1418,66 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.paperTrendAccumulated.delete(job.jobId);
         this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: JSON.stringify(trendResult) });
 
+      } else if (job.taskType === QueueJob.TaskType.NEWS_ARTICLE_SUMMARY) {
+
+        const subject = this.newsArticleSummarySubjects.get(job.jobId);
+        const request = JSON.parse(job.itemContent) as NewsArticleSummaryRequest;
+        subject?.next({ data: { type: SseEventType.LOG, message: '뉴스 본문을 확인하고 AI 요약을 생성하는 중입니다.' } });
+        const fullText = await this.newsArticleSummaryExecutor.execute(
+          request,
+          (chunk) => {
+            this.newsArticleSummaryAccumulated.set(job.jobId, (this.newsArticleSummaryAccumulated.get(job.jobId) ?? '') + chunk);
+            subject?.next({ data: { type: SseEventType.CHUNK, text: chunk } });
+          },
+          controller.signal,
+        );
+        subject?.next({ data: { type: SseEventType.DONE, payload: { summary: fullText } } });
+        subject?.complete();
+        this.newsArticleSummarySubjects.delete(job.jobId);
+        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: fullText });
+
+      } else if (job.taskType === QueueJob.TaskType.RESUME_COVER_LETTER_CATEGORY) {
+
+        const subject = this.resumeCoverLetterCategorySubjects.get(job.jobId);
+        const request = JSON.parse(job.itemContent) as ResumeCoverLetterCategoryRequest;
+        const pushEvent = (event: MessageEvent) => {
+          const accumulated = this.resumeCoverLetterCategoryAccumulated.get(job.jobId) ?? [];
+          accumulated.push(event);
+          this.resumeCoverLetterCategoryAccumulated.set(job.jobId, accumulated);
+          subject?.next(event);
+        };
+        pushEvent({ data: { type: SseEventType.LOG, message: '자기소개서 카테고리 분류를 준비합니다.' } });
+        const result = await this.resumeCoverLetterCategoryExecutor.execute(
+          request,
+          (message) => pushEvent({ data: { type: SseEventType.LOG, message } }),
+          controller.signal,
+        );
+        pushEvent({ data: { type: SseEventType.DONE, payload: result } });
+        subject?.complete();
+        this.resumeCoverLetterCategorySubjects.delete(job.jobId);
+        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: JSON.stringify(result) });
+
+      } else if (job.taskType === QueueJob.TaskType.RESUME_COVER_LETTER_REFINED_TITLE) {
+
+        const subject = this.resumeCoverLetterRefinedTitleSubjects.get(job.jobId);
+        const request = JSON.parse(job.itemContent) as ResumeCoverLetterRefinedTitleRequest;
+        const pushEvent = (event: MessageEvent) => {
+          const accumulated = this.resumeCoverLetterRefinedTitleAccumulated.get(job.jobId) ?? [];
+          accumulated.push(event);
+          this.resumeCoverLetterRefinedTitleAccumulated.set(job.jobId, accumulated);
+          subject?.next(event);
+        };
+        pushEvent({ data: { type: SseEventType.LOG, message: '자기소개서 제목 재작성을 준비합니다.' } });
+        const refinedResult = await this.resumeCoverLetterRefinedTitleExecutor.execute(
+          request,
+          (message) => pushEvent({ data: { type: SseEventType.LOG, message } }),
+          controller.signal,
+        );
+        pushEvent({ data: { type: SseEventType.DONE, payload: refinedResult } });
+        subject?.complete();
+        this.resumeCoverLetterRefinedTitleSubjects.delete(job.jobId);
+        this.updateJob(job.jobId, { status: QueueJobStatus.DONE, phase: undefined, result: JSON.stringify(refinedResult) });
+
       } else if (job.taskType === QueueJob.TaskType.SUMMARY) {
 
         const subject = this.summarySubjects.get(job.sessionId);
@@ -1346,6 +1589,30 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         subject?.complete();
         this.paperTrendSubjects.delete(job.jobId);
         this.paperTrendAccumulated.delete(job.jobId);
+
+      } else if (job.taskType === QueueJob.TaskType.NEWS_ARTICLE_SUMMARY) {
+
+        const subject = this.newsArticleSummarySubjects.get(job.jobId);
+        subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
+        subject?.complete();
+        this.newsArticleSummarySubjects.delete(job.jobId);
+        this.newsArticleSummaryAccumulated.delete(job.jobId);
+
+      } else if (job.taskType === QueueJob.TaskType.RESUME_COVER_LETTER_CATEGORY) {
+
+        const subject = this.resumeCoverLetterCategorySubjects.get(job.jobId);
+        subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
+        subject?.complete();
+        this.resumeCoverLetterCategorySubjects.delete(job.jobId);
+        this.resumeCoverLetterCategoryAccumulated.delete(job.jobId);
+
+      } else if (job.taskType === QueueJob.TaskType.RESUME_COVER_LETTER_REFINED_TITLE) {
+
+        const subject = this.resumeCoverLetterRefinedTitleSubjects.get(job.jobId);
+        subject?.next({ data: { type: SseEventType.ERROR, message: msg } });
+        subject?.complete();
+        this.resumeCoverLetterRefinedTitleSubjects.delete(job.jobId);
+        this.resumeCoverLetterRefinedTitleAccumulated.delete(job.jobId);
 
       }
     } finally {

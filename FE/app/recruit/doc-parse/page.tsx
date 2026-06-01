@@ -15,6 +15,7 @@ import {
 import { useModels } from "@/sessions/new/hooks/useModels";
 import { DEFAULT_FREE_MODEL_ID } from "@/sessions/new/hooks/useNewSession";
 import { useTheme } from "@/contexts/ThemeContext";
+import { createId } from "@/lib/crypto";
 
 const PdfVisualViewer = dynamic(() => import("./_components/PdfVisualViewer"), { ssr: false });
 
@@ -29,7 +30,7 @@ function authHeaders(includeJsonContentType = true): Record<string, string> {
     headers["Authorization"] = `Bearer ${token}`;
   } else if (typeof window !== "undefined") {
     let anonId = localStorage.getItem("anon_id");
-    if (!anonId) { anonId = crypto.randomUUID(); localStorage.setItem("anon_id", anonId); }
+    if (!anonId) { anonId = createId(); localStorage.setItem("anon_id", anonId); }
     headers["X-Anon-Id"] = anonId;
   }
   return headers;
@@ -94,6 +95,7 @@ export default function DocParsePage() {
   const [isReady, setIsReady] = useState(false);
   const [filename, setFilename] = useState("");
   const [pageCount, setPageCount] = useState(0);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -128,6 +130,20 @@ export default function DocParsePage() {
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+  }, []);
+
+  const restorePdfSourceFromCache = useCallback(async () => {
+    const cachedFile = pdfFileCache.get() ?? await loadPdfDraftFile().catch(() => null);
+    if (!cachedFile) return false;
+
+    pdfFileCache.set(cachedFile);
+    setPdfFile(cachedFile);
+    setPdfDataUrl((current) => current);
+    setPdfUrl((current) => {
+      if (current) return current;
+      return URL.createObjectURL(cachedFile);
+    });
+    return true;
   }, []);
 
   const scrollToPage = useCallback((page: number) => {
@@ -267,10 +283,12 @@ export default function DocParsePage() {
           if (draft.selectedModel) setSelectedModel(draft.selectedModel);
 
           // IndexedDB 캐시 복원 비동기 처리
-          const cachedFile = pdfFileCache.consume() ?? await loadPdfDraftFile().catch(() => null);
+          const cachedFile = pdfFileCache.get() ?? await loadPdfDraftFile().catch(() => null);
 
           if (!cancelled) {
             if (cachedFile) {
+              pdfFileCache.set(cachedFile);
+              setPdfFile(cachedFile);
               const blobUrl = URL.createObjectURL(cachedFile);
               setPdfUrl(blobUrl);
               if (draft.pdfDataUrl) setPdfDataUrl(draft.pdfDataUrl);
@@ -303,7 +321,7 @@ export default function DocParsePage() {
     return () => {
       cancelled = true;
     };
-  }, [subscribeToStream]);
+  }, [restorePdfSourceFromCache, subscribeToStream]);
 
   // ── 세션 저장 ──
   useEffect(() => {
@@ -336,6 +354,7 @@ export default function DocParsePage() {
     setCurrentPage(0);
     setMessages([]);
     if (pdfUrl && pdfUrl.startsWith("blob:")) URL.revokeObjectURL(pdfUrl);
+    setPdfFile(file);
     setPdfDataUrl(null);
 
     const objectUrl = URL.createObjectURL(file);
@@ -365,7 +384,7 @@ export default function DocParsePage() {
       if (Array.isArray(data.pages) && data.pages.length > 0) setViewMode("visual");
       const charCount = Math.ceil(text.length / 1000);
       setMessages([{
-        id: crypto.randomUUID(), role: "assistant",
+        id: createId(), role: "assistant",
         content: text
           ? `**${file.name}** 파일이 업로드되었습니다. (${data.pageCount}페이지, ${charCount}K 글자)\n\n질문하거나 아래 빠른 실행 버튼을 사용해보세요.`
           : `**${file.name}** 파일이 업로드되었습니다.\n\n텍스트를 추출하지 못했습니다. 스캔된 이미지 PDF이거나 암호화된 파일일 수 있습니다.`,
@@ -373,11 +392,17 @@ export default function DocParsePage() {
       scrollToBottom();
     } catch {
       setIsReady(false);
-      setMessages([{ id: crypto.randomUUID(), role: "assistant", content: "파일 파싱에 실패했습니다." }]);
+      setMessages([{ id: createId(), role: "assistant", content: "파일 파싱에 실패했습니다." }]);
     } finally {
       setUploading(false);
     }
   };
+
+  useEffect(() => {
+    if (!hydrated || !isReady || viewMode !== "visual") return;
+    if (pdfFile || pdfUrl || pdfDataUrl) return;
+    void restorePdfSourceFromCache();
+  }, [hydrated, isReady, pdfDataUrl, pdfFile, pdfUrl, restorePdfSourceFromCache, viewMode]);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -387,12 +412,12 @@ export default function DocParsePage() {
 
   const sendMessage = async (question: string) => {
     if (!question.trim() || !isReady || loading) return;
-    setMessages((m) => [...m, { id: crypto.randomUUID(), role: "user", content: question }]);
+    setMessages((m) => [...m, { id: createId(), role: "user", content: question }]);
     setInput("");
     setLoading(true);
     scrollToBottom();
 
-    const msgId = crypto.randomUUID();
+    const msgId = createId();
     setMessages((m) => [...m, { id: msgId, role: "assistant", content: "", streaming: true }]);
 
     try {
@@ -421,10 +446,10 @@ export default function DocParsePage() {
   const runQuickAction = async (action: QuickAction) => {
     if (!isReady || loading) return;
     const label = QUICK_ACTIONS.find((a) => a.value === action)?.label ?? action;
-    const msgId = crypto.randomUUID();
+    const msgId = createId();
     setMessages((m) => [
       ...m,
-      { id: crypto.randomUUID(), role: "user", content: `${label} 실행` },
+      { id: createId(), role: "user", content: `${label} 실행` },
       { id: msgId, role: "assistant", content: "", streaming: true, markdown: MARKDOWN_ACTIONS.has(action) },
     ]);
     setLoading(true);
@@ -465,10 +490,10 @@ export default function DocParsePage() {
     const pageText = docPages[page] ?? docText;
     if (!pageText.trim() || !isReady || loading) return;
 
-    const msgId = crypto.randomUUID();
+    const msgId = createId();
     setMessages((m) => [
       ...m,
-      { id: crypto.randomUUID(), role: "user", content: `${page + 1}페이지 분석` },
+      { id: createId(), role: "user", content: `${page + 1}페이지 분석` },
       { id: msgId, role: "assistant", content: "", streaming: true, markdown: true },
     ]);
     setLoading(true);
@@ -506,6 +531,8 @@ export default function DocParsePage() {
         : bold;
       return <p key={i} className="leading-relaxed" dangerouslySetInnerHTML={{ __html: bullet }} />;
     });
+
+  const pdfViewerFile = pdfFile ?? pdfDataUrl ?? pdfUrl;
 
   if (!hydrated) {
     return (
@@ -600,7 +627,7 @@ export default function DocParsePage() {
               </div>
             )}
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-              className={`${isReady && docPages.length > 0 && pdfUrl ? "" : "ml-auto"} shrink-0 text-xs font-semibold px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors`}>
+              className={`${isReady && docPages.length > 0 && pdfViewerFile ? "" : "ml-auto"} shrink-0 text-xs font-semibold px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors`}>
               {uploading ? "파싱 중..." : "파일 열기"}
             </button>
             <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md" className="hidden"
@@ -610,9 +637,9 @@ export default function DocParsePage() {
           <div className="flex-1 overflow-hidden relative" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
 
             {/* 시각적 PDF 뷰 — react-pdf 캔버스 렌더링 */}
-            {viewMode === "visual" && (pdfDataUrl ?? pdfUrl) && (
+            {viewMode === "visual" && pdfViewerFile && (
               <PdfVisualViewer
-                file={(pdfDataUrl ?? pdfUrl)!}
+                file={pdfViewerFile}
                 onPageChange={setCurrentPage}
                 onAnalyzePage={analyzeCurrentPage}
                 scrollRequest={scrollRequest}
@@ -680,7 +707,7 @@ export default function DocParsePage() {
             )}
 
             {/* 파일 미업로드 플레이스홀더 */}
-            {!pdfUrl && !docPages.length && (
+            {!pdfViewerFile && !docPages.length && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-slate-400">
                 <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
                   <svg width="28" height="28" viewBox="0 0 28 28" fill="none" className="text-slate-400">

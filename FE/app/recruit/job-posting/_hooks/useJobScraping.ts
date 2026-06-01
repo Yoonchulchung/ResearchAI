@@ -5,7 +5,13 @@ import {
   startJobScraping,
   stopJobScraping,
   getJobScrapingStatus,
+  startCollectDetail,
+  stopCollectDetail,
+  getCollectDetailStatus,
   type JobScrapingStatus,
+  type CollectDetailStatus,
+  type CollectDetailConfig,
+  type JobkoreaCompanyType,
 } from "@/lib/api/recruit/job-posting";
 
 export function useJobScraping(onScrapeDone: () => void) {
@@ -13,6 +19,20 @@ export function useJobScraping(onScrapeDone: () => void) {
   const [scrapeLoading, setScrapeLoading] = useState(false);
   const [scrapeSource, setScrapeSource] = useState<"linkareer" | "jobkorea" | "catch" | "jobplanet" | "jobda" | "all">("all");
   const [linkareerJobType, setLinkareerJobType] = useState<"INTERN" | "RECRUIT">("INTERN");
+  const [jobkoreaCompanyTypes, setJobkoreaCompanyTypes] = useState<JobkoreaCompanyType[]>([]);
+
+  const [collectStatus, setCollectStatus] = useState<CollectDetailStatus | null>(null);
+  const [collectLoading, setCollectLoading] = useState(false);
+  const [collectConfig, setCollectConfig] = useState<CollectDetailConfig>({
+    model: "claude-sonnet-4-6",
+    enableVlm: true,
+    maxItems: 0,
+    skipExisting: true,
+    companyTypes: [],
+    jobTypes: ["신입", "인턴"],
+    jobs: ["IT", "전자"],
+  });
+  const collectTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const statusTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onScrapeDoneRef = useRef(onScrapeDone);
@@ -20,6 +40,7 @@ export function useJobScraping(onScrapeDone: () => void) {
 
   useEffect(() => {
     getJobScrapingStatus().then(setStatus).catch(() => {});
+    getCollectDetailStatus().then(setCollectStatus).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -47,7 +68,7 @@ export function useJobScraping(onScrapeDone: () => void) {
         scrapeSource === "all"
           ? { source: "all" }
           : scrapeSource === "jobkorea"
-            ? { source: "jobkorea" }
+            ? { source: "jobkorea", jobkoreaCompanyTypes }
             : scrapeSource === "catch"
               ? { source: "catch" }
               : scrapeSource === "jobplanet"
@@ -75,6 +96,44 @@ export function useJobScraping(onScrapeDone: () => void) {
     }
   };
 
+  // ── 채용 상세 수집 ──────────────────────────────────────────
+  useEffect(() => {
+    if (collectStatus?.running) {
+      collectTimerRef.current = setInterval(async () => {
+        try {
+          const s = await getCollectDetailStatus();
+          setCollectStatus(s);
+          if (!s.running) clearInterval(collectTimerRef.current!);
+        } catch {}
+      }, 2000);
+    }
+    return () => {
+      if (collectTimerRef.current) clearInterval(collectTimerRef.current);
+    };
+  }, [collectStatus?.running]);
+
+  const handleCollectStart = async () => {
+    setCollectLoading(true);
+    try {
+      await startCollectDetail(collectConfig);
+      const s = await getCollectDetailStatus();
+      setCollectStatus(s);
+    } finally {
+      setCollectLoading(false);
+    }
+  };
+
+  const handleCollectStop = async () => {
+    setCollectLoading(true);
+    try {
+      await stopCollectDetail();
+      const s = await getCollectDetailStatus();
+      setCollectStatus(s);
+    } finally {
+      setCollectLoading(false);
+    }
+  };
+
   return {
     status,
     scrapeLoading,
@@ -82,7 +141,15 @@ export function useJobScraping(onScrapeDone: () => void) {
     setScrapeSource,
     linkareerJobType,
     setLinkareerJobType,
+    jobkoreaCompanyTypes,
+    setJobkoreaCompanyTypes,
     handleStart,
     handleStop,
+    collectStatus,
+    collectLoading,
+    collectConfig,
+    setCollectConfig,
+    handleCollectStart,
+    handleCollectStop,
   };
 }

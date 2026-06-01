@@ -20,6 +20,8 @@ import {
   EVALUATE_SYSTEM_PROMPT,
   IMPROVE_PIPELINE_SYSTEM_PROMPT,
   IMPROVE_PIPELINE_OUTPUT_FORMAT,
+  JD_EVALUATE_SYSTEM_PROMPT,
+  JD_EVALUATE_OUTPUT_FORMAT,
 } from './prompts';
 
 export type { WriteAssistExtras } from './types';
@@ -44,6 +46,9 @@ export class WriteAssistExecutorService {
 
       case QueueJob.TaskType.WRITEASSIST_IMPROVE:
         return this.executeImprove(content, model, onChunk, signal, extras);
+
+      case QueueJob.TaskType.WRITEASSIST_JD_EVALUATE:
+        return this.executeJdEvaluate(content, model, onChunk, signal, extras);
 
       default:
         return this.executeDefaultTask(taskType, content, model, onChunk, signal, extras);
@@ -374,5 +379,28 @@ ${sectionContent.trim() || '(빈 문서)'}`;
   private buildExpContext(experiences?: { title: string; content: string }[]): string {
     if (!experiences?.length) return '';
     return `## 참고할 나의 경험\n${experiences.map((e) => `### ${e.title}\n${e.content}`).join('\n\n')}\n\n---\n\n`;
+  }
+
+  // ── JD 산업·직무 분석 ───────────────────────────────────────────────────────
+
+  private async executeJdEvaluate(
+    content: string,
+    model: string,
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal,
+    extras?: WriteAssistExtras,
+  ): Promise<string> {
+    const companyCtx = extras?.companyCtx ?? '';
+    const userPrompt = `${companyCtx ? `## 기업 분석 데이터\n${companyCtx}\n\n---\n\n` : ''}## 채용공고 (JD)\n\n${content.trim() || '(JD 없음)'}
+
+${JD_EVALUATE_OUTPUT_FORMAT}`;
+
+    let result = '';
+    for await (const chunk of this.aiProvider.stream(model, JD_EVALUATE_SYSTEM_PROMPT, [{ role: 'user' as const, content: userPrompt }])) {
+      if (signal?.aborted) break;
+      onChunk(chunk);
+      result += chunk;
+    }
+    return result;
   }
 }

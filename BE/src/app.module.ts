@@ -13,7 +13,7 @@ import { NewsModule } from './news/news.module';
 import { MediaModule } from './media/media.module';
 import { AppConfigModule } from './config/config.module';
 import { DocumentsModule } from './recruit/documents.module';
-import { CompanyAnalysisModule } from './company-analysis/company-analysis.module';
+import { CompanyModule } from './company/company.module';
 import { BackgroundsModule } from './backgrounds/backgrounds.module';
 import { CoverLetterModule } from './recruit/cover-letter.module';
 import { MetricsModule } from './metrics/metrics.module';
@@ -36,7 +36,7 @@ import { ResumeModule } from './recruit/resume.module';
     MediaModule,
     AppConfigModule,
     DocumentsModule,
-    CompanyAnalysisModule,
+    CompanyModule,
     BackgroundsModule,
     CoverLetterModule,
     MetricsModule,

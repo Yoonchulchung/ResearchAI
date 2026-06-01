@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NewsController } from './presentation/news.controller';
 import { NewsService } from './application/service/news.service';
@@ -10,6 +10,7 @@ import { HuggingfaceApi } from './infrastructure/provider/huggingface.api';
 import { GoogleNewsApi } from './infrastructure/provider/google-news.api';
 import { StackOverflowApi } from './infrastructure/provider/stackoverflow.api';
 import { NewsBriefingEntity } from './domain/entity/news-briefing.entity';
+import { NewsArticleSummaryEntity } from './domain/entity/news-article-summary.entity';
 import { AiModule } from '../ai/ai.module';
 import { AppConfigModule } from '../config/config.module';
 import { SharedModule } from '../shared/shared.module';
@@ -18,8 +19,17 @@ import { PapersModule } from './papers/papers.module';
 import { AiLeaderboardModule } from './ai-leaderboard/ai-leaderboard.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([NewsBriefingEntity]), AiModule, AppConfigModule, SharedModule, TechBlogModule, PapersModule, AiLeaderboardModule],
+  imports: [
+    TypeOrmModule.forFeature([NewsBriefingEntity, NewsArticleSummaryEntity]),
+    forwardRef(() => AiModule),
+    AppConfigModule,
+    SharedModule,
+    TechBlogModule,
+    PapersModule,
+    AiLeaderboardModule,
+  ],
   controllers: [NewsController],
   providers: [NewsService, MarketService, GithubApi, HuggingfaceApi, GoogleNewsApi, StackOverflowApi, NewsProviderService, NewsSummaryService],
+  exports: [NewsService],
 })
 export class NewsModule {}

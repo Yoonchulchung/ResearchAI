@@ -4,6 +4,15 @@ import { normalizeJobType } from './job-type.util';
 
 const BASE_URL = 'https://www.jobkorea.co.kr';
 
+export type JobkoreaCompanyType = '대기업' | '중견기업' | '외국계기업' | '공공기관';
+
+const COMPANY_TYPE_CONFIGS: Record<JobkoreaCompanyType, { menucode: string; cotype: string }> = {
+  '대기업':    { menucode: 'cotype1', cotype: '1,2,3' },
+  '중견기업':  { menucode: 'cotype2', cotype: '4,5' },
+  '외국계기업': { menucode: 'cotype3', cotype: '6' },
+  '공공기관':  { menucode: 'cotype4', cotype: '8' },
+};
+
 const COMMON_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
@@ -40,10 +49,12 @@ export class JobkoreaJobCrawler {
     }
   }
 
-  async getPostingsFromPage(page: number): Promise<JobPosting[]> {
+  async getPostingsFromPage(page: number, companyType?: JobkoreaCompanyType): Promise<JobPosting[]> {
+    const config = companyType ? COMPANY_TYPE_CONFIGS[companyType] : null;
     const body = new URLSearchParams({
       page: String(page),
-      'condition[menucode]': 'direct',
+      'condition[menucode]': config?.menucode ?? 'direct',
+      ...(config ? { cotype: config.cotype } : {}),
       local: '0',
       order: '20',
       pagesize: '40',
@@ -76,7 +87,7 @@ export class JobkoreaJobCrawler {
       const location = cells[2] ?? '';
       const salary = cells[4] ?? '';
 
-      const category = $(row).find('td.tplTit p.dsc').text().replace(/\s+/g, ' ').trim();
+      const jobCategory = $(row).find('td.tplTit p.dsc').text().replace(/\s+/g, ' ').trim();
 
       // span.date: "~05/31(일)" 형태
       const deadline = $(row).find('td.odd span.date').text().replace(/\s+/g, '').trim();
@@ -93,11 +104,11 @@ export class JobkoreaJobCrawler {
         type,
         location,
         deadline,
-        category,
+        jobs: [jobCategory, salary].filter(Boolean).join(', ') || undefined,
+        companyType: companyType ?? undefined,
         viewCount: 0,
         collectedAt: new Date().toISOString(),
         source: 'jobkorea',
-        ...(salary ? { jobs: salary } : {}),
       });
     });
 

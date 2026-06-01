@@ -71,7 +71,7 @@ export class LinkareerJobCrawler {
           .filter((v: string, i: number, arr: string[]) => arr.indexOf(v) === i)
           .join(', ');
 
-      const category = (node.categories as any[] ?? [])
+      const jobs = (node.categories as any[] ?? [])
         .map((c: any) => c.name)
         .join(', ');
 
@@ -87,7 +87,7 @@ export class LinkareerJobCrawler {
         type: normalizeJobType(rawType),
         location,
         deadline,
-        category,
+        jobs: jobs || undefined,
         viewCount: node.viewCount ?? 0,
         collectedAt: new Date().toISOString(),
         source: 'linkareer' as const,

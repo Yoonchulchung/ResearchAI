@@ -12,7 +12,7 @@ import { QueueStatusDto } from '../../queue/presentation/dto/response/queue-stat
 
 @WebSocketGateway({ path: '/ws' })
 export class SessionGateway implements OnGatewayDisconnect {
-  @WebSocketServer() private server: Server;
+  @WebSocketServer() private server!: Server;
 
   // sessionId → 구독 중인 클라이언트 집합
   private subscriptions = new Map<string, Set<WebSocket>>();
@@ -22,6 +22,13 @@ export class SessionGateway implements OnGatewayDisconnect {
   private globalSubscribers = new Set<WebSocket>();
   // 큐 상태를 구독하는 클라이언트 집합
   private queueSubscribers = new Set<WebSocket>();
+  // 데이터 소스 큐 상태를 구독하는 클라이언트 집합
+  private dataSourceSubscribers = new Set<WebSocket>();
+  // 데이터 소스별 최신 상태 집계
+  private dataSourceStatuses = new Map<string, { name: string; pending: number; running: number; cacheSize: number }>();
+  // 기업 수집 큐 상태를 구독하는 클라이언트 집합
+  private enrichQueueSubscribers = new Set<WebSocket>();
+  private enrichQueueStatus: { pending: number; processing: boolean; currentCompany: string | null } = { pending: 0, processing: false, currentCompany: null };
 
   constructor(private readonly sessionQueryService: SessionQueryService) {}
 
@@ -39,6 +46,8 @@ export class SessionGateway implements OnGatewayDisconnect {
     this.clientSessions.delete(client);
     this.globalSubscribers.delete(client);
     this.queueSubscribers.delete(client);
+    this.dataSourceSubscribers.delete(client);
+    this.enrichQueueSubscribers.delete(client);
   }
 
   @SubscribeMessage('subscribe')
@@ -66,6 +75,43 @@ export class SessionGateway implements OnGatewayDisconnect {
   @SubscribeMessage('subscribe:queue')
   handleSubscribeQueue(@ConnectedSocket() client: WebSocket): void {
     this.queueSubscribers.add(client);
+  }
+
+  @SubscribeMessage('subscribe:data-sources')
+  handleSubscribeDataSources(@ConnectedSocket() client: WebSocket): void {
+    this.dataSourceSubscribers.add(client);
+    // 구독 즉시 현재 상태 전송
+    const statuses = Array.from(this.dataSourceStatuses.values());
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ event: 'data-sources:update', data: statuses }));
+    }
+  }
+
+  @SubscribeMessage('subscribe:enrich-queue')
+  handleSubscribeEnrichQueue(@ConnectedSocket() client: WebSocket): void {
+    this.enrichQueueSubscribers.add(client);
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ event: 'enrich-queue:update', data: this.enrichQueueStatus }));
+    }
+  }
+
+  emitEnrichQueueUpdate(status: { pending: number; processing: boolean; currentCompany: string | null; estimatedMs: number | null }): void {
+    this.enrichQueueStatus = status;
+    if (this.enrichQueueSubscribers.size === 0) return;
+    const message = JSON.stringify({ event: 'enrich-queue:update', data: status });
+    for (const client of this.enrichQueueSubscribers) {
+      if (client.readyState === WebSocket.OPEN) client.send(message);
+    }
+  }
+
+  updateDataSourceStatus(status: { name: string; pending: number; running: number; cacheSize: number }): void {
+    this.dataSourceStatuses.set(status.name, status);
+    if (this.dataSourceSubscribers.size === 0) return;
+    const statuses = Array.from(this.dataSourceStatuses.values());
+    const message = JSON.stringify({ event: 'data-sources:update', data: statuses });
+    for (const client of this.dataSourceSubscribers) {
+      if (client.readyState === WebSocket.OPEN) client.send(message);
+    }
   }
 
   emitQueueUpdate(status: QueueStatusDto): void {

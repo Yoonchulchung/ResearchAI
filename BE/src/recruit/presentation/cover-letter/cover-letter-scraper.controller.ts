@@ -47,6 +47,7 @@ export class CoverLetterScraperController {
     @Query('offset') offset?: string,
     @Query('source') source?: string,
     @Query('companyType') companyType?: string,
+    @Query('jobCategory') jobCategory?: string,
     @Query('search') search?: string,
     @Query('sort') sort?: string,
   ) {
@@ -57,11 +58,20 @@ export class CoverLetterScraperController {
       {
         source,
         companyType,
+        jobCategory,
         search,
         sort: sort === 'latest' ? 'latest' : undefined,
       },
       Number.isFinite(parsedOffset) ? parsedOffset : undefined,
     );
+  }
+
+  /** 기존 데이터 jobCategory 일괄 분류
+   * POST /cover-letter-scraper/backfill-categories
+   */
+  @Post('backfill-categories')
+  backfillCategories() {
+    return this.service.backfillJobCategories();
   }
 
   @Get('data/:id')

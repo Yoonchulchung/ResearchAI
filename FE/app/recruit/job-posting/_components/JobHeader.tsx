@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { JobPosting, JobScrapingStatus } from "@/lib/api/recruit/job-posting";
-import { SOURCE_LABELS } from "../_constants";
+import type { JobPosting, JobScrapingStatus, CollectDetailStatus, CollectDetailConfig, JobkoreaCompanyType } from "@/lib/api/recruit/job-posting";
+import { CollectSettingsModal } from "./CollectSettingsModal";
+import { ScrapeSettingsModal } from "./ScrapeSettingsModal";
 
 interface JobHeaderProps {
   total: number;
@@ -14,9 +16,17 @@ interface JobHeaderProps {
   setScrapeSource: (src: "linkareer" | "jobkorea" | "catch" | "jobplanet" | "jobda" | "all") => void;
   linkareerJobType: "INTERN" | "RECRUIT";
   setLinkareerJobType: (jt: "INTERN" | "RECRUIT") => void;
+  jobkoreaCompanyTypes: JobkoreaCompanyType[];
+  setJobkoreaCompanyTypes: (types: JobkoreaCompanyType[]) => void;
   handleStart: () => void;
   handleStop: () => void;
   isHeaderHidden: boolean;
+  collectStatus: CollectDetailStatus | null;
+  collectLoading: boolean;
+  collectConfig: CollectDetailConfig;
+  setCollectConfig: (config: CollectDetailConfig) => void;
+  handleCollectStart: () => void;
+  handleCollectStop: () => void;
 }
 
 export function JobHeader({
@@ -29,11 +39,21 @@ export function JobHeader({
   setScrapeSource,
   linkareerJobType,
   setLinkareerJobType,
+  jobkoreaCompanyTypes,
+  setJobkoreaCompanyTypes,
   handleStart,
   handleStop,
   isHeaderHidden,
+  collectStatus,
+  collectLoading,
+  collectConfig,
+  setCollectConfig,
+  handleCollectStart,
+  handleCollectStop,
 }: JobHeaderProps) {
   const router = useRouter();
+  const [scrapeSettingsOpen, setScrapeSettingsOpen] = useState(false);
+  const [collectSettingsOpen, setCollectSettingsOpen] = useState(false);
 
   return (
     <div
@@ -47,10 +67,7 @@ export function JobHeader({
       <div className="flex items-center gap-2">
         <button
           onClick={() => {
-            if (selected) {
-              clearSelected();
-              return;
-            }
+            if (selected) { clearSelected(); return; }
             router.back();
           }}
           className="flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors shrink-0 dark:text-slate-400 dark:hover:text-slate-200"
@@ -66,6 +83,63 @@ export function JobHeader({
           {total.toLocaleString()}건
         </span>
         <div className="flex-1" />
+
+        {/* AI 상세 수집 버튼 */}
+        {collectStatus?.running ? (
+          <button
+            onClick={handleCollectStop}
+            disabled={collectLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border transition-all disabled:opacity-50 bg-white text-amber-600 border-amber-200 hover:bg-amber-50 shrink-0 mr-1.5 dark:bg-slate-800 dark:text-amber-400 dark:border-amber-900/50"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <rect x="1.5" y="1.5" width="7" height="7" rx="1" fill="currentColor" />
+            </svg>
+            <span className="hidden sm:inline">
+              AI 수집 중 {collectStatus.processed}/{collectStatus.total}
+            </span>
+            <span className="sm:hidden">중단</span>
+          </button>
+        ) : (
+          <div className="flex items-center shrink-0 mr-1.5">
+            <button
+              onClick={() => setCollectSettingsOpen(true)}
+              disabled={collectLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-l-md border transition-all disabled:opacity-50 bg-amber-500 text-white border-amber-500 hover:bg-amber-600 shadow-sm dark:bg-amber-600 dark:border-amber-600 dark:hover:bg-amber-700"
+            >
+              {collectLoading ? (
+                <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : (
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                  <path d="M8.5 1.8L9.7 5.1L13 6.3L9.7 7.5L8.5 10.8L7.3 7.5L4 6.3L7.3 5.1L8.5 1.8Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                </svg>
+              )}
+              <span className="hidden sm:inline">AI 상세 수집</span>
+              <span className="sm:hidden">AI</span>
+            </button>
+            <button
+              onClick={() => setCollectSettingsOpen(true)}
+              disabled={collectLoading}
+              title="AI 수집 설정"
+              className="flex items-center justify-center px-2 py-1.5 text-xs font-semibold rounded-r-md border-y border-r transition-all disabled:opacity-50 bg-amber-600 text-white border-amber-600 hover:bg-amber-700 shadow-sm dark:bg-amber-700 dark:border-amber-700 dark:hover:bg-amber-800"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <path d="M8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M2.93 2.93l1.06 1.06M12.01 12.01l1.06 1.06M2.93 13.07l1.06-1.06M12.01 3.99l1.06-1.06" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        <CollectSettingsModal
+          open={collectSettingsOpen}
+          config={collectConfig}
+          onChange={setCollectConfig}
+          onClose={() => setCollectSettingsOpen(false)}
+          onStart={handleCollectStart}
+          collectLoading={collectLoading}
+        />
+
+        {/* 크롤링 버튼 */}
         {status?.running ? (
           <button
             onClick={handleStop}
@@ -79,63 +153,54 @@ export function JobHeader({
             <span className="sm:hidden">중단</span>
           </button>
         ) : (
-          <button
-            onClick={handleStart}
-            disabled={scrapeLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border transition-all disabled:opacity-50 bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 shadow-sm shrink-0 dark:bg-indigo-600 dark:border-indigo-600 dark:hover:bg-indigo-700"
-          >
-            {scrapeLoading ? (
-              <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-            ) : (
-              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                <path d="M2.5 1.5L9.5 6L2.5 10.5V1.5Z" fill="currentColor" />
+          <div className="flex shrink-0">
+            <button
+              onClick={handleStart}
+              disabled={scrapeLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-l-md border transition-all disabled:opacity-50 bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 shadow-sm dark:bg-indigo-600 dark:border-indigo-600 dark:hover:bg-indigo-700"
+            >
+              {scrapeLoading ? (
+                <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : (
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                  <path d="M2.5 1.5L9.5 6L2.5 10.5V1.5Z" fill="currentColor" />
+                </svg>
+              )}
+              크롤링 시작
+            </button>
+            <button
+              onClick={() => setScrapeSettingsOpen(true)}
+              disabled={scrapeLoading}
+              title="크롤링 설정"
+              className="flex items-center justify-center px-2 py-1.5 text-xs font-semibold rounded-r-md border-y border-r transition-all disabled:opacity-50 bg-indigo-700 text-white border-indigo-700 hover:bg-indigo-800 shadow-sm dark:bg-indigo-700 dark:border-indigo-700 dark:hover:bg-indigo-800"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <path d="M8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M2.93 2.93l1.06 1.06M12.01 12.01l1.06 1.06M2.93 13.07l1.06-1.06M12.01 3.99l1.06-1.06" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
               </svg>
-            )}
-            크롤링 시작
-          </button>
+            </button>
+          </div>
         )}
+
+        <ScrapeSettingsModal
+          open={scrapeSettingsOpen}
+          onClose={() => setScrapeSettingsOpen(false)}
+          scrapeSource={scrapeSource}
+          setScrapeSource={setScrapeSource}
+          linkareerJobType={linkareerJobType}
+          setLinkareerJobType={setLinkareerJobType}
+          jobkoreaCompanyTypes={jobkoreaCompanyTypes}
+          setJobkoreaCompanyTypes={setJobkoreaCompanyTypes}
+          onStart={handleStart}
+          scrapeLoading={scrapeLoading}
+        />
       </div>
 
-      {/* Controls row */}
-      {status?.running ? (
+      {/* 수집 진행 상태 표시 */}
+      {status?.running && (
         <div className="flex items-center gap-1.5 mt-2 text-xs px-3 py-1.5 rounded-md bg-emerald-50 text-emerald-600 font-medium border border-emerald-100 w-fit dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           수집 중 {status.totalCollected.toLocaleString()}건 · p.{status.currentPage}
-        </div>
-      ) : (
-        <div className="hidden md:flex items-center gap-2 mt-2 overflow-x-auto pb-0.5 scrollbar-hide">
-          {scrapeSource === "linkareer" && (
-            <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs font-semibold bg-white shrink-0 dark:border-slate-800 dark:bg-slate-900">
-              {(["INTERN", "RECRUIT"] as const).map((jt) => (
-                <button
-                  key={jt}
-                  onClick={() => setLinkareerJobType(jt)}
-                  className={`px-2.5 py-1 transition-colors ${
-                    linkareerJobType === jt
-                      ? "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
-                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-850"
-                  }`}
-                >
-                  {jt === "INTERN" ? "인턴" : "신입공채"}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="flex rounded-md border border-slate-200 overflow-hidden text-xs font-semibold bg-white shrink-0 dark:border-slate-800 dark:bg-slate-900">
-            {(["all", "linkareer", "jobkorea", "catch", "jobplanet", "jobda"] as const).map((src) => (
-              <button
-                key={src}
-                onClick={() => setScrapeSource(src)}
-                className={`px-2.5 py-1 transition-colors ${
-                  scrapeSource === src
-                    ? "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
-                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-850"
-                }`}
-              >
-                {src === "all" ? "전체" : SOURCE_LABELS[src]}
-              </button>
-            ))}
-          </div>
         </div>
       )}
     </div>

@@ -1,5 +1,4 @@
-import { Column, CreateDateColumn, Entity, OneToMany, PrimaryColumn, UpdateDateColumn } from 'typeorm';
-import { ExperienceEntity } from './experience.entity';
+import { Column, CreateDateColumn, Entity, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity('document')
 export class DocumentEntity {
@@ -17,9 +16,6 @@ export class DocumentEntity {
 
   @Column({ type: 'text' })
   content: string;
-
-  @OneToMany(() => ExperienceEntity, (experience) => experience.document, { cascade: true })
-  experiences: ExperienceEntity[];
 
   @CreateDateColumn()
   createdAt: Date;

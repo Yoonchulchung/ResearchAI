@@ -31,7 +31,7 @@ export function useCompanyList() {
     try {
       const detail = await getCompanyAnalysis(companyKey);
       setSelected(detail);
-      router.replace(`/company-analysis?company=${encodeURIComponent(detail.companyName)}`, { scroll: false });
+      router.replace(`/companies/analysis?company=${encodeURIComponent(detail.companyName)}`, { scroll: false });
     } catch { }
   };
 

@@ -8,9 +8,12 @@ import {
   fetchJobPostingDetail,
   setJobPostingFavorite,
   getPopularJobPostings,
+  getJobRecommendations,
+  deleteJobRecommendation,
   type JobPosting,
   type JobPostingFilterOptions,
   type JobPostingListParams,
+  type JobRecommendation,
 } from "@/lib/api/recruit/job-posting";
 import { isNearScrollBottom } from "@/lib/scroll-guards";
 import {
@@ -28,8 +31,9 @@ import {
   isTypingTarget,
 } from "../_utils";
 import type { CalendarEvent, CalendarEventKind } from "../_types";
+import { recruitSearch } from "@/lib/recruit-search";
 
-export function useJobPostings(jobId: string | null) {
+export function useJobPostings(jobId: string | null, initialSearch?: string | null) {
   const router = useRouter();
 
   const [items, setItems] = useState<JobPosting[]>([]);
@@ -38,7 +42,11 @@ export function useJobPostings(jobId: string | null) {
   const [hasMore, setHasMore] = useState(true);
   const [filterOptions, setFilterOptions] = useState<JobPostingFilterOptions>(DEFAULT_FILTER_OPTIONS);
 
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [externalSearchLoading, setExternalSearchLoading] = useState(false);
+  const [externalSearchCount, setExternalSearchCount] = useState(0);
+  const externalSearchAbortRef = useRef<AbortController | null>(null);
   const [sourceFilter, setSourceFilter] = useState("");
   const [companyTypeFilter, setCompanyTypeFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -54,6 +62,7 @@ export function useJobPostings(jobId: string | null) {
   const [popularPostings, setPopularPostings] = useState<JobPosting[]>([]);
   const [favoritePostings, setFavoritePostings] = useState<JobPosting[]>([]);
   const [popularLoading, setPopularLoading] = useState(false);
+  const [recommendations, setRecommendations] = useState<JobRecommendation[]>([]);
   const [popularCategoryFilter, setPopularCategoryFilter] = useState<"" | "IT" | "전자">("");
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
 
@@ -182,6 +191,25 @@ export function useJobPostings(jobId: string | null) {
     loadRef.current(1, true, currentFiltersRef.current);
   }, []);
 
+  const handleExternalSearch = useCallback(async (keyword: string) => {
+    externalSearchAbortRef.current?.abort();
+    const ac = new AbortController();
+    externalSearchAbortRef.current = ac;
+    setExternalSearchLoading(true);
+    setExternalSearchCount(0);
+    try {
+      const { collected } = await recruitSearch(keyword, {
+        signal: ac.signal,
+        onProgress: ({ collected }) => setExternalSearchCount(collected),
+      });
+      if (collected > 0) loadRef.current(1, true, currentFiltersRef.current);
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") console.warn("외부 검색 실패", e);
+    } finally {
+      setExternalSearchLoading(false);
+    }
+  }, []);
+
   const buildFilters = useCallback(
     (): JobPostingListParams => ({
       source: sourceFilter && sourceFilter !== "favorite" ? sourceFilter : undefined,
@@ -235,19 +263,27 @@ export function useJobPostings(jobId: string | null) {
   const moveCalendarMonth = (delta: number) =>
     setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
 
+  // Debounce searchInput → search (0.5초)
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput), 500);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   // Init filters from localStorage
   useEffect(() => {
     const persisted = readPersistedFilters();
-    setSearch(persisted.search);
+    const initial = initialSearch?.trim() || persisted.search;
+    setSearchInput(initial);
+    setSearch(initial);
     setSourceFilter(persisted.sourceFilter);
     setCompanyTypeFilter(persisted.companyTypeFilter);
     setTypeFilter(persisted.typeFilter);
     setCategoryFilter(persisted.categoryFilter);
     setSortOrder(persisted.sortOrder);
     setIsReady(true);
-  }, []);
+  }, [initialSearch]);
 
-  // Load popular + favorites
+  // Load popular + favorites + recommendations
   useEffect(() => {
     setPopularLoading(true);
     Promise.all([
@@ -255,10 +291,12 @@ export function useJobPostings(jobId: string | null) {
       listJobPostings({ favorite: true, page: 1, limit: 500, sort: "deadline" })
         .then((res) => res.items)
         .catch(() => []),
+      getJobRecommendations(20).catch(() => []),
     ])
-      .then(([popular, favorites]) => {
+      .then(([popular, favorites, recs]) => {
         setPopularPostings(popular);
         setFavoritePostings(favorites);
+        setRecommendations(recs);
       })
       .catch(() => {})
       .finally(() => setPopularLoading(false));
@@ -268,7 +306,7 @@ export function useJobPostings(jobId: string | null) {
   useEffect(() => {
     if (!isReady) return;
     const filters = buildFilters();
-    persistFilters({ search, sourceFilter, companyTypeFilter, typeFilter, categoryFilter, sortOrder });
+    persistFilters({ search: searchInput, sourceFilter, companyTypeFilter, typeFilter, categoryFilter, sortOrder });
     currentFiltersRef.current = filters;
     setSelected(null);
     setHasMore(true);
@@ -428,14 +466,18 @@ export function useJobPostings(jobId: string | null) {
     popularLoading,
     popularCategoryFilter,
     setPopularCategoryFilter,
+    recommendations,
     calendarMonth,
     visiblePopularPostings,
     calendarDays,
     calendarEventsByDate,
     isHeaderHidden,
     isFiltersHidden,
-    search,
-    setSearch,
+    search: searchInput,
+    setSearch: setSearchInput,
+    externalSearchLoading,
+    externalSearchCount,
+    handleExternalSearch,
     sourceFilter,
     handleSourceChange,
     companyTypeFilter,
@@ -455,5 +497,14 @@ export function useJobPostings(jobId: string | null) {
     handleDetailScroll,
     moveCalendarMonth,
     reload,
+    deleteRecommendation: async (id: number) => {
+      setRecommendations((prev) => prev.filter((r) => r.id !== id));
+      try {
+        await deleteJobRecommendation(id);
+      } catch {
+        // 실패 시 재조회
+        getJobRecommendations(20).then(setRecommendations).catch(() => {});
+      }
+    },
   };
 }

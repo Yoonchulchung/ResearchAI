@@ -1,10 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { load } from 'cheerio';
 import type { CheerioAPI } from 'cheerio';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as readline from 'readline';
 import type {
   JobPosting,
   JobPostingFilterOptions,
@@ -13,16 +14,16 @@ import type {
   JobPostingScrapeStatus,
 } from '../domain/job-posting.model';
 import { LinkareerJobCrawler } from '../infrastructure/job-posting/linkareer-job.crawler';
-import { JobkoreaJobCrawler } from '../infrastructure/job-posting/jobkorea-job.crawler';
+import { JobkoreaJobCrawler, type JobkoreaCompanyType } from '../infrastructure/job-posting/jobkorea-job.crawler';
 import { CatchJobCrawler } from '../infrastructure/job-posting/catch-job.crawler';
 import { JobplanetJobCrawler } from '../infrastructure/job-posting/jobplanet-job.crawler';
 import { JobdaJobCrawler } from '../infrastructure/job-posting/jobda-job.crawler';
 import { RecruitDb } from '../infrastructure/database/recruit-db';
-import { requestContext } from '../../shared/request-context';
+import { RecruitJobPostingEntity } from '../domain/job-posting/entity/recruit-job-posting.entity';
+import { CompanyEnrichQueueService } from '../../company/application/company-enrich-queue.service';
 
 const DATA_DIR = path.resolve(__dirname, '../../../data/job-postings');
 const IMAGE_CACHE_DIR = path.join(process.cwd(), 'data/recruit/image-cache');
-const JSONL_FILE = path.join(DATA_DIR, 'job-postings.jsonl');
 const COMPANY_PROFILES_FILE = path.join(DATA_DIR, 'company-profiles.json');
 const CHECKPOINT_FILE = path.join(DATA_DIR, 'crawl-checkpoint.json');
 const CHECKPOINT_ID = 'job-posting-scraper';
@@ -67,6 +68,7 @@ const IGNORED_TITLE_PATTERNS = [
   /상시.*pool/i,
   /pool.*상시/i,
   /pool\s*등록/i,
+  /홀서빙/i,
 ];
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
   it: [
@@ -217,30 +219,6 @@ interface CrawlCheckpointFile {
   sources: Record<string, CrawlSourceCheckpoint>;
 }
 
-interface JobPostingSqlRow {
-  id: string;
-  source: string | null;
-  source_type: string | null;
-  title: string;
-  company: string;
-  location: string | null;
-  description: string | null;
-  skills: string | null;
-  url: string;
-  company_type: string | null;
-  type: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  deadline: string | null;
-  jobs: string | null;
-  homepage: string | null;
-  category: string | null;
-  view_count: number | null;
-  detail_content: string | null;
-  detail_html: string | null;
-  posted_at: string | null;
-  collected_at: string;
-}
 
 @Injectable()
 export class JobPostingScraperService implements OnModuleInit {
@@ -265,17 +243,19 @@ export class JobPostingScraperService implements OnModuleInit {
     lastActivity: null,
   };
 
-  constructor(private readonly recruitDb: RecruitDb) {}
+  constructor(
+    private readonly recruitDb: RecruitDb,
+    @InjectRepository(RecruitJobPostingEntity)
+    private readonly postingRepo: Repository<RecruitJobPostingEntity>,
+    private readonly companyEnrichQueue: CompanyEnrichQueueService,
+  ) {}
 
   async onModuleInit() {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    await this.migratePostingsJsonlToDb();
-    await this.loadCollectedIds();
     await this.migrateCompanyProfilesJsonToDb();
     await this.loadCompanyProfiles();
     await this.bootstrapCompanyProfilesFromPostings();
     await this.loadCheckpoint();
-    this.status.totalCollected = this.collectedIds.size;
     this.recruitDb.pruneDetailCache();
     this.pruneImageCache();
     void this.ensureInitialCatchPostings().catch((err) => {
@@ -703,17 +683,16 @@ export class JobPostingScraperService implements OnModuleInit {
 
     const all = (await this.readAllFromDb()).map((posting) => this.normalizePostingForView(posting));
 
-    const favoriteIds = this.getFavoriteIds();
     const visible = all.filter((p) => !this.isIgnoredPosting(p));
     const sourceFiltered = filters.source ? visible.filter((p) => p.source === filters.source) : visible;
-    const favoriteFiltered = filters.favorite ? sourceFiltered.filter((p) => favoriteIds.has(p.id)) : sourceFiltered;
+    const favoriteFiltered = filters.favorite ? sourceFiltered.filter((p) => !!p.favorite) : sourceFiltered;
     const searchTerms = this.getSearchTerms(filters.search);
     const filtered = this.applyFilters(favoriteFiltered, filters, searchTerms);
     const sorted = searchTerms.length > 0
       ? this.sortPostingsBySearchRelevance(filtered, searchTerms, filters.sort ?? 'latest')
       : this.sortPostings(filtered, filters.sort ?? 'latest');
     return {
-      items: sorted.slice((page - 1) * limit, page * limit).map((p) => this.withFavorite(p, favoriteIds)),
+      items: sorted.slice((page - 1) * limit, page * limit),
       total: sorted.length,
       filterOptions: this.getFilterOptions(favoriteFiltered),
     };
@@ -721,24 +700,17 @@ export class JobPostingScraperService implements OnModuleInit {
 
   async getPostingById(id: string): Promise<JobPosting | null> {
     const posting = await this.readPostingFromDb(id);
-    return posting ? this.withFavorite(this.normalizePostingForView(posting)) : null;
+    return posting ? this.normalizePostingForView(posting) : null;
   }
 
-  setFavorite(id: string, favorite: boolean): { id: string; favorite: boolean } {
-    const userId = this.getCurrentUserId();
-    if (favorite) {
-      this.recruitDb.get().prepare(`
-        INSERT OR IGNORE INTO job_posting_favorites (user_id, job_id, created_at)
-        VALUES (?, ?, ?)
-      `).run(userId, id, new Date().toISOString());
-      return { id, favorite: true };
-    }
+  async setFavorite(id: string, favorite: boolean): Promise<{ id: string; favorite: boolean }> {
+    await this.postingRepo.update(id, { favorite });
+    return { id, favorite };
+  }
 
-    this.recruitDb.get().prepare(`
-      DELETE FROM job_posting_favorites
-      WHERE user_id = ? AND job_id = ?
-    `).run(userId, id);
-    return { id, favorite: false };
+  async setApplied(id: string, appliedAt: string | null): Promise<{ id: string; appliedAt: string | null }> {
+    await this.postingRepo.update(id, { appliedAt });
+    return { id, appliedAt };
   }
 
   // ────────────────────────────────────────────────
@@ -757,8 +729,7 @@ export class JobPostingScraperService implements OnModuleInit {
 
   async getPopularPostings(): Promise<JobPosting[]> {
     const postings = await this.catchCrawler.getPopularPostings(30);
-    const favoriteIds = this.getFavoriteIds();
-    return postings.map((p) => this.withFavorite(this.normalizePostingForView(p), favoriteIds));
+    return postings.map((p) => this.normalizePostingForView(p));
   }
 
   private async seedInitialCatchPostings(): Promise<void> {
@@ -854,22 +825,26 @@ export class JobPostingScraperService implements OnModuleInit {
     const source = opts.source ?? 'linkareer';
 
     if (source === 'all') {
-      // 전체 수집에서는 링커리어 신입공채만 포함한다.
       await Promise.allSettled([
         this.runCrawlerLoop('linkareer', (p) =>
           this.linkareerCrawler.getPostingsFromPage(p, { jobType: 'RECRUIT', status: opts.status }), opts),
-        this.runCrawlerLoop('jobkorea', (p) => this.jobkoreaCrawler.getPostingsFromPage(p), opts),
+        this.runJobkoreaRoundRobin(['대기업', '중견기업', '외국계기업', '공공기관'], opts),
         this.runCrawlerLoop('catch', (p) => this.catchCrawler.getPostingsFromPage(p), opts),
         this.runCrawlerLoop('jobplanet', (p) => this.jobplanetCrawler.getPostingsFromPage(p), opts),
         this.runCrawlerLoop('jobda', (p) => this.jobdaCrawler.getPostingsFromPage(p), opts),
       ]);
+    } else if (source === 'jobkorea') {
+      const companyTypes = (opts.jobkoreaCompanyTypes ?? []) as JobkoreaCompanyType[];
+      const types = companyTypes.length > 0
+        ? companyTypes
+        : ['대기업', '중견기업', '외국계기업', '공공기관'] as JobkoreaCompanyType[];
+      await this.runJobkoreaRoundRobin(types, opts);
     } else {
       const fetchPage =
-        source === 'jobkorea' ? (p: number) => this.jobkoreaCrawler.getPostingsFromPage(p)
-          : source === 'catch' ? (p: number) => this.catchCrawler.getPostingsFromPage(p)
-            : source === 'jobplanet' ? (p: number) => this.jobplanetCrawler.getPostingsFromPage(p)
-              : source === 'jobda' ? (p: number) => this.jobdaCrawler.getPostingsFromPage(p)
-                : (p: number) => this.linkareerCrawler.getPostingsFromPage(p, { jobType: opts.jobType, status: opts.status });
+        source === 'catch' ? (p: number) => this.catchCrawler.getPostingsFromPage(p)
+          : source === 'jobplanet' ? (p: number) => this.jobplanetCrawler.getPostingsFromPage(p)
+            : source === 'jobda' ? (p: number) => this.jobdaCrawler.getPostingsFromPage(p)
+              : (p: number) => this.linkareerCrawler.getPostingsFromPage(p, { jobType: opts.jobType, status: opts.status });
 
       await this.runCrawlerLoop(source, fetchPage, opts);
     }
@@ -897,6 +872,25 @@ export class JobPostingScraperService implements OnModuleInit {
       this.logger.log(`[${label}] 체크포인트 복원: 페이지 ${startPage}부터 재개`);
     }
 
+    // ┌─────────────────────────────────────────────────────────────┐
+    // │  크롤링 파이프라인                                               │
+    // │                                                             │
+    // │  [1] fetchPage(n)         소스별 페이지 단위 크롤링               │
+    // │       ↓                                                     │
+    // │  [2] 중복 제거             collectedIds 기준 신규만 통과          │
+    // │       ↓                                                     │
+    // │  [3] 제목 필터             IGNORED_TITLE_PATTERNS 매칭 제거      │
+    // │       ↓                                                     │
+    // │  [4] 상세 페이지 수집      linkareer 전용 (fetchDetail=true)     │
+    // │       ↓                                                     │
+    // │  [5] savePosting()        normalizePostingForStorage 적용    │
+    // │       ├─ inferTypeFromTitle()  제목 → type 추론               │
+    // │       ├─ upsertPostingToDb()   TypeORM DB 저장 (orUpdate)    │
+    // │       └─ upsertCompanyProfile() 회사 프로필 갱신                │
+    // │       ↓                                                     │
+    // │  [6] 체크포인트 저장       페이지 완료 시 중단 재개용 기록             │
+    // └─────────────────────────────────────────────────────────────┘
+
     let page = startPage;
     let emptyPageCount = 0;
     let exhausted = false;
@@ -907,6 +901,7 @@ export class JobPostingScraperService implements OnModuleInit {
       this.status.lastActivity = new Date().toISOString();
       this.status.currentPage = page;
 
+      // [1] 페이지 크롤링
       let postings: JobPosting[];
       try {
         postings = await fetchPage(page);
@@ -927,6 +922,7 @@ export class JobPostingScraperService implements OnModuleInit {
         emptyPageCount = 0;
       }
 
+      // [2] 중복 제거
       const newPostings = postings.filter((p) => !this.collectedIds.has(p.id));
       this.logger.log(`[${label}] 페이지 ${page}: ${postings.length}개 중 신규 ${newPostings.length}개`);
 
@@ -937,23 +933,26 @@ export class JobPostingScraperService implements OnModuleInit {
           this.status.totalSkipped++;
           continue;
         }
+        // [3] 제목 필터
         if (this.isIgnoredPosting(posting)) {
           this.collectedIds.add(posting.id);
           this.status.totalSkipped++;
           continue;
         }
+        // [4] 상세 페이지 수집 (linkareer)
         if (label === 'linkareer' && opts.fetchDetail === true) {
           const detail = await this.linkareerCrawler.getDetail(posting.id);
           Object.assign(posting, detail);
           await this.delay(delayMs * 0.5);
         }
         if (this.collectedIds.has(posting.id)) continue; // detail 대기 중 저장됐을 경우
+        // [5] 저장
         await this.savePosting(posting);
         this.status.totalCollected++;
       }
 
       this.status.totalSkipped += postings.length - newPostings.length;
-      // 페이지 완료마다 체크포인트 저장 (중단 후 재개 가능)
+      // [6] 체크포인트
       this.updateSourceCheckpoint(label, page, false);
       page++;
       await this.delay(delayMs);
@@ -964,19 +963,18 @@ export class JobPostingScraperService implements OnModuleInit {
   }
 
   private async savePosting(p: JobPosting) {
-    this.upsertPostingToDb(p);
+    await this.upsertPostingToDb(p);
     this.collectedIds.add(p.id);
     if (this.upsertCompanyProfileFromPosting(p)) {
       this.saveCompanyProfiles();
     }
-  }
-
-  private async loadCollectedIds() {
-    const rows = this.recruitDb.get()
-      .prepare(`SELECT id FROM job_postings`)
-      .all() as { id: string }[];
-    this.collectedIds = new Set(rows.map((row) => row.id));
-    this.logger.log(`채용공고 DB 수집 ID ${this.collectedIds.size}개 로드`);
+    // companies 테이블 동기화 (비동기, 실패 무시)
+    if (p.company) {
+      const cleanName = this.cleanCompanyName(p.company);
+      const knownType = this.normalizeCompanyType(p.companyType) ?? p.companyType ?? null;
+      const knownEmployees = this.extractEmployeesFromDetail(p.detailContent ?? p.detailHtml);
+      this.companyEnrichQueue.enqueue(cleanName, knownType, knownEmployees).catch(() => {});
+    }
   }
 
   private async loadCompanyProfiles() {
@@ -1066,147 +1064,78 @@ export class JobPostingScraperService implements OnModuleInit {
     }
   }
 
-  private async migratePostingsJsonlToDb() {
-    if (!fs.existsSync(JSONL_FILE)) return;
-
-    const postings = await this.readAllFromJsonl();
-    const existingRows = this.recruitDb.get()
-      .prepare(`SELECT id, url FROM job_postings`)
-      .all() as { id: string; url: string }[];
-    const existingIds = new Set(existingRows.map((row) => row.id));
-    const existingUrls = new Set(existingRows.map((row) => row.url));
-    const seenIds = new Set<string>();
-    const seenUrls = new Set<string>();
-    let savedCount = 0;
-    for (const posting of postings) {
-      if (
-        !posting.id ||
-        existingIds.has(posting.id) ||
-        existingUrls.has(posting.url) ||
-        seenIds.has(posting.id) ||
-        seenUrls.has(posting.url)
-      ) {
-        continue;
-      }
-      seenIds.add(posting.id);
-      seenUrls.add(posting.url);
-      this.upsertPostingToDb(posting);
-      savedCount++;
-    }
-    if (savedCount > 0) {
-      this.logger.log(`채용공고 JSONL ${savedCount}건을 DB로 마이그레이션 완료`);
-    }
-  }
-
-  private upsertPostingToDb(posting: JobPosting) {
-    const normalized = this.normalizePostingForStorage(posting);
-    this.recruitDb.get().prepare(`
-      INSERT INTO job_postings
-        (
-          id, source, source_type, title, company, location, description, skills, url,
-          company_type, type, start_date, end_date, deadline, jobs, homepage, category,
-          view_count, detail_content, detail_html, posted_at, collected_at, search_text
-        )
-      VALUES
-        (
-          @id, @source, @sourceType, @title, @company, @location, @description, @skills, @url,
-          @companyType, @type, @startDate, @endDate, @deadline, @jobs, @homepage, @category,
-          @viewCount, @detailContent, @detailHtml, @postedAt, @collectedAt, @searchText
-        )
-      ON CONFLICT(id) DO UPDATE SET
-        source         = excluded.source,
-        source_type    = excluded.source_type,
-        title          = excluded.title,
-        company        = excluded.company,
-        location       = excluded.location,
-        description    = excluded.description,
-        skills         = excluded.skills,
-        url            = excluded.url,
-        company_type   = excluded.company_type,
-        type           = excluded.type,
-        start_date     = excluded.start_date,
-        end_date       = excluded.end_date,
-        deadline       = excluded.deadline,
-        jobs           = excluded.jobs,
-        homepage       = excluded.homepage,
-        category       = excluded.category,
-        view_count     = excluded.view_count,
-        detail_content = COALESCE(excluded.detail_content, job_postings.detail_content),
-        detail_html    = COALESCE(excluded.detail_html, job_postings.detail_html),
-        posted_at      = excluded.posted_at,
-        collected_at   = excluded.collected_at,
-        search_text    = excluded.search_text
-    `).run({
-      ...normalized,
-      sourceType: normalized.sourceType ?? 'crawler',
-      description: normalized.description ?? '',
-      skills: JSON.stringify(normalized.skills ?? []),
-      companyType: normalized.companyType ?? null,
-      type: normalized.type ?? null,
-      startDate: normalized.startDate ?? null,
-      endDate: normalized.endDate ?? null,
-      deadline: normalized.deadline ?? null,
-      jobs: normalized.jobs ?? null,
-      homepage: normalized.homepage ?? null,
-      category: normalized.category ?? null,
-      viewCount: normalized.viewCount ?? null,
-      detailContent: normalized.detailContent ?? null,
-      detailHtml: normalized.detailHtml ?? null,
-      postedAt: normalized.postedAt ?? null,
-      searchText: this.buildPostingSearchText(normalized),
-    });
+  private async upsertPostingToDb(posting: JobPosting): Promise<void> {
+    const entity = this.jobPostingToEntity(posting);
+    await this.postingRepo
+      .createQueryBuilder()
+      .insert()
+      .into(RecruitJobPostingEntity)
+      .values(entity)
+      .orUpdate(
+        ['source', 'source_type', 'title', 'company', 'location', 'url',
+         'company_type', 'type', 'start_date', 'end_date', 'deadline',
+         'jobs', 'homepage', 'view_count', 'collected_at'],
+        ['id'],
+      )
+      .execute();
   }
 
   private async readAllFromDb(): Promise<JobPosting[]> {
-    const rows = this.recruitDb.get().prepare(`
-      SELECT *
-      FROM job_postings
-      ORDER BY collected_at DESC
-    `).all() as JobPostingSqlRow[];
-    return rows.map((row) => this.toPosting(row));
+    const rows = await this.postingRepo.find({ order: { collectedAt: 'DESC' } });
+    return rows.map((e) => this.entityToJobPosting(e));
   }
 
   private async readPostingFromDb(id: string): Promise<JobPosting | null> {
-    const row = this.recruitDb.get().prepare(`
-      SELECT *
-      FROM job_postings
-      WHERE id = ?
-    `).get(id) as JobPostingSqlRow | undefined;
-    return row ? this.toPosting(row) : null;
+    const e = await this.postingRepo.findOne({ where: { id } });
+    return e ? this.entityToJobPosting(e) : null;
   }
 
-  private toPosting(row: JobPostingSqlRow): JobPosting {
-    let skills: string[] = [];
-    try {
-      const parsed = JSON.parse(row.skills || '[]');
-      skills = Array.isArray(parsed) ? parsed : [];
-    } catch {
-      skills = [];
-    }
-
+  private entityToJobPosting(e: RecruitJobPostingEntity): JobPosting {
     return {
-      id: row.id,
-      source: row.source ?? undefined,
-      sourceType: (row.source_type as JobPosting['sourceType']) ?? 'crawler',
-      title: row.title,
-      company: row.company,
-      location: row.location ?? '',
-      description: row.description ?? undefined,
-      skills,
-      url: row.url,
-      companyType: row.company_type ?? undefined,
-      type: row.type ?? undefined,
-      startDate: row.start_date ?? undefined,
-      endDate: row.end_date ?? undefined,
-      deadline: row.deadline ?? undefined,
-      jobs: row.jobs ?? undefined,
-      homepage: row.homepage ?? undefined,
-      category: row.category ?? undefined,
-      viewCount: row.view_count ?? undefined,
-      detailContent: row.detail_content ?? undefined,
-      detailHtml: row.detail_html ?? undefined,
-      postedAt: row.posted_at,
-      collectedAt: row.collected_at,
+      id: e.id,
+      source: e.source ?? undefined,
+      sourceType: (e.sourceType as JobPosting['sourceType']) ?? 'crawler',
+      title: e.title,
+      company: e.company,
+      location: e.location ?? '',
+      url: e.url,
+      companyType: e.companyType ?? undefined,
+      type: e.type ?? undefined,
+      startDate: e.startDate ?? undefined,
+      endDate: e.endDate ?? undefined,
+      deadline: e.deadline ?? undefined,
+      jobs: e.jobs ?? undefined,
+      homepage: e.homepage ?? undefined,
+      viewCount: e.viewCount ?? undefined,
+      detailContent: e.detailContent ?? undefined,
+      detailHtml: e.detailHtml ?? undefined,
+      collectedAt: e.collectedAt,
+      favorite: e.favorite,
+      appliedAt: e.appliedAt,
+    };
+  }
+
+  private jobPostingToEntity(posting: JobPosting): Partial<RecruitJobPostingEntity> {
+    const n = this.normalizePostingForStorage(posting);
+    return {
+      id: n.id,
+      source: n.source ?? null,
+      sourceType: n.sourceType ?? null,
+      title: n.title,
+      company: n.company,
+      location: n.location ?? null,
+      url: n.url,
+      companyType: n.companyType ?? null,
+      type: n.type ?? null,
+      startDate: n.startDate ?? null,
+      endDate: n.endDate ?? null,
+      deadline: n.deadline ?? null,
+      jobs: n.jobs ?? null,
+      homepage: n.homepage ?? null,
+      viewCount: n.viewCount ?? null,
+      detailContent: n.detailContent ?? null,
+      detailHtml: n.detailHtml ?? null,
+      collectedAt: n.collectedAt,
     };
   }
 
@@ -1219,38 +1148,22 @@ export class JobPostingScraperService implements OnModuleInit {
       location: posting.location ?? '',
       skills: Array.isArray(posting.skills) ? posting.skills : [],
       collectedAt: posting.collectedAt ?? new Date().toISOString(),
+      type: this.inferTypeFromTitle(posting.title) ?? posting.type,
+      companyType: this.normalizeCompanyType(posting.companyType) ?? posting.companyType,
     };
   }
 
-  private buildPostingSearchText(posting: JobPosting): string {
-    return this.normalize([
-      posting.id,
-      posting.source,
-      posting.title,
-      posting.company,
-      posting.location,
-      posting.description,
-      posting.companyType,
-      posting.type,
-      posting.jobs,
-      posting.category,
-      posting.skills?.join(' '),
-    ].filter(Boolean).join(' '));
+  private inferTypeFromTitle(title: string): string | null {
+    if (!title) return null;
+    if (/인턴/i.test(title)) return '인턴';
+    if (/계약/i.test(title)) return '계약직';
+    if (/신입/.test(title) && /경력/.test(title)) return '신입·경력';
+    if (/경력/.test(title)) return '경력';
+    if (/신입/.test(title)) return '신입';
+    return null;
   }
 
-  private async readAllFromJsonl(): Promise<JobPosting[]> {
-    if (!fs.existsSync(JSONL_FILE)) return [];
-    const results: JobPosting[] = [];
-    const rl = readline.createInterface({
-      input: fs.createReadStream(JSONL_FILE, 'utf-8'),
-      crlfDelay: Infinity,
-    });
-    for await (const line of rl) {
-      if (!line.trim()) continue;
-      try { results.push(JSON.parse(line)); } catch { /* 손상된 라인 무시 */ }
-    }
-    return results;
-  }
+
 
   private getPostingSource(p: JobPosting): NonNullable<JobPosting['source']> {
     if (p.source) return p.source;
@@ -1303,28 +1216,6 @@ export class JobPostingScraperService implements OnModuleInit {
       type: this.normalizeJobType(posting.type),
       companyType: this.resolveCompanyType(posting) ?? this.normalizeCompanyType(posting.companyType) ?? posting.companyType,
     };
-  }
-
-  private withFavorite(posting: JobPosting, favoriteIds = this.getFavoriteIds()): JobPosting {
-    return {
-      ...posting,
-      favorite: favoriteIds.has(posting.id),
-    };
-  }
-
-  private getFavoriteIds(): Set<string> {
-    const userId = this.getCurrentUserId();
-    const rows = this.recruitDb.get().prepare(`
-      SELECT job_id as jobId
-      FROM job_posting_favorites
-      WHERE user_id = ?
-    `).all(userId) as { jobId: string }[];
-
-    return new Set(rows.map((row) => row.jobId));
-  }
-
-  private getCurrentUserId(): string {
-    return requestContext.getStore()?.id ?? 'anonymous';
   }
 
   private resolveCompanyType(p: JobPosting): string | undefined {
@@ -1389,6 +1280,7 @@ export class JobPostingScraperService implements OnModuleInit {
   }
 
   private applyFilters(items: JobPosting[], filters: JobPostingListFilters, searchTerms: string[] = this.getSearchTerms(filters.search)): JobPosting[] {
+    const company = this.normalizeCompanyName(filters.company);
     const job = this.normalize(filters.job);
     const companyType = this.normalize(filters.companyType);
     const excludedCompanyTypes = this.splitComma(filters.excludeCompanyType)
@@ -1400,6 +1292,10 @@ export class JobPostingScraperService implements OnModuleInit {
     const scheduleTo = this.parsePostingDate(filters.scheduleTo);
 
     return items.filter((p) => {
+      if (company) {
+        const postingCompany = this.normalizeCompanyName(p.company);
+        if (postingCompany !== company && !postingCompany.includes(company) && !company.includes(postingCompany)) return false;
+      }
       if (companyType) {
         const allowedCompanyTypes = this.splitComma(companyType).map(t => this.normalize(t));
         const postingCompanyType = this.normalize(this.normalizeCompanyType(p.companyType) ?? p.companyType);
@@ -1500,17 +1396,17 @@ export class JobPostingScraperService implements OnModuleInit {
       return this.matchesInterestedCategory(p, 'it') ? 70 : null;
     }
     if (ELECTRONICS_STRONG_KEYWORDS.includes(term)) {
-      const haystack = this.normalize([p.jobs, p.title, p.category].filter(Boolean).join(' '));
+      const haystack = this.normalize([p.jobs, p.title].filter(Boolean).join(' '));
       return haystack.includes(term) ? 75 : 0;
     }
     if (ELECTRONICS_CONTEXT_KEYWORDS.includes(term)) {
       const primaryText = this.normalize([p.jobs, p.title].filter(Boolean).join(' '));
       if (primaryText.includes(term)) return 70;
 
-      const categoryText = this.normalize(p.category);
-      if (!categoryText.includes(term)) return 0;
+      const jobsText = this.normalize(p.jobs);
+      if (!jobsText.includes(term)) return 0;
 
-      const isBroadFacilityCategory = ELECTRONICS_BROAD_FACILITY_PATTERNS.some((pattern) => pattern.test(categoryText));
+      const isBroadFacilityCategory = ELECTRONICS_BROAD_FACILITY_PATTERNS.some((pattern) => pattern.test(jobsText));
       const looksLikeNonElectronicsJob = NON_ELECTRONICS_JOB_KEYWORDS.some((keyword) => primaryText.includes(this.normalize(keyword)));
       return isBroadFacilityCategory || looksLikeNonElectronicsJob ? 0 : 25;
     }
@@ -1529,7 +1425,6 @@ export class JobPostingScraperService implements OnModuleInit {
       { value: this.normalize(p.company), weight: 14 },
       { value: this.normalize(p.title), weight: 12 },
       { value: this.normalize(p.jobs), weight: 11 },
-      { value: this.normalize(p.category), weight: 7 },
       { value: this.normalize(p.location), weight: 5 },
       { value: this.normalize(this.normalizeJobType(p.type)), weight: 5 },
       { value: this.normalize(this.normalizeCompanyType(p.companyType) ?? p.companyType), weight: 5 },
@@ -1573,7 +1468,7 @@ export class JobPostingScraperService implements OnModuleInit {
   }
 
   private getLatestSortValue(p: JobPosting): number {
-    return this.parsePostingDate(p.startDate) ?? this.parsePostingDate(p.collectedAt) ?? 0;
+    return this.parsePostingDate(p.collectedAt) ?? this.parsePostingDate(p.startDate) ?? 0;
   }
 
   private getDeadlineSortValue(p: JobPosting): number {
@@ -1624,17 +1519,20 @@ export class JobPostingScraperService implements OnModuleInit {
     };
   }
 
+  matchesCategoryFilter(p: { title: string; jobs?: string | null }, category: string): boolean {
+    return this.matchesInterestedCategory(p as JobPosting, this.normalize(category));
+  }
+
   private matchesInterestedCategory(p: JobPosting, category: string): boolean {
     const keywords = CATEGORY_KEYWORDS[category];
     if (!keywords) {
-      return this.splitComma(p.category).some((value) => this.normalize(value) === category);
+      return this.splitComma(p.jobs).some((value) => this.normalize(value) === category);
     }
     if (category === '전자') {
       return this.matchesElectronicsCategory(p);
     }
 
     const haystack = this.normalize([
-      p.category,
       p.jobs,
       p.title,
     ].filter(Boolean).join(' '));
@@ -1647,31 +1545,39 @@ export class JobPostingScraperService implements OnModuleInit {
       p.jobs,
       p.title,
     ].filter(Boolean).join(' '));
-    const categoryText = this.normalize(p.category);
-    const fullText = `${primaryText} ${categoryText}`;
-
-    if (ELECTRONICS_STRONG_KEYWORDS.some((keyword) => fullText.includes(this.normalize(keyword)))) {
+    if (ELECTRONICS_STRONG_KEYWORDS.some((keyword) => primaryText.includes(this.normalize(keyword)))) {
       return true;
     }
     if (ELECTRONICS_CONTEXT_KEYWORDS.some((keyword) => primaryText.includes(this.normalize(keyword)))) {
+      const isBroadFacilityCategory = ELECTRONICS_BROAD_FACILITY_PATTERNS.some((pattern) => pattern.test(primaryText));
+      const looksLikeNonElectronicsJob = NON_ELECTRONICS_JOB_KEYWORDS.some((keyword) => primaryText.includes(this.normalize(keyword)));
+      if (isBroadFacilityCategory || looksLikeNonElectronicsJob) return false;
       return true;
     }
 
-    const hasContextCategory = ELECTRONICS_CONTEXT_KEYWORDS.some((keyword) => categoryText.includes(this.normalize(keyword)));
-    if (!hasContextCategory) return false;
-
-    const isBroadFacilityCategory = ELECTRONICS_BROAD_FACILITY_PATTERNS.some((pattern) => pattern.test(categoryText));
-    const looksLikeNonElectronicsJob = NON_ELECTRONICS_JOB_KEYWORDS.some((keyword) => primaryText.includes(this.normalize(keyword)));
-    if (isBroadFacilityCategory || looksLikeNonElectronicsJob) return false;
-
     return true;
+  }
+
+  private cleanCompanyName(name: string): string {
+    const cleaned = name
+      .replace(/\(주\)|㈜|\(유\)|㈔|주식회사|유한회사|합자회사|합명회사|재단법인|사단법인/gi, '')
+      .replace(/[\s()（）\[\]]/g, '')
+      .trim();
+    return cleaned || name;
+  }
+
+  private extractEmployeesFromDetail(text?: string | null): string | null {
+    if (!text) return null;
+    const m = text.match(/(?:사원\s*수|직원\s*수?|임직원|종업원)\s*[:\s]*(?:약\s*)?(\d[\d,]+)\s*명/);
+    if (m) return m[1].replace(/,/g, '') + '명';
+    return null;
   }
 
   private normalizeCompanyType(value?: string): string | undefined {
     const companyType = this.normalize(value);
     if (!companyType) return undefined;
 
-    if (companyType.includes('공공기관') || companyType.includes('공기업')) return '공공기관';
+    if (companyType.includes('공공기관') || companyType.includes('공기업') || companyType.includes('수도권공공기관')) return '공공기관';
     if (
       companyType.includes('금융') ||
       companyType.includes('금융권') ||
@@ -1686,7 +1592,7 @@ export class JobPostingScraperService implements OnModuleInit {
     }
     if (companyType.includes('외국계')) return '외국계기업';
     if (companyType.includes('대기업') || companyType.includes('매출액 1조') || companyType.includes('코스피')) return '대기업';
-    if (companyType.includes('중견')) return '중견기업';
+    if (companyType.includes('중견') || companyType.includes('상위 10% 중소')) return '중견기업';
     if (
       companyType.includes('중소') ||
       companyType.includes('스타트업') ||
@@ -1744,6 +1650,86 @@ export class JobPostingScraperService implements OnModuleInit {
 
   private uniqueSorted(values: string[]): string[] {
     return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+  }
+
+  // ── 잡코리아 라운드 로빈 ────────────────────────────────────────────────
+  // 라운드마다 회사타입 순서를 섞어 요청 패턴을 분산시킨다.
+  private async runJobkoreaRoundRobin(
+    companyTypes: JobkoreaCompanyType[],
+    opts: JobPostingScrapeOptions,
+  ): Promise<void> {
+    const delayMs = opts.delayMs ?? 2000;
+    const pages: Record<string, number> = {};
+    const emptyCount: Record<string, number> = {};
+    const exhausted = new Set<string>();
+
+    for (const ct of companyTypes) {
+      pages[ct] = 1;
+      emptyCount[ct] = 0;
+    }
+
+    while (this.status.running && exhausted.size < companyTypes.length) {
+      // 라운드마다 순서를 섞어 패턴 노출 최소화
+      const round = this.shuffled(companyTypes.filter((ct) => !exhausted.has(ct)));
+
+      for (const ct of round) {
+        if (!this.status.running) break;
+
+        const page = pages[ct];
+        this.status.lastActivity = new Date().toISOString();
+        this.status.currentPage = page;
+
+        let postings: JobPosting[];
+        try {
+          postings = await this.jobkoreaCrawler.getPostingsFromPage(page, ct);
+        } catch (err) {
+          this.logger.warn(`[jobkorea-${ct}] p.${page} 오류: ${err}`);
+          this.status.errors++;
+          exhausted.add(ct);
+          continue;
+        }
+
+        if (postings.length === 0) {
+          if (++emptyCount[ct] >= 3) {
+            this.logger.log(`[jobkorea-${ct}] 빈 페이지 3회 — 완료`);
+            exhausted.add(ct);
+          }
+        } else {
+          emptyCount[ct] = 0;
+        }
+
+        const newPostings = postings.filter((p) => !this.collectedIds.has(p.id));
+        this.logger.log(`[jobkorea-${ct}] p.${page}: ${postings.length}개 중 신규 ${newPostings.length}개`);
+
+        for (const posting of newPostings) {
+          if (!this.status.running) break;
+          if (this.collectedIds.has(posting.id)) { this.status.totalSkipped++; continue; }
+          if (this.isIgnoredPosting(posting)) { this.collectedIds.add(posting.id); this.status.totalSkipped++; continue; }
+          await this.savePosting(posting);
+          this.status.totalCollected++;
+        }
+
+        this.status.totalSkipped += postings.length - newPostings.length;
+        pages[ct]++;
+        this.updateSourceCheckpoint(`jobkorea-${ct}`, page, false);
+
+        // 같은 타입 연속 요청을 피하기 위해 타입 간 딜레이를 다르게 준다
+        await this.delay(delayMs * (0.8 + Math.random() * 0.8));
+      }
+    }
+
+    for (const ct of companyTypes) {
+      this.updateSourceCheckpoint(`jobkorea-${ct}`, pages[ct] - 1, true);
+    }
+  }
+
+  private shuffled<T>(arr: T[]): T[] {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
   }
 
   private delay(ms: number) {

@@ -1,8 +1,9 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity('cover_letters')
+@Entity('recruit_cover_letters')
 @Index(['source'])
 @Index(['companyType'])
+@Index(['jobCategory'])
 @Index(['company'])
 @Index(['position'])
 @Index(['collectedAt'])
@@ -18,6 +19,9 @@ export class CoverLetterEntity {
 
   @Column({ name: 'company_type', type: 'text', nullable: true })
   companyType: string | null;
+
+  @Column({ name: 'job_category', type: 'text', nullable: true })
+  jobCategory: string | null;
 
   @Column({ type: 'text' })
   company: string;

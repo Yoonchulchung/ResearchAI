@@ -3,6 +3,8 @@
 // - 브라우저 dev (port 3000): hostname:3001 로 직접 라우팅
 // - 브라우저 prod (그 외 포트, ingress 환경): window.location.origin 으로 ingress 경유
 // - 서버 사이드 렌더링: http://localhost:3001
+import { createId } from "../crypto";
+
 function getBeBase(): string {
   if (process.env.NEXT_PUBLIC_API_BASE) {
     return process.env.NEXT_PUBLIC_API_BASE.replace(/\/api\/?$/, "");
@@ -51,7 +53,7 @@ export const tokenStore = {
 function getAnonId(): string {
   let id = localStorage.getItem(ANON_ID_KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = createId();
     localStorage.setItem(ANON_ID_KEY, id);
   }
   return id;

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -62,6 +63,64 @@ function IconTrophy() {
       <path d="M9 13v2.5M6 15.5h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       <path d="M3.5 3.5H5v5a4 4 0 0 0 8 0V3.5h1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M5 5.5H3.5a1 1 0 0 0-1 1V8a2 2 0 0 0 2 2H5M13 5.5h1.5a1 1 0 0 1 1 1V8a2 2 0 0 1-2 2H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconSearch() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+      <circle cx="7.5" cy="7.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M11 11L14.5 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconEconomy() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+      <path d="M3 13L6.5 9L9.5 11.5L14 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M11 5h3v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconScience() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+      <path d="M7 2v5.5L4 13.5a1 1 0 0 0 .87 1.5h8.26a1 1 0 0 0 .87-1.5L11 7.5V2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 2h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="7.5" cy="11.5" r="0.7" fill="currentColor" />
+      <circle cx="10.5" cy="12.5" r="0.7" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconGlobe() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+      <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M9 2.5C9 2.5 6.5 5.5 6.5 9s2.5 6.5 2.5 6.5M9 2.5c0 0 2.5 3 2.5 6.5S9 15.5 9 15.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M2.5 9h13M3.5 6h11M3.5 12h11" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconCode() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+      <path d="M6 5L2 9l4 4M12 5l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 3.5l-2 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconHugging() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+      <circle cx="9" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M3 15c0-2.76 2.69-5 6-5s6 2.24 6 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M6.5 6.5C7 6 7.5 5.5 9 5.5s2 .5 2.5 1" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
     </svg>
   );
 }
@@ -138,9 +197,9 @@ function BlogListItem({
       target="_blank"
       rel="noreferrer"
       onClick={() => onMarkRead(post)}
-      className={`group block px-4 py-3 transition-colors ${read ? "opacity-60" : ""} ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
+      className={`group flex h-full flex-col px-4 py-3 transition-colors ${read ? "opacity-60" : ""} ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
     >
-      <div className="mb-1 flex items-center gap-2">
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
         <span className={`text-xs font-semibold ${isDark ? "text-indigo-400" : "text-indigo-600"}`}>{post.sourceName}</span>
         <span className={`text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>{formatDate(post.publishedAt)}</span>
         {post.bookmarked && (
@@ -151,11 +210,11 @@ function BlogListItem({
         )}
         {read && <span className={`rounded px-1.5 py-0.5 text-2xs font-semibold ${isDark ? "bg-white/5 text-white/35" : "bg-slate-100 text-slate-400"}`}>읽음</span>}
       </div>
-      <p className={`line-clamp-1 text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-indigo-300" : "text-slate-900 group-hover:text-indigo-600"}`}>
+      <p className={`line-clamp-2 text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-indigo-300" : "text-slate-900 group-hover:text-indigo-600"}`}>
         {post.title}
       </p>
       {post.summary && (
-        <p className={`mt-0.5 line-clamp-1 text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>{post.summary}</p>
+        <p className={`mt-1 line-clamp-2 text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-400"}`}>{post.summary}</p>
       )}
     </a>
   );
@@ -176,8 +235,8 @@ function PaperListItem({
 }) {
   const read = Boolean(paper.readAt);
   return (
-    <div className={`group px-4 py-3 transition-colors ${read ? "opacity-60" : ""} ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}>
-      <div className="mb-1 flex items-center gap-2">
+    <div className={`group flex h-full flex-col px-4 py-3 transition-colors ${read ? "opacity-60" : ""} ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}>
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
         <span className={`text-xs font-semibold ${isDark ? "text-indigo-400" : "text-indigo-600"}`}>{paper.sourceName}</span>
         {typeof paper.upvotes === "number" && (
           <span className={`text-xs font-semibold ${isDark ? "text-amber-400" : "text-amber-600"}`}>▲ {paper.upvotes}</span>
@@ -196,17 +255,17 @@ function PaperListItem({
         target="_blank"
         rel="noreferrer"
         onClick={() => onMarkRead(paper)}
-        className={`line-clamp-1 text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-indigo-300" : "text-slate-900 group-hover:text-indigo-600"}`}
+        className={`line-clamp-2 text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-indigo-300" : "text-slate-900 group-hover:text-indigo-600"}`}
       >
         {paper.title}
       </a>
       {paper.summary && (
-        <p className={`mt-0.5 line-clamp-1 text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>{paper.summary}</p>
+        <p className={`mt-1 line-clamp-2 text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-400"}`}>{paper.summary}</p>
       )}
       {paper.aiSummary && (
         <button
           onClick={() => onOpenSummary(paper)}
-          className={`mt-2 inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-semibold transition ${isDark ? "border-indigo-400/20 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/15" : "border-indigo-100 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"}`}
+          className={`mt-auto pt-2 inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-semibold transition ${isDark ? "border-indigo-400/20 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/15" : "border-indigo-100 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"}`}
         >
           <IconSparkles />
           AI 요약 보기
@@ -292,17 +351,17 @@ function NewsListItem({ item, isDark, border }: { item: NewsItem; isDark: boolea
       href={item.link}
       target="_blank"
       rel="noreferrer"
-      className={`group block px-4 py-3 transition-colors ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
+      className={`group flex h-full flex-col px-4 py-3 transition-colors ${border ? isDark ? "md:border-t md:border-white/5" : "md:border-t md:border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
     >
-      <div className="mb-1 flex items-center gap-2">
+      <div className="mb-1 flex flex-wrap items-center gap-1.5">
         <span className={`text-xs font-semibold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>{item.source}</span>
         {item.pubDate && <span className={`text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>{formatDate(item.pubDate)}</span>}
       </div>
-      <p className={`line-clamp-1 text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-emerald-300" : "text-slate-900 group-hover:text-emerald-600"}`}>
+      <p className={`line-clamp-2 text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-emerald-300" : "text-slate-900 group-hover:text-emerald-600"}`}>
         {stripHtml(item.title)}
       </p>
       {item.description && (
-        <p className={`mt-0.5 line-clamp-1 text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>{stripHtml(item.description)}</p>
+        <p className={`mt-1 line-clamp-2 text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-400"}`}>{stripHtml(item.description)}</p>
       )}
     </a>
   );
@@ -315,6 +374,46 @@ function SkeletonRow({ isDark, border }: { isDark: boolean; border: boolean }) {
       <div className={`mb-1.5 h-3 w-20 animate-pulse rounded ${pulse}`} />
       <div className={`h-4 w-5/6 animate-pulse rounded ${pulse}`} />
     </div>
+  );
+}
+
+const BLOG_GRADIENTS = [
+  "from-indigo-500 to-violet-600",
+  "from-blue-500 to-indigo-600",
+  "from-teal-500 to-emerald-600",
+  "from-rose-500 to-pink-600",
+  "from-amber-500 to-orange-600",
+  "from-cyan-500 to-blue-600",
+  "from-purple-500 to-indigo-600",
+];
+
+function MobileFeaturedCard({ post, isDark, onRead }: { post: TechBlogPost; isDark: boolean; onRead: () => void }) {
+  const grad = BLOG_GRADIENTS[(post.sourceName.charCodeAt(0) ?? 0) % BLOG_GRADIENTS.length];
+  return (
+    <a
+      href={post.url}
+      target="_blank"
+      rel="noreferrer"
+      onClick={onRead}
+      className={`block overflow-hidden rounded-2xl shadow-md ${post.readAt ? "opacity-60" : ""}`}
+    >
+      <div className={`bg-linear-to-br ${grad} px-5 pb-6 pt-5`}>
+        <span className="text-xs font-semibold text-white/70">#{post.sourceName}</span>
+        <h2 className="mt-1 line-clamp-3 text-xl font-bold leading-snug text-white">
+          {post.title}
+        </h2>
+      </div>
+      <div className={`flex items-center gap-3 px-5 py-3 ${isDark ? "border border-t-0 border-white/10 bg-slate-900/80" : "border border-t-0 border-slate-200 bg-white"} rounded-b-2xl`}>
+        {post.summary ? (
+          <p className={`line-clamp-1 flex-1 text-xs ${isDark ? "text-white/40" : "text-slate-500"}`}>{post.summary}</p>
+        ) : (
+          <span className="flex-1" />
+        )}
+        {post.publishedAt && (
+          <span className={`shrink-0 text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>{formatDate(post.publishedAt)}</span>
+        )}
+      </div>
+    </a>
   );
 }
 
@@ -399,6 +498,8 @@ export default function NewsPage() {
   const { theme, uiStyle } = useTheme();
   const isDark = theme === "dark";
   const isGlass = uiStyle === "glass";
+
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
 
   const [blogs, setBlogs] = useState<TechBlogPost[]>([]);
   const [blogLoading, setBlogLoading] = useState(true);
@@ -536,20 +637,90 @@ export default function NewsPage() {
     <main className={`h-full overflow-y-auto ${pageClass}`}>
       {summaryPaper && <PaperSummaryModal paper={summaryPaper} isDark={isDark} onClose={() => setSummaryPaper(null)} />}
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
-        {/* Header */}
-        <section className={`rounded-2xl border p-5 shadow-sm ${panelClass}`}>
+        {/* ===== Mobile header (compact) ===== */}
+        <div className="md:hidden flex flex-col gap-4">
+          {/* Title row */}
+          <div className="flex items-center justify-between">
+            <h1 className={`text-2xl font-bold tracking-tight ${textMain}`}>뉴스</h1>
+            <button
+              onClick={() => setShowMobileSearch((s) => !s)}
+              className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${isDark ? "bg-white/5 text-white/60 hover:bg-white/10" : "bg-slate-100 text-slate-500 hover:bg-slate-200"} ${showMobileSearch ? isDark ? "bg-white/10 text-indigo-300" : "bg-indigo-50 text-indigo-600" : ""}`}
+              aria-label="검색"
+            >
+              <IconSearch />
+            </button>
+          </div>
+
+          {/* Collapsible search */}
+          <div className={`overflow-hidden transition-all duration-200 ease-out ${showMobileSearch ? "max-h-14" : "max-h-0"}`}>
+            <form onSubmit={handleNewsSearch} className="flex gap-2">
+              <input
+                value={newsSearch}
+                onChange={(e) => setNewsSearch(e.target.value)}
+                placeholder='블로그, 논문, 뉴스 검색...'
+                className={`flex-1 rounded-xl border px-3 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-indigo-200/50 ${isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/30 focus:border-indigo-400/50" : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-indigo-300"}`}
+              />
+              <button
+                type="submit"
+                className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${isDark ? "bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30" : "bg-slate-900 text-white hover:bg-indigo-600"}`}
+              >
+                찾기
+              </button>
+            </form>
+          </div>
+
+          {/* Featured card */}
+          {!blogLoading && blogs.length > 0 && (
+            <MobileFeaturedCard post={blogs[0]} isDark={isDark} onRead={() => handleMarkBlogRead(blogs[0])} />
+          )}
+          {blogLoading && (
+            <div className={`overflow-hidden rounded-2xl shadow-md`}>
+              <div className={`h-36 w-full animate-pulse ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
+              <div className={`flex items-center gap-3 px-5 py-3 ${isDark ? "border border-t-0 border-white/10 bg-slate-900/80" : "border border-t-0 border-slate-200 bg-white"} rounded-b-2xl`}>
+                <div className={`h-3 w-2/3 animate-pulse rounded ${isDark ? "bg-white/10" : "bg-slate-100"}`} />
+              </div>
+            </div>
+          )}
+
+          {/* Category shortcut icons */}
+          <div className="-mx-4 px-4">
+            <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-0.5">
+              {[
+                { icon: <IconFeed />, label: "기술\n블로그", href: "/news/tech-blogs", bg: isDark ? "bg-indigo-500/15 text-indigo-300" : "bg-indigo-50 text-indigo-600" },
+                { icon: <IconPaper />, label: "핫한\n논문", href: "/news/papers", bg: isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-50 text-blue-600" },
+                { icon: <IconTrophy />, label: "AI\n랭킹", href: "/news/leaderboard", bg: isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-600" },
+                { icon: <IconNewspaper />, label: "IT\n뉴스", href: "/news/feed?category=it", bg: isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-600" },
+                { icon: <IconEconomy />, label: "경제", href: "/news/feed?category=economy", bg: isDark ? "bg-orange-500/15 text-orange-300" : "bg-orange-50 text-orange-600" },
+                { icon: <IconScience />, label: "과학", href: "/news/feed?category=science", bg: isDark ? "bg-teal-500/15 text-teal-300" : "bg-teal-50 text-teal-600" },
+                { icon: <IconGlobe />, label: "세계", href: "/news/feed?category=world", bg: isDark ? "bg-sky-500/15 text-sky-300" : "bg-sky-50 text-sky-600" },
+                { icon: <IconCode />, label: "GitHub", href: "/news/feed?category=github", bg: isDark ? "bg-slate-500/20 text-slate-300" : "bg-slate-100 text-slate-700" },
+                { icon: <IconHugging />, label: "HuggingFace", href: "/news/feed?category=huggingface", bg: isDark ? "bg-yellow-500/15 text-yellow-300" : "bg-yellow-50 text-yellow-600" },
+              ].map((s) => (
+                <Link key={s.label} href={s.href} className="flex shrink-0 flex-col items-center gap-1.5">
+                  <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${s.bg}`}>
+                    {s.icon}
+                  </div>
+                  <span className={`whitespace-pre-line text-center text-2xs font-medium leading-tight ${isDark ? "text-white/55" : "text-slate-600"}`}>{s.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ===== Desktop header (full search panel) ===== */}
+        <section className={`hidden md:block rounded-2xl border p-5 shadow-sm ${panelClass}`}>
           <h1 className={`text-3xl font-bold tracking-tight ${textMain}`}>뉴스</h1>
           <p className={`mt-1.5 text-sm ${textSub}`}>국내외 기술 블로그, 핫한 논문, 뉴스 피드를 한 곳에서 모아봅니다.</p>
-          <form onSubmit={handleNewsSearch} className="mt-5 flex flex-col gap-2 sm:flex-row">
+          <form onSubmit={handleNewsSearch} className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:items-center">
             <input
               value={newsSearch}
               onChange={(e) => setNewsSearch(e.target.value)}
-              placeholder='예: "네이버의 기술 블로그 찾아줘", "AI 논문 찾아줘"'
-              className={`h-11 flex-1 rounded-xl border px-4 text-sm outline-none transition focus:ring-2 focus:ring-indigo-200/50 ${isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/30 focus:border-indigo-400/50" : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-indigo-300"}`}
+              placeholder='예: "네이버 기술 블로그", "AI 논문"'
+              className={`min-h-12 w-full min-w-0 flex-1 rounded-xl border px-4 py-3 text-base leading-6 outline-none transition focus:ring-2 focus:ring-indigo-200/50 sm:min-h-11 sm:py-2.5 sm:text-sm ${isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/30 focus:border-indigo-400/50" : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-indigo-300"}`}
             />
             <button
               type="submit"
-              className={`h-11 rounded-xl px-4 text-sm font-semibold transition ${isDark ? "bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30" : "bg-slate-900 text-white hover:bg-indigo-600"}`}
+              className={`min-h-12 w-full rounded-xl px-5 py-3 text-base font-semibold leading-6 transition sm:min-h-11 sm:w-auto sm:py-2.5 sm:text-sm ${isDark ? "bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30" : "bg-slate-900 text-white hover:bg-indigo-600"}`}
             >
               찾아보기
             </button>
@@ -573,20 +744,26 @@ export default function NewsPage() {
                 전체 보기
               </button>
             </div>
-            <div className="max-h-[22rem] overflow-y-auto">
+            {/* 모바일: 가로 스와이프 / 데스크탑: 세로 스크롤 */}
+            <div className={`md:max-h-88 md:overflow-y-auto ${isDark ? "md:divide-y md:divide-white/5" : "md:divide-y md:divide-slate-100"} max-md:flex max-md:gap-3 max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:pb-1.5 max-md:px-4`}>
               {blogLoading ? (
-                Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} isDark={isDark} border={i > 0} />)
+                Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="max-md:shrink-0 max-md:w-64 max-md:snap-start">
+                    <SkeletonRow isDark={isDark} border={false} />
+                  </div>
+                ))
               ) : blogError ? (
                 <p className={`px-4 py-6 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{blogError}</p>
               ) : (
-                blogs.map((post, i) => (
-                  <BlogListItem
-                    key={post.id}
-                    post={post}
-                    isDark={isDark}
-                    border={i > 0}
-                    onMarkRead={handleMarkBlogRead}
-                  />
+                blogs.map((post) => (
+                  <div key={post.id} className={`max-md:shrink-0 max-md:w-64 max-md:snap-start max-md:rounded-xl max-md:overflow-hidden max-md:border ${isDark ? "max-md:border-white/10" : "max-md:border-slate-200"}`}>
+                    <BlogListItem
+                      post={post}
+                      isDark={isDark}
+                      border={false}
+                      onMarkRead={handleMarkBlogRead}
+                    />
+                  </div>
                 ))
               )}
             </div>
@@ -607,21 +784,26 @@ export default function NewsPage() {
                 전체 보기
               </button>
             </div>
-            <div className="max-h-[22rem] overflow-y-auto">
+            <div className={`md:max-h-88 md:overflow-y-auto ${isDark ? "md:divide-y md:divide-white/5" : "md:divide-y md:divide-slate-100"} max-md:flex max-md:gap-3 max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:pb-1.5 max-md:px-4`}>
               {paperLoading ? (
-                Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} isDark={isDark} border={i > 0} />)
+                Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="max-md:shrink-0 max-md:w-64 max-md:snap-start">
+                    <SkeletonRow isDark={isDark} border={false} />
+                  </div>
+                ))
               ) : paperError ? (
                 <p className={`px-4 py-6 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{paperError}</p>
               ) : (
-                papers.map((paper, i) => (
-                  <PaperListItem
-                    key={paper.id}
-                    paper={paper}
-                    isDark={isDark}
-                    border={i > 0}
-                    onOpenSummary={setSummaryPaper}
-                    onMarkRead={handleMarkPaperRead}
-                  />
+                papers.map((paper) => (
+                  <div key={paper.id} className={`max-md:shrink-0 max-md:w-64 max-md:snap-start max-md:rounded-xl max-md:overflow-hidden max-md:border ${isDark ? "max-md:border-white/10" : "max-md:border-slate-200"}`}>
+                    <PaperListItem
+                      paper={paper}
+                      isDark={isDark}
+                      border={false}
+                      onOpenSummary={setSummaryPaper}
+                      onMarkRead={handleMarkPaperRead}
+                    />
+                  </div>
                 ))
               )}
             </div>
@@ -643,20 +825,25 @@ export default function NewsPage() {
               전체 보기
             </button>
           </div>
-          <div>
+          <div className={`${isDark ? "md:divide-y md:divide-white/5" : "md:divide-y md:divide-slate-100"} max-md:flex max-md:gap-3 max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:pb-1.5 max-md:px-4`}>
             {modelsLoading ? (
-              Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} isDark={isDark} border={i > 0} />)
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="max-md:shrink-0 max-md:w-64 max-md:snap-start">
+                  <SkeletonRow isDark={isDark} border={false} />
+                </div>
+              ))
             ) : modelsError ? (
               <p className={`px-4 py-6 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{modelsError}</p>
             ) : (
-              models.map((model, i) => (
-                <ModelListItem
-                  key={model.id}
-                  model={model}
-                  isDark={isDark}
-                  border={i > 0}
-                  onClick={() => router.push(`/news/leaderboard/${encodeURIComponent(model.id)}`)}
-                />
+              models.map((model) => (
+                <div key={model.id} className={`max-md:shrink-0 max-md:w-56 max-md:snap-start max-md:rounded-xl max-md:overflow-hidden max-md:border ${isDark ? "max-md:border-white/10" : "max-md:border-slate-200"}`}>
+                  <ModelListItem
+                    model={model}
+                    isDark={isDark}
+                    border={false}
+                    onClick={() => router.push(`/news/leaderboard/${encodeURIComponent(model.id)}`)}
+                  />
+                </div>
               ))
             )}
           </div>
@@ -701,14 +888,20 @@ export default function NewsPage() {
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2">
+          <div className="md:grid md:grid-cols-2 max-md:flex max-md:gap-3 max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:pb-1.5 max-md:px-4">
             {feedLoading ? (
-              Array.from({ length: 10 }).map((_, i) => <SkeletonRow key={i} isDark={isDark} border={i > 0} />)
+              Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="max-md:shrink-0 max-md:w-64 max-md:snap-start">
+                  <SkeletonRow isDark={isDark} border={false} />
+                </div>
+              ))
             ) : feedError ? (
               <p className={`px-4 py-6 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{feedError}</p>
             ) : (
               feedItems.slice(0, 10).map((item, i) => (
-                <NewsListItem key={`${item.link}-${i}`} item={item} isDark={isDark} border={i > 1 || (i === 1)} />
+                <div key={`${item.link}-${i}`} className={`max-md:shrink-0 max-md:w-64 max-md:snap-start max-md:rounded-xl max-md:overflow-hidden max-md:border ${isDark ? "max-md:border-white/10" : "max-md:border-slate-200"}`}>
+                  <NewsListItem item={item} isDark={isDark} border={i >= 2} />
+                </div>
               ))
             )}
           </div>

@@ -47,7 +47,6 @@ export class JobdaJobCrawler {
         endDate: closingAt ? closingAt.slice(0, 10) : undefined,
         deadline: closingAt ? this.formatDate(closingAt) : '상시채용',
         jobs: jobTitles.join(', ') || undefined,
-        category: categories.join(', '),
         viewCount: 0,
         collectedAt: new Date().toISOString(),
         source: 'jobda' as const,

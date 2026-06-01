@@ -14,8 +14,9 @@ import { JobCalendar } from "./_components/JobCalendar";
 function JobPostingPageContent() {
   const searchParams = useSearchParams();
   const jobId = searchParams.get("job");
+  const companyQuery = searchParams.get("company") || searchParams.get("search");
 
-  const posts = useJobPostings(jobId);
+  const posts = useJobPostings(jobId, companyQuery);
   const scraping = useJobScraping(posts.reload);
 
   const companyTypeOptions = posts.filterOptions.companyTypes;
@@ -38,9 +39,17 @@ function JobPostingPageContent() {
           setScrapeSource={scraping.setScrapeSource}
           linkareerJobType={scraping.linkareerJobType}
           setLinkareerJobType={scraping.setLinkareerJobType}
+          jobkoreaCompanyTypes={scraping.jobkoreaCompanyTypes}
+          setJobkoreaCompanyTypes={scraping.setJobkoreaCompanyTypes}
           handleStart={scraping.handleStart}
           handleStop={scraping.handleStop}
           isHeaderHidden={posts.isHeaderHidden}
+          collectStatus={scraping.collectStatus}
+          collectLoading={scraping.collectLoading}
+          collectConfig={scraping.collectConfig}
+          setCollectConfig={scraping.setCollectConfig}
+          handleCollectStart={scraping.handleCollectStart}
+          handleCollectStop={scraping.handleCollectStop}
         />
 
         <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -69,6 +78,10 @@ function JobPostingPageContent() {
               items={posts.items}
               loading={posts.loading}
               selected={posts.selected}
+              search={posts.search}
+              externalSearchLoading={posts.externalSearchLoading}
+              externalSearchCount={posts.externalSearchCount}
+              onExternalSearch={posts.handleExternalSearch}
               onSelect={posts.selectPosting}
               onToggleFavorite={posts.toggleFavorite}
               onScroll={posts.handleListScroll}
@@ -98,6 +111,8 @@ function JobPostingPageContent() {
                 calendarDays={posts.calendarDays}
                 calendarEventsByDate={posts.calendarEventsByDate}
                 onSelectPosting={posts.selectPosting}
+                recommendations={posts.recommendations}
+                onDeleteRecommendation={posts.deleteRecommendation}
               />
             </div>
           )}

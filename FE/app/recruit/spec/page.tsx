@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
-  analyzeCoverLetterJobs,
+  enqueueSpecAnalysis,
+  streamSpecAnalysis,
   getSpecAnalyses,
   listCoverLetters,
   type CoverLetter,
   type CoverLetterJobAnalysis,
   type JobCategory,
+  type JobCategoryTarget,
 } from "@/lib/api/recruit/cover-letter";
 import { MODELS } from "../_constants";
 
@@ -20,7 +22,8 @@ const SOURCE_FILTERS = [
 ] as const;
 
 const COMPANY_TYPE_FILTERS = ["", "대기업", "중견기업", "중소기업", "금융권"] as const;
-const TARGET_FILTERS: { value: "all" | JobCategory; label: string }[] = [
+const TARGET_FILTERS: { value: JobCategoryTarget; label: string }[] = [
+  { value: "IT+전자", label: "IT+전자" },
   { value: "all", label: "전체" },
   { value: "IT", label: "IT" },
   { value: "전자", label: "전자" },
@@ -33,7 +36,7 @@ const TARGET_FILTERS: { value: "all" | JobCategory; label: string }[] = [
   { value: "기타", label: "기타" },
 ];
 
-type TargetFilter = "all" | JobCategory;
+type TargetFilter = JobCategoryTarget;
 
 function specChips(spec: CoverLetterJobAnalysis["extractedSpec"]) {
   return [
@@ -298,14 +301,17 @@ export default function RecruitSpecPage() {
   const [search, setSearch] = useState("");
   const [source, setSource] = useState("");
   const [companyType, setCompanyType] = useState("");
-  const [target, setTarget] = useState<TargetFilter>("all");
+
   const [model, setModel] = useState(MODELS[0]?.id ?? "");
 
   const [analyses, setAnalyses] = useState<Record<string, CoverLetterJobAnalysis>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisLog, setAnalysisLog] = useState<string>("");
   const [analyzedModel, setAnalyzedModel] = useState("");
+  const analysisAbortRef = useRef<AbortController | null>(null);
   const [selectedAverageCategory, setSelectedAverageCategory] = useState<JobCategory | null>(null);
+  const [target, setTarget] = useState<TargetFilter>("IT+전자");
   const [selectedDetailId, setSelectedDetailId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -411,26 +417,48 @@ export default function RecruitSpecPage() {
       ? [...selectedIds]
       : items.filter((item) => !analyses[item.id]).slice(0, 20).map((item) => item.id);
     if (targetIds.length === 0 || analyzing) return;
+
+    analysisAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    analysisAbortRef.current = ctrl;
+
     setAnalyzing(true);
     setAnalysisError(null);
+    setAnalysisLog("");
     try {
-      const res = await analyzeCoverLetterJobs({
+      const { jobId } = await enqueueSpecAnalysis({
         ids: targetIds,
         target,
         model,
         limit: targetIds.length,
       });
-      // 기존 분석 결과 유지하면서 새 결과를 누적
-      setAnalyses((prev) => {
-        const next = { ...prev };
-        for (const item of res.items) next[item.id] = item;
-        return next;
-      });
-      setAnalyzedModel(res.model);
+      await streamSpecAnalysis(
+        jobId,
+        (event) => {
+          if (event.type === "log") {
+            setAnalysisLog(event.message);
+          } else if (event.type === "done" && event.payload) {
+            const res = event.payload;
+            setAnalyses((prev) => {
+              const next = { ...prev };
+              for (const item of res.items) next[item.id] = item;
+              return next;
+            });
+            setAnalyzedModel(res.model);
+            setAnalysisLog("");
+          } else if (event.type === "error") {
+            setAnalysisError(event.message);
+          }
+        },
+        ctrl.signal,
+      );
     } catch (e) {
-      setAnalysisError(e instanceof Error ? e.message : "AI 스펙 분석에 실패했습니다.");
+      if (!ctrl.signal.aborted) {
+        setAnalysisError(e instanceof Error ? e.message : "AI 스펙 분석에 실패했습니다.");
+      }
     } finally {
       setAnalyzing(false);
+      setAnalysisLog("");
     }
   };
 
@@ -559,6 +587,12 @@ export default function RecruitSpecPage() {
           <div className={`mt-4 flex flex-wrap items-center gap-2 text-xs ${textSub}`}>
             <span>조회 {items.length.toLocaleString()}건 / 전체 {total.toLocaleString()}건</span>
             {analyzedModel && <span>· 분석 모델 {analyzedModel}</span>}
+            {analysisLog && (
+              <span className={`flex items-center gap-1.5 ${isDark ? "text-indigo-300" : "text-indigo-600"}`}>
+                <span className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                {analysisLog}
+              </span>
+            )}
             {analysisError && <span className={isDark ? "text-red-300" : "text-red-500"}>{analysisError}</span>}
             {error && <span className={isDark ? "text-red-300" : "text-red-500"}>{error}</span>}
           </div>

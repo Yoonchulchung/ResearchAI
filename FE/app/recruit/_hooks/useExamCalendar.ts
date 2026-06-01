@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { listExamEvents, type ExamEvent } from "@/lib/api/exams";
-import { listJobPostings, type JobPosting } from "@/lib/api/recruit/job-posting";
+import { getJobRecommendations, type JobRecommendation } from "@/lib/api/recruit/job-posting";
 
 export type RecruitCalendarEvent = {
   id: string;
@@ -12,7 +12,7 @@ export type RecruitCalendarEvent = {
   description?: string;
   date: string;
   exam?: ExamEvent;
-  job?: JobPosting;
+  job?: JobRecommendation;
 };
 
 export type CalendarJobTypeFilter = "" | "early" | "career";
@@ -90,26 +90,17 @@ export function useExamCalendar(jobTypeFilter: CalendarJobTypeFilter = "") {
       setJobLoading(true);
       setJobError(null);
       try {
-        const scheduleFrom = toDateKey(new Date(examMonth.getFullYear(), examMonth.getMonth(), 1));
-        const scheduleTo = toDateKey(new Date(examMonth.getFullYear(), examMonth.getMonth() + 1, 0));
-        const res = await listJobPostings({
-          page: 1,
-          limit: 1000,
-          sort: "deadline",
-          category: "IT,전자",
-          excludeCompanyType: "중소기업,스타트업",
-          type: toJobTypeParam(jobTypeFilter),
-          scheduleFrom,
-          scheduleTo,
-        });
+        const recs = await getJobRecommendations(200);
         if (cancelled) return;
+        const typeParam = toJobTypeParam(jobTypeFilter);
         const events: RecruitCalendarEvent[] = [];
-        for (const job of res.items) {
+        for (const job of recs) {
+          if (typeParam && job.type && !typeParam.split(",").includes(job.type)) continue;
           const start = parseScheduleDate(job.startDate);
           const end = parseScheduleDate(job.endDate || job.deadline);
           if (start && isInMonth(start, examMonth)) {
             events.push({
-              id: `${job.id}-start`,
+              id: `${job.jobPostingId}-start`,
               kind: "job-start",
               title: job.company,
               label: "시작",
@@ -120,7 +111,7 @@ export function useExamCalendar(jobTypeFilter: CalendarJobTypeFilter = "") {
           }
           if (end && isInMonth(end, examMonth)) {
             events.push({
-              id: `${job.id}-end`,
+              id: `${job.jobPostingId}-end`,
               kind: "job-end",
               title: job.company,
               label: "마감",

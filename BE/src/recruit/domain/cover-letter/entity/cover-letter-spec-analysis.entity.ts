@@ -1,6 +1,6 @@
 import { Column, Entity, Index, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity('cover_letter_spec_analyses')
+@Entity('recruit_cover_letter_spec_analyses')
 @Index(['jobCategory'])
 @Index(['analyzedAt'])
 export class CoverLetterSpecAnalysisEntity {
@@ -16,8 +16,39 @@ export class CoverLetterSpecAnalysisEntity {
   @Column({ type: 'text', nullable: true })
   reason: string | null;
 
-  @Column({ name: 'extracted_spec', type: 'text' })
-  extractedSpec: string;
+  @Column({ name: 'extracted_spec', type: 'text', nullable: true })
+  extractedSpec: string | null;
+
+  // individual spec columns
+  @Column({ type: 'varchar', nullable: true })
+  school!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  major!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  gpa!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  languages!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  certificates!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  internships!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  activities!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  awards!: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  skills!: string | null;
+
+  @Column({ name: 'spec_summary', type: 'text', nullable: true })
+  specSummary!: string | null;
 
   @Column({ type: 'text', nullable: true })
   model: string | null;

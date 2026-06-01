@@ -1,13 +1,18 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { JobPostingScraperService } from '../application/job-posting-scraper.service';
+import { RecruitJobPostingCollectService } from '../application/recruit-job-posting-collect.service';
 import type { JobPostingListFilters, JobPostingScrapeOptions } from '../domain/job-posting.model';
+import type { CollectDetailConfig } from '../application/recruit-job-posting-collect.service';
 
 type AiMode = 'analysis' | 'interview';
 
 @Controller(['recruit/job-postings', 'job-posting-scraper'])
 export class JobPostingScraperController {
-  constructor(private readonly service: JobPostingScraperService) {}
+  constructor(
+    private readonly service: JobPostingScraperService,
+    private readonly collectService: RecruitJobPostingCollectService,
+  ) {}
 
   @Post('start')
   start(@Body() opts: JobPostingScrapeOptions) {
@@ -60,6 +65,7 @@ export class JobPostingScraperController {
     @Query('page') page = '1',
     @Query('limit') limit = '20',
     @Query('source') source?: string,
+    @Query('company') company?: string,
     @Query('search') search?: string,
     @Query('job') job?: string,
     @Query('companyType') companyType?: string,
@@ -73,6 +79,7 @@ export class JobPostingScraperController {
   ) {
     const filters: JobPostingListFilters = {
       source,
+      company,
       search,
       job,
       companyType,
@@ -95,6 +102,11 @@ export class JobPostingScraperController {
   @Delete('data/:id/favorite')
   unfavorite(@Param('id') id: string) {
     return this.service.setFavorite(id, false);
+  }
+
+  @Patch('data/:id/applied')
+  setApplied(@Param('id') id: string, @Body() body: { appliedAt?: string | null }) {
+    return this.service.setApplied(id, body.appliedAt ?? null);
   }
 
   @Get('data/:id')
@@ -123,5 +135,49 @@ export class JobPostingScraperController {
   getImageFiles(@Body() body: { html: string }) {
     const files = this.service.getPostingImageFiles(body.html ?? '');
     return { files };
+  }
+
+  // ── 채용 상세 수집 (1주일 내 마감 공고 → TypeORM 저장) ──────────────────────
+
+  @Post('collect-detail/start')
+  startCollectDetail(@Body() config: CollectDetailConfig) {
+    return this.collectService.collect(config);
+  }
+
+  @Post('collect-detail/preview')
+  previewCollectCount(@Body() config: CollectDetailConfig) {
+    return this.collectService.previewCount(config);
+  }
+
+  @Post('collect-detail/stop')
+  stopCollectDetail() {
+    return this.collectService.stop();
+  }
+
+  @Get('collect-detail/status')
+  getCollectDetailStatus() {
+    return this.collectService.getStatus();
+  }
+
+  @Get('collect-detail/list')
+  async listCollected(@Query('limit') limit = '100') {
+    return this.collectService.listCollected(Number(limit));
+  }
+
+  @Post('collect-detail/recommend')
+  async triggerRecommend() {
+    await this.collectService.generateRecommendations();
+    return { message: '추천 생성 완료' };
+  }
+
+  @Get('collect-detail/recommendations')
+  async getRecommendations(@Query('limit') limit = '20') {
+    return this.collectService.getRecommendations(Number(limit));
+  }
+
+  @Delete('collect-detail/recommendations/:id')
+  async deleteRecommendation(@Param('id') id: string) {
+    await this.collectService.deleteRecommendation(Number(id));
+    return { message: '삭제 완료' };
   }
 }

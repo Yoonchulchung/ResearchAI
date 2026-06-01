@@ -8,5 +8,6 @@ export * from "./api/config";
 export * from "./api/experiences";
 export * from "./api/documents";
 export * from "./api/company-analysis";
+export * from "./api/companies";
 export * from "./api/tech-blogs";
 export * from "./api/papers";

@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useCoverLetterList } from "./_hooks/useCoverLetterList";
 import { useCoverLetterScraping } from "./_hooks/useCoverLetterScraping";
+import CompanyAnalysisPanel from "@/recruit/resume/components/CompanyAnalysisPanel";
 
 const SOURCE_FILTERS = [
   { value: "", label: "전체" },
@@ -12,6 +13,19 @@ const SOURCE_FILTERS = [
   { value: "linkareer", label: "링커리어" },
 ] as const;
 const COMPANY_TYPE_FILTERS = ["", "대기업", "중견기업", "중소기업", "금융권"] as const;
+const JOB_CATEGORY_FILTERS = [
+  { value: "", label: "직무 전체" },
+  { value: "IT+전자", label: "IT+전자" },
+  { value: "IT", label: "IT" },
+  { value: "전자", label: "전자" },
+  { value: "경영/기획", label: "경영/기획" },
+  { value: "영업", label: "영업" },
+  { value: "마케팅", label: "마케팅" },
+  { value: "인사/총무", label: "인사/총무" },
+  { value: "재무/회계", label: "재무/회계" },
+  { value: "생산/제조", label: "생산/제조" },
+  { value: "기타", label: "기타" },
+] as const;
 
 function CoverLetterPageContent() {
   const searchParams = useSearchParams();
@@ -22,6 +36,7 @@ function CoverLetterPageContent() {
 
   const list = useCoverLetterList(coverId);
   const scraping = useCoverLetterScraping(list.reload);
+  const [showAnalysis, setShowAnalysis] = useState(true);
 
   useEffect(() => {
     // 부모 main 엘리먼트의 스크롤을 막아서 중첩 스크롤 및 뷰포트 밀림 방지
@@ -64,6 +79,21 @@ function CoverLetterPageContent() {
               }`}
             >
               스펙 분석
+            </button>
+            <button
+              onClick={() => setShowAnalysis((v) => !v)}
+              title="기업 분석 패널"
+              className={`hidden xl:inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                showAnalysis
+                  ? isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-50 text-violet-700"
+                  : isDark ? "text-white/40 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
+              }`}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.3"/>
+                <path d="M4 6h4M6 4v4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+              </svg>
+              기업분석
             </button>
             <div className={`hidden sm:flex shrink-0 items-center gap-1 rounded-lg p-0.5 border ${
               isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
@@ -124,7 +154,7 @@ function CoverLetterPageContent() {
         {/* Body */}
         <div className="flex-1 flex min-h-0 overflow-hidden">
           {/* Left: list */}
-          <div className={`${list.selected ? "hidden lg:flex" : "flex"} flex-col w-full lg:w-[360px] shrink-0 border-r overflow-hidden ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-200"}`}>
+          <div className={`${list.selected ? "hidden lg:flex" : "flex"} flex-col w-full lg:w-90 shrink-0 border-r overflow-hidden ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-200"}`}>
             {/* Filters */}
             <div className={`shrink-0 px-3 py-2.5 border-b ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-100"}`}>
               <div className="relative">
@@ -174,6 +204,29 @@ function CoverLetterPageContent() {
                     <option key={type || "all"} value={type}>{type || "기업분류 전체"}</option>
                   ))}
                 </select>
+
+                {/* 직무 카테고리 필터 */}
+                <div>
+                  <p className={`mb-1.5 text-2xs font-semibold uppercase tracking-wide ${isGlass && isDark ? "text-white/35" : "text-slate-400"}`}>직무</p>
+                  <div className="flex flex-wrap gap-1">
+                    {JOB_CATEGORY_FILTERS.map((item) => (
+                      <button
+                        key={item.value || "all"}
+                        onClick={() => list.setJobCategoryFilter(item.value)}
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold transition-colors whitespace-nowrap ${
+                          list.jobCategoryFilter === item.value
+                            ? "bg-indigo-600 text-white"
+                            : isGlass && isDark
+                              ? "bg-white/10 text-white/60 hover:bg-white/20"
+                              : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <button
                   onClick={() => window.location.assign("/recruit/spec")}
                   className={`flex h-8 items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-50 ${
@@ -223,6 +276,9 @@ function CoverLetterPageContent() {
                     {(!cl.source || cl.source === "linkareer") && (
                       <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full ${isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-600"}`}>링커리어</span>
                     )}
+                    {cl.jobCategory && (
+                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full ${isDark ? "bg-indigo-500/20 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>{cl.jobCategory}</span>
+                    )}
                     {cl.companyType && (
                       <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full ${isDark ? "bg-white/10 text-white/50" : "bg-slate-100 text-slate-500"}`}>{cl.companyType}</span>
                     )}
@@ -243,54 +299,99 @@ function CoverLetterPageContent() {
             </div>
           </div>
 
-          {/* Right: detail */}
-          <div onScroll={list.handleDetailScroll} className={`flex-1 overflow-y-auto ${list.selected ? "flex" : "hidden lg:flex"} flex-col`}>
-            {!list.selected ? (
-              <div className={`flex flex-col items-center justify-center h-full gap-3 ${isDark ? "text-white/25" : "text-slate-300"}`}>
-                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                  <path d="M8 5h24v30H8V5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-                  <path d="M13 13h14M13 19h14M13 25h9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-                </svg>
-                <p className="text-sm">자소서를 선택하세요</p>
-              </div>
-            ) : (
-              <div className="px-3 pt-3 pb-20 sm:px-8 sm:pt-6 sm:pb-24 sm:max-w-3xl w-full mx-auto">
-                <div className="mb-5 sm:mb-6">
-                  <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mb-3 ${isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
-                    합격 자소서
-                  </span>
-                  <h1 className={`text-[28px] sm:text-2xl font-bold mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>{list.selected.company}</h1>
-                  <div className={`flex flex-wrap gap-2 text-sm ${isDark ? "text-white/50" : "text-slate-500"}`}>
-                    {list.selected.position && <span>{list.selected.position}</span>}
-                    {list.selected.position && list.selected.season && <span>·</span>}
-                    {list.selected.season && <span>{list.selected.season}</span>}
+          {/* Right side: detail + analysis sidebar */}
+          <div className="flex-1 flex min-w-0 overflow-hidden">
+            {/* Detail */}
+            <div onScroll={list.handleDetailScroll} className={`flex-1 overflow-y-auto ${list.selected ? "flex" : "hidden lg:flex"} flex-col`}>
+              {!list.selected ? (
+                <div className={`flex flex-col items-center justify-center h-full gap-3 ${isDark ? "text-white/25" : "text-slate-300"}`}>
+                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                    <path d="M8 5h24v30H8V5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+                    <path d="M13 13h14M13 19h14M13 25h9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                  </svg>
+                  <p className="text-sm">자소서를 선택하세요</p>
+                </div>
+              ) : (
+                <div className="px-3 pt-3 pb-20 sm:px-8 sm:pt-6 sm:pb-24 sm:max-w-3xl w-full mx-auto">
+                  <div className="mb-5 sm:mb-6">
+                    <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
+                        합격 자소서
+                      </span>
+                      {list.selected.companyType && (
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-700"}`}>
+                          {list.selected.companyType}
+                        </span>
+                      )}
+                      {list.selected.jobCategory && (
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isDark ? "bg-indigo-500/20 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>
+                          {list.selected.jobCategory}
+                        </span>
+                      )}
+                    </div>
+                    <h1 className={`text-[28px] sm:text-2xl font-bold mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>{list.selected.company}</h1>
+                    <div className={`flex flex-wrap gap-2 text-sm ${isDark ? "text-white/50" : "text-slate-500"}`}>
+                      {list.selected.position && <span>{list.selected.position}</span>}
+                      {list.selected.position && list.selected.season && <span>·</span>}
+                      {list.selected.season && <span>{list.selected.season}</span>}
+                    </div>
+                    {list.selected.spec && (
+                      <p className={`mt-2 text-[15px] leading-relaxed ${isDark ? "text-white/40" : "text-slate-400"}`}>{list.selected.spec}</p>
+                    )}
                   </div>
-                  {list.selected.spec && (
-                    <p className={`mt-2 text-[15px] leading-relaxed ${isDark ? "text-white/40" : "text-slate-400"}`}>{list.selected.spec}</p>
+
+                  <div className={`border-t mb-6 ${isDark ? "border-white/10" : "border-slate-100"}`} />
+
+                  {list.selected.questions.length === 0 ? (
+                    <p className={`text-sm ${isDark ? "text-white/40" : "text-slate-400"}`}>내용이 없습니다.</p>
+                  ) : (
+                    <div className="space-y-7 sm:space-y-8">
+                      {list.selected.questions.map((q, i) => (
+                        <div key={i}>
+                          <p className={`text-[15px] sm:text-sm font-semibold mb-3 leading-relaxed ${isDark ? "text-white/80" : "text-slate-700"}`}>
+                            <span className={`inline-block w-5 h-5 rounded-full text-xs font-bold text-center leading-5 mr-2 shrink-0 ${isDark ? "bg-white/10 text-white/70" : "bg-slate-100 text-slate-500"}`}>
+                              {q.number}
+                            </span>
+                            {q.question}
+                          </p>
+                          <p className={`text-[15px] sm:text-sm leading-8 sm:leading-7 whitespace-pre-wrap pl-0 sm:pl-7 ${isDark ? "text-white/70" : "text-slate-600"}`}>
+                            {q.answer}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
+              )}
+            </div>
 
-                <div className={`border-t mb-6 ${isDark ? "border-white/10" : "border-slate-100"}`} />
-
-                {list.selected.questions.length === 0 ? (
-                  <p className={`text-sm ${isDark ? "text-white/40" : "text-slate-400"}`}>내용이 없습니다.</p>
-                ) : (
-                  <div className="space-y-7 sm:space-y-8">
-                    {list.selected.questions.map((q, i) => (
-                      <div key={i}>
-                        <p className={`text-[15px] sm:text-sm font-semibold mb-3 leading-relaxed ${isDark ? "text-white/80" : "text-slate-700"}`}>
-                          <span className={`inline-block w-5 h-5 rounded-full text-xs font-bold text-center leading-5 mr-2 shrink-0 ${isDark ? "bg-white/10 text-white/70" : "bg-slate-100 text-slate-500"}`}>
-                            {q.number}
-                          </span>
-                          {q.question}
-                        </p>
-                        <p className={`text-[15px] sm:text-sm leading-8 sm:leading-7 whitespace-pre-wrap pl-0 sm:pl-7 ${isDark ? "text-white/70" : "text-slate-600"}`}>
-                          {q.answer}
-                        </p>
-                      </div>
-                    ))}
+            {/* Analysis sidebar */}
+            {showAnalysis && (
+              <div className={`hidden xl:flex flex-col w-80 2xl:w-90 shrink-0 border-l overflow-hidden ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-200"}`}>
+                <div className={`shrink-0 flex items-center justify-between px-3 py-2.5 border-b ${isGlass ? (isDark ? "border-white/10" : "border-black/10") : "border-slate-100"} ${isGlass ? "" : "bg-white"}`}>
+                  <div className="flex items-center gap-1.5">
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-violet-500">
+                      <circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" strokeWidth="1.3"/>
+                      <path d="M4.5 6.5h4M6.5 4.5v4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                    </svg>
+                    <span className={`text-xs font-semibold ${isDark ? "text-white/70" : "text-slate-700"}`}>기업 분석</span>
+                    {list.selected?.company && (
+                      <span className={`text-xs ${isDark ? "text-white/35" : "text-slate-400"}`}>· {list.selected.company}</span>
+                    )}
                   </div>
-                )}
+                  <button
+                    onClick={() => setShowAnalysis(false)}
+                    className={`text-slate-300 hover:text-slate-500 transition-colors`}
+                    title="패널 닫기"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <CompanyAnalysisPanel initialQuery={list.selected?.company ?? ""} />
+                </div>
               </div>
             )}
           </div>

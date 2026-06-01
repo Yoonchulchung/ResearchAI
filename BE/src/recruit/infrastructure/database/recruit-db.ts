@@ -65,6 +65,15 @@ export class RecruitDb implements OnModuleInit, OnModuleDestroy {
         data       TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS job_posting_applications (
+        user_id    TEXT NOT NULL,
+        job_id     TEXT NOT NULL,
+        applied_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, job_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_job_posting_applications_user
+        ON job_posting_applications(user_id);
     `);
     // Add new columns if they don't exist (SQLite doesn't support IF NOT EXISTS for columns)
     const addCol = (table: string, col: string) => { try { this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${col}`); } catch {} };

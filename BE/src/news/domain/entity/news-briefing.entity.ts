@@ -14,6 +14,9 @@ export class NewsBriefingEntity {
   @Column({ name: 'raw_data', type: 'text', nullable: true })
   rawData: string | null;
 
+  @Column({ name: 'ai_model', type: 'varchar', nullable: true })
+  aiModel: string | null;
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }

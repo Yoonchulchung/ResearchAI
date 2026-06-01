@@ -21,7 +21,7 @@ import { ResearchModule } from '../research/research.module';
 @Module({
   imports: [
     VectorModule,
-    RecruitModule,
+    forwardRef(() => RecruitModule),
     forwardRef(() => ResearchModule),
     TypeOrmModule.forFeature([SessionEntity, SessionItemEntity, SessionJobEntity]),
   ],

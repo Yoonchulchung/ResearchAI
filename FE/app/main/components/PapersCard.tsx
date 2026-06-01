@@ -97,15 +97,15 @@ export function PapersCard() {
       ) : papers.length === 0 ? (
         <p className="text-xs text-slate-400 text-center py-6">표시할 논문이 없습니다</p>
       ) : (
-        <ul className="max-h-[340px] space-y-1 overflow-y-auto pr-1">
+        <ul className="md:max-h-85 md:space-y-1 md:overflow-y-auto md:pr-1 max-md:flex max-md:gap-3 max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:pb-1 max-md:-mx-5 max-md:px-5">
           {papers.map((paper) => (
-            <li key={paper.id}>
+            <li key={paper.id} className="max-md:shrink-0 max-md:w-64 max-md:snap-start">
               <a
                 href={paper.url}
                 target="_blank"
                 rel="noreferrer"
                 onClick={() => handleMarkRead(paper)}
-                className={`block rounded-lg px-1 py-2 transition-colors hover:bg-slate-50 ${paper.readAt ? "opacity-60" : ""}`}
+                className={`block rounded-lg px-1 py-2 transition-colors hover:bg-slate-50 max-md:border max-md:border-slate-100 max-md:rounded-xl max-md:p-3 max-md:h-full ${paper.readAt ? "opacity-60" : ""}`}
               >
                 <div className="flex items-center gap-2 text-2xs text-slate-400">
                   <span className="truncate font-semibold text-indigo-500">{paper.sourceName}</span>

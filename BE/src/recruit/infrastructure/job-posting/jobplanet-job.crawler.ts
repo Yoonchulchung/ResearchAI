@@ -64,7 +64,7 @@ export class JobplanetJobCrawler {
         startDate: item.start_at ?? undefined,
         endDate: endAt || undefined,
         deadline,
-        category: occupations.join(', '),
+        jobs: occupations.join(', ') || undefined,
         viewCount: 0,
         collectedAt: new Date().toISOString(),
         source: 'jobplanet' as const,

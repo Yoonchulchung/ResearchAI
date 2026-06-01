@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity('hot_paper')
+@Entity('news_papers')
 @Index(['url'], { unique: true })
 export class PaperEntity {
   @PrimaryColumn()

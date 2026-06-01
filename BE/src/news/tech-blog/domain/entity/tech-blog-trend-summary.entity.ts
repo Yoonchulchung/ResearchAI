@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity('tech_blog_trend_summary')
+@Entity('news_tech_blog_trend_summary')
 @Index(['generatedAt'])
 @Index(['expiresAt'])
 export class TechBlogTrendSummaryEntity {

@@ -311,7 +311,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/news/tech-blogs")) return "기술 블로그";
   if (pathname.startsWith("/news/papers")) return "핫한 논문";
   if (pathname.startsWith("/news")) return "뉴스";
-  if (pathname.startsWith("/company-analysis")) return "기업 분석";
+  if (pathname.startsWith("/companies") || pathname.startsWith("/company-analysis")) return "기업 분석";
   if (pathname.startsWith("/settings")) return "설정";
   return "ResearchAI";
 }
@@ -322,7 +322,7 @@ function getActiveTab(pathname: string): NavTab {
   if (pathname.startsWith("/news")) return "news";
   if (pathname.startsWith("/recruit")) return "write";
   if (pathname.startsWith("/settings")) return "settings";
-  if (pathname.startsWith("/company-analysis")) return "more";
+  if (pathname.startsWith("/companies") || pathname.startsWith("/company-analysis")) return "more";
   return "home";
 }
 
@@ -407,6 +407,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   const hideHeader =
     pathname.startsWith("/sessions/") ||
     pathname.startsWith("/recruit") ||
+    pathname.startsWith("/companies") ||
     pathname.startsWith("/company-analysis") ||
     pathname.startsWith("/news") ||
     pathname.startsWith("/settings");
@@ -414,10 +415,10 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   return (
     <div className={`relative flex flex-col overflow-hidden ${bg}`} style={{ height: '100dvh' }}>
       {!hideHeader && (
-        <div className={`absolute inset-x-0 top-0 z-20 transition-all duration-200 ease-out ${
+        <div className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-out ${
           isHeaderHidden
-            ? "-translate-y-full opacity-0 pointer-events-none"
-            : "translate-y-0 opacity-100"
+            ? "max-h-0 opacity-0 pointer-events-none"
+            : "max-h-14 opacity-100"
         }`}>
           <MobileHeader
             title={getPageTitle(pathname)}
@@ -427,7 +428,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
       )}
       <main
         ref={mainRef}
-        className={`relative flex-1 min-h-0 overflow-y-auto ${!hideHeader ? "pt-12" : ""}`}
+        className="relative flex-1 min-h-0 overflow-y-auto"
       >
         {children}
       </main>

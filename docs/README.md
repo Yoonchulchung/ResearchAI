@@ -48,6 +48,16 @@ Local AI  Ollama                   :11434
 | [architecture/frontend.md](architecture/frontend.md) | FE 페이지 라우트, 컴포넌트, 훅 |
 | [architecture/database.md](architecture/database.md) | SQLite 엔티티 스키마, Qdrant 컬렉션 |
 
+### 리팩토링
+
+| 파일 | 설명 |
+|------|------|
+| [refactor/be-browse-spring-migration-plan.md](refactor/be-browse-spring-migration-plan.md) | BE + BE_BROWSE 전환 로드맵 |
+| [refactor/BE/BE.md](refactor/BE/BE.md) | Spring BE 설계 |
+| [refactor/BE_BROWSE/BE_BROWSE.md](refactor/BE_BROWSE/BE_BROWSE.md) | FastAPI BE_BROWSE 설계 |
+| [refactor/CONNECT/CONNECT.md](refactor/CONNECT/CONNECT.md) | BE와 BE_BROWSE 연결 설계 |
+| [refactor/CONNECT/API.md](refactor/CONNECT/API.md) | BE_BROWSE internal API 명세 |
+
 ### 파이프라인
 
 | 파일 | 설명 |

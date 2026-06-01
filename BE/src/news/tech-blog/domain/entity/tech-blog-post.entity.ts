@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity('tech_blog_post')
+@Entity('news_tech_blog')
 @Index(['url'], { unique: true })
 export class TechBlogPostEntity {
   @PrimaryColumn()

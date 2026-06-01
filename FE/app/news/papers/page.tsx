@@ -277,6 +277,7 @@ export default function NewsPapersPage() {
   const [source, setSource] = useState(() => getInitialSearchParam("source", SOURCE_ALL));
   const [query, setQuery] = useState(() => getInitialSearchParam("q", ""));
   const [bookmarkedOnly, setBookmarkedOnly] = useState(() => getInitialSearchParam("bookmarked") === "true");
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -522,6 +523,8 @@ export default function NewsPapersPage() {
     for (const paper of data?.papers ?? []) map.set(paper.sourceId, (map.get(paper.sourceId) ?? 0) + 1);
     return map;
   }, [data?.papers]);
+  const selectedSource = source === SOURCE_ALL ? null : data?.sources.find((item) => item.id === source) ?? null;
+  const selectedSourceLabel = selectedSource?.name ?? "전체 출처";
 
   const markdownComponents = useMemo(() => ({
     h1: ({ children }: { children?: ReactNode }) => <h1 className="mb-2.5 mt-4 text-base font-bold first:mt-0 sm:text-lg">{children}</h1>,
@@ -639,6 +642,20 @@ export default function NewsPapersPage() {
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="제목, 저자, 태그 검색" className={`h-9 w-full rounded-xl border px-3 text-sm outline-none transition focus:ring-2 focus:ring-indigo-200/50 sm:w-60 ${inputClass}`} />
               <button
                 type="button"
+                onClick={() => setSourcePickerOpen(true)}
+                className={`inline-flex h-9 min-w-0 max-w-full shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition lg:hidden ${
+                  source !== SOURCE_ALL
+                    ? isDark ? "border-indigo-300/30 bg-indigo-500/15 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"
+                    : isDark ? "border-white/10 text-white/60 hover:bg-white/10" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="shrink-0">
+                  <path d="M3 4h10M5 8h6M7 12h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <span className="truncate">{selectedSourceLabel}</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setBookmarkedOnly((value) => !value)}
                 className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition ${
                   bookmarkedOnly
@@ -713,6 +730,68 @@ export default function NewsPapersPage() {
           </div>
         </div>
       </div>
+      {sourcePickerOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end bg-slate-950/45 px-3 pb-3 pt-16 backdrop-blur-sm lg:hidden"
+          onClick={() => setSourcePickerOpen(false)}
+        >
+          <section
+            className={`max-h-[78vh] w-full overflow-hidden rounded-2xl border shadow-2xl ${isDark ? "border-white/10 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-900"}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="핫한 논문 출처 선택"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className={`flex items-center justify-between border-b px-4 py-3 ${isDark ? "border-white/10" : "border-slate-100"}`}>
+              <div>
+                <h2 className="text-sm font-bold">출처 선택</h2>
+                <p className={`mt-0.5 text-xs ${textSub}`}>보고 싶은 논문 출처를 고르세요.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSourcePickerOpen(false)}
+                className={`rounded-lg p-2 transition ${isDark ? "text-white/50 hover:bg-white/10 hover:text-white" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"}`}
+                aria-label="닫기"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
+            </header>
+            <div className="max-h-[calc(78vh-4.5rem)] overflow-y-auto p-3">
+              <button
+                type="button"
+                onClick={() => { setSource(SOURCE_ALL); setSourcePickerOpen(false); }}
+                className={`mb-2 flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm transition ${
+                  source === SOURCE_ALL
+                    ? isDark ? "bg-indigo-500/15 font-semibold text-indigo-300" : "bg-indigo-50 font-semibold text-indigo-700"
+                    : isDark ? "text-white/70 hover:bg-white/5" : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <span>전체 출처</span>
+                <span className={`text-xs ${textSub}`}>{data?.papers.length ?? 0}</span>
+              </button>
+              <div className="space-y-1">
+                {(data?.sources ?? []).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => { setSource(item.id); setSourcePickerOpen(false); }}
+                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                      source === item.id
+                        ? isDark ? "bg-indigo-500/15 font-semibold text-indigo-300" : "bg-indigo-50 font-semibold text-indigo-700"
+                        : isDark ? "text-white/70 hover:bg-white/5" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className="min-w-0 truncate">{item.name}</span>
+                    <span className={`shrink-0 text-xs ${textSub}`}>{sourceCount.get(item.id) ?? 0}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
       {trendFloatingPanel}
     </main>
   );

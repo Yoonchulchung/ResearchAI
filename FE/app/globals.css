@@ -127,6 +127,12 @@ body {
   animation: scroll-reveal 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes indeterminate {
+  0%   { left: -40%; width: 40%; }
+  60%  { left: 100%; width: 40%; }
+  100% { left: 100%; width: 40%; }
+}
+
 @keyframes scroll-reveal {
   from {
     opacity: 0;

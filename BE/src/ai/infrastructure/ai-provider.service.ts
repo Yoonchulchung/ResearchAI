@@ -114,6 +114,15 @@ export class AiProviderService {
           throw new UndefinedAiAPIException('Google API 키가 설정되지 않았습니다. [설정 → Overview]에서 키를 입력해주세요.');
         }
         break;
+
+      case AIProvider.GROQ:
+        if (!keys?.groqApiKey && !DEFAULT_GROQ_API_KEY()) {
+          throw new UndefinedAiAPIException(
+            `Groq API 키가 설정되지 않아 "${requestedModel}" 모델을 사용할 수 없습니다. ` +
+            `[설정 → Overview]에서 본인의 Groq 키를 입력해주세요.`
+          );
+        }
+        break;
     }
 
     return requestedModel;
@@ -140,6 +149,16 @@ export class AiProviderService {
     const key = requestContext.getStore()?.apiKeys.googleApiKey;
     if (key) return new GoogleGenAI({ apiKey: key });
     return this.defaultGoogle;
+  }
+
+  private getGroqApiKey(): string {
+    const key = requestContext.getStore()?.apiKeys.groqApiKey?.trim() || DEFAULT_GROQ_API_KEY();
+    if (key) return key;
+    throw new UndefinedAiAPIException('Groq API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.');
+  }
+
+  private normalizeGroqModel(model: string): string {
+    return model.startsWith(AI_MODEL_PREFIX.GROQ) ? model.slice(AI_MODEL_PREFIX.GROQ.length) : model;
   }
 
   constructor(
@@ -236,6 +255,9 @@ export class AiProviderService {
             throw googleErr;
           }
         }
+      } else if (provider === AIProvider.GROQ) {
+        const result = await callGroq(this.getGroqApiKey(), this.normalizeGroqModel(aiModel), system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
+        ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
       } else if (provider === AIProvider.LLAMA_CPP) {
         const llamaModel = aiModel.slice(AI_MODEL_PREFIX.LLAMA_CPP.length);
         const result = await callOpenAI(getLlamaCppClient(), llamaModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
@@ -318,7 +340,10 @@ export class AiProviderService {
         try {
           yield* streamGoogle(this.getGoogleClient(), aiModel, system, messages);
         } catch (googleErr) {
-          if (this.isUsingDefaultGoogleKey() && this.isGoogleQuotaError(googleErr) && DEFAULT_GROQ_API_KEY()) {
+          const hasImages = messages.some(m =>
+            Array.isArray(m.content) && m.content.some(c => typeof c === 'object' && c !== null && (c as { type?: string }).type === 'image')
+          );
+          if (!hasImages && this.isUsingDefaultGoogleKey() && this.isGoogleQuotaError(googleErr) && DEFAULT_GROQ_API_KEY()) {
             this.logger.warn(`[Gemini quota] Groq 스트림 폴백 model=${DEFAULT_GROQ_MODEL()}`);
             yield* streamGroq(DEFAULT_GROQ_API_KEY(), DEFAULT_GROQ_MODEL(), system, messages);
           } else {
@@ -329,6 +354,9 @@ export class AiProviderService {
       } else if (provider === AIProvider.LLAMA_CPP) {
         const llamaModel = aiModel.slice(AI_MODEL_PREFIX.LLAMA_CPP.length);
         yield* streamOpenAI(getLlamaCppClient(), llamaModel, system, messages);
+
+      } else if (provider === AIProvider.GROQ) {
+        yield* streamGroq(this.getGroqApiKey(), this.normalizeGroqModel(aiModel), system, messages);
 
       } else if (provider === AIProvider.OPENAI) {
         yield* streamOpenAI(this.getOpenAIClient(), aiModel, system, messages);

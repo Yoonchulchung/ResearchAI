@@ -10,7 +10,9 @@ import { GlobalExceptionFilter } from './shared/filters/global-exception.filter'
 import { ResponseInterceptor } from './shared/interceptors/response.interceptor';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: ['error'],
+  });
   app.setGlobalPrefix('api');
   app.enableCors();
   app.useWebSocketAdapter(new WsAdapter(app));

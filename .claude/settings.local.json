@@ -6,7 +6,10 @@
       "Bash(python3 -c ' *)",
       "Bash(curl -s \"https://datasets-server.huggingface.co/size?dataset=open-llm-leaderboard%2Fcontents\")",
       "Bash(curl -s \"https://datasets-server.huggingface.co/rows?dataset=open-llm-leaderboard%2Fcontents&config=default&split=train&offset=0&length=100&orderby=Average+%E2%AC%86%EF%B8%8F+DESC\")",
-      "Bash(curl -s \"https://artificialanalysis.ai/api/models\")"
+      "Bash(curl -s \"https://artificialanalysis.ai/api/models\")",
+      "Bash(curl -s \"https://www.saramin.co.kr/zf_user/company-review?keyword=%EB%A7%8C%EB%8F%84\" -H \"User-Agent: Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/124.0.0.0 Safari/537.36\" -H \"Referer: https://www.saramin.co.kr/\" -H \"Accept-Language: ko-KR,ko;q=0.9\" --max-time 10)",
+      "Bash(curl -s \"https://www.saramin.co.kr/zf_user/company-review?keyword=%EB%A7%8C%EB%8F%84\" -H \"User-Agent: Mozilla/5.0\" -H \"Referer: https://www.saramin.co.kr/\" -H \"Accept-Language: ko-KR\" --max-time 10)",
+      "Bash(npx tsc *)"
     ]
   }
 }

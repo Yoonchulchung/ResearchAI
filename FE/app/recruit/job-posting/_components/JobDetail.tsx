@@ -8,6 +8,7 @@ import { getJobPostingAiAnalysis, saveJobPostingAiAnalysis, getPostingImageFiles
 import { listCoverLetters, type CoverLetter } from "@/lib/api/recruit/cover-letter";
 import { enqueueWriteAssist, streamWriteAssist } from "@/lib/api/ai";
 import { BE_BASE } from "@/lib/api/base";
+import { listCompanies } from "@/lib/api/companies";
 import { getDdayLabel, normalizeType } from "../_utils";
 import { FavoriteIcon } from "./FavoriteIcon";
 import { PROSE_CLASS } from "../../_constants";
@@ -32,6 +33,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
   const [aiResult, setAiResult] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [imageFiles, setImageFiles] = useState<string[]>([]);
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const prevIdRef = useRef<string>("");
 
@@ -52,10 +54,17 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
     setAiMode(null);
     setAiResult("");
     setImageFiles([]);
+    setCompanyId(null);
     setCoverLetter(null);
     setPickerOpen(false);
     setPickerSearch("");
     setCachedDocIds({ analysis: null, interview: null });
+
+    if (selected.company) {
+      listCompanies({ q: selected.company, limit: 1 })
+        .then((items) => { if (items[0]) setCompanyId(items[0].id); })
+        .catch(() => {});
+    }
 
     if (selected.detailHtml && /src=["']\/api\/recruit\/job-postings\/image\//.test(selected.detailHtml)) {
       getPostingImageFiles(selected.detailHtml)
@@ -178,7 +187,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
   );
 
   const handleCompanyAnalysis = () => {
-    router.push(`/company-analysis?company=${encodeURIComponent(selected.company)}`);
+    router.push(`/companies/analysis?company=${encodeURIComponent(selected.company)}`);
   };
 
   const sourceLabel =
@@ -190,7 +199,9 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
           ? "잡플래닛"
           : selected.source === "jobda"
             ? "잡다"
-            : "링커리어";
+            : selected.source === "linkareer" || !selected.source
+              ? "링커리어"
+              : selected.source;
 
   return (
     <div onScroll={onScroll} className={`flex-1 overflow-y-auto flex flex-col transition-all ${isDark ? "bg-slate-950" : "bg-[#F8F9FA]"}`}>
@@ -233,7 +244,17 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
                 {selected.favorite ? "저장됨" : "저장"}
               </button>
             </div>
-            <p className="text-sm font-bold text-slate-500 mb-2 tracking-wide dark:text-slate-400">{selected.company}</p>
+            <button
+              type="button"
+              onClick={() => router.push(
+                companyId
+                  ? `/companies/${companyId}`
+                  : `/companies?q=${encodeURIComponent(selected.company)}`
+              )}
+              className="text-sm font-bold text-slate-500 mb-2 tracking-wide hover:text-indigo-600 hover:underline transition-colors text-left dark:text-slate-400 dark:hover:text-indigo-400"
+            >
+              {selected.company}
+            </button>
             <h1 className="text-[26px] sm:text-3xl font-extrabold leading-tight mb-4 sm:mb-5 text-slate-900 tracking-tight dark:text-slate-100">
               {selected.title}
             </h1>

@@ -12,15 +12,20 @@ import { SpecAnalysisExecutorService } from './application/job/spec-analysis-exe
 import { TechBlogTrendExecutorService } from './application/job/tech-blog-trend-executor.service';
 import { PaperSummaryExecutorService } from './application/job/paper-summary-executor.service';
 import { PaperTrendExecutorService } from './application/job/paper-trend-executor.service';
+import { NewsArticleSummaryExecutorService } from './application/job/news-article-summary-executor.service';
+import { ResumeCoverLetterCategoryExecutorService } from './application/job/resume-cover-letter-category-executor.service';
+import { ResumeCoverLetterRefinedTitleExecutorService } from './application/job/resume-cover-letter-refined-title-executor.service';
 import { ImageOcrQueueService } from './application/image-ocr-queue.service';
 import { QueueController } from './presentation/queue.controller';
 import { ResearchModule } from '../research/research.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { AiModule } from '../ai/ai.module';
-import { CompanyAnalysisModule } from '../company-analysis/company-analysis.module';
+import { CompanyModule } from '../company/company.module';
 import { CoverLetterModule } from '../recruit/cover-letter.module';
 import { TechBlogModule } from '../news/tech-blog/tech-blog.module';
 import { PapersModule } from '../news/papers/papers.module';
+import { NewsModule } from '../news/news.module';
+import { ResumeModule } from '../recruit/resume.module';
 import { QueueJobEntity } from './domain/entity/queue-job.entity';
 import { QueueJobRepository } from './domain/repository/queue-job.repository';
 import { AppConfigModule } from '../config/config.module';
@@ -30,10 +35,12 @@ import { AppConfigModule } from '../config/config.module';
     forwardRef(() => ResearchModule),
     forwardRef(() => SessionsModule),
     forwardRef(() => AiModule),
-    forwardRef(() => CompanyAnalysisModule),
+    forwardRef(() => CompanyModule),
     forwardRef(() => CoverLetterModule),
     forwardRef(() => TechBlogModule),
     forwardRef(() => PapersModule),
+    forwardRef(() => NewsModule),
+    forwardRef(() => ResumeModule),
     TypeOrmModule.forFeature([QueueJobEntity]),
     AppConfigModule,
   ],
@@ -51,6 +58,9 @@ import { AppConfigModule } from '../config/config.module';
     TechBlogTrendExecutorService,
     PaperSummaryExecutorService,
     PaperTrendExecutorService,
+    NewsArticleSummaryExecutorService,
+    ResumeCoverLetterCategoryExecutorService,
+    ResumeCoverLetterRefinedTitleExecutorService,
     ImageOcrQueueService,
     QueueJobRepository,
   ],

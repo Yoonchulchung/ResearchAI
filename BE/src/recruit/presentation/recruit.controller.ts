@@ -46,11 +46,14 @@ export class RecruitController {
 
   @Post('collect')
   collect(@Body() body: { keyword: string; location?: string; limit?: number; sources?: string[] }) {
-    if (this.collectService.isRunning()) {
-      return { ok: false, message: '이미 수집 중입니다.' };
-    }
-    this.collectService.collect(body).catch(() => {});
-    return { ok: true, message: '수집을 시작합니다.' };
+    return this.collectService.startCollect(body);
+  }
+
+  @Get('collect/status/:jobId')
+  getCollectStatus(@Param('jobId') jobId: string) {
+    const status = this.collectService.getJobStatus(jobId);
+    if (!status) return { found: false };
+    return { found: true, ...status };
   }
 
   @Get('collect/stream')

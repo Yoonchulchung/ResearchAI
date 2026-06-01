@@ -149,7 +149,7 @@ function RecruitWritePageInner() {
             참고 자소서
           </button>
           <button
-            onClick={() => router.push("/company-analysis")}
+            onClick={() => router.push("/companies")}
             title="기업 분석"
             className="flex-1 sm:flex-none min-w-[5.5rem] sm:min-w-0 justify-center shrink-0 flex items-center gap-1 px-2 py-1.5 sm:py-1 text-xs font-semibold rounded-md border transition-all bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
           >

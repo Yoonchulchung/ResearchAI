@@ -12,6 +12,7 @@ import {
   cancelCompanyAnalysis,
   QueueStatus,
 } from "@/lib/api/queue";
+
 import { stopResearchItem, cancelLightResearch } from "@/lib/api/research";
 
 const WS_URL = WS_BASE;
@@ -61,7 +62,7 @@ function getJobLink(job: QueueStatus["jobs"][0]): string | null {
     if (job.status === "error" && (job.errorMessage || job.result)) {
       params.set("error", job.errorMessage || job.result || "");
     }
-    return `/company-analysis?${params.toString()}`;
+    return `/companies/analysis?${params.toString()}`;
   }
   if (job.taskType === "deepresearch" || job.taskType === "summary") {
     return `/sessions/${job.sessionId}`;

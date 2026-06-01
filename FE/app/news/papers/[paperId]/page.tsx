@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getPaperById, markPaperRead, type Paper } from "@/lib/api/papers";
 import { API_BASE, getAuthHeaders, readSSE } from "@/lib/api/base";
+import { createId } from "@/lib/crypto";
 import type PdfVisualViewerType from "../../../recruit/doc-parse/_components/PdfVisualViewer";
 import type { PdfViewerPosition } from "../../../recruit/doc-parse/_components/PdfVisualViewer";
 
@@ -161,9 +162,9 @@ export default function PaperReaderPage() {
         const stored = await fetchChatHistory(paperId);
         if (cancelled) return;
         if (stored.length > 0) {
-          setMessages(stored.map((m) => ({ id: crypto.randomUUID(), role: m.role as "user" | "assistant", content: m.content })));
+          setMessages(stored.map((m) => ({ id: createId(), role: m.role as "user" | "assistant", content: m.content })));
         } else if (p.aiSummary) {
-          setMessages([{ id: crypto.randomUUID(), role: "assistant", content: p.aiSummary }]);
+          setMessages([{ id: createId(), role: "assistant", content: p.aiSummary }]);
         }
       })
       .catch((e) => {
@@ -272,8 +273,8 @@ export default function PaperReaderPage() {
   const sendMessage = useCallback(async (question: string, customDocText?: string) => {
     if (!paper || !question.trim() || aiLoading) return;
     const docText = customDocText ?? buildDocText(paper);
-    const userMsgId = crypto.randomUUID();
-    const asstMsgId = crypto.randomUUID();
+    const userMsgId = createId();
+    const asstMsgId = createId();
     setMessages((m) => [
       ...m,
       { id: userMsgId, role: "user", content: question },
@@ -304,8 +305,8 @@ export default function PaperReaderPage() {
     if (!paper || aiLoading) return;
     const docText = buildDocText(paper);
     const label = QUICK_ACTIONS.find((a) => a.value === action)?.label ?? action;
-    const userMsgId = crypto.randomUUID();
-    const asstMsgId = crypto.randomUUID();
+    const userMsgId = createId();
+    const asstMsgId = createId();
     setMessages((m) => [
       ...m,
       { id: userMsgId, role: "user", content: label },
@@ -499,10 +500,11 @@ export default function PaperReaderPage() {
   return (
     <div className={`flex h-screen flex-col ${pageBase}`}>
       {/* Header */}
-      <header className={`flex shrink-0 items-center gap-3 border-b px-4 py-3 ${isDark ? "border-white/10 bg-slate-900/80" : "border-slate-200 bg-white/90"} backdrop-blur-sm`}>
+      <header className={`flex shrink-0 flex-col gap-2 border-b px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3 sm:px-4 sm:py-3 ${isDark ? "border-white/10 bg-slate-900/80" : "border-slate-200 bg-white/90"} backdrop-blur-sm`}>
+        <div className="flex min-w-0 items-center gap-2 sm:flex-1">
         <button
           onClick={() => router.back()}
-          className={`rounded-lg p-1.5 transition ${isDark ? "text-white/50 hover:bg-white/10 hover:text-white" : "text-slate-400 hover:bg-slate-100 hover:text-slate-800"}`}
+          className={`shrink-0 rounded-lg p-1.5 transition ${isDark ? "text-white/50 hover:bg-white/10 hover:text-white" : "text-slate-400 hover:bg-slate-100 hover:text-slate-800"}`}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -511,13 +513,13 @@ export default function PaperReaderPage() {
         <div className="min-w-0 flex-1">
           {paper ? (
             <>
-              <div className="flex items-center gap-2">
-                <span className={`rounded-md px-1.5 py-0.5 text-2xs font-semibold ${isDark ? "bg-indigo-500/15 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className={`max-w-[52vw] truncate rounded-md px-1.5 py-0.5 text-2xs font-semibold sm:max-w-none ${isDark ? "bg-indigo-500/15 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>
                   {paper.sourceName}
                 </span>
-                {paper.venue && <span className={`text-2xs ${textSub}`}>{paper.venue}</span>}
+                {paper.venue && <span className={`min-w-0 truncate text-2xs ${textSub}`}>{paper.venue}</span>}
                 {typeof paper.upvotes === "number" && (
-                  <span className={`text-2xs font-semibold ${isDark ? "text-amber-300" : "text-amber-600"}`}>▲ {paper.upvotes}</span>
+                  <span className={`shrink-0 text-2xs font-semibold ${isDark ? "text-amber-300" : "text-amber-600"}`}>▲ {paper.upvotes}</span>
                 )}
               </div>
               <h1 className={`mt-0.5 truncate text-sm font-semibold ${textMain}`}>{paper.title}</h1>
@@ -526,6 +528,8 @@ export default function PaperReaderPage() {
             <div className={`h-4 w-64 animate-pulse rounded ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
           )}
         </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 pl-8 sm:pl-0">
         {paper?.pdfUrl && (
           <span className={`shrink-0 text-xs ${textSub}`}>{currentPage + 1}p</span>
         )}
@@ -547,6 +551,7 @@ export default function PaperReaderPage() {
             원문
           </a>
         )}
+        </div>
       </header>
 
       {/* Mobile tab bar */}

@@ -19,12 +19,12 @@ export interface JobPosting {
   deadline?: string;
   jobs?: string;
   homepage?: string;
-  category?: string;
   viewCount?: number;
   detailContent?: string;
   detailHtml?: string;
   postedAt?: string | null;
   favorite?: boolean;
+  appliedAt?: string | null;
   collectedAt: string;
 }
 
@@ -36,10 +36,12 @@ export interface JobPostingScrapeOptions {
   status?: 'OPEN' | 'ALL';
   fetchDetail?: boolean;
   source?: JobPostingSource | 'all';
+  jobkoreaCompanyTypes?: string[];
 }
 
 export interface JobPostingListFilters {
   source?: string;
+  company?: string;
   search?: string;
   job?: string;
   companyType?: string;

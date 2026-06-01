@@ -3,18 +3,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  analyzeCoverLetterJobs,
   getCoverLetter,
   listCoverLetters,
   type CoverLetter,
-  type CoverLetterJobAnalysis,
+  type JobCategory,
+  type JobCategoryTarget,
 } from "@/lib/api/recruit/cover-letter";
 import { isNearScrollBottom } from "@/lib/scroll-guards";
-import { MODELS } from "../../_constants";
 
 const PAGE_SIZE = 30;
 
-export type AiJobFilter = "all" | "IT" | "전자";
+export type JobCategoryFilter = JobCategoryTarget | "";
 
 export function useCoverLetterList(coverId: string | null) {
   const router = useRouter();
@@ -28,11 +27,7 @@ export function useCoverLetterList(coverId: string | null) {
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [companyTypeFilter, setCompanyTypeFilter] = useState("");
-  const [aiJobFilter, setAiJobFilter] = useState<AiJobFilter>("all");
-
-  const [jobAnalyses, setJobAnalyses] = useState<Record<string, CoverLetterJobAnalysis>>({});
-  const [jobAnalysisLoading, setJobAnalysisLoading] = useState(false);
-  const [jobAnalysisError, setJobAnalysisError] = useState<string | null>(null);
+  const [jobCategoryFilter, setJobCategoryFilter] = useState<JobCategoryFilter>("");
 
   const [selected, setSelected] = useState<CoverLetter | null>(null);
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
@@ -41,12 +36,7 @@ export function useCoverLetterList(coverId: string | null) {
   const listScrollTopRef = useRef(0);
   const detailScrollTopRef = useRef(0);
 
-  const rawFiltered = items;
-
-  const filtered = items.filter((cl) => {
-    if (aiJobFilter === "all") return true;
-    return jobAnalyses[cl.id]?.jobCategory === aiJobFilter;
-  });
+  const filtered = items;
 
   const load = useCallback(
     async (p: number, reset = false) => {
@@ -55,6 +45,7 @@ export function useCoverLetterList(coverId: string | null) {
         const res = await listCoverLetters(p, PAGE_SIZE, {
           source: sourceFilter || undefined,
           companyType: companyTypeFilter || undefined,
+          jobCategory: jobCategoryFilter || undefined,
           search: search.trim() || undefined,
           sort: "latest",
         });
@@ -65,7 +56,7 @@ export function useCoverLetterList(coverId: string | null) {
         setLoading(false);
       }
     },
-    [companyTypeFilter, search, sourceFilter],
+    [companyTypeFilter, jobCategoryFilter, search, sourceFilter],
   );
 
   useEffect(() => {
@@ -184,30 +175,6 @@ export function useCoverLetterList(coverId: string | null) {
     router.back();
   };
 
-  const handleAnalyzeJobs = async () => {
-    const targets = items.slice(0, 50);
-    if (targets.length === 0 || jobAnalysisLoading) return;
-    setJobAnalysisLoading(true);
-    setJobAnalysisError(null);
-    try {
-      const res = await analyzeCoverLetterJobs({
-        ids: targets.map((item) => item.id),
-        target: "all",
-        model: MODELS[0].id,
-        limit: 50,
-      });
-      setJobAnalyses((prev) => {
-        const next = { ...prev };
-        for (const item of res.items) next[item.id] = item;
-        return next;
-      });
-    } catch (e) {
-      setJobAnalysisError(e instanceof Error ? e.message : "AI 직무 분류에 실패했습니다.");
-    } finally {
-      setJobAnalysisLoading(false);
-    }
-  };
-
   const reload = useCallback(() => {
     setPage(1);
     load(1, true);
@@ -224,21 +191,16 @@ export function useCoverLetterList(coverId: string | null) {
     setSourceFilter,
     companyTypeFilter,
     setCompanyTypeFilter,
-    aiJobFilter,
-    setAiJobFilter,
-    jobAnalyses,
-    jobAnalysisLoading,
-    jobAnalysisError,
+    jobCategoryFilter,
+    setJobCategoryFilter,
     selected,
     isHeaderHidden,
-    rawFiltered,
     filtered,
     loaderRef,
     handleListScroll,
     handleDetailScroll,
     handleSelect,
     handleBack,
-    handleAnalyzeJobs,
     reload,
   };
 }

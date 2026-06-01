@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
-import { CatchAuthService } from './infrastructure/auth/catch-auth.service';
-import { JobplanetAuthService } from './infrastructure/auth/jobplanet-auth.service';
-import { PuppeteerService } from './infrastructure/browser/puppeteer.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { BrowseModule } from '../browse/browse.module';
+import { SystemSettingEntity } from './entity/system-setting.entity';
+import { SystemSettingsService } from './application/system-settings.service';
 
 @Module({
-  providers: [CatchAuthService, JobplanetAuthService, PuppeteerService],
-  exports: [CatchAuthService, JobplanetAuthService, PuppeteerService],
+  imports: [BrowseModule, TypeOrmModule.forFeature([SystemSettingEntity])],
+  providers: [SystemSettingsService],
+  exports: [BrowseModule, SystemSettingsService],
 })
 export class SharedModule {}

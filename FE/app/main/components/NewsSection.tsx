@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { API_BASE } from "@/lib/api/base";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { API_BASE, apiFetch } from "@/lib/api/base";
 import { getGithubTrending, getHuggingFaceTrending } from "@/lib/api/news-feed";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -13,6 +15,18 @@ interface GoogleNewsItem {
   source: string;
   pubDate: string;
   description: string;
+}
+
+interface NewsArticleSummary {
+  id: string;
+  url: string;
+  title: string;
+  source: string | null;
+  description: string | null;
+  summary: string;
+  model: string | null;
+  articleUrl: string | null;
+  updatedAt: string;
 }
 
 const GOOGLE_NEWS_CATEGORIES = [
@@ -92,7 +106,7 @@ function Skeleton() {
 }
 
 // ── News Modal ────────────────────────────────────────────────
-function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => void }) {
+function NewsModal({ item, onClose, onSummaryCreated }: { item: GoogleNewsItem; onClose: () => void; onSummaryCreated?: () => void }) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -101,6 +115,11 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
   const [articleUrl, setArticleUrl] = useState(item.link);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [fetchFailed, setFetchFailed] = useState(false);
+  const [summary, setSummary] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const summaryStreamRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -111,6 +130,19 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
   useEffect(() => {
     setFetchLoading(true);
     setFetchFailed(false);
+    setContent("");
+    setImage("");
+    setArticleUrl(item.link);
+    setSummary("");
+    setSummaryError("");
+    setSummaryOpen(false);
+    summaryStreamRef.current?.();
+    summaryStreamRef.current = null;
+    apiFetch<NewsArticleSummary | null>(`/news/article-summary?url=${encodeURIComponent(item.link)}`)
+      .then((saved) => {
+        if (saved?.summary) setSummary(saved.summary);
+      })
+      .catch(() => {});
     fetch(`${API_BASE}/news/article?url=${encodeURIComponent(item.link)}`)
       .then((r) => r.json())
       .then((raw) => {
@@ -125,6 +157,67 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
       })
       .finally(() => setFetchLoading(false));
   }, [item]);
+
+  useEffect(() => () => {
+    summaryStreamRef.current?.();
+  }, []);
+
+  const runAiSummary = useCallback(async () => {
+    if (summaryLoading) return;
+    summaryStreamRef.current?.();
+    summaryStreamRef.current = null;
+    setSummary("");
+    setSummaryError("");
+    setSummaryLoading(true);
+
+    try {
+      const { jobId } = await apiFetch<{ jobId: string }>("/queue/news-article-summary", {
+        method: "POST",
+        body: JSON.stringify({
+          title: item.title,
+          url: articleUrl || item.link,
+          source: item.source,
+          description: content || item.description || "",
+          model: "claude-haiku-4-5",
+          refresh: !!summary,
+        }),
+      });
+
+      const es = new EventSource(`${API_BASE}/queue/news-article-summary/${jobId}/stream`);
+      let closed = false;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        es.close();
+      };
+      summaryStreamRef.current = close;
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as { type?: string; text?: string; message?: string };
+          if (data.type === "chunk" && data.text) {
+            setSummary((prev) => prev + data.text);
+          } else if (data.type === "done") {
+            setSummaryLoading(false);
+            onSummaryCreated?.();
+            close();
+          } else if (data.type === "error") {
+            setSummaryError(data.message || "AI 요약에 실패했습니다.");
+            setSummaryLoading(false);
+            close();
+          }
+        } catch {}
+      };
+      es.onerror = () => {
+        setSummaryError("AI 요약 스트림 연결이 끊겼습니다.");
+        setSummaryLoading(false);
+        close();
+      };
+    } catch (error) {
+      setSummaryError(error instanceof Error ? error.message : "AI 요약에 실패했습니다.");
+      setSummaryLoading(false);
+    }
+  }, [articleUrl, content, item, summary, summaryLoading]);
 
   return (
     <div
@@ -155,7 +248,7 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
         </div>
 
         {/* Modal body */}
-        <div className="p-5 overflow-y-auto flex-1">
+        <div className="p-5 overflow-y-auto flex-1 min-h-0">
           {fetchLoading ? (
             <div className="space-y-2.5">
               {[...Array(7)].map((_, i) => (
@@ -165,7 +258,6 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
           ) : (
             <>
               {image && (
-                 
                 <img src={image} alt="" className="w-full rounded-xl object-cover max-h-52 mb-4" />
               )}
               {fetchFailed && (
@@ -189,8 +281,84 @@ function NewsModal({ item, onClose }: { item: GoogleNewsItem; onClose: () => voi
           )}
         </div>
 
+        {/* AI 요약 popup panel — body와 footer 사이에 위치 */}
+        {summaryOpen && (
+          <div className={`border-t flex flex-col shrink-0 overflow-hidden ${isDark ? "border-white/10 bg-slate-800/60" : "border-slate-100 bg-slate-50"}`}
+            style={{ maxHeight: "min(240px, 38vh)" }}>
+            {/* popup header */}
+            <div className={`flex items-center justify-between px-4 py-2.5 border-b shrink-0 ${isDark ? "border-white/10" : "border-slate-100"}`}>
+              <div className="flex items-center gap-1.5">
+                <span className="text-indigo-500 text-sm">✦</span>
+                <span className={`text-sm font-semibold ${isDark ? "text-white/85" : "text-slate-800"}`}>AI 요약</span>
+                {summaryLoading && (
+                  <span className="flex items-center gap-1 ml-1">
+                    <span className="inline-block w-1 h-1 bg-indigo-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                    <span className="inline-block w-1 h-1 bg-indigo-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                    <span className="inline-block w-1 h-1 bg-indigo-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={runAiSummary}
+                  disabled={summaryLoading}
+                  className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50 ${
+                    isDark ? "bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                  }`}
+                >
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" className={summaryLoading ? "animate-spin" : ""}>
+                    <path d="M8.5 1.8L9.7 5.1L13 6.3L9.7 7.5L8.5 10.8L7.3 7.5L4 6.3L7.3 5.1L8.5 1.8Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                  </svg>
+                  {summaryLoading ? "요약 중..." : summary ? "다시 요약" : "요약하기"}
+                </button>
+                <button
+                  onClick={() => setSummaryOpen(false)}
+                  className={`text-base leading-none transition-colors ${isDark ? "text-white/30 hover:text-white/70" : "text-slate-300 hover:text-slate-600"}`}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            {/* popup content */}
+            <div className="px-4 py-3 overflow-y-auto">
+              {!summary && !summaryLoading && !summaryError && (
+                <p className={`text-sm text-center py-3 ${isDark ? "text-white/35" : "text-slate-400"}`}>
+                  요약하기 버튼을 눌러 AI 요약을 생성하세요.
+                </p>
+              )}
+              {summaryLoading && !summary && (
+                <p className={`text-sm ${isDark ? "text-white/50" : "text-slate-500"}`}>요약을 생성하고 있습니다...</p>
+              )}
+              {summary && (
+                <div className={`prose prose-sm max-w-none leading-relaxed ${isDark ? "prose-invert text-white/75" : "text-slate-700"}`}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary}</ReactMarkdown>
+                </div>
+              )}
+              {summaryError && (
+                <p className="text-xs font-semibold text-red-500">{summaryError}</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Modal footer */}
-        <div className={`p-4 border-t flex justify-end ${isDark ? "border-white/10" : "border-slate-100"}`}>
+        <div className={`px-4 py-3 border-t flex items-center gap-2 ${isDark ? "border-white/10" : "border-slate-100"}`}>
+          {!fetchLoading && content && (
+            <button
+              onClick={() => setSummaryOpen((v) => !v)}
+              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                summaryOpen
+                  ? isDark ? "bg-indigo-500/25 text-indigo-300" : "bg-indigo-100 text-indigo-700"
+                  : isDark ? "bg-white/8 text-white/55 hover:bg-white/12" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              }`}
+            >
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                <path d="M8.5 1.8L9.7 5.1L13 6.3L9.7 7.5L8.5 10.8L7.3 7.5L4 6.3L7.3 5.1L8.5 1.8Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+              </svg>
+              AI 요약
+            </button>
+          )}
+          <div className="flex-1" />
           <a
             href={articleUrl}
             target="_blank"
@@ -215,6 +383,7 @@ function GoogleNewsPanel() {
   const [error, setError] = useState(false);
   const [category, setCategory] = useState<GoogleNewsCategory>("it");
   const [modalItem, setModalItem] = useState<GoogleNewsItem | null>(null);
+  const [summarizedUrls, setSummarizedUrls] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -224,8 +393,8 @@ function GoogleNewsPanel() {
       .then((r) => r.json())
       .then((data) => {
         if (ctrl.signal.aborted) return;
-        const items = data?.isSuccess ? (data.result ?? []) : (Array.isArray(data) ? data : []);
-        setItems(items);
+        const fetched = data?.isSuccess ? (data.result ?? []) : (Array.isArray(data) ? data : []);
+        setItems(fetched);
       })
       .catch(() => { if (!ctrl.signal.aborted) setError(true); })
       .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
@@ -233,9 +402,55 @@ function GoogleNewsPanel() {
     return () => ctrl.abort();
   }, [category]);
 
+  // 각 기사의 AI 요약 존재 여부 확인
+  useEffect(() => {
+    if (items.length === 0) { setSummarizedUrls(new Set()); return; }
+    let cancelled = false;
+    Promise.all(
+      items.map((item) =>
+        apiFetch<NewsArticleSummary | null>(`/news/article-summary?url=${encodeURIComponent(item.link)}`)
+          .then((s) => (s?.summary ? item.link : null))
+          .catch(() => null)
+      )
+    ).then((results) => {
+      if (!cancelled) setSummarizedUrls(new Set(results.filter((r): r is string => r !== null)));
+    });
+    return () => { cancelled = true; };
+  }, [items]);
+
+  const openModal = useCallback((item: GoogleNewsItem) => {
+    setModalItem(item);
+    window.history.pushState({ newsModal: true }, "", `/main/news?article=${encodeURIComponent(item.link)}`);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalItem(null);
+    if (window.location.pathname.startsWith("/main/news")) {
+      window.history.replaceState({}, "", "/main");
+    }
+  }, []);
+
+  // 브라우저 뒤로가기로 팝업 닫기
+  useEffect(() => {
+    const handlePop = () => { if (modalItem) setModalItem(null); };
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
+  }, [modalItem]);
+
+  // 요약이 생성되면 인디케이터 즉시 업데이트
+  const markSummarized = useCallback((url: string) => {
+    setSummarizedUrls((prev) => new Set([...prev, url]));
+  }, []);
+
   return (
     <>
-      {modalItem && <NewsModal item={modalItem} onClose={() => setModalItem(null)} />}
+      {modalItem && (
+        <NewsModal
+          item={modalItem}
+          onClose={closeModal}
+          onSummaryCreated={() => markSummarized(modalItem.link)}
+        />
+      )}
 
       <div className="flex gap-1 mb-3 flex-wrap">
         {GOOGLE_NEWS_CATEGORIES.map((c) => (
@@ -259,19 +474,32 @@ function GoogleNewsPanel() {
           <p className="text-xs">뉴스를 불러올 수 없습니다</p>
         </div>
       ) : (
-        <div className="space-y-0.5 overflow-y-auto flex-1">
+        /* 모바일: 가로 스와이프 / 데스크탑: 세로 스크롤 */
+        <div className="md:space-y-0.5 md:overflow-y-auto md:flex-1 max-md:flex max-md:gap-2.5 max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:pb-1 max-md:-mx-5 max-md:px-5">
           {items.map((item, i) => (
             <button
               key={item.link + i}
-              onClick={() => setModalItem(item)}
-              className={`group flex gap-2.5 p-2 rounded-lg transition-colors w-full text-left ${isDark ? "hover:bg-white/5" : "hover:bg-blue-50"}`}
+              onClick={() => openModal(item)}
+              className={`group flex gap-2.5 p-2 rounded-lg transition-colors text-left
+                md:w-full
+                max-md:shrink-0 max-md:w-52 max-md:snap-start max-md:flex-col max-md:gap-1 max-md:border max-md:p-3
+                ${isDark
+                  ? "hover:bg-white/5 max-md:border-white/10 max-md:bg-white/3"
+                  : "hover:bg-blue-50 max-md:border-slate-100 max-md:bg-white"
+                }`}
             >
-              <span className={`text-xs font-bold w-4 shrink-0 pt-0.5 text-right ${isDark ? "text-white/30" : "text-slate-300"}`}>{i + 1}</span>
+              {/* 번호: 데스크탑만 표시 */}
+              <span className={`md:block hidden text-xs font-bold w-4 shrink-0 pt-0.5 text-right ${isDark ? "text-white/30" : "text-slate-300"}`}>{i + 1}</span>
               <div className="flex-1 min-w-0">
+                {/* 모바일 카드에서만 번호 표시 */}
+                <span className={`md:hidden text-2xs font-bold mb-1 block ${isDark ? "text-white/25" : "text-slate-300"}`}>{i + 1}</span>
                 <p className={`text-xs2 font-medium leading-snug line-clamp-2 transition-colors ${isDark ? "text-white/80 group-hover:text-blue-400" : "text-slate-700 group-hover:text-blue-700"}`}>
                   {item.title}
                 </p>
-                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                  {summarizedUrls.has(item.link) && (
+                    <span className={`text-2xs font-bold ${isDark ? "text-indigo-400" : "text-indigo-500"}`} title="AI 요약 있음">✦</span>
+                  )}
                   {item.source && <span className={`text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>{item.source}</span>}
                   {item.pubDate && (
                     <>

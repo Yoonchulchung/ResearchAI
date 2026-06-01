@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 
-pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 export interface PdfViewerPosition {
   page: number;
@@ -13,7 +13,7 @@ export interface PdfViewerPosition {
 }
 
 interface Props {
-  file: string;
+  file: string | globalThis.File | Blob;
   onPageChange: (page: number) => void;
   onAnalyzePage: (page: number) => void;
   scrollRequest: { page: number; id: number } | null;
@@ -23,7 +23,6 @@ interface Props {
 }
 
 const ZOOM_STEP = 0.25;
-const ZOOM_WHEEL_STEP = 0.05;
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 3.0;
 const ZOOM_SETTLE_MS = 900;
@@ -36,7 +35,7 @@ const DEFAULT_PAGE_RATIO = 1.414;
 // Must match the Tailwind px-4 py-4 on the scroll container
 const CONTAINER_PADDING = 16;
 
-const clampZoom = (value: number) => Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value)) * 100) / 100;
+const clampZoom = (value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value));
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
 interface ZoomAnchor {
@@ -107,7 +106,7 @@ export default function PdfVisualViewer({ file, onPageChange, onAnalyzePage, scr
   const getPageHeight = useCallback((index: number) => Math.floor(renderWidth * (pageRatios[index] ?? DEFAULT_PAGE_RATIO)), [pageRatios, renderWidth]);
   const totalUnscaledHeight = Array.from({ length: numPages }, (_, i) => getPageHeight(i))
     .reduce((sum, height) => sum + height, 0) + Math.max(0, numPages - 1) * PAGE_GAP;
-  const outerHeight = Math.floor(totalUnscaledHeight * cssScale);
+  const outerHeight = totalUnscaledHeight * cssScale;
 
   const updateVisibleRange = useCallback((centerIndex: number) => {
     if (!numPages) return;
@@ -144,7 +143,7 @@ export default function PdfVisualViewer({ file, onPageChange, onAnalyzePage, scr
 
   const getVisualContentWidth = useCallback((scale: number) => {
     const rw = Math.floor(baseWidthRef.current * renderScaleRef.current);
-    return Math.floor(rw * (scale / renderScaleRef.current));
+    return rw * (scale / renderScaleRef.current);
   }, []);
 
   const createZoomAnchor = useCallback((focusX: number, focusY: number): ZoomAnchor | null => {
@@ -294,7 +293,7 @@ export default function PdfVisualViewer({ file, onPageChange, onAnalyzePage, scr
   // remains correct during rapid zoom — each call uses updated refs from the previous
   // call even before React has re-rendered.
   //
-  const applyZoomRef = useRef((newVisual: number, focusX: number, focusY: number) => {
+  const applyZoomRef = useRef((newVisual: number, focusX: number, focusY: number, immediate = false) => {
     const el = containerRef.current;
     if (!el) return;
     if (newVisual === visualScaleRef.current) return;
@@ -319,7 +318,33 @@ export default function PdfVisualViewer({ file, onPageChange, onAnalyzePage, scr
       updateRenderScaleDuringZoomRef.current(visualScaleRef.current);
     }, ZOOM_SETTLE_MS);
 
-    animateZoomToRef.current(newVisual, anchor);
+    if (immediate) {
+      if (zoomAnimationFrameRef.current !== null) {
+        cancelAnimationFrame(zoomAnimationFrameRef.current);
+        zoomAnimationFrameRef.current = null;
+      }
+      
+      // For buttery smooth trackpad zoom, we apply CSS scale directly to the DOM to sync with scroll.
+      // This prevents the 1-frame jitter that occurs if we wait for React state to apply the scale visually.
+      const currentRenderScale = renderScaleRef.current;
+      const directCssScale = newVisual / currentRenderScale;
+      const rWidth = Math.floor(baseWidthRef.current * currentRenderScale);
+      
+      if (innerWrapperRef.current) {
+        innerWrapperRef.current.style.transform = `scale(${directCssScale})`;
+      }
+      if (outerWrapperRef.current) {
+        outerWrapperRef.current.style.width = `${rWidth * directCssScale}px`;
+      }
+      
+      applyAnchorScroll(anchor, newVisual);
+      
+      visualScaleRef.current = newVisual;
+      setVisualScale(newVisual); // Let React state catch up
+      updateRenderScaleDuringZoomRef.current(newVisual);
+    } else {
+      animateZoomToRef.current(newVisual, anchor);
+    }
     emitPosition();
   });
 
@@ -410,11 +435,18 @@ export default function PdfVisualViewer({ file, onPageChange, onAnalyzePage, scr
       const focus = getPointerZoomFocus(e);
       if (!focus) return;
 
-      const delta = e.deltaY < 0 ? ZOOM_WHEEL_STEP : -ZOOM_WHEEL_STEP;
-      const newVisual = clampZoom(getZoomTargetBase() + delta);
+      let deltaY = e.deltaY;
+      if (e.deltaMode === 1) deltaY *= 33; // DOM_DELTA_LINE
+
+      // Cap deltaY to prevent massive jumps from generic mouse wheels
+      const cappedDelta = Math.sign(deltaY) * Math.min(Math.abs(deltaY), 60);
+
+      // Natural exponential zoom curve
+      const zoomFactor = Math.exp(-cappedDelta * 0.008);
+      const newVisual = clampZoom(visualScaleRef.current * zoomFactor);
 
       zoomAnchorRef.current = createZoomAnchor(focus.x, focus.y);
-      applyZoomRef.current(newVisual, focus.x, focus.y);
+      applyZoomRef.current(newVisual, focus.x, focus.y, true); // immediate, no animation lag
     };
     el.addEventListener("wheel", handleWheel, { passive: false });
     return () => el.removeEventListener("wheel", handleWheel);
@@ -654,7 +686,7 @@ export default function PdfVisualViewer({ file, onPageChange, onAnalyzePage, scr
             <div
               ref={outerWrapperRef}
               style={{
-                width: `${Math.floor(renderWidth * cssScale)}px`,
+                width: `${renderWidth * cssScale}px`,
                 height: `${outerHeight}px`,
               }}
             >

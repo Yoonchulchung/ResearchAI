@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity('hot_paper_trend_summary')
+@Entity('news_papers_trend_summary')
 @Index(['generatedAt'])
 @Index(['expiresAt'])
 export class PaperTrendSummaryEntity {

@@ -19,6 +19,7 @@ const ALLOWED_KEYS = [
   'SERPER_API_KEY',
   'NAVER_CLIENT_ID',
   'BRAVE_API_KEY',
+  'DEFAULT_GROQ_API_KEY',
 ] as const;
 
 type AllowedKey = (typeof ALLOWED_KEYS)[number];
@@ -30,6 +31,7 @@ const KEY_LABELS: Record<AllowedKey, string> = {
   SERPER_API_KEY: 'Serper',
   NAVER_CLIENT_ID: 'Naver',
   BRAVE_API_KEY: 'Brave',
+  DEFAULT_GROQ_API_KEY: 'Groq (Default)',
 };
 
 @Injectable()

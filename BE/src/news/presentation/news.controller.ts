@@ -11,7 +11,7 @@ import {
 } from '../application/service/news.service';
 import { MarketService, MarketItem, ChartPoint } from '../application/service/market.service';
 import { NewsSummaryService } from '../application/service/news-summary.service';
-import { PuppeteerService } from '../../shared/infrastructure/browser/puppeteer.service';
+import { PuppeteerService } from '../../browse/infrastructure/puppeteer.service';
 import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
 
 @Controller('news')
@@ -107,6 +107,13 @@ export class NewsController {
     return this.newsService.getArticleContent(url);
   }
 
+  @Get('article-summary')
+  async getArticleSummary(
+    @Query('url') url = '',
+  ) {
+    return this.newsService.getArticleSummary(url);
+  }
+
   @Get('ai-answer')
   async aiAnswer(
     @Query('q') q = '',
@@ -138,11 +145,12 @@ export class NewsController {
 
       const prompt = `질문: ${q}\n\n웹 검색 결과:\n${context}`;
 
+      const aiModel = this.aiProvider.resolveEffectiveModel('');
       for await (const chunk of this.aiProvider.stream('', system, [{ role: 'user', content: prompt }])) {
         if (res.writableEnded) break;
         res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
       }
-      if (!res.writableEnded) res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+      if (!res.writableEnded) res.write(`data: ${JSON.stringify({ type: 'done', model: aiModel })}\n\n`);
     } catch (e) {
       if (!res.writableEnded) {
         res.write(`data: ${JSON.stringify({ type: 'error', message: (e as Error).message })}\n\n`);

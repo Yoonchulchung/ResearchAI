@@ -20,8 +20,9 @@ export interface JobPosting {
   detailContent?: string;
   detailHtml?: string;
   favorite?: boolean;
+  appliedAt?: string | null;
   collectedAt: string;
-  source?: "linkareer" | "jobkorea" | "catch" | "jobplanet" | "jobda";
+  source?: string;
 }
 
 export interface JobPostingListResponse {
@@ -41,6 +42,7 @@ export interface JobPostingListParams {
   page?: number;
   limit?: number;
   source?: string;
+  company?: string;
   search?: string;
   job?: string;
   companyType?: string;
@@ -67,6 +69,7 @@ export const listJobPostings = ({
   page = 1,
   limit = 30,
   source,
+  company,
   search,
   job,
   companyType,
@@ -80,6 +83,7 @@ export const listJobPostings = ({
 }: JobPostingListParams = {}) => {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (source) params.set("source", source);
+  if (company?.trim()) params.set("company", company.trim());
   if (search?.trim()) params.set("search", search.trim());
   if (job) params.set("job", job);
   if (companyType) params.set("companyType", companyType);
@@ -96,7 +100,15 @@ export const listJobPostings = ({
 export const getJobPosting = (id: string) =>
   apiFetch<JobPosting>(`${JOB_POSTING_API_BASE}/data/${encodeURIComponent(id)}`);
 
-export const startJobScraping = (opts: { jobType?: "INTERN" | "RECRUIT"; fetchDetail?: boolean; source?: "linkareer" | "jobkorea" | "catch" | "jobplanet" | "jobda" | "all" } = {}) =>
+export const JOBKOREA_COMPANY_TYPES = ["대기업", "중견기업", "외국계기업", "공공기관"] as const;
+export type JobkoreaCompanyType = (typeof JOBKOREA_COMPANY_TYPES)[number];
+
+export const startJobScraping = (opts: {
+  jobType?: "INTERN" | "RECRUIT";
+  fetchDetail?: boolean;
+  source?: "linkareer" | "jobkorea" | "catch" | "jobplanet" | "jobda" | "all";
+  jobkoreaCompanyTypes?: JobkoreaCompanyType[];
+} = {}) =>
   apiFetch<{ message: string }>(`${JOB_POSTING_API_BASE}/start`, { method: "POST", body: JSON.stringify(opts) });
 
 export const stopJobScraping = () =>
@@ -120,6 +132,12 @@ export const setJobPostingFavorite = (id: string, favorite: boolean) =>
     method: favorite ? "POST" : "DELETE",
   });
 
+export const setJobPostingApplied = (id: string, appliedAt: string | null) =>
+  apiFetch<{ id: string; appliedAt: string | null }>(`${JOB_POSTING_API_BASE}/data/${encodeURIComponent(id)}/applied`, {
+    method: "PATCH",
+    body: JSON.stringify({ appliedAt }),
+  });
+
 export type AiAnalysisMode = "analysis" | "interview";
 
 export const getJobPostingAiAnalysis = (id: string, mode: AiAnalysisMode) =>
@@ -138,3 +156,71 @@ export const getPostingImageFiles = (html: string) =>
     method: "POST",
     body: JSON.stringify({ html }),
   });
+
+// ── 채용 상세 수집 ──────────────────────────────────────────────────────
+
+export interface CollectDetailConfig {
+  model?: string;
+  enableVlm?: boolean;
+  maxItems?: number;
+  skipExisting?: boolean;
+  companyTypes?: string[];
+  jobTypes?: string[];
+  jobs?: string[];
+}
+
+export interface CollectDetailStatus {
+  running: boolean;
+  total: number;
+  processed: number;
+  startedAt: string | null;
+  lastActivity: string | null;
+  lastRunAt: string | null;
+  model: string;
+  enableVlm: boolean;
+}
+
+export const startCollectDetail = (config?: CollectDetailConfig) =>
+  apiFetch<{ message: string }>(`${JOB_POSTING_API_BASE}/collect-detail/start`, {
+    method: "POST",
+    body: JSON.stringify(config ?? {}),
+  });
+
+export const previewCollectCount = (config: CollectDetailConfig) =>
+  apiFetch<{ total: number }>(`${JOB_POSTING_API_BASE}/collect-detail/preview`, {
+    method: "POST",
+    body: JSON.stringify(config),
+  });
+
+export const stopCollectDetail = () =>
+  apiFetch<{ message: string }>(`${JOB_POSTING_API_BASE}/collect-detail/stop`, { method: "POST" });
+
+export const getCollectDetailStatus = () =>
+  apiFetch<CollectDetailStatus>(`${JOB_POSTING_API_BASE}/collect-detail/status`);
+
+export interface JobRecommendation {
+  id: number;
+  jobPostingId: string;
+  score: number;
+  reason: string | null;
+  matchPoints: string[];
+  recommendedAt: string;
+  title: string;
+  company: string;
+  companyType: string | null;
+  type: string | null;
+  location: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  deadline: string | null;
+  jobs: string | null;
+  source: string | null;
+  appliedAt: string | null;
+  url: string;
+}
+
+export const getJobRecommendations = (limit = 20) =>
+  apiFetch<JobRecommendation[]>(`${JOB_POSTING_API_BASE}/collect-detail/recommendations?limit=${limit}`);
+
+export const deleteJobRecommendation = (id: number) =>
+  apiFetch<{ message: string }>(`${JOB_POSTING_API_BASE}/collect-detail/recommendations/${id}`, { method: "DELETE" });

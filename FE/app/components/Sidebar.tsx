@@ -288,9 +288,9 @@ export function Sidebar() {
             <IconPencil />
           </button>
           <button
-            onClick={() => router.push("/company-analysis")}
+            onClick={() => router.push("/companies")}
             className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
-              pathname?.startsWith("/company-analysis")
+              pathname?.startsWith("/companies") || pathname?.startsWith("/company-analysis")
                 ? "bg-brand-primary/10 text-brand-primary"
                 : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
             }`}
@@ -391,9 +391,9 @@ export function Sidebar() {
         </button>
 
         <button
-          onClick={() => router.push("/company-analysis")}
+          onClick={() => router.push("/companies")}
           className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-            pathname?.startsWith("/company-analysis")
+            pathname?.startsWith("/companies") || pathname?.startsWith("/company-analysis")
               ? "bg-brand-primary/10 text-brand-primary"
               : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
           }`}

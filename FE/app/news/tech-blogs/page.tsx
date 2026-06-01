@@ -151,6 +151,7 @@ export default function NewsTechBlogsPage() {
   const [source, setSource] = useState(() => getInitialSearchParam("source", SOURCE_ALL));
   const [query, setQuery] = useState(() => getInitialSearchParam("q", ""));
   const [bookmarkedOnly, setBookmarkedOnly] = useState(() => getInitialSearchParam("bookmarked") === "true");
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sourceCount, setSourceCount] = useState<Map<string, number>>(new Map());
   const [trend, setTrend] = useState<TechBlogTrendSummary | null>(null);
@@ -318,6 +319,7 @@ export default function NewsTechBlogsPage() {
   }, [data?.sources]);
 
   const selectedSource = source === SOURCE_ALL ? null : data?.sources.find((s) => s.id === source) ?? null;
+  const selectedSourceLabel = selectedSource?.name ?? "전체 출처";
   const markdownComponents = useMemo(() => ({
     h1: ({ children }: { children?: ReactNode }) => <h1 className="mb-2.5 mt-4 text-base font-bold first:mt-0 sm:text-lg">{children}</h1>,
     h2: ({ children }: { children?: ReactNode }) => <h2 className="mb-2 mt-3.5 text-sm font-bold first:mt-0 sm:text-base">{children}</h2>,
@@ -424,6 +426,20 @@ export default function NewsTechBlogsPage() {
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="제목, 출처, 태그 검색" className={`h-9 w-full rounded-xl border px-3 text-sm outline-none transition focus:ring-2 focus:ring-indigo-200/50 sm:w-60 ${inputClass}`} />
               <button
                 type="button"
+                onClick={() => setSourcePickerOpen(true)}
+                className={`inline-flex h-9 min-w-0 max-w-full shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition lg:hidden ${
+                  source !== SOURCE_ALL
+                    ? isDark ? "border-indigo-300/30 bg-indigo-500/15 text-indigo-300" : "border-indigo-200 bg-indigo-50 text-indigo-700"
+                    : isDark ? "border-white/10 text-white/60 hover:bg-white/10" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="shrink-0">
+                  <path d="M3 4h10M5 8h6M7 12h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <span className="truncate">{selectedSourceLabel}</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setBookmarkedOnly((value) => !value)}
                 className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition ${
                   bookmarkedOnly
@@ -509,6 +525,73 @@ export default function NewsTechBlogsPage() {
           </div>
         </div>
       </div>
+      {sourcePickerOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end bg-slate-950/45 px-3 pb-3 pt-16 backdrop-blur-sm lg:hidden"
+          onClick={() => setSourcePickerOpen(false)}
+        >
+          <section
+            className={`max-h-[78vh] w-full overflow-hidden rounded-2xl border shadow-2xl ${isDark ? "border-white/10 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-900"}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="기술 블로그 출처 선택"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className={`flex items-center justify-between border-b px-4 py-3 ${isDark ? "border-white/10" : "border-slate-100"}`}>
+              <div>
+                <h2 className="text-sm font-bold">출처 선택</h2>
+                <p className={`mt-0.5 text-xs ${textSub}`}>보고 싶은 기술 블로그 사이트를 고르세요.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSourcePickerOpen(false)}
+                className={`rounded-lg p-2 transition ${isDark ? "text-white/50 hover:bg-white/10 hover:text-white" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"}`}
+                aria-label="닫기"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
+            </header>
+            <div className="max-h-[calc(78vh-4.5rem)] overflow-y-auto p-3">
+              <button
+                type="button"
+                onClick={() => { setSource(SOURCE_ALL); setSourcePickerOpen(false); }}
+                className={`mb-2 flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm transition ${
+                  source === SOURCE_ALL
+                    ? isDark ? "bg-indigo-500/15 font-semibold text-indigo-300" : "bg-indigo-50 font-semibold text-indigo-700"
+                    : isDark ? "text-white/70 hover:bg-white/5" : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <span>전체 출처</span>
+                <span className={`text-xs ${textSub}`}>{data?.posts.length ?? 0}</span>
+              </button>
+              {sourceGroups.map(([category, sources]) => (
+                <div key={category} className="mb-2">
+                  <div className={`px-3 py-1.5 text-2xs font-semibold uppercase tracking-widest ${isDark ? "text-white/30" : "text-slate-400"}`}>{category}</div>
+                  <div className="space-y-1">
+                    {sources.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => { setSource(item.id); setSourcePickerOpen(false); }}
+                        className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                          source === item.id
+                            ? isDark ? "bg-indigo-500/15 font-semibold text-indigo-300" : "bg-indigo-50 font-semibold text-indigo-700"
+                            : isDark ? "text-white/70 hover:bg-white/5" : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="min-w-0 truncate">{item.name}</span>
+                        <span className={`shrink-0 text-xs ${textSub}`}>{sourceCount.get(item.id) ?? 0}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
       {trendFloatingPanel}
     </main>
   );

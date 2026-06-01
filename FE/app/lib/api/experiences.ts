@@ -7,6 +7,8 @@ export interface Experience {
   category?: string;
   aiCategories?: string[] | null;
   sourceDocId?: string | null;
+  companyName?: string | null;
+  jobTitle?: string | null;
   createdAt: string;
   updatedAt: string;
 }

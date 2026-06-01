@@ -1,4 +1,6 @@
 export const MODELS = [
+  { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash" },
+  { id: "gemini-2.5-flash-preview-05-20", name: "Gemini 2.5 Flash" },
   { id: "claude-haiku-4-5", name: "Claude Haiku" },
   { id: "claude-sonnet-4-6", name: "Claude Sonnet" },
   { id: "gpt-4o-mini", name: "GPT-4o Mini" },

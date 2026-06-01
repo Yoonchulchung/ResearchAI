@@ -100,6 +100,7 @@ export class AuthService {
       naverClientSecret: keys.naverClientSecret ?? undefined,
       braveApiKey: keys.braveApiKey ?? undefined,
       artificialAnalysisApiKey: keys.artificialAnalysisApiKey ?? undefined,
+      groqApiKey: keys.groqApiKey ?? undefined,
     });
   }
 
@@ -121,6 +122,7 @@ export class AuthService {
       NAVER_CLIENT_SECRET: 'naverClientSecret',
       BRAVE_API_KEY: 'braveApiKey',
       ARTIFICIAL_ANALYSIS_API_KEY: 'artificialAnalysisApiKey',
+      GROQ_API_KEY: 'groqApiKey',
       DART_API_KEY: 'dartApiKey',
       JOBPLANET_ID: 'jobplanetId',
       JOBPLANET_PASSWORD: 'jobplanetPassword',

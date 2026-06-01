@@ -30,6 +30,7 @@ function SearchPageContent() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
   const [aiDone, setAiDone] = useState(false);
+  const [aiModel, setAiModel] = useState("");
 
   const [searched, setSearched] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -51,14 +52,18 @@ function SearchPageContent() {
     setAiLoading(true);
     setAiError("");
     setAiDone(false);
+    setAiModel("");
 
     // 인터넷 검색과 AI 검색 동시 시작
     const webPromise = fetch(
       `${API_BASE}/news/search?q=${encodeURIComponent(q)}&limit=10`,
       { signal: abort.signal },
     )
-      .then((r) => { if (!r.ok) throw new Error("검색 실패"); return r.json() as Promise<SearchResult[]>; })
-      .then((data) => { setResults(data); })
+      .then((r) => { if (!r.ok) throw new Error("검색 실패"); return r.json(); })
+      .then((raw) => {
+        const data = raw?.isSuccess ? (raw.result ?? []) : (Array.isArray(raw) ? raw : []);
+        setResults(data);
+      })
       .catch((e) => { if (e.name !== "AbortError") setWebError("검색 중 오류가 발생했습니다."); })
       .finally(() => setWebLoading(false));
 
@@ -83,7 +88,7 @@ function SearchPageContent() {
             try {
               const ev = JSON.parse(line.slice(6));
               if (ev.type === "chunk") setAiText((prev) => prev + ev.text);
-              if (ev.type === "done") setAiDone(true);
+              if (ev.type === "done") { setAiDone(true); if (ev.model) setAiModel(ev.model); }
               if (ev.type === "error") setAiError(ev.message);
             } catch {}
           }
@@ -122,32 +127,42 @@ function SearchPageContent() {
     try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
   };
 
+  const getModelLabel = (model: string) => {
+    if (!model) return "";
+    if (model.startsWith("claude-")) return "Claude";
+    if (model.startsWith("gemini-")) return "Gemini";
+    if (model.startsWith("groq:") || model === "llama-3.3-70b-versatile") return "Groq";
+    if (model.startsWith("ollama:")) return "Ollama";
+    if (model.startsWith("gpt-")) return "GPT";
+    return model.split("-")[0];
+  };
+
   const loading = webLoading || aiLoading;
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* 검색 헤더 */}
-      <div className="bg-white border-b border-gray-200 px-4 py-4 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto flex items-center gap-3">
+      <div className="bg-white border-b border-gray-200 px-3 py-3 sm:px-4 sm:py-4 sticky top-0 z-10">
+        <div className="mx-auto flex w-full max-w-3xl items-center gap-2 sm:gap-3">
           <button
             onClick={() => router.back()}
             className="text-gray-500 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors shrink-0"
           >
             ←
           </button>
-          <div className="flex-1 flex gap-2">
+          <div className="flex min-w-0 flex-1 gap-2">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="검색어를 입력하세요"
-              className="flex-1 px-4 py-2 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
+              className="min-w-0 flex-1 px-3 py-2 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 sm:px-4"
             />
             <button
               onClick={handleSearch}
               disabled={!query.trim() || loading}
-              className="bg-indigo-600 text-white font-semibold px-5 py-2 rounded-xl text-sm hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+              className="shrink-0 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40 sm:px-5"
             >
               검색
             </button>
@@ -155,11 +170,11 @@ function SearchPageContent() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
 
         {/* ── AI 검색 결과 ── */}
         {searched && (aiLoading || aiText || aiError) && (
-          <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden">
+          <div className="order-2 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm sm:order-1">
             <div className="flex items-center gap-2 px-5 py-3.5 border-b border-indigo-50 bg-linear-to-r from-indigo-50 to-white">
               <span className="text-base">✦</span>
               <span className="text-sm font-semibold text-indigo-700">AI 검색 결과</span>
@@ -171,7 +186,9 @@ function SearchPageContent() {
                 </span>
               )}
               {aiDone && (
-                <span className="ml-auto text-xs text-indigo-300">완료</span>
+                <span className="ml-auto text-xs text-indigo-300">
+                  {aiModel ? `by ${getModelLabel(aiModel)}` : "완료"}
+                </span>
               )}
             </div>
             <div className="px-5 py-4">
@@ -211,7 +228,7 @@ function SearchPageContent() {
 
         {/* ── 인터넷 검색 결과 ── */}
         {searched && (
-          <div>
+          <div className="order-1 sm:order-2">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
               인터넷 검색
             </p>

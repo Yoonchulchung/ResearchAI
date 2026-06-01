@@ -1,6 +1,6 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity('exam_event')
+@Entity('recruit_exam_event')
 @Index(['source', 'groupId', 'start'])
 export class ExamEventEntity {
   @PrimaryColumn()
@@ -45,4 +45,3 @@ export class ExamEventEntity {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 }
-

@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { createHash } from 'crypto';
 import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
-import { PuppeteerService } from '../../../shared/infrastructure/browser/puppeteer.service';
+import { PuppeteerService } from '../../../browse/infrastructure/puppeteer.service';
 import { NewsBriefingEntity } from '../../domain/entity/news-briefing.entity';
+import { NewsArticleSummaryEntity } from '../../domain/entity/news-article-summary.entity';
 import { NewsProviderService } from '../../infrastructure/news-provider.service';
 import { AppConfigService, CONFIG_KEYS } from '../../../config/application/app-config.service';
 
@@ -51,6 +53,18 @@ export interface ConflictZone {
   code: string;        // ISO numeric
   score: number;       // 뉴스 언급 점수 (높을수록 분쟁 강도 ↑)
   headlines: string[]; // 근거 헤드라인
+}
+
+export interface NewsArticleSummary {
+  id: string;
+  url: string;
+  title: string;
+  source: string | null;
+  description: string | null;
+  summary: string;
+  model: string | null;
+  articleUrl: string | null;
+  updatedAt: string;
 }
 
 const CATEGORY_QUERIES: Record<string, string> = {
@@ -179,6 +193,8 @@ export class NewsService {
     private readonly aiProvider: AiProviderService,
     @InjectRepository(NewsBriefingEntity)
     private readonly briefingRepo: Repository<NewsBriefingEntity>,
+    @InjectRepository(NewsArticleSummaryEntity)
+    private readonly articleSummaryRepo: Repository<NewsArticleSummaryEntity>,
     private readonly newsProvider: NewsProviderService,
     private readonly appConfig: AppConfigService,
   ) {}
@@ -318,6 +334,63 @@ export class NewsService {
     } catch {
       return { title: '', content: '', finalUrl: url };
     }
+  }
+
+  async getArticleSummary(url: string): Promise<NewsArticleSummary | null> {
+    const normalizedUrl = this.normalizeArticleUrl(url);
+    if (!normalizedUrl) return null;
+    const entity = await this.articleSummaryRepo.findOneBy({ url: normalizedUrl });
+    return entity ? this.toArticleSummary(entity) : null;
+  }
+
+  async saveArticleSummary(input: {
+    url: string;
+    title: string;
+    source?: string | null;
+    description?: string | null;
+    summary: string;
+    model?: string | null;
+    articleUrl?: string | null;
+  }): Promise<NewsArticleSummary> {
+    const normalizedUrl = this.normalizeArticleUrl(input.url);
+    if (!normalizedUrl) throw new Error('뉴스 요약 저장 URL이 비어 있습니다.');
+
+    const existing = await this.articleSummaryRepo.findOneBy({ url: normalizedUrl });
+    const entity = this.articleSummaryRepo.create({
+      id: existing?.id ?? this.articleSummaryId(normalizedUrl),
+      url: normalizedUrl,
+      title: input.title || existing?.title || '제목 없음',
+      source: input.source ?? existing?.source ?? null,
+      description: input.description ?? existing?.description ?? null,
+      summary: input.summary,
+      model: input.model ?? existing?.model ?? null,
+      articleUrl: input.articleUrl ?? existing?.articleUrl ?? normalizedUrl,
+    });
+    await this.articleSummaryRepo.save(entity);
+    const saved = await this.articleSummaryRepo.findOneByOrFail({ id: entity.id });
+    return this.toArticleSummary(saved);
+  }
+
+  private normalizeArticleUrl(url: string): string {
+    return (url ?? '').trim();
+  }
+
+  private articleSummaryId(url: string): string {
+    return createHash('sha1').update(url).digest('hex');
+  }
+
+  private toArticleSummary(entity: NewsArticleSummaryEntity): NewsArticleSummary {
+    return {
+      id: entity.id,
+      url: entity.url,
+      title: entity.title,
+      source: entity.source,
+      description: entity.description,
+      summary: entity.summary,
+      model: entity.model,
+      articleUrl: entity.articleUrl,
+      updatedAt: entity.updatedAt.toISOString(),
+    };
   }
 
   /** 오늘 날짜의 모든 캐시(원시 데이터 + AI 요약)를 삭제하여 다음 요청 시 재조회하도록 함 */

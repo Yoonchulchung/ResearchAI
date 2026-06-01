@@ -43,6 +43,10 @@ export namespace QueueJob {
     TECH_BLOG_TREND        = 'tech_blog_trend',
     PAPER_SUMMARY      = 'hot_paper_summary',
     PAPER_TREND        = 'hot_paper_trend',
+    NEWS_ARTICLE_SUMMARY = 'news_article_summary',
+    RESUME_COVER_LETTER_CATEGORY = 'resume_cover_letter_category',
+    RESUME_COVER_LETTER_REFINED_TITLE = 'resume_cover_letter_refined_title',
+    WRITEASSIST_JD_EVALUATE = 'writeassist_jd_evaluate',
   }
 
   export function isWriteAssist(type: TaskType): boolean {

@@ -10,16 +10,19 @@ import {
   CoverLetterJobAnalysisRequest,
   CoverLetterListFilters,
   JobCategory,
+  JobCategoryTarget,
   ScrapeOptions,
   ScrapeStatus,
 } from '../../domain/cover-letter/cover-letter.model';
 import { LinkareerCrawler } from '../../infrastructure/cover-letter/linkareer.crawler';
 import { CatchCoverLetterCrawler } from '../../infrastructure/cover-letter/catch.crawler';
-import { CatchAuthService } from '../../../shared/infrastructure/auth/catch-auth.service';
+import { CatchAuthService } from '../../../browse/infrastructure/auth/catch-auth.service';
 import { requestContext } from '../../../shared/request-context';
 import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
 import { CoverLetterEntity } from '../../domain/cover-letter/entity/cover-letter.entity';
 import { CoverLetterSpecAnalysisEntity } from '../../domain/cover-letter/entity/cover-letter-spec-analysis.entity';
+import { CompanyEntity } from '../../../company/domain/entity/company.entity';
+import { CompanyEnrichQueueService } from '../../../company/application/company-enrich-queue.service';
 
 const DATA_DIR = path.resolve(__dirname, '../../../../data/cover-letters');
 const JSONL_FILE = path.join(DATA_DIR, 'cover-letters.jsonl');
@@ -54,6 +57,9 @@ export class CoverLetterScraperService implements OnModuleInit {
     private readonly coverLetterRepo: Repository<CoverLetterEntity>,
     @InjectRepository(CoverLetterSpecAnalysisEntity)
     private readonly specAnalysisRepo: Repository<CoverLetterSpecAnalysisEntity>,
+    @InjectRepository(CompanyEntity)
+    private readonly companyRepo: Repository<CompanyEntity>,
+    private readonly enrichQueue: CompanyEnrichQueueService,
   ) {
     this.catchCrawler = new CatchCoverLetterCrawler(catchAuth);
   }
@@ -133,12 +139,21 @@ export class CoverLetterScraperService implements OnModuleInit {
     const companyType = filters.companyType?.trim();
     const search = this.normalizeSearchText(filters.search);
 
+    const jobCategory = filters.jobCategory?.trim();
+
     const qb = this.coverLetterRepo.createQueryBuilder('coverLetter');
     if (source && source !== 'all' && source !== '전체') {
       qb.andWhere('coverLetter.source = :source', { source });
     }
     if (companyType && companyType !== '전체') {
       qb.andWhere('coverLetter.companyType = :companyType', { companyType });
+    }
+    if (jobCategory && jobCategory !== 'all' && jobCategory !== '전체') {
+      if (jobCategory === 'IT+전자') {
+        qb.andWhere('coverLetter.jobCategory IN (:...cats)', { cats: ['IT', '전자'] });
+      } else {
+        qb.andWhere('coverLetter.jobCategory = :jobCategory', { jobCategory });
+      }
     }
     if (search) {
       qb.andWhere('coverLetter.searchText LIKE :search', { search: `%${search}%` });
@@ -150,7 +165,8 @@ export class CoverLetterScraperService implements OnModuleInit {
       .take(safeLimit);
 
     const [entities, total] = await qb.getManyAndCount();
-    const items = entities.map((entity) => this.toCoverLetter(entity));
+    const industryMap = await this.lookupIndustries(entities.map((e) => e.company));
+    const items = entities.map((entity) => this.toCoverLetter(entity, industryMap.get(entity.company)));
     return {
       items,
       total,
@@ -163,13 +179,15 @@ export class CoverLetterScraperService implements OnModuleInit {
 
   async getById(id: string): Promise<CoverLetter | null> {
     const entity = await this.coverLetterRepo.findOne({ where: { id } });
-    return entity ? this.toCoverLetter(entity) : null;
+    if (!entity) return null;
+    const industryMap = await this.lookupIndustries([entity.company]);
+    return this.toCoverLetter(entity, industryMap.get(entity.company));
   }
 
   async analyzeJobsWithAi(
     request: CoverLetterJobAnalysisRequest = {},
-  ): Promise<{ items: CoverLetterJobAnalysis[]; target: JobCategory | 'all'; analyzedAt: string; model: string }> {
-    const target = request.target ?? 'all';
+  ): Promise<{ items: CoverLetterJobAnalysis[]; target: JobCategoryTarget; analyzedAt: string; model: string }> {
+    const target: JobCategoryTarget = request.target ?? 'IT+전자';
     const limit = Math.min(Math.max(request.limit ?? 20, 1), SPEC_ANALYSIS_MAX_ITEMS);
     const idSet = new Set((request.ids ?? []).filter(Boolean));
     const entities = idSet.size > 0
@@ -189,7 +207,7 @@ export class CoverLetterScraperService implements OnModuleInit {
 
     const cachedResults: CoverLetterJobAnalysis[] = cached
       .map((row) => this.entityToJobAnalysis(row))
-      .filter((item) => target === 'all' || item.jobCategory === target);
+      .filter((item) => this.matchesTarget(item.jobCategory, target));
 
     const unanalyzed = allCoverLetters.filter((item) => !cachedMap.has(item.id));
     const candidates = this.limitSpecAnalysisCandidates(unanalyzed, limit, SPEC_ANALYSIS_TOKEN_BUDGET);
@@ -219,20 +237,31 @@ export class CoverLetterScraperService implements OnModuleInit {
 
     // 새 분석 결과 DB에 저장
     if (newItems.length > 0) {
-      const specEntities = newItems.map((item) =>
-        this.specAnalysisRepo.create({
+      const specEntities = newItems.map((item) => {
+        const spec = item.extractedSpec;
+        return this.specAnalysisRepo.create({
           coverLetterId: item.id,
           jobCategory: item.jobCategory,
           confidence: item.confidence / 100,
           reason: item.reason || null,
-          extractedSpec: JSON.stringify(item.extractedSpec),
+          extractedSpec: null,
+          school: spec.school || null,
+          major: spec.major || null,
+          gpa: spec.gpa || null,
+          languages: spec.languages?.length ? JSON.stringify(spec.languages) : null,
+          certificates: spec.certificates?.length ? JSON.stringify(spec.certificates) : null,
+          internships: spec.internships?.length ? JSON.stringify(spec.internships) : null,
+          activities: spec.activities?.length ? JSON.stringify(spec.activities) : null,
+          awards: spec.awards?.length ? JSON.stringify(spec.awards) : null,
+          skills: spec.skills?.length ? JSON.stringify(spec.skills) : null,
+          specSummary: spec.summary || null,
           model: effectiveModel || null,
-        }),
-      );
+        });
+      });
       await this.specAnalysisRepo.save(specEntities);
     }
 
-    const filteredNew = newItems.filter((item) => target === 'all' || item.jobCategory === target);
+    const filteredNew = newItems.filter((item) => this.matchesTarget(item.jobCategory, target));
     const items = [...cachedResults, ...filteredNew];
 
     return {
@@ -346,6 +375,29 @@ export class CoverLetterScraperService implements OnModuleInit {
     const normalized = this.normalizeCoverLetterForView(cl);
     await this.coverLetterRepo.save(this.toEntity(normalized));
     this.collectedIds.add(cl.id);
+    if (cl.company?.trim()) {
+      const normalizedName = this.normalizeCompanyName(cl.company);
+      const existing = await this.companyRepo.findOne({ where: { normalizedName } });
+      if (!existing) {
+        await this.enrichQueue.enqueue(cl.company, cl.companyType ?? null);
+      }
+    }
+  }
+
+  private normalizeCompanyName(name: string): string {
+    return name.replace(/[\s(주)㈜()（）㈔주식회사]/g, '').toLowerCase();
+  }
+
+  private async lookupIndustries(companyNames: string[]): Promise<Map<string, string | null>> {
+    const map = new Map<string, string | null>();
+    if (companyNames.length === 0) return map;
+    const normalizedNames = companyNames.map((n) => this.normalizeCompanyName(n));
+    const companies = await this.companyRepo.find({ where: normalizedNames.map((n) => ({ normalizedName: n })) });
+    const byNormalized = new Map(companies.map((c) => [c.normalizedName, c.industry ?? null]));
+    for (const name of companyNames) {
+      map.set(name, byNormalized.get(this.normalizeCompanyName(name)) ?? null);
+    }
+    return map;
   }
 
   private getCatchCredentials(): { id: string; password: string } | undefined {
@@ -362,6 +414,7 @@ export class CoverLetterScraperService implements OnModuleInit {
       ...item,
       source: item.source ?? (item.id.startsWith('catch-') ? 'catch' : 'linkareer'),
       companyType: item.companyType ?? this.inferCompanyType(item.company),
+      jobCategory: item.jobCategory ?? CoverLetterScraperService.inferJobCategory(item.position),
       questions: Array.isArray(item.questions) ? item.questions : [],
       collectedAt: item.collectedAt ?? new Date().toISOString(),
     };
@@ -374,6 +427,7 @@ export class CoverLetterScraperService implements OnModuleInit {
       url: normalized.url,
       source: normalized.source ?? null,
       companyType: normalized.companyType ?? null,
+      jobCategory: normalized.jobCategory ?? CoverLetterScraperService.inferJobCategory(normalized.position),
       company: normalized.company,
       position: normalized.position,
       season: normalized.season,
@@ -385,7 +439,7 @@ export class CoverLetterScraperService implements OnModuleInit {
     });
   }
 
-  private toCoverLetter(entity: CoverLetterEntity): CoverLetter {
+  private toCoverLetter(entity: CoverLetterEntity, industry?: string | null): CoverLetter {
     let questions: CoverLetter['questions'] = [];
     try {
       const parsed = JSON.parse(entity.questions || '[]');
@@ -399,6 +453,7 @@ export class CoverLetterScraperService implements OnModuleInit {
       url: entity.url,
       source: entity.source as CoverLetter['source'],
       companyType: entity.companyType ?? undefined,
+      jobCategory: (entity.jobCategory as JobCategory) ?? undefined,
       company: entity.company,
       position: entity.position,
       season: entity.season,
@@ -406,6 +461,7 @@ export class CoverLetterScraperService implements OnModuleInit {
       viewCount: entity.viewCount ?? undefined,
       questions,
       collectedAt: entity.collectedAt.toISOString(),
+      industry: industry ?? null,
     });
   }
 
@@ -478,7 +534,7 @@ export class CoverLetterScraperService implements OnModuleInit {
     return Math.ceil(cjk + other * 0.8 + ascii / 4);
   }
 
-  private buildJobAnalysisPrompt(items: CoverLetter[], target: JobCategory | 'all'): string {
+  private buildJobAnalysisPrompt(items: CoverLetter[], target: JobCategoryTarget): string {
     const rows = items.map((item) => ({
       id: item.id,
       company: item.company,
@@ -563,24 +619,44 @@ ${JSON.stringify(rows, null, 2)}
     return raw.trim();
   }
 
+  private parseJsonArray(val: string | null): string[] {
+    if (!val) return [];
+    try { const a = JSON.parse(val); return Array.isArray(a) ? a : []; } catch { return []; }
+  }
+
   private entityToJobAnalysis(row: CoverLetterSpecAnalysisEntity): CoverLetterJobAnalysis {
-    let extractedSpec: CoverLetterJobAnalysis['extractedSpec'] = { summary: '' };
-    try {
-      const parsed = JSON.parse(row.extractedSpec || '{}');
+    // 새 개별 컬럼 우선, 없으면 레거시 JSON 파싱
+    let extractedSpec: CoverLetterJobAnalysis['extractedSpec'];
+    if (row.school !== undefined && row.school !== null || row.specSummary !== undefined && row.specSummary !== null) {
       extractedSpec = {
-        school: parsed.school || '',
-        major: parsed.major || '',
-        gpa: parsed.gpa || '',
-        languages: Array.isArray(parsed.languages) ? parsed.languages : [],
-        certificates: Array.isArray(parsed.certificates) ? parsed.certificates : [],
-        internships: Array.isArray(parsed.internships) ? parsed.internships : [],
-        activities: Array.isArray(parsed.activities) ? parsed.activities : [],
-        awards: Array.isArray(parsed.awards) ? parsed.awards : [],
-        skills: Array.isArray(parsed.skills) ? parsed.skills : [],
-        summary: parsed.summary || '',
+        school: row.school || '',
+        major: row.major || '',
+        gpa: row.gpa || '',
+        languages: this.parseJsonArray(row.languages),
+        certificates: this.parseJsonArray(row.certificates),
+        internships: this.parseJsonArray(row.internships),
+        activities: this.parseJsonArray(row.activities),
+        awards: this.parseJsonArray(row.awards),
+        skills: this.parseJsonArray(row.skills),
+        summary: row.specSummary || '',
       };
-    } catch {
-      // ignore
+    } else {
+      extractedSpec = { summary: '' };
+      try {
+        const parsed = JSON.parse(row.extractedSpec || '{}');
+        extractedSpec = {
+          school: parsed.school || '',
+          major: parsed.major || '',
+          gpa: parsed.gpa || '',
+          languages: Array.isArray(parsed.languages) ? parsed.languages : [],
+          certificates: Array.isArray(parsed.certificates) ? parsed.certificates : [],
+          internships: Array.isArray(parsed.internships) ? parsed.internships : [],
+          activities: Array.isArray(parsed.activities) ? parsed.activities : [],
+          awards: Array.isArray(parsed.awards) ? parsed.awards : [],
+          skills: Array.isArray(parsed.skills) ? parsed.skills : [],
+          summary: parsed.summary || '',
+        };
+      } catch { /* ignore */ }
     }
     return {
       id: row.coverLetterId,
@@ -589,6 +665,12 @@ ${JSON.stringify(rows, null, 2)}
       reason: row.reason ?? '',
       extractedSpec,
     };
+  }
+
+  private matchesTarget(category: string, target: string): boolean {
+    if (target === 'all') return true;
+    if (target === 'IT+전자') return category === 'IT' || category === '전자';
+    return category === target;
   }
 
   private static readonly VALID_CATEGORIES: JobCategory[] = ['IT', '전자', '영업', '경영/기획', '마케팅', '인사/총무', '재무/회계', '생산/제조', '기타'];
@@ -618,6 +700,36 @@ ${JSON.stringify(rows, null, 2)}
     };
   }
 
+  static inferJobCategory(position: string): JobCategory {
+    const p = position.toLowerCase().replace(/\s+/g, '');
+    // 전자/반도체를 IT보다 먼저 검사 (HW 엔지니어링 키워드가 IT와 중복될 수 있음)
+    if (/반도체|semiconductor|회로|하드웨어|hw|임베디드|embedded|펌웨어|firmware|디스플레이|display|전기전자|전자공학|제어공학|rf[엔공]|fpga|pcb|vlsi|fab공정|웨이퍼|패키지공정|메모리설계|아날로그|시스템반도체|파운드리|eda|소자/.test(p)) {
+      return '전자';
+    }
+    if (/백엔드|프론트엔드|풀스택|fullstack|앱개발|모바일개발|소프트웨어|software|개발자|sw엔지니어|웹개발|데이터엔지니어|데이터분석|데이터사이언|dataengineer|datascienc|ai[엔개]|머신러닝|machinelearn|딥러닝|deeplearn|클라우드|cloud|보안|security|인프라|infra|서버|server|네트워크|network|sre|devops|dba|qa|정보보안|정보기술|it[엔개서]|플랫폼|platform|si[개업]|사이버|cyber|blockchain|블록체인/.test(p)) {
+      return 'IT';
+    }
+    if (/영업|세일즈|sales|거래처|b2b|b2c|고객관리|채널영업|솔루션영업|기술영업|대리점/.test(p)) {
+      return '영업';
+    }
+    if (/마케팅|marketing|광고|홍보|pr[팀담]|브랜드|brand|sns|콘텐츠|content|퍼포먼스|디지털마케팅|crm|그로스/.test(p)) {
+      return '마케팅';
+    }
+    if (/재무|회계|accounting|세무|tax|자금|원가|financial|audit|감사|fp&a|cfr|irm/.test(p)) {
+      return '재무/회계';
+    }
+    if (/인사|hr[팀담]|채용|인재|조직문화|노무|총무|hrd|교육훈련/.test(p)) {
+      return '인사/총무';
+    }
+    if (/생산관리|생산기술|품질관리|공정관리|scm|물류|구매|설비|manufacturing|공장|제조|qc[팀담]|qm/.test(p)) {
+      return '생산/제조';
+    }
+    if (/기획|전략|경영|컨설팅|consulting|사업개발|bizdev|프로젝트매니저|pm[^a-z]|사업기획|신사업|전략기획/.test(p)) {
+      return '경영/기획';
+    }
+    return '기타';
+  }
+
   private inferCompanyType(company: string): CoverLetter['companyType'] {
     const normalized = company.toLowerCase();
     if (/(금융|은행|뱅크|증권|보험|카드|캐피탈|자산운용|저축은행|신협|새마을금고|농협|수협|신한|국민|우리|하나|토스)/i.test(company)) {
@@ -630,6 +742,27 @@ ${JSON.stringify(rows, null, 2)}
       return '중견기업';
     }
     return '중소기업';
+  }
+
+  /** 기존 데이터 중 jobCategory 가 null 인 행을 규칙 기반으로 일괄 분류 */
+  async backfillJobCategories(): Promise<{ updated: number }> {
+    const rows = await this.coverLetterRepo.find({
+      select: { id: true, position: true, jobCategory: true },
+    });
+    const toUpdate = rows.filter((r) => !r.jobCategory);
+    if (toUpdate.length === 0) return { updated: 0 };
+
+    const chunkSize = 200;
+    let updated = 0;
+    for (let i = 0; i < toUpdate.length; i += chunkSize) {
+      const chunk = toUpdate.slice(i, i + chunkSize);
+      await this.coverLetterRepo.save(
+        chunk.map((r) => ({ ...r, jobCategory: CoverLetterScraperService.inferJobCategory(r.position) })),
+      );
+      updated += chunk.length;
+    }
+    this.logger.log(`백필 완료: ${updated}건 jobCategory 분류`);
+    return { updated };
   }
 
   private normalizeSearchText(value?: string | null): string {

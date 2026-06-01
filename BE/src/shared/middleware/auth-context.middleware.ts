@@ -39,6 +39,7 @@ export class AuthContextMiddleware implements NestMiddleware {
                 naverClientSecret: user.naverClientSecret,
                 braveApiKey: user.braveApiKey,
                 artificialAnalysisApiKey: user.artificialAnalysisApiKey,
+                groqApiKey: user.groqApiKey,
               },
               serviceCredentials: {
                 dartApiKey: user.dartApiKey,

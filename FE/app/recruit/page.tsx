@@ -4,12 +4,15 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { fetchJobPostingDetail, listJobPostings, type JobPosting } from "@/lib/api/recruit/job-posting";
+import { fetchJobPostingDetail, getJobRecommendations, deleteJobRecommendation, setJobPostingApplied, type JobRecommendation } from "@/lib/api/recruit/job-posting";
+
+type JobRecommendationWithDetail = JobRecommendation & { detailContent?: string | null; detailHtml?: string | null };
 import { listCoverLetters, type CoverLetter } from "@/lib/api/recruit/cover-letter";
-import { listCompanyAnalyses, type CompanyAnalysis } from "@/lib/api/company-analysis";
+import { listCompaniesSlim, type CompanySlimItem } from "@/lib/api/companies";
 import { getExperiences, type Experience } from "@/lib/api/experiences";
 import { API_BASE, getAuthHeaders } from "@/lib/api/base";
 import { pdfFileCache } from "@/lib/cache/pdfFileCache";
+import { createId } from "@/lib/crypto";
 import { useTheme } from "@/contexts/ThemeContext";
 import { IconEvaluate, IconSpellcheck } from "./_components/icons";
 import { PROSE_CLASS } from "./_constants";
@@ -17,7 +20,6 @@ import { useDraftAssist } from "./_hooks/useDraftAssist";
 import { useExamCalendar, type CalendarJobTypeFilter, type RecruitCalendarEvent } from "./_hooks/useExamCalendar";
 
 type InfoTab = "jobs" | "letters" | "spec";
-type JobCategoryFilter = "" | "IT" | "전자";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
@@ -34,7 +36,7 @@ function scheduleTone(event: RecruitCalendarEvent, isDark: boolean) {
   return isDark ? "bg-indigo-500/20 text-indigo-200" : "bg-indigo-50 text-indigo-600";
 }
 
-function deadlineBadge(job: JobPosting) {
+function deadlineBadge(job: JobRecommendation) {
   const raw = (job.deadline || "").trim();
   if (/d-?day/i.test(raw) || raw.includes("마감")) return { text: raw.replace(/Dday/i, "D-Day"), urgent: true };
   if (/d-\d+/i.test(raw)) return { text: raw.toUpperCase(), urgent: raw.toUpperCase() === "D-0" };
@@ -52,13 +54,10 @@ function deadlineBadge(job: JobPosting) {
   return { text: raw || "상시", urgent: false };
 }
 
-function jobMeta(job: JobPosting) {
-  return [job.type, job.location].filter(Boolean).join(" · ") || job.category || "채용 정보";
+function jobMeta(job: JobRecommendation) {
+  return [job.type, job.location].filter(Boolean).join(" · ") || job.jobs || "채용 정보";
 }
 
-function analysisMeta(analysis: CompanyAnalysis) {
-  return [analysis.industry, analysis.companySize, analysis.corpClass].filter(Boolean).join(" · ") || "기업 분석";
-}
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -85,9 +84,8 @@ export default function RecruitPage() {
   const { theme, uiStyle } = useTheme();
   const isDark = theme === "dark";
   const isGlass = uiStyle === "glass";
-  const [jobs, setJobs] = useState<JobPosting[]>([]);
+  const [jobs, setJobs] = useState<JobRecommendation[]>([]);
   const [activeTab, setActiveTab] = useState<InfoTab>("jobs");
-  const [jobCategoryFilter, setJobCategoryFilter] = useState<JobCategoryFilter>("");
   const [calendarJobTypeFilter, setCalendarJobTypeFilter] = useState<CalendarJobTypeFilter>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,12 +97,12 @@ export default function RecruitPage() {
   const [pdfUploading, setPdfUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const pdfInputRef = useRef<HTMLInputElement>(null);
-  const [companyAnalyses, setCompanyAnalyses] = useState<CompanyAnalysis[]>([]);
+  const [companyAnalyses, setCompanyAnalyses] = useState<CompanySlimItem[]>([]);
   const [analysisSearch, setAnalysisSearch] = useState("");
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [selectedJobEvent, setSelectedJobEvent] = useState<RecruitCalendarEvent | null>(null);
-  const [selectedJobDetail, setSelectedJobDetail] = useState<JobPosting | null>(null);
+  const [selectedJobDetail, setSelectedJobDetail] = useState<JobRecommendationWithDetail | null>(null);
   const [jobDetailLoading, setJobDetailLoading] = useState(false);
   const [jobDetailError, setJobDetailError] = useState<string | null>(null);
   const [selectedDateEvents, setSelectedDateEvents] = useState<{ date: string; events: RecruitCalendarEvent[] } | null>(null);
@@ -117,13 +115,8 @@ export default function RecruitPage() {
       setLoading(true);
       setError(null);
       try {
-        const result = await listJobPostings({
-          page: 1,
-          limit: 5,
-          sort: "deadline",
-          category: jobCategoryFilter || undefined,
-        });
-        if (!cancelled) setJobs(result.items);
+        const result = await getJobRecommendations(5);
+        if (!cancelled) setJobs(result);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "채용 정보를 불러오지 못했습니다");
       } finally {
@@ -134,7 +127,7 @@ export default function RecruitPage() {
     return () => {
       cancelled = true;
     };
-  }, [jobCategoryFilter]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,14 +135,9 @@ export default function RecruitPage() {
       setAnalysisLoading(true);
       setAnalysisError(null);
       try {
-        const res = await listCompanyAnalyses();
+        const companies = await listCompaniesSlim({ hasAnalysis: true, limit: 10 });
         if (cancelled) return;
-        const recent = [...res].sort((a, b) => {
-          const at = new Date(a.updatedAt || a.createdAt).getTime();
-          const bt = new Date(b.updatedAt || b.createdAt).getTime();
-          return (Number.isNaN(bt) ? 0 : bt) - (Number.isNaN(at) ? 0 : at);
-        });
-        setCompanyAnalyses(recent.slice(0, 10));
+        setCompanyAnalyses(companies);
       } catch (e) {
         if (!cancelled) setAnalysisError(e instanceof Error ? e.message : "기업 분석을 불러오지 못했습니다");
       } finally {
@@ -184,12 +172,23 @@ export default function RecruitPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, coverLetters.length]);
 
+  const handleDeleteRecommendation = async (e: React.MouseEvent, rec: JobRecommendation) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setJobs((prev) => prev.filter((j) => j.id !== rec.id));
+    try {
+      await deleteJobRecommendation(rec.id);
+    } catch {
+      setJobs((prev) => [...prev, rec].sort((a, b) => b.score - a.score));
+    }
+  };
+
   const topJobs = jobs;
   const filteredCompanyAnalyses = useMemo(() => {
     const query = analysisSearch.trim().toLowerCase();
     if (!query) return companyAnalyses;
-    return companyAnalyses.filter((analysis) =>
-      [analysis.companyName, analysis.industry, analysis.companySize, analysis.corpClass]
+    return companyAnalyses.filter((c) =>
+      [c.name, c.companyType]
         .filter((value): value is string => Boolean(value))
         .some((value) => value.toLowerCase().includes(query)),
     );
@@ -198,7 +197,7 @@ export default function RecruitPage() {
 
   const openCompanyAnalysisSearch = () => {
     const query = analysisSearch.trim();
-    router.push(query ? `/company-analysis?company=${encodeURIComponent(query)}` : "/company-analysis");
+    router.push(query ? `/companies/analysis?company=${encodeURIComponent(query)}` : "/companies");
   };
 
   const closeJobDetail = () => {
@@ -208,6 +207,15 @@ export default function RecruitPage() {
     setJobDetailLoading(false);
   };
 
+  const handleSetApplied = async (job: JobRecommendationWithDetail, appliedAt: string | null) => {
+    setSelectedJobDetail((prev) => prev ? { ...prev, appliedAt } : prev);
+    try {
+      await setJobPostingApplied(job.jobPostingId, appliedAt);
+    } catch {
+      setSelectedJobDetail((prev) => prev ? { ...prev, appliedAt: job.appliedAt } : prev);
+    }
+  };
+
   const openJobDetail = async (event: RecruitCalendarEvent) => {
     if (!event.job) return;
     setSelectedDateEvents(null);
@@ -215,11 +223,9 @@ export default function RecruitPage() {
     setSelectedJobDetail(event.job);
     setJobDetailError(null);
 
-    if (event.job.detailContent || event.job.detailHtml) return;
-
     setJobDetailLoading(true);
     try {
-      const detail = await fetchJobPostingDetail(event.job.id, event.job.url, event.job.source ?? "linkareer");
+      const detail = await fetchJobPostingDetail(event.job.jobPostingId, event.job.url, event.job.source ?? "linkareer");
       setSelectedJobDetail({ ...event.job, ...detail });
     } catch (e) {
       setJobDetailError(e instanceof Error ? e.message : "공고 상세 정보를 불러오지 못했습니다");
@@ -260,7 +266,7 @@ export default function RecruitPage() {
         pageCount: data.pageCount ?? 1,
         isReady: true,
         messages: [{
-          id: crypto.randomUUID(),
+          id: createId(),
           role: "assistant" as const,
           content: data.text
             ? `**${file.name}** 파일이 업로드되었습니다. (${data.pageCount}페이지)\n\n질문하거나 빠른 실행 버튼을 사용해보세요.`
@@ -313,7 +319,7 @@ export default function RecruitPage() {
                 <p className={`mt-2 text-sm ${textSub}`}>최근 분석한 기업 10개를 바로 확인합니다.</p>
               </div>
               <button
-                onClick={() => router.push("/company-analysis")}
+                onClick={() => router.push("/companies")}
                 className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all border ${
                   isDark
                     ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 hover:border-indigo-400/40"
@@ -366,7 +372,7 @@ export default function RecruitPage() {
                 <div className={`flex h-44 flex-col items-center justify-center gap-3 text-sm ${textSub}`}>
                   <span>표시할 기업 분석이 없습니다.</span>
                   <button
-                    onClick={() => router.push("/company-analysis")}
+                    onClick={() => router.push("/companies")}
                     className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
                   >
                     기업 분석 시작
@@ -384,19 +390,24 @@ export default function RecruitPage() {
                 </div>
               ) : (
                 <ol className="grid gap-2 sm:grid-cols-2">
-                  {visibleCompanyAnalyses.map((analysis, index) => (
-                    <li key={analysis.companyKey || analysis.id}>
+                  {visibleCompanyAnalyses.map((company) => (
+                    <li key={company.id}>
                       <button
-                        onClick={() => router.push(`/company-analysis?company=${encodeURIComponent(analysis.companyName)}`)}
-                        className={`grid w-full grid-cols-[2rem_1fr] items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
+                        onClick={() => router.push(`/companies/${company.id}`)}
+                        className={`flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
                       >
-                        <span className={`text-base font-black tabular-nums ${isDark ? "text-white/35" : "text-slate-400"}`}>
-                          {String(index + 1).padStart(2, "0")}
+                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${
+                          isDark ? "bg-indigo-500/20 text-indigo-300" : "bg-indigo-50 text-indigo-600"
+                        }`}>
+                          {(company.name[0] ?? "C").toUpperCase()}
+                        </div>
+                        <span className="min-w-0 flex-1">
+                          <span className={`block truncate text-sm font-bold ${textMain}`}>{company.name}</span>
+                          <span className={`block truncate text-xs ${textSub}`}>{company.companyType ?? "기업 분석"}</span>
                         </span>
-                        <span className="min-w-0">
-                          <span className={`block truncate text-sm font-bold ${textMain}`}>{analysis.companyName}</span>
-                          <span className={`block truncate text-xs ${textSub}`}>{analysisMeta(analysis)}</span>
-                        </span>
+                        <svg className={`shrink-0 ${isDark ? "text-white/25" : "text-slate-300"}`} width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
                       </button>
                     </li>
                   ))}
@@ -460,27 +471,8 @@ export default function RecruitPage() {
                   </button>
                 </div>
 
-                {/* 2층: 필터 & 데스크탑 상세 페이지 */}
+                {/* 2층: 데스크탑 상세 페이지 */}
                 <div className="flex items-center justify-start gap-2 w-full sm:w-auto sm:justify-end">
-                  {activeTab === "jobs" && (
-                    <div className={`flex overflow-hidden rounded-lg border text-xs font-bold ${
-                      isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"
-                    }`}>
-                      {([["", "전체"], ["IT", "IT"], ["전자", "전자"]] as const).map(([value, label]) => (
-                        <button
-                          key={label}
-                          onClick={() => setJobCategoryFilter(value)}
-                          className={`px-2.5 py-1.5 transition-colors ${
-                            jobCategoryFilter === value
-                              ? "bg-indigo-600 text-white"
-                              : isDark ? "text-white/55 hover:bg-white/10 hover:text-white" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                   <button
                     onClick={() => router.push(
                       activeTab === "jobs"
@@ -509,10 +501,12 @@ export default function RecruitPage() {
                       {topJobs.map((job, index) => {
                         const badge = deadlineBadge(job);
                         return (
-                          <li key={job.id}>
-                            <button
-                              onClick={() => router.push(`/recruit/job-posting?job=${encodeURIComponent(job.id)}`)}
-                              className={`grid w-full grid-cols-[2rem_1fr_auto] items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
+                          <li key={job.jobPostingId} className="flex items-center gap-1">
+                            <a
+                              href={job.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`grid flex-1 grid-cols-[2rem_1fr_auto] items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
                             >
                               <span className={`text-sm sm:text-base font-black tabular-nums ${isDark ? "text-white/35" : "text-slate-400"}`}>
                                 {String(index + 1).padStart(2, "0")}
@@ -528,6 +522,13 @@ export default function RecruitPage() {
                               }`}>
                                 {badge.text}
                               </span>
+                            </a>
+                            <button
+                              onClick={(e) => handleDeleteRecommendation(e, job)}
+                              className={`shrink-0 rounded p-1 text-xs transition-colors ${isDark ? "text-white/25 hover:text-white/60 hover:bg-white/10" : "text-slate-300 hover:text-slate-500 hover:bg-slate-100"}`}
+                              title="추천 공고 삭제"
+                            >
+                              ✕
                             </button>
                           </li>
                         );
@@ -822,10 +823,11 @@ export default function RecruitPage() {
                 <h3 className={`text-sm font-bold ${textMain}`}>이번 달 일정</h3>
                 <span className={`text-xs font-semibold ${textSub}`}>{calendarEvents.length}건</span>
               </div>
-              <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+              {/* 모바일: 가로 스와이프 / 데스크탑: 세로 스크롤 */}
+              <div className="mt-3 md:min-h-0 md:flex-1 md:space-y-2 md:overflow-y-auto md:pr-1 max-md:flex max-md:gap-2.5 max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:pb-1 max-md:-mx-3 max-md:px-3">
                 {examLoading ? (
                   Array.from({ length: 3 }).map((_, index) => (
-                    <div key={index} className={`h-11 rounded-lg ${isDark ? "bg-white/5" : "bg-white"} animate-pulse`} />
+                    <div key={index} className={`h-11 rounded-lg md:h-11 max-md:w-44 max-md:shrink-0 ${isDark ? "bg-white/5" : "bg-white"} animate-pulse`} />
                   ))
                 ) : upcomingExams.length === 0 ? (
                   <div className={`flex h-28 items-center justify-center text-sm ${textSub}`}>등록된 일정이 없습니다.</div>
@@ -841,15 +843,22 @@ export default function RecruitPage() {
                         type="button"
                         onClick={() => openJobDetail(event)}
                         disabled={!event.job}
-                        className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
-                          isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"
-                        } ${event.job ? isDark ? "hover:bg-white/10" : "hover:bg-slate-50" : "cursor-default"}`}
+                        className={`rounded-lg border px-3 py-2 text-left transition-colors
+                          md:w-full
+                          max-md:shrink-0 max-md:w-44 max-md:snap-start
+                          ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}
+                          ${event.job ? isDark ? "hover:bg-white/10" : "hover:bg-slate-50" : "cursor-default"}`}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <p className={`truncate text-sm font-bold ${textMain}`}>{event.title}</p>
-                          <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${scheduleTone(event, false)}`}>
-                            {scheduleLabel(event)}
-                          </span>
+                          <div className="flex shrink-0 items-center gap-1">
+                            {event.job?.appliedAt && (
+                              <span className="rounded px-1.5 py-0.5 text-2xs font-bold bg-emerald-50 text-emerald-600">지원</span>
+                            )}
+                            <span className={`rounded-md px-1.5 py-0.5 text-2xs font-bold ${scheduleTone(event, false)}`}>
+                              {scheduleLabel(event)}
+                            </span>
+                          </div>
                         </div>
                         <p className={`mt-1 truncate text-xs ${textSub}`}>{dateLabel} · {event.description}</p>
                       </button>
@@ -999,17 +1008,18 @@ export default function RecruitPage() {
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               <div className="grid gap-2 sm:grid-cols-2">
                 {[
-                  ["직무", selectedJobDetail.jobs || selectedJobDetail.category],
+                  ["직무", selectedJobDetail.jobs],
                   ["고용형태", selectedJobDetail.type],
                   ["지역", selectedJobDetail.location],
                   ["기업유형", selectedJobDetail.companyType],
                   ["시작일", selectedJobDetail.startDate],
                   ["마감일", selectedJobDetail.endDate || selectedJobDetail.deadline],
+                  ["지원일", selectedJobDetail.appliedAt ? new Date(selectedJobDetail.appliedAt).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }) : null],
                 ].map(([label, value]) => (
                   value ? (
-                    <div key={label} className={`rounded-xl border px-3 py-2 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
-                      <p className={`text-[11px] font-bold ${textSub}`}>{label}</p>
-                      <p className={`mt-1 text-sm font-semibold ${textMain}`}>{value}</p>
+                    <div key={label} className={`rounded-xl border px-3 py-2 ${label === "지원일" ? isDark ? "border-emerald-400/20 bg-emerald-500/10" : "border-emerald-200 bg-emerald-50" : isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
+                      <p className={`text-[11px] font-bold ${label === "지원일" ? isDark ? "text-emerald-400" : "text-emerald-600" : textSub}`}>{label}</p>
+                      <p className={`mt-1 text-sm font-semibold ${label === "지원일" ? isDark ? "text-emerald-300" : "text-emerald-700" : textMain}`}>{value}</p>
                     </div>
                   ) : null
                 ))}
@@ -1056,6 +1066,25 @@ export default function RecruitPage() {
               >
                 채용 상세 페이지
               </button>
+              {selectedJobDetail.appliedAt ? (
+                <button
+                  onClick={() => handleSetApplied(selectedJobDetail, null)}
+                  className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                    isDark ? "border-emerald-400/25 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25" : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  }`}
+                >
+                  ✓ 지원 완료
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleSetApplied(selectedJobDetail, new Date().toISOString())}
+                  className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                    isDark ? "border-white/15 text-white/60 hover:bg-white/10" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                  }`}
+                >
+                  지원 완료 표시
+                </button>
+              )}
               {selectedJobDetail.url && (
                 <a
                   href={selectedJobDetail.url}

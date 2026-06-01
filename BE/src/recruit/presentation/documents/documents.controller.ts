@@ -7,13 +7,13 @@ import puppeteer, { Browser } from 'puppeteer';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { DocumentsService } from '../../application/documents/documents.service';
-import { JobplanetScraperService } from '../../../company-analysis/infrastructure/jobplanet-scraper.service';
+import { JobplanetScraperService } from '../../../company/infrastructure/jobplanet-scraper.service';
 import { requestContext } from '../../../shared/request-context';
-import { CatchAuthService } from '../../../shared/infrastructure/auth/catch-auth.service';
+import { CatchAuthService } from '../../../browse/infrastructure/auth/catch-auth.service';
 import {
   BrowserAutomationUtil,
   BROWSER_LAUNCH_OPTIONS,
-} from '../../../shared/infrastructure/browser/browser-automation.util';
+} from '../../../browse/infrastructure/browser-automation.util';
 
 // ── Experience DTOs ───────────────────────────────────────────────────────
 

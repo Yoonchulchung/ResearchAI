@@ -39,6 +39,9 @@ export class UserEntity {
   @Column({ name: 'artificial_analysis_api_key', type: 'text', nullable: true })
   artificialAnalysisApiKey: string | null;
 
+  @Column({ name: 'groq_api_key', type: 'text', nullable: true })
+  groqApiKey: string | null;
+
   @Column({ name: 'dart_api_key', type: 'text', nullable: true })
   dartApiKey: string | null;
 

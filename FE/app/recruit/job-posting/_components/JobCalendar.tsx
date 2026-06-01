@@ -1,6 +1,6 @@
 "use client";
 
-import type { JobPosting } from "@/lib/api/recruit/job-posting";
+import type { JobPosting, JobRecommendation } from "@/lib/api/recruit/job-posting";
 import type { CalendarEvent } from "../_types";
 import { toDateKey } from "../_utils";
 
@@ -15,6 +15,8 @@ interface JobCalendarProps {
   calendarDays: Date[];
   calendarEventsByDate: Map<string, CalendarEvent[]>;
   onSelectPosting: (p: JobPosting) => void;
+  recommendations?: JobRecommendation[];
+  onDeleteRecommendation?: (id: number) => void;
 }
 
 export function JobCalendar({
@@ -28,12 +30,60 @@ export function JobCalendar({
   calendarDays,
   calendarEventsByDate,
   onSelectPosting,
+  recommendations = [],
+  onDeleteRecommendation,
 }: JobCalendarProps) {
   const todayKey = toDateKey(new Date());
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="p-6 sm:p-8 max-w-7xl w-full mx-auto">
+        {/* AI 추천 공고 */}
+        {recommendations.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" className="text-amber-500">
+                <path d="M8 1L9.8 5.8L15 6.3L11 9.8L12.2 15L8 12.4L3.8 15L5 9.8L1 6.3L6.2 5.8L8 1Z" fill="currentColor" />
+              </svg>
+              <h2 className="text-sm font-extrabold text-slate-800">AI 추천 공고</h2>
+              <span className="text-xs text-slate-400 font-medium">· 상세 수집 기반 맞춤 추천</span>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+              {recommendations.slice(0, 10).map((rec) => (
+                <div key={rec.id} className="relative shrink-0 w-56 group">
+                  <a
+                    href={rec.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col gap-1.5 rounded-xl border border-amber-100 bg-amber-50/60 hover:bg-amber-50 hover:border-amber-200 transition-colors p-3 w-full"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs font-bold text-slate-800 truncate">{rec.company}</span>
+                      <span className="shrink-0 text-xs font-black text-amber-600 bg-amber-100 rounded-full px-1.5 py-0.5">{rec.score}</span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-snug line-clamp-2">{rec.title}</p>
+                    {rec.reason && (
+                      <p className="text-xs text-slate-500 leading-snug line-clamp-2 mt-0.5">{rec.reason}</p>
+                    )}
+                    {rec.deadline && (
+                      <p className="text-xs text-slate-400 mt-auto pt-1">마감 {rec.deadline}</p>
+                    )}
+                  </a>
+                  {onDeleteRecommendation && (
+                    <button
+                      onClick={(e) => { e.preventDefault(); onDeleteRecommendation(rec.id); }}
+                      className="absolute top-1.5 right-1.5 hidden group-hover:flex items-center justify-center w-4 h-4 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-500 text-micro font-bold leading-none"
+                      title="추천 공고 삭제"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">

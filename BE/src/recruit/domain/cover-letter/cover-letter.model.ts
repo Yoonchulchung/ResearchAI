@@ -9,6 +9,7 @@ export interface CoverLetter {
   url: string;
   source?: 'linkareer' | 'catch';
   companyType?: '대기업' | '중견기업' | '중소기업' | '금융권' | string;
+  jobCategory?: JobCategory | null;
   company: string;
   position: string;
   season: string;
@@ -16,6 +17,7 @@ export interface CoverLetter {
   viewCount?: number;
   questions: CoverLetterQuestion[];
   collectedAt: string;
+  industry?: string | null;
 }
 
 export interface ScrapeOptions {
@@ -31,11 +33,13 @@ export interface ScrapeOptions {
 export interface CoverLetterListFilters {
   source?: 'linkareer' | 'catch' | string;
   companyType?: '대기업' | '중견기업' | '중소기업' | '금융권' | string;
+  jobCategory?: JobCategory | 'IT+전자' | string;
   search?: string;
   sort?: 'latest';
 }
 
 export type JobCategory = 'IT' | '전자' | '영업' | '경영/기획' | '마케팅' | '인사/총무' | '재무/회계' | '생산/제조' | '기타';
+export type JobCategoryTarget = JobCategory | 'all' | 'IT+전자';
 
 export interface CoverLetterJobAnalysis {
   id: string;
@@ -58,7 +62,7 @@ export interface CoverLetterJobAnalysis {
 
 export interface CoverLetterJobAnalysisRequest {
   ids?: string[];
-  target?: JobCategory | 'all';
+  target?: JobCategoryTarget;
   model?: string;
   limit?: number;
 }

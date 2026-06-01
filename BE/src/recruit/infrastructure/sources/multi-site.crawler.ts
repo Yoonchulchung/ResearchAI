@@ -34,9 +34,10 @@ export class MultiSiteJobCrawler implements JobSource {
 
   async *collect(query: CollectQuery): AsyncGenerator<JobPosting> {
     const perSite = query.limit && query.limit < Number.MAX_SAFE_INTEGER ? Math.ceil(query.limit / 4) : 9999;
+    const searchKeyword = query.keyword ?? '';
     let browser: Browser | null = null;
 
-    this.logger.log(`[크롤] 시작 — keyword="${query.keyword}" perSite=${perSite}`);
+    this.logger.log(`[크롤] 시작 — keyword="${searchKeyword}" perSite=${perSite}`);
 
     try {
       this.logger.log('[크롤] 브라우저 실행 중...');
@@ -50,7 +51,7 @@ export class MultiSiteJobCrawler implements JobSource {
       // ── 1. 링커리어 ────────────────────────────────────────────────────────
       try {
         this.logger.log(`[링커리어] 수집 시작 (최대 ${perSite}개)`);
-        const jobs = await this.scrapeLinkareer(page, query.keyword, perSite, query.jobTypes);
+        const jobs = await this.scrapeLinkareer(page, searchKeyword, perSite, query.jobTypes);
         this.logger.log(`[링커리어] ${jobs.length}개 수집 완료`);
         if (jobs.length > 0) this.logger.debug(`[링커리어] 첫 결과: "${jobs[0].title}" — ${jobs[0].company}`);
         allJobs.push(...jobs);
@@ -61,7 +62,7 @@ export class MultiSiteJobCrawler implements JobSource {
       // ── 2. 원티드 ─────────────────────────────────────────────────────────
       try {
         this.logger.log(`[원티드] 수집 시작 (최대 ${perSite}개)`);
-        const jobs = await this.scrapeWanted(page, query.keyword, perSite);
+        const jobs = await this.scrapeWanted(page, searchKeyword, perSite);
         this.logger.log(`[원티드] ${jobs.length}개 수집 완료`);
         if (jobs.length > 0) this.logger.debug(`[원티드] 첫 결과: "${jobs[0].title}" — ${jobs[0].company}`);
         allJobs.push(...jobs);
@@ -72,7 +73,7 @@ export class MultiSiteJobCrawler implements JobSource {
       // ── 3. 잡플래닛 채용 ──────────────────────────────────────────────────
       try {
         this.logger.log(`[잡플래닛] 수집 시작 (최대 ${perSite}개)`);
-        const jobs = await this.scrapeJobplanet(page, query.keyword, perSite, query.jobTypes);
+        const jobs = await this.scrapeJobplanet(page, searchKeyword, perSite, query.jobTypes);
         this.logger.log(`[잡플래닛] ${jobs.length}개 수집 완료`);
         if (jobs.length > 0) this.logger.debug(`[잡플래닛] 첫 결과: "${jobs[0].title}" — ${jobs[0].company}`);
         allJobs.push(...jobs);
@@ -83,12 +84,23 @@ export class MultiSiteJobCrawler implements JobSource {
       // ── 4. 인크루트 ───────────────────────────────────────────────────────
       try {
         this.logger.log(`[인크루트] 수집 시작 (최대 ${perSite}개)`);
-        const jobs = await this.scrapeIncruit(page, query.keyword, perSite, query.jobTypes);
+        const jobs = await this.scrapeIncruit(page, searchKeyword, perSite, query.jobTypes);
         this.logger.log(`[인크루트] ${jobs.length}개 수집 완료`);
         if (jobs.length > 0) this.logger.debug(`[인크루트] 첫 결과: "${jobs[0].title}" — ${jobs[0].company}`);
         allJobs.push(...jobs);
       } catch (e) {
         this.logger.warn(`[인크루트] 실패 — ${e instanceof Error ? e.message : String(e)}`);
+      }
+
+      // ── 5. 잡코리아 ───────────────────────────────────────────────────────
+      try {
+        this.logger.log(`[잡코리아] 수집 시작 (최대 ${perSite}개)`);
+        const jobs = await this.scrapeJobkorea(page, searchKeyword, perSite, query.jobTypes);
+        this.logger.log(`[잡코리아] ${jobs.length}개 수집 완료`);
+        if (jobs.length > 0) this.logger.debug(`[잡코리아] 첫 결과: "${jobs[0].title}" — ${jobs[0].company}`);
+        allJobs.push(...jobs);
+      } catch (e) {
+        this.logger.warn(`[잡코리아] 실패 — ${e instanceof Error ? e.message : String(e)}`);
       }
 
       this.logger.log(`[크롤] 전체 수집 완료 — 총 ${allJobs.length}개`);
@@ -116,7 +128,7 @@ export class MultiSiteJobCrawler implements JobSource {
 
   // ── 링커리어 ────────────────────────────────────────────────────────────────
   private async scrapeLinkareer(page: Page, keyword: string, limit: number, jobTypes?: string[]): Promise<RawJob[]> {
-    const url = `https://linkareer.com/search?q=${encodeURIComponent(keyword)}&sort=RELEVANCE&tab=open-activity&page=1`;
+    const url = `https://linkareer.com/search?q=${encodeURIComponent(keyword)}&sort=RELEVANCE&tab=activity&page=1`;
     this.logger.log(`[링커리어] GET ${url}`);
     await page.goto(url, { waitUntil: 'load', timeout: 30000 });
     await new Promise<void>((r) => setTimeout(r, 3000));
@@ -342,6 +354,62 @@ export class MultiSiteJobCrawler implements JobSource {
         const deadline = row.querySelector('.cell_last .cl_btm span')?.textContent?.trim() ?? '';
 
         results.push({ title, company, tags, deadline, url: href, source: 'incruit' });
+      }
+      return results;
+    }, limit, jobTypes);
+  }
+
+  // ── 잡코리아 ────────────────────────────────────────────────────────────────
+  private async scrapeJobkorea(page: Page, keyword: string, limit: number, jobTypes?: string[]): Promise<RawJob[]> {
+    const url = `https://www.jobkorea.co.kr/Search/?stext=${encodeURIComponent(keyword)}&tabType=recruit`;
+    this.logger.log(`[잡코리아] GET ${url}`);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await new Promise<void>((r) => setTimeout(r, 2500));
+
+    return page.evaluate((lim: number, jt: string[] | undefined) => {
+      const results: { title: string; company: string; tags: string; deadline: string; url: string; source: string }[] = [];
+      const seen = new Set<string>();
+
+      // 잡코리아 채용 공고 리스트: .list-default .list-post .post-list-corp
+      const items = Array.from(document.querySelectorAll<HTMLElement>(
+        '.list-default .post-list-corp, .recruit-list .list-post li, #gidListWrap .list-item',
+      ));
+
+      for (const item of items) {
+        if (results.length >= lim) break;
+
+        // 공고 링크
+        const link = item.querySelector<HTMLAnchorElement>('a.title, a[href*="Recruit/GI_Read"], a[href*="/recruit/"]');
+        if (!link) continue;
+        const href = link.href || link.getAttribute('href') || '';
+        if (!href || seen.has(href)) continue;
+        seen.add(href);
+
+        const title = (link.textContent ?? '').replace(/\s+/g, ' ').trim();
+        if (!title || title.length < 3) continue;
+
+        // 회사명
+        const company = (
+          item.querySelector('a.corp-name, .company-name, .cpname, [class*="corpName"]')?.textContent ?? ''
+        ).replace(/\s+/g, ' ').trim();
+
+        // 메타 정보 (직무, 고용형태, 경력 등)
+        const metaEls = Array.from(item.querySelectorAll('.chip, .etc, .info span, .post-list-info li'))
+          .map((el) => el.textContent?.trim() ?? '').filter(Boolean);
+        const tags = metaEls.join(', ');
+
+        // 신입/경력 필터
+        if (jt && jt.length > 0) {
+          const matched = jt.some((t) => metaEls.some((s) => s.includes(t)));
+          if (!matched) continue;
+        }
+
+        // 마감일
+        const deadline = (
+          item.querySelector('.date, .deadline, .end-date, [class*="date"]')?.textContent ?? ''
+        ).replace(/\s+/g, ' ').trim();
+
+        results.push({ title, company, tags, deadline, url: href.startsWith('http') ? href : `https://www.jobkorea.co.kr${href}`, source: 'jobkorea' });
       }
       return results;
     }, limit, jobTypes);

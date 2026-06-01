@@ -1,4 +1,4 @@
-import { apiFetch } from "../base";
+import { API_BASE, apiFetch, getAuthHeaders, readSSE } from "../base";
 
 export interface CoverLetterQuestion {
   number: number;
@@ -11,6 +11,7 @@ export interface CoverLetter {
   url: string;
   source?: "linkareer" | "catch";
   companyType?: "대기업" | "중견기업" | "중소기업" | "금융권" | string;
+  jobCategory?: JobCategory | null;
   company: string;
   position: string;
   season: string;
@@ -21,6 +22,7 @@ export interface CoverLetter {
 }
 
 export type JobCategory = "IT" | "전자" | "영업" | "경영/기획" | "마케팅" | "인사/총무" | "재무/회계" | "생산/제조" | "기타";
+export type JobCategoryTarget = JobCategory | "all" | "IT+전자";
 
 export interface CoverLetterJobAnalysis {
   id: string;
@@ -70,12 +72,13 @@ export interface ScrapeStatus {
 export const listCoverLetters = (
   page = 1,
   limit = 20,
-  filters: { source?: string; companyType?: string; search?: string; sort?: "latest"; offset?: number } = {},
+  filters: { source?: string; companyType?: string; jobCategory?: JobCategoryTarget | string; search?: string; sort?: "latest"; offset?: number } = {},
 ) => {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (typeof filters.offset === "number" && Number.isFinite(filters.offset)) params.set("offset", String(filters.offset));
   if (filters.source) params.set("source", filters.source);
   if (filters.companyType) params.set("companyType", filters.companyType);
+  if (filters.jobCategory) params.set("jobCategory", filters.jobCategory);
   if (filters.search) params.set("search", filters.search);
   if (filters.sort) params.set("sort", filters.sort);
   return apiFetch<CoverLetterListResponse>(`/cover-letter-scraper/data?${params}`);
@@ -83,6 +86,9 @@ export const listCoverLetters = (
 
 export const getCoverLetter = (id: string) =>
   apiFetch<CoverLetter>(`/cover-letter-scraper/data/${encodeURIComponent(id)}`);
+
+export const backfillCategories = (): Promise<{ updated: number }> =>
+  apiFetch<{ updated: number }>("/cover-letter-scraper/backfill-categories", { method: "POST" });
 
 export const startScraping = (opts: { source?: "linkareer" | "catch" | "all"; company?: string; role?: string; keyword?: string } = {}) =>
   apiFetch<{ message: string }>("/cover-letter-scraper/start", { method: "POST", body: JSON.stringify(opts) });
@@ -95,7 +101,7 @@ export const getScrapingStatus = () =>
 
 export const analyzeCoverLetterJobs = (opts: {
   ids?: string[];
-  target?: JobCategory | "all";
+  target?: JobCategoryTarget;
   model?: string;
   limit?: number;
 }) =>
@@ -109,3 +115,35 @@ export const getSpecAnalyses = (ids: string[]) => {
   const params = new URLSearchParams({ ids: ids.join(",") });
   return apiFetch<CoverLetterJobAnalysis[]>(`/cover-letter-scraper/spec-analyses?${params}`);
 };
+
+export type SpecAnalysisEvent =
+  | { type: "log"; message: string }
+  | { type: "done"; payload?: CoverLetterJobAnalysisResponse }
+  | { type: "error"; message: string };
+
+export const enqueueSpecAnalysis = (opts: {
+  ids?: string[];
+  target?: JobCategoryTarget;
+  model?: string;
+  limit?: number;
+}): Promise<{ jobId: string }> =>
+  apiFetch<{ jobId: string }>("/queue/spec-analysis", {
+    method: "POST",
+    body: JSON.stringify(opts),
+  });
+
+export async function streamSpecAnalysis(
+  jobId: string,
+  onEvent: (event: SpecAnalysisEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/queue/spec-analysis/${jobId}/stream`, {
+    headers: getAuthHeaders(),
+    signal,
+  });
+  if (!res.ok || !res.body) throw new Error("스펙 분석 스트림 연결에 실패했습니다.");
+  await readSSE<SpecAnalysisEvent>(res, (event) => {
+    onEvent(event);
+    if (event.type === "done" || event.type === "error") return true;
+  });
+}

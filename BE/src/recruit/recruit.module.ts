@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { RecruitController } from './presentation/recruit.controller';
 import { CollectService } from './application/collect.service';
 import { JobsService } from './application/jobs.service';
@@ -8,10 +9,20 @@ import { JobRepository } from './infrastructure/repository/job-repository';
 import { SourceRegistry } from './infrastructure/sources/source-registry';
 import { JobPostingScraperService } from './application/job-posting-scraper.service';
 import { JobPostingScraperController } from './presentation/job-posting-scraper.controller';
+import { RecruitJobPostingCollectService } from './application/recruit-job-posting-collect.service';
+import { RecruitJobPostingEntity } from './domain/job-posting/entity/recruit-job-posting.entity';
+import { RecruitJobRecommendEntity } from './domain/job-posting/entity/recruit-job-recommend.entity';
 import { SharedModule } from '../shared/shared.module';
+import { AiModule } from '../ai/ai.module';
+import { CompanyModule } from '../company/company.module';
 
 @Module({
-  imports: [SharedModule],
+  imports: [
+    SharedModule,
+    forwardRef(() => AiModule),
+    forwardRef(() => CompanyModule),
+    TypeOrmModule.forFeature([RecruitJobPostingEntity, RecruitJobRecommendEntity]),
+  ],
   controllers: [RecruitController, JobPostingScraperController],
   providers: [
     CollectService,
@@ -21,6 +32,7 @@ import { SharedModule } from '../shared/shared.module';
     JobRepository,
     SourceRegistry,
     JobPostingScraperService,
+    RecruitJobPostingCollectService,
   ],
   exports: [RecruitContextService],
 })

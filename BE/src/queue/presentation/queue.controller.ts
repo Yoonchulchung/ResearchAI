@@ -6,6 +6,10 @@ import { QueueService } from '../application/queue.service';
 import { ImageOcrQueueService } from '../application/image-ocr-queue.service';
 import { QueueStatusDto } from './dto/response/queue-status.dto';
 import { SessionQueryService } from '../../sessions/application/query/session-query.service';
+import { DartApiQueueService } from '../../company/infrastructure/dart-api-queue.service';
+import { NamuWikiService } from '../../company/infrastructure/namu-wiki.service';
+import { SaraminCompanyService } from '../../company/infrastructure/saramin-company.service';
+import { JasoseolCompanyService } from '../../company/infrastructure/jasoseol-company.service';
 import { EnqueueDeepResearchDto } from './dto/request/enqueue-deep-research.dto';
 import { EnqueueLightResearchDto } from './dto/request/enqueue-light-research.dto';
 
@@ -19,11 +23,25 @@ export class QueueController {
     private readonly queueService: QueueService,
     private readonly sessionQueryService: SessionQueryService,
     private readonly imageOcrQueue: ImageOcrQueueService,
+    private readonly dartQueue: DartApiQueueService,
+    private readonly namuWiki: NamuWikiService,
+    private readonly saramin: SaraminCompanyService,
+    private readonly jasoseol: JasoseolCompanyService,
   ) {}
 
   @Get('status')
   getQueueStatus(): QueueStatusDto {
     return this.queueService.getStatus();
+  }
+
+  @Get('data-sources/status')
+  getDataSourceQueueStatus() {
+    return [
+      this.dartQueue.getStatus(),
+      this.namuWiki.getStatus(),
+      this.saramin.getStatus(),
+      this.jasoseol.getStatus(),
+    ];
   }
 
   // ************** //
@@ -254,6 +272,110 @@ export class QueueController {
     return obs;
   }
 
+  // **************** //
+  // News AI Summary  //
+  // **************** //
+  @Post('news-article-summary')
+  @HttpCode(202)
+  async enqueueNewsArticleSummary(
+    @Body() body: { title: string; url: string; source?: string; description?: string; model?: string; refresh?: boolean },
+  ) {
+    if (!body.title?.trim() && !body.url?.trim()) throw new BadRequestException('title 또는 url이 필요합니다.');
+    return this.queueService.enqueueNewsArticleSummary({
+      title: body.title ?? '',
+      url: body.url ?? '',
+      source: body.source,
+      description: body.description,
+      model: body.model,
+      refresh: body.refresh === true,
+    });
+  }
+
+  @Delete('news-article-summary/:jobId')
+  cancelNewsArticleSummary(@Param('jobId') jobId: string) {
+    this.queueService.cancelNewsArticleSummary(jobId);
+    return { ok: true };
+  }
+
+  @Sse('news-article-summary/:jobId/stream')
+  streamNewsArticleSummary(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getNewsArticleSummaryStream(jobId);
+    if (!obs) throw new BadRequestException('진행 중인 뉴스 요약 작업이 없습니다.');
+    return obs;
+  }
+
+  // ******************************** //
+  // Resume Cover Letter Categories   //
+  // ******************************** //
+  @Post('resume/cover-letter-categories')
+  @HttpCode(202)
+  async enqueueResumeCoverLetterCategories(
+    @Body() body: {
+      resumeIds?: string[];
+      coverLetterIds?: string[];
+      onlyEmpty?: boolean;
+      limit?: number;
+      model?: string;
+    },
+  ) {
+    return this.queueService.enqueueResumeCoverLetterCategories({
+      resumeIds: body.resumeIds,
+      coverLetterIds: body.coverLetterIds,
+      onlyEmpty: body.onlyEmpty !== false,
+      limit: body.limit,
+      model: body.model,
+    });
+  }
+
+  @Delete('resume/cover-letter-categories/:jobId')
+  cancelResumeCoverLetterCategories(@Param('jobId') jobId: string) {
+    this.queueService.cancelResumeCoverLetterCategories(jobId);
+    return { ok: true };
+  }
+
+  @Sse('resume/cover-letter-categories/:jobId/stream')
+  streamResumeCoverLetterCategories(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getResumeCoverLetterCategoryStream(jobId);
+    if (!obs) throw new BadRequestException('진행 중인 자기소개서 카테고리 분류 작업이 없습니다.');
+    return obs;
+  }
+
+  // *************************************** //
+  // Resume Cover Letter Refined Title       //
+  // *************************************** //
+  @Post('resume/cover-letter-refined-titles')
+  @HttpCode(202)
+  async enqueueResumeCoverLetterRefinedTitles(
+    @Body() body: {
+      resumeIds?: string[];
+      coverLetterIds?: string[];
+      onlyEmpty?: boolean;
+      limit?: number;
+      model?: string;
+    },
+  ) {
+    return this.queueService.enqueueResumeCoverLetterRefinedTitle({
+      resumeIds: body.resumeIds,
+      coverLetterIds: body.coverLetterIds,
+      onlyEmpty: body.onlyEmpty !== false,
+      limit: body.limit,
+      model: body.model,
+    });
+  }
+
+  @Delete('resume/cover-letter-refined-titles/:jobId')
+  cancelResumeCoverLetterRefinedTitles(@Param('jobId') jobId: string) {
+    this.queueService.cancelResumeCoverLetterRefinedTitle(jobId);
+    return { ok: true };
+  }
+
+  @Sse('resume/cover-letter-refined-titles/:jobId/stream')
+  streamResumeCoverLetterRefinedTitles(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getResumeCoverLetterRefinedTitleStream(jobId);
+    if (!obs) throw new BadRequestException('진행 중인 자기소개서 제목 재작성 작업이 없습니다.');
+    return obs;
+  }
+
   // *********** //
   // Doc Parse   //
   // *********** //
@@ -281,6 +403,28 @@ export class QueueController {
   streamDocParse(@Param('jobId') jobId: string): Observable<MessageEvent> {
     const obs = this.queueService.getDocParseStream(jobId);
     if (!obs) throw new BadRequestException('진행 중인 문서 분석 작업이 없습니다.');
+    return obs;
+  }
+
+  // ************* //
+  // Spec Analysis //
+  // ************* //
+  @Post('spec-analysis')
+  @HttpCode(202)
+  async enqueueSpecAnalysis(@Body() body: { ids?: string[]; target?: string; model?: string; limit?: number }) {
+    return this.queueService.enqueueSpecAnalysis(body);
+  }
+
+  @Delete('spec-analysis/:jobId')
+  cancelSpecAnalysis(@Param('jobId') jobId: string) {
+    this.queueService.cancelSpecAnalysis(jobId);
+    return { ok: true };
+  }
+
+  @Sse('spec-analysis/:jobId/stream')
+  streamSpecAnalysis(@Param('jobId') jobId: string): Observable<MessageEvent> {
+    const obs = this.queueService.getSpecAnalysisStream(jobId);
+    if (!obs) throw new BadRequestException('진행 중인 스펙 분석 작업이 없습니다.');
     return obs;
   }
 
