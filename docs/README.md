@@ -58,6 +58,20 @@ Local AI  Ollama                   :11434
 | [refactor/CONNECT/CONNECT.md](refactor/CONNECT/CONNECT.md) | BE와 BE_BROWSE 연결 설계 |
 | [refactor/CONNECT/API.md](refactor/CONNECT/API.md) | BE_BROWSE internal API 명세 |
 
+### 기능 명세
+
+| 파일 | 설명 |
+|------|------|
+| [feature/README.md](feature/README.md) | 기능 명세 인덱스 |
+| [feature/common/README.md](feature/common/README.md) | 공통 UX, 인증, 권한, API 통신 |
+| [feature/dashboard/README.md](feature/dashboard/README.md) | 메인 대시보드, 검색 진입 |
+| [feature/research/README.md](feature/research/README.md) | 리서치 세션, Light/Deep Research, RAG 채팅 |
+| [feature/recruit/README.md](feature/recruit/README.md) | 채용 공고, 이력서, 자기소개서, 문서 파싱 |
+| [feature/company/README.md](feature/company/README.md) | 기업 목록, 상세, 분석, 정보 보강 |
+| [feature/news/README.md](feature/news/README.md) | 뉴스, 논문, 기술 블로그, AI 리더보드 |
+| [feature/documents/README.md](feature/documents/README.md) | 문서 저장소, 경험 관리, 작성 보조 |
+| [feature/settings/README.md](feature/settings/README.md) | 설정, API 키, 사용량, 파이프라인 테스트 |
+
 ### 파이프라인
 
 | 파일 | 설명 |
