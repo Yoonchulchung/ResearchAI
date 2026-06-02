@@ -14,6 +14,121 @@ Spring BE와 BE_BROWSE로 분리할 때 이 문서를 기준으로 프롬프트 
 | 자기소개서 작성 보조, 평가, 개선, 맞춤법, 표절 검사, JD 분석 | `BE/src/queue/application/job/write-assist/prompts.ts` |
 | 자기소개서 작성 보조 실행 흐름 | `BE/src/queue/application/job/write-assist/write-assist-executor.service.ts` |
 
+## 동작 구조
+
+```mermaid
+flowchart TD
+    User["사용자"]
+    FE["FE 자기소개서 화면"]
+    BE["Spring BE"]
+    Queue["BE_BROWSE 요청 큐"]
+    Worker["BE_BROWSE 순차 Worker"]
+    Router["작업 유형 라우터"]
+
+    Category["문항 카테고리 분류"]
+    RefinedTitle["문항 제목 정제"]
+    WriteAssist["작성 보조"]
+    Eval["자기소개서 평가"]
+    Improve["자기소개서 개선"]
+    Spellcheck["맞춤법 검사"]
+    Plagiarism["표절 검사"]
+    Example["예시 답변 생성"]
+    JdEval["JD 산업/직무 분석"]
+
+    PromptBuilder["Prompt Builder"]
+    Model["AI Model"]
+    Parser["응답 Parser"]
+    Store["결과 저장"]
+    Response["UUID 기반 결과 조회"]
+
+    User --> FE
+    FE --> BE
+    BE --> Queue
+    Queue --> Worker
+    Worker --> Router
+
+    Router --> Category
+    Router --> RefinedTitle
+    Router --> WriteAssist
+    Router --> Eval
+    Router --> Improve
+    Router --> Spellcheck
+    Router --> Plagiarism
+    Router --> Example
+    Router --> JdEval
+
+    Category --> PromptBuilder
+    RefinedTitle --> PromptBuilder
+    WriteAssist --> PromptBuilder
+    Eval --> PromptBuilder
+    Improve --> PromptBuilder
+    Spellcheck --> PromptBuilder
+    Plagiarism --> PromptBuilder
+    Example --> PromptBuilder
+    JdEval --> PromptBuilder
+
+    PromptBuilder --> Model
+    Model --> Parser
+    Parser --> Store
+    Store --> Response
+    Response --> BE
+    BE --> FE
+```
+
+## 평가/개선 내부 흐름
+
+```mermaid
+flowchart TD
+    Request["평가 또는 개선 요청"]
+    Split{"다문항 문서인가?"}
+    Single["단일 문항 처리"]
+    Multi["문항 단위로 분리"]
+    Classify["문항 유형 분류"]
+    Type{"문항 유형"}
+
+    Motivation["지원 동기 루브릭"]
+    Experience["경험 서술 루브릭"]
+    Competency["직무 역량 루브릭"]
+    General["일반 자기소개 루브릭"]
+
+    CompanyCtx["지원 회사/JD 컨텍스트"]
+    ExpCtx["참고 경험 컨텍스트"]
+    EvalPrompt["평가 Prompt 조립"]
+    ImprovePrompt["개선 Prompt 조립"]
+    Model["AI Model"]
+    Output{"출력 유형"}
+    Markdown["마크다운 평가 결과"]
+    ImprovedText["개선된 본문"]
+
+    Request --> Split
+    Split -->|아니오| Single
+    Split -->|예| Multi
+    Single --> Classify
+    Multi --> Classify
+    Classify --> Type
+
+    Type -->|motivation| Motivation
+    Type -->|experience| Experience
+    Type -->|competency| Competency
+    Type -->|general| General
+
+    Motivation --> EvalPrompt
+    Experience --> EvalPrompt
+    Competency --> EvalPrompt
+    General --> EvalPrompt
+
+    CompanyCtx --> EvalPrompt
+    ExpCtx --> EvalPrompt
+    CompanyCtx --> ImprovePrompt
+    ExpCtx --> ImprovePrompt
+
+    EvalPrompt --> Model
+    ImprovePrompt --> Model
+    Model --> Output
+    Output -->|평가| Markdown
+    Output -->|개선| ImprovedText
+```
+
 ## 문항 카테고리 분류
 
 ### 허용 카테고리
@@ -224,7 +339,7 @@ question을 읽고 해당 문항이 묻는 핵심 주제를 한 문장으로 파
 ## 출력 형식 (반드시 이 구조 그대로)
 
 ```
-## 📋 작성 가이드
+## 작성 가이드
 
 ### 이 문항이 보는 것
 (문항이 평가하려는 핵심 역량·의도 1~2문장)
@@ -242,12 +357,12 @@ question을 읽고 해당 문항이 묻는 핵심 주제를 한 문장으로 파
 2. (본문: 어떤 순서와 비중으로)
 3. (결론: 포부·각오 포함 방법)
 
-### ⚠️ 피해야 할 것
+### 피해야 할 것
 - (감점 요인 또는 흔한 실수 2~3개)
 
 ---
 
-## ✏️ 예시 답변
+## 예시 답변
 
 (합격 수준의 예시 답변 본문. 제공된 나의 경험이 있으면 그것을 기반으로, 없으면 직무 관련 경험으로 생성.
 원문에 글자 수 제한이 있으면 그 제한에 맞게 작성.
@@ -367,7 +482,7 @@ JSON 출력 금지 — 마크다운 형식 그대로 출력하세요.
 ## 출력 형식 (반드시 아래 마크다운 구조 그대로 작성)
 
 ```
-# 📋 종합 평가
+# 종합 평가
 
 > 🎯 **감지된 문항 유형**: {TYPE_LABEL}
 > 📌 **추출된 문항**: "..." (문서 상단의 질문/주제를 인용)
@@ -407,14 +522,14 @@ JSON 출력 금지 — 마크다운 형식 그대로 출력하세요.
 
 ---
 
-## 🎯 우선 개선 3가지
+## 우선 개선 3가지
 1. (가장 시급한 개선점, 구체적 수정 방향)
 2. ...
 3. ...
 
 ---
 
-## 📊 심사위원 관점
+## 심사위원 관점
 
 | 심사위원 | 면접 초대 여부 | 핵심 판단 근거 |
 |---------|-------------|-------------|
@@ -438,7 +553,7 @@ JSON 출력 금지 — 마크다운 형식 그대로 출력하세요.
 ````md
 ## 평가 항목 (합계 100점)
 
-> ⚠️ **공통 감점/가점 규칙 (모든 항목 적용)**
+> **공통 감점/가점 규칙 (모든 항목 적용)**
 > - 문항이 묻지 않은 **무관한 내용** 포함 시 해당 항목 **-3~5점**
 > - 묻지 않았더라도 **자기성찰·배운 점·깨달음** 포함 시 **+2점** (통찰 가점)
 > - 결론부에 **포부·각오** 포함 시 **+3점** / 없으면 **-5점**
@@ -491,7 +606,7 @@ JSON 출력 금지 — 마크다운 형식 그대로 출력하세요.
 ````md
 ## 평가 항목
 
-> ⚠️ **공통 감점/가점 규칙 (모든 항목 적용)**
+> **공통 감점/가점 규칙 (모든 항목 적용)**
 > - 문항이 묻지 않은 **무관한 내용** 포함 시 해당 항목 **-3~5점**
 > - 묻지 않았더라도 **자기성찰·배운 점·깨달음** 포함 시 **+2점** (통찰 가점)
 > - 결론부에 **포부·각오** 포함 시 **+3점** / 없으면 **-5점**
@@ -587,7 +702,7 @@ JSON 출력 금지 — 마크다운 형식 그대로 출력하세요.
 ````md
 ## 평가 항목
 
-> ⚠️ **공통 감점/가점 규칙 (모든 항목 적용)**
+> **공통 감점/가점 규칙 (모든 항목 적용)**
 > - 문항이 묻지 않은 **무관한 내용** 포함 시 해당 항목 **-3~5점**
 > - 묻지 않았더라도 **자기성찰·배운 점·깨달음** 포함 시 **+2점** (통찰 가점)
 > - 결론부에 **포부·각오** 포함 시 **+3점** / 없으면 **-5점**
@@ -713,7 +828,7 @@ JSON 출력 금지 — 마크다운 형식 그대로 출력하세요.
 
 ---
 
-## 🏭 산업 분석
+## 산업 분석
 
 ### 이 산업은 어떤 곳인가?
 (산업의 특성·규모·트렌드·경쟁 구도 2-3 문단)
@@ -723,7 +838,7 @@ JSON 출력 금지 — 마크다운 형식 그대로 출력하세요.
 
 ---
 
-## 💼 직무 분석
+## 직무 분석
 
 ### 주요 업무 내용
 (이 직무에서 실제로 하게 될 일들을 구체적으로 5-7가지)
@@ -733,7 +848,7 @@ JSON 출력 금지 — 마크다운 형식 그대로 출력하세요.
 
 ---
 
-## 🔑 핵심 키워드
+## 핵심 키워드
 
 ### 산업 키워드
 (이 산업에서 자주 쓰이는 용어·개념 10-15개, 자기소개서·면접 준비에 필수)
@@ -746,7 +861,7 @@ JSON 출력 금지 — 마크다운 형식 그대로 출력하세요.
 
 ---
 
-## ⚡ 지원 전략 한 마디
+## 지원 전략 한 마디
 (이 포지션에 합격하기 위해 가장 중요한 포인트 한 단락)
 ````
 

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getResume, saveResume, type ResumeProfile } from "@/lib/api/resume";
+import { deleteResume, getResume, type ResumeProfile } from "@/lib/api/resume";
 import { ResumeTargetDetail } from "../components/ResumeView";
 
 function ResumeReadContent() {
@@ -25,8 +25,7 @@ function ResumeReadContent() {
 
   const handleDelete = async () => {
     if (!id || !profile) return;
-    const nextTargets = profile.resumeTargets.filter((t) => t.id !== id);
-    await saveResume({ ...profile, resumeTargets: nextTargets }).catch(() => {});
+    await deleteResume(id).catch(() => {});
     router.push("/recruit/resume");
   };
 

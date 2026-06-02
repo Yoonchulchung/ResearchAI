@@ -145,6 +145,23 @@
 
 ---
 
+### Recruit Resume Entities
+
+| 테이블 | 주요 컬럼 | 설명 |
+|--------|----------|------|
+| `recruit_resume` | id, company_name, job_title, apply_date, jd, order_index | 기업/직무별 이력서 타깃 |
+| `resume_cover_letter` | id, resume_id, title, answer, category, refined_title, order_index | 이력서별 자기소개서 문항 |
+| `resume_experience` | id, resume_id, activity_type, organization_name, start_date, end_date, role, description, order_index | 이력서별 경험 |
+| `resume_prize` | id, resume_id, title, organization, issued_date, description, order_index | 이력서별 수상/자격 |
+| `recruit_resume_ai_evals` | id, resume_id, subject_key, type, result, model | 자기소개서 AI 평가 저장 |
+| `recruit_resume_company_jd` | id, resume_id, company_name, jd_text, result, model | JD/산업·직무 분석 저장 |
+
+- 기존 `resume` 테이블은 서버 시작 시 `recruit_resume`으로 rename한다.
+- 이력서 저장은 전체 테이블 삭제가 아니라 `resume_id` 단위 upsert로 처리한다.
+- 이력서 삭제는 `DELETE /resume/:resumeId`로 분리하고 관련 자기소개서, 경험, 수상, AI 평가, JD 분석, 기업 뉴스 데이터를 함께 삭제한다.
+
+---
+
 ### AppConfigEntity (`app_configs`)
 
 시스템 설정 KV 스토어.

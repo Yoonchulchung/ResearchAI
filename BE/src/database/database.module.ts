@@ -111,6 +111,7 @@ function renameTableIfNeeded(db: BetterSqliteDatabase, from: string, to: string)
         renameTableIfNeeded(db, 'papers_trend_summary', 'news_papers_trend_summary');
         renameTableIfNeeded(db, 'tech_blog_trend_summary', 'news_tech_blog_trend_summary');
         renameTableIfNeeded(db, 'cover_letters', 'recruit_cover_letters');
+        renameTableIfNeeded(db, 'resume', 'recruit_resume');
         renameTableIfNeeded(
           db,
           'cover_letter_spec_analyses',

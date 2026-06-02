@@ -47,13 +47,23 @@ export async function getResume(): Promise<ResumeProfile | null> {
   return { resumeTargets: res.resume ?? [] };
 }
 
-export async function saveResume(profile: ResumeProfile): Promise<ResumeProfile> {
+export async function saveResume(
+  profile: ResumeProfile,
+  options: { replaceAll?: boolean } = {},
+): Promise<ResumeProfile> {
   const res = await apiFetch<{ resume: ResumeTarget[] }>("/resume", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ resume: profile.resumeTargets ?? [] }),
+    body: JSON.stringify({
+      resume: profile.resumeTargets ?? [],
+      replaceAll: options.replaceAll ?? true,
+    }),
   });
   return { resumeTargets: res.resume ?? [] };
+}
+
+export async function deleteResume(id: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/resume/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export interface ResumeSearchCoverLetterItem {

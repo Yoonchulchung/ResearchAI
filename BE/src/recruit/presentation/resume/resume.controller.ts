@@ -26,6 +26,12 @@ export class ResumeController {
     return this.resumeService.saveResume(body);
   }
 
+  @Delete(':resumeId')
+  async deleteResume(@Param('resumeId') resumeId: string) {
+    await this.resumeService.deleteResume(resumeId);
+    return { ok: true };
+  }
+
   // ── AI eval persistence ──────────────────────────────────────────────────
 
   @Get(':resumeId/ai-evals')

@@ -58,6 +58,7 @@ type AnyProfile = {
   resume?: ResumeTarget[];
   resumeTargets?: ResumeTarget[];
   selfIntroductions?: ResumeSelfIntro[];
+  replaceAll?: boolean;
   [key: string]: unknown;
 };
 
@@ -253,11 +254,6 @@ export class ResumeService {
   async saveResume(body: AnyProfile): Promise<ResumeResult> {
     const targets = this.normalizeTargets(body);
 
-    await this.coverLetterRepo.createQueryBuilder().delete().execute();
-    await this.experienceRepo.createQueryBuilder().delete().execute();
-    await this.prizeRepo.createQueryBuilder().delete().execute();
-    await this.resumeRepo.createQueryBuilder().delete().execute();
-
     const entities = targets.map((target, targetIndex) => {
       const resumeId = this.safeId(target.id);
       const coverLetters = target.selfIntroductions ?? target.coverLetters ?? [];
@@ -310,12 +306,33 @@ export class ResumeService {
       });
     });
 
-    if (entities.length > 0) {
-      await this.resumeRepo.save(entities);
+    for (const entity of entities) {
+      await this.coverLetterRepo.delete({ resumeId: entity.id });
+      await this.experienceRepo.delete({ resumeId: entity.id });
+      await this.prizeRepo.delete({ resumeId: entity.id });
+      await this.resumeRepo.save(entity);
+    }
+
+    if (body.replaceAll === true) {
+      const keepIds = new Set(entities.map((entity) => entity.id));
+      const existing = await this.resumeRepo.find({ select: ['id'] });
+      for (const row of existing) {
+        if (!keepIds.has(row.id)) await this.deleteResume(row.id);
+      }
     }
 
     const saved = await this.getResume();
     return saved ?? { resume: [] };
+  }
+
+  async deleteResume(resumeId: string): Promise<void> {
+    await this.companyNewsRepo.delete({ resumeId });
+    await this.companyJdRepo.delete({ resumeId });
+    await this.aiEvalRepo.delete({ resumeId });
+    await this.coverLetterRepo.delete({ resumeId });
+    await this.experienceRepo.delete({ resumeId });
+    await this.prizeRepo.delete({ resumeId });
+    await this.resumeRepo.delete(resumeId);
   }
 
   private normalizeTargets(body: AnyProfile): ResumeTarget[] {

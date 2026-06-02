@@ -10,7 +10,7 @@ import { ResumeCoverLetterEntity } from './resume-cover-letter.entity';
 import { ResumeExperienceEntity } from './resume-experience.entity';
 import { ResumePrizeEntity } from './resume-prize.entity';
 
-@Entity('resume')
+@Entity('recruit_resume')
 export class ResumeEntity {
   @PrimaryColumn()
   id: string;

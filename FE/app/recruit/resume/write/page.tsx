@@ -88,8 +88,10 @@ function WritePageClient() {
       try {
         if (isNew) {
           const target = createResumeTarget();
+          const loaded = await getResume().catch(() => null);
+          const existingTargets = loaded?.resumeTargets ?? [];
           if (!cancelled) {
-            setProfile({ resumeTargets: [target] });
+            setProfile({ resumeTargets: [...existingTargets, target] });
             setActiveTargetId(target.id);
             // 신규 타겟: 저장된 자기소개서 없음
             savedSnapshotsRef.current.set(target.id, new Map());
@@ -183,7 +185,7 @@ function WritePageClient() {
     setSaving(true);
     setCategoryStatus("");
     try {
-      const savedProfile = await saveResume(profile);
+      const savedProfile = await saveResume(profile, { replaceAll: !isNew });
       setProfile(savedProfile);
       const nextId = activeTargetId ?? savedProfile.resumeTargets[0]?.id;
       if (nextId) {
