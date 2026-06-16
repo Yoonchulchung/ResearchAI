@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ResumeService } from '../../application/resume/resume.service';
 import { DeepResearchPipelineService } from '../../../research/application/pipeline/deep-research-pipeline.service';
 import { SearchEngine } from '../../../research/domain/model/search-planner.model';
@@ -11,8 +12,11 @@ export class ResumeController {
   ) {}
 
   @Get()
-  async getResume(@Query('ids') ids?: string) {
-    return this.resumeService.getResume(ids);
+  async getResume(
+    @Query('ids') ids?: string,
+    @Query('deleted') deleted?: string,
+  ) {
+    return this.resumeService.getResume(ids, { deleted: deleted === 'true' || deleted === '1' });
   }
 
   @Get('search')
@@ -24,6 +28,68 @@ export class ResumeController {
   @Put()
   async saveResume(@Body() body: Record<string, unknown>) {
     return this.resumeService.saveResume(body);
+  }
+
+  @Patch(':resumeId/interview-script')
+  async updateInterviewScript(
+    @Param('resumeId') resumeId: string,
+    @Body() body: { interviewScript?: string },
+  ) {
+    return this.resumeService.updateInterviewScript(resumeId, body.interviewScript ?? '');
+  }
+
+  @Get(':resumeId/pdf')
+  async downloadPdf(@Param('resumeId') resumeId: string, @Res() res: Response) {
+    const { buffer, filename } = await this.resumeService.generateResumePdf(resumeId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', String(buffer.length));
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="resume.pdf"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+    );
+    res.send(buffer);
+  }
+
+  @Get(':resumeId/versions')
+  async listVersions(@Param('resumeId') resumeId: string) {
+    return this.resumeService.listVersions(resumeId);
+  }
+
+  @Get(':resumeId/versions/:versionId')
+  async getVersion(
+    @Param('resumeId') resumeId: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.resumeService.getVersion(resumeId, versionId);
+  }
+
+  @Post(':resumeId/versions/:versionId/restore')
+  async restoreVersion(
+    @Param('resumeId') resumeId: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.resumeService.restoreVersion(resumeId, versionId);
+  }
+
+  @Delete(':resumeId/versions/:versionId')
+  async deleteVersion(
+    @Param('resumeId') resumeId: string,
+    @Param('versionId') versionId: string,
+  ) {
+    await this.resumeService.deleteVersion(resumeId, versionId);
+    return { ok: true };
+  }
+
+  @Post(':resumeId/restore')
+  async restoreResume(@Param('resumeId') resumeId: string) {
+    await this.resumeService.restoreResume(resumeId);
+    return { ok: true };
+  }
+
+  @Delete(':resumeId/permanent')
+  async permanentlyDeleteResume(@Param('resumeId') resumeId: string) {
+    await this.resumeService.permanentlyDeleteResume(resumeId);
+    return { ok: true };
   }
 
   @Delete(':resumeId')

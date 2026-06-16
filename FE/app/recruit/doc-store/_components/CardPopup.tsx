@@ -60,7 +60,7 @@ export function CardPopup({
         zIndex: 50,
         transformOrigin: "top left",
       }}
-      className={`bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col transition-all duration-200 ${
+      className={`bg-white border border-slate-200 rounded-md flex flex-col transition-all duration-200 ${
         popupVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
       }`}
     >
@@ -94,13 +94,13 @@ export function CardPopup({
             <>
               <button
                 onClick={() => onDocOpen(activePopup.data.id)}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
               >
                 <IconOpen /> 열기
               </button>
               <button
                 onClick={() => doc && onDocExtract(doc)}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-600 border border-emerald-200 rounded-md hover:bg-emerald-50 transition-colors"
               >
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                   <path d="M6 1v7M3.5 5.5L6 8l2.5-2.5M2 10h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -109,7 +109,7 @@ export function CardPopup({
               </button>
               <button
                 onClick={() => onDocDelete(activePopup.data.id)}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 border border-red-200 rounded-md hover:bg-red-50 transition-colors"
               >
                 <IconTrash /> 삭제
               </button>
@@ -121,21 +121,21 @@ export function CardPopup({
                   onClick={() => {
                     window.location.href = `/recruit/write?docId=${exp.sourceDocId}&highlight=${encodeURIComponent(exp.content)}`;
                   }}
-                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-slate-800 text-white rounded-md hover:bg-slate-700 transition-colors"
                 >
                   <IconEdit /> 수정
                 </button>
               ) : (
                 <button
                   onClick={() => exp && onExpEdit(exp)}
-                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-slate-800 text-white rounded-md hover:bg-slate-700 transition-colors"
                 >
                   <IconEdit /> 수정
                 </button>
               )}
               <button
                 onClick={() => onExpDelete(activePopup.data.id)}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 border border-red-200 rounded-md hover:bg-red-50 transition-colors"
               >
                 <IconTrash /> 삭제
               </button>
@@ -193,7 +193,7 @@ export function CardPopup({
           <button
             onClick={() => onSuggestOne(exp)}
             disabled={isLoading}
-            className="ml-auto flex items-center gap-1 px-2 py-0.5 text-xs text-indigo-500 border border-indigo-200 rounded-lg hover:bg-indigo-50 disabled:opacity-40 transition-colors"
+            className="ml-auto flex items-center gap-1 px-2 py-0.5 text-xs text-indigo-500 border border-indigo-200 rounded-md hover:bg-indigo-50 disabled:opacity-40 transition-colors"
           >
             <IconStar />
             {aiCats ? "재추천" : "추천"}

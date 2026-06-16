@@ -52,7 +52,7 @@ export function ExperienceTab({
       <div className="flex items-center gap-2 px-5 py-2.5 bg-white border-b border-slate-100 shrink-0 overflow-x-auto">
         <button
           onClick={() => setCategoryFilter("")}
-          className={`px-3 py-1 rounded-full text-xs font-medium border transition-all shrink-0 ${
+          className={`px-3 py-1 rounded-sm text-xs font-medium border transition-all shrink-0 ${
             !categoryFilter
               ? "bg-slate-800 text-white border-slate-800"
               : "text-slate-500 border-slate-200 hover:border-slate-300"
@@ -64,7 +64,7 @@ export function ExperienceTab({
           <button
             key={c}
             onClick={() => setCategoryFilter(c === categoryFilter ? "" : c)}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-all shrink-0 ${
+            className={`px-3 py-1 rounded-sm text-xs font-medium border transition-all shrink-0 ${
               categoryFilter === c
                 ? "bg-indigo-600 text-white border-indigo-600"
                 : "text-slate-500 border-slate-200 hover:border-indigo-300 hover:text-indigo-600"
@@ -82,7 +82,7 @@ export function ExperienceTab({
         <select
           value={aiModel}
           onChange={(e) => setAiModel(e.target.value)}
-          className="text-xs text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200"
+          className="text-xs text-slate-700 bg-white border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-200"
         >
           {AI_MODELS.map((m) => (
             <option key={m.id} value={m.id}>{m.name}</option>
@@ -91,7 +91,7 @@ export function ExperienceTab({
         <button
           onClick={onSuggestAll}
           disabled={suggestingAll || filteredExp.length === 0}
-          className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {suggestingAll ? (
             <span className="w-2.5 h-2.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -135,7 +135,7 @@ export function ExperienceTab({
             {!expSearch && !categoryFilter && (
               <button
                 onClick={onOpenAdd}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
               >
                 <IconPlus /> 첫 경험 추가하기
               </button>

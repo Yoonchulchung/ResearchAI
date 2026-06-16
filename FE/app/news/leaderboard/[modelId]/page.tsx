@@ -23,13 +23,13 @@ function BenchmarkCard({ label, value, isDark }: { label: string; value: number 
   }[color];
 
   return (
-    <div className={`rounded-xl p-4 ${isDark ? "border border-white/10 bg-white/5" : "border border-slate-200 bg-white"}`}>
+    <div className={`rounded-md p-4 ${isDark ? "border border-white/10 bg-white/5" : "border border-slate-200 bg-white"}`}>
       <div className={`mb-1 text-xs font-semibold uppercase tracking-wide ${isDark ? "text-white/40" : "text-slate-400"}`}>{label}</div>
       <div className={`text-2xl font-bold tabular-nums ${value == null ? (isDark ? "text-white/20" : "text-slate-300") : barColors.text}`}>
         {value != null ? value.toFixed(1) : "—"}
       </div>
-      <div className={`mt-2 h-1.5 w-full rounded-full ${isDark ? "bg-white/10" : "bg-slate-200"}`}>
-        <div className={`h-full rounded-full transition-all ${value != null ? barColors.bar : ""}`} style={{ width: `${Math.min(Math.abs(score), 100)}%` }} />
+      <div className={`mt-2 h-1.5 w-full rounded-sm ${isDark ? "bg-white/10" : "bg-slate-200"}`}>
+        <div className={`h-full rounded-sm transition-all ${value != null ? barColors.bar : ""}`} style={{ width: `${Math.min(Math.abs(score), 100)}%` }} />
       </div>
     </div>
   );
@@ -84,15 +84,15 @@ export default function ModelDetailPage() {
         </div>
 
         {error ? (
-          <div className={`rounded-xl border p-6 text-center text-sm ${isDark ? "border-red-900/40 bg-red-950/30 text-red-400" : "border-red-200 bg-red-50 text-red-700"}`}>{error}</div>
+          <div className={`rounded-md border p-6 text-center text-sm ${isDark ? "border-red-900/40 bg-red-950/30 text-red-400" : "border-red-200 bg-red-50 text-red-700"}`}>{error}</div>
         ) : !model ? (
           <div className="space-y-4">
-            {[80, 60, 40].map((w) => <div key={w} className={`h-8 animate-pulse rounded-xl ${isDark ? "bg-white/10" : "bg-slate-200"}`} style={{ width: `${w}%` }} />)}
+            {[80, 60, 40].map((w) => <div key={w} className={`h-8 animate-pulse rounded-md ${isDark ? "bg-white/10" : "bg-slate-200"}`} style={{ width: `${w}%` }} />)}
           </div>
         ) : (
           <div className="space-y-6">
             {/* Header card */}
-            <div className={`rounded-2xl border p-6 ${panelClass}`}>
+            <div className={`rounded-md border p-6 ${panelClass}`}>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -158,11 +158,11 @@ export default function ModelDetailPage() {
             </div>
 
             {Object.keys(model.sourceScores ?? {}).length > 0 && (
-              <div className={`rounded-2xl border p-4 ${panelClass}`}>
+              <div className={`rounded-md border p-4 ${panelClass}`}>
                 <p className={`mb-3 text-xs font-semibold ${textSub}`}>출처별 반영 점수</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {Object.entries(model.sourceScores).map(([source, score]) => (
-                    <div key={source} className={`rounded-xl border px-3 py-2 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
+                    <div key={source} className={`rounded-md border px-3 py-2 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
                       <div className={`text-xs ${textSub}`}>{source}</div>
                       <div className={`mt-1 text-lg font-bold tabular-nums ${textMain}`}>{score != null ? score.toFixed(2) : "—"}</div>
                     </div>
@@ -185,7 +185,7 @@ export default function ModelDetailPage() {
 
             {/* Benchmark descriptions */}
             {benchmarkDescs.length > 0 && (
-              <div className={`rounded-2xl border p-4 text-xs ${panelClass} ${textSub}`}>
+              <div className={`rounded-md border p-4 text-xs ${panelClass} ${textSub}`}>
                 <p className={`mb-2 font-semibold ${textMain}`}>벤치마크 설명</p>
                 <ul className="space-y-1">
                   {benchmarkDescs.map(({ key, name, desc }) => (
@@ -203,7 +203,7 @@ export default function ModelDetailPage() {
 
             {/* Data sources */}
             {dataSources.length > 0 && (
-              <div className={`rounded-2xl border p-4 ${panelClass}`}>
+              <div className={`rounded-md border p-4 ${panelClass}`}>
                 <p className={`mb-2 text-xs font-semibold ${textSub}`}>데이터 출처</p>
                 <div className="flex flex-col gap-2">
                   {dataSources.map((src) => (
@@ -212,7 +212,7 @@ export default function ModelDetailPage() {
                       href={src.url}
                       target="_blank"
                       rel="noreferrer"
-                      className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs transition ${isDark ? "border-white/10 text-white/50 hover:border-white/20 hover:text-white/80" : "border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"}`}
+                      className={`flex items-start gap-2 rounded-md border px-3 py-2 text-xs transition ${isDark ? "border-white/10 text-white/50 hover:border-white/20 hover:text-white/80" : "border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700"}`}
                     >
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="mt-0.5 shrink-0">
                         <path d="M1.5 8.5L8.5 1.5M8.5 1.5H4.5M8.5 1.5V5.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
@@ -233,7 +233,7 @@ export default function ModelDetailPage() {
                 href={hfUrl}
                 target="_blank"
                 rel="noreferrer"
-                className={`flex items-center justify-center gap-2 rounded-xl border py-3 text-sm font-semibold transition ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                className={`flex items-center justify-center gap-2 rounded-md border py-3 text-sm font-semibold transition ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
               >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" /></svg>
                 HuggingFace에서 보기

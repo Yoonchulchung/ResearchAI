@@ -149,7 +149,7 @@ export class WriteAssistExecutorService {
         company?: { name?: string; position?: string; jd?: string; requiredCompetencies?: string[] };
       };
 
-      const validTypes: QuestionType[] = ['motivation', 'experience', 'competency', 'general'];
+      const validTypes: QuestionType[] = ['motivation', 'experience', 'competency', 'personality', 'general'];
       const type = validTypes.includes(parsed.type as QuestionType) ? (parsed.type as QuestionType) : 'general';
       const questionText = (parsed.questionText ?? '').trim() || '(문항 추출 실패)';
 
@@ -230,7 +230,13 @@ export class WriteAssistExecutorService {
     const typeLabel = QUESTION_TYPE_LABELS[type];
     const rubric = EVALUATE_RUBRICS[type];
     const axes = this.extractAxisInfo(rubric);
-    const outputFormat = this.fillAxisPlaceholders(EVALUATE_OUTPUT_FORMAT.replaceAll('{TYPE_LABEL}', typeLabel), axes);
+    const reviewer2 = type === 'personality' ? 'HR 인성 평가자' : '실무 면접관';
+    const outputFormat = this.fillAxisPlaceholders(
+      EVALUATE_OUTPUT_FORMAT
+        .replaceAll('{TYPE_LABEL}', typeLabel)
+        .replaceAll('{REVIEWER_2}', reviewer2),
+      axes,
+    );
     const system = EVALUATE_SYSTEM_PROMPT.replaceAll('{TYPE_LABEL}', typeLabel);
     const expContext = this.buildExpContext(extras?.experiences);
 

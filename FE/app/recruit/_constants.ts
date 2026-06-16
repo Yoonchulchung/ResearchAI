@@ -17,8 +17,9 @@ export const PROSE_CLASS = `prose prose-sm prose-slate max-w-none
   [&_li]:my-0.5 [&_li]:text-slate-700 [&_li]:text-base
   [&_strong]:font-semibold [&_strong]:text-slate-900
   [&_em]:italic
-  [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-sm [&_code]:text-slate-700 [&_code]:font-mono
-  [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:rounded-xl [&_pre]:p-4 [&_pre]:text-xs [&_pre]:overflow-x-auto [&_pre]:my-3
+  [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-sm [&_code]:text-sm [&_code]:text-slate-700 [&_code]:font-mono
+  [&_pre]:bg-slate-100 [&_pre]:text-slate-700 [&_pre]:rounded-md [&_pre]:border [&_pre]:border-slate-200 [&_pre]:p-3 [&_pre]:text-sm [&_pre]:leading-6 [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_pre]:overflow-x-hidden [&_pre]:my-3
+  [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-inherit [&_pre_code]:whitespace-pre-wrap [&_pre_code]:break-words
   [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-300 [&_blockquote]:pl-4 [&_blockquote]:text-slate-500 [&_blockquote]:italic [&_blockquote]:my-3
   [&_hr]:border-slate-200 [&_hr]:my-6
   [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm [&_table]:my-3

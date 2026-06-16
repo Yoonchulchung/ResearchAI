@@ -4,6 +4,8 @@ export interface CoverLetterQuestion {
   number: number;
   question: string;
   answer: string;
+  keywords?: string[];
+  tags?: string[];
 }
 
 export interface CoverLetter {
@@ -17,6 +19,7 @@ export interface CoverLetter {
   season: string;
   spec: string;
   viewCount?: number;
+  isHidden?: boolean;
   questions: CoverLetterQuestion[];
   collectedAt: string;
 }
@@ -59,6 +62,17 @@ export interface CoverLetterListResponse {
   hasNext?: boolean;
 }
 
+export interface CoverLetterQuestionSearchItem extends CoverLetterQuestion {
+  id: string;
+  coverLetterId: string;
+  coverLetter: Omit<CoverLetter, "questions">;
+}
+
+export interface CoverLetterQuestionSearchResponse {
+  items: CoverLetterQuestionSearchItem[];
+  total: number;
+}
+
 export interface ScrapeStatus {
   running: boolean;
   currentPage: number;
@@ -72,20 +86,32 @@ export interface ScrapeStatus {
 export const listCoverLetters = (
   page = 1,
   limit = 20,
-  filters: { source?: string; companyType?: string; jobCategory?: JobCategoryTarget | string; search?: string; sort?: "latest"; offset?: number } = {},
+  filters: { source?: string; companyType?: string; jobCategory?: JobCategoryTarget | string; search?: string; sort?: "latest"; offset?: number; hidden?: boolean } = {},
 ) => {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (typeof filters.offset === "number" && Number.isFinite(filters.offset)) params.set("offset", String(filters.offset));
   if (filters.source) params.set("source", filters.source);
   if (filters.companyType) params.set("companyType", filters.companyType);
-  if (filters.jobCategory) params.set("jobCategory", filters.jobCategory);
+  if (filters.jobCategory && filters.jobCategory !== "all") params.set("jobCategory", filters.jobCategory);
   if (filters.search) params.set("search", filters.search);
   if (filters.sort) params.set("sort", filters.sort);
+  if (filters.hidden) params.set("hidden", "true");
   return apiFetch<CoverLetterListResponse>(`/cover-letter-scraper/data?${params}`);
 };
 
 export const getCoverLetter = (id: string) =>
   apiFetch<CoverLetter>(`/cover-letter-scraper/data/${encodeURIComponent(id)}`);
+
+export const setCoverLetterHidden = (id: string, isHidden: boolean) =>
+  apiFetch<CoverLetter>(`/cover-letter-scraper/data/${encodeURIComponent(id)}/hidden`, {
+    method: "POST",
+    body: JSON.stringify({ isHidden }),
+  });
+
+export const searchCoverLetterQuestions = (q: string, limit = 30) => {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  return apiFetch<CoverLetterQuestionSearchResponse>(`/cover-letter-scraper/questions?${params}`);
+};
 
 export const backfillCategories = (): Promise<{ updated: number }> =>
   apiFetch<{ updated: number }>("/cover-letter-scraper/backfill-categories", { method: "POST" });

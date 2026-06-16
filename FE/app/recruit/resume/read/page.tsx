@@ -75,13 +75,13 @@ function ResumeReadContent() {
               <span className="text-xs text-slate-500">정말 삭제할까요?</span>
               <button
                 onClick={handleDelete}
-                className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg transition-colors"
+                className="text-xs font-semibold text-white bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-md transition-colors"
               >
                 확인
               </button>
               <button
                 onClick={() => setDeleteConfirm(false)}
-                className="text-xs font-semibold text-slate-500 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg transition-colors"
+                className="text-xs font-semibold text-slate-500 border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-md transition-colors"
               >
                 취소
               </button>
@@ -90,13 +90,13 @@ function ResumeReadContent() {
             <>
               <button
                 onClick={() => setDeleteConfirm(true)}
-                className="text-xs font-semibold text-red-500 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                className="text-xs font-semibold text-red-500 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-md transition-colors"
               >
                 삭제
               </button>
               <button
                 onClick={() => router.push(`/recruit/resume/write?id=${encodeURIComponent(id!)}`)}
-                className="text-xs font-semibold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
+                className="text-xs font-semibold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 px-3 py-1.5 rounded-md transition-colors"
               >
                 편집
               </button>

@@ -2,6 +2,8 @@ export interface CoverLetterQuestion {
   number: number;
   question: string;
   answer: string;
+  keywords?: string[];
+  tags?: string[];
 }
 
 export interface CoverLetter {
@@ -15,6 +17,7 @@ export interface CoverLetter {
   season: string;
   spec: string;
   viewCount?: number;
+  isHidden?: boolean;
   questions: CoverLetterQuestion[];
   collectedAt: string;
   industry?: string | null;
@@ -36,6 +39,13 @@ export interface CoverLetterListFilters {
   jobCategory?: JobCategory | 'IT+전자' | string;
   search?: string;
   sort?: 'latest';
+  hidden?: boolean;
+}
+
+export interface CoverLetterQuestionSearchItem extends CoverLetterQuestion {
+  id: string;
+  coverLetterId: string;
+  coverLetter: Omit<CoverLetter, 'questions'>;
 }
 
 export type JobCategory = 'IT' | '전자' | '영업' | '경영/기획' | '마케팅' | '인사/총무' | '재무/회계' | '생산/제조' | '기타';

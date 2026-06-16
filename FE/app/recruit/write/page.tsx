@@ -107,7 +107,7 @@ function RecruitWritePageInner() {
 
   return (
     <div className={`h-full flex flex-col overflow-hidden ${isGlass ? "p-1.5 sm:p-3 sm:pr-4 sm:pb-4 bg-transparent" : ""}`}>
-      <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-xl sm:rounded-2xl shadow-xl border border-white/20" : ""}`}>
+      <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-md sm:rounded-md border border-white/20" : ""}`}>
       {/* ── Topbar ─────────────────────────────────────────────────────────── */}
       <div className={`shrink-0 transition-all ${isGlass ? `border-b ${isDark ? "border-white/20" : "border-black/10"}` : `bg-white border-b ${isDark ? "border-slate-700/50" : "border-slate-200/60"}`}`}>
         {/* Row 1: title + all nav buttons */}
@@ -194,7 +194,7 @@ function RecruitWritePageInner() {
       {editor.contextMenu && editor.selectedText && (
         <div
           style={{ top: editor.contextMenu.y, left: editor.contextMenu.x }}
-          className="fixed z-50 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-30"
+          className="fixed z-50 bg-white border border-slate-200 rounded-md py-1 min-w-30"
           onMouseDown={(e) => e.stopPropagation()}
         >
           <button
@@ -319,7 +319,7 @@ function RecruitWritePageInner() {
           onClick={() => setProfileModalOpen(false)}
         >
           <div
-            className="w-full sm:max-w-xl max-h-[82dvh] sm:max-h-[70vh] rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 shadow-2xl flex flex-col overflow-hidden"
+            className="w-full sm:max-w-xl max-h-[82dvh] sm:max-h-[70vh] rounded-t-md sm:rounded-md bg-white dark:bg-slate-900 flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 헤더 */}

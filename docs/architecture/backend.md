@@ -29,7 +29,7 @@
 - 역할: `visitor` (기본) / `admin` (파이프라인 테스트 접근)
 - 사용자별 API 키는 DB 컬럼으로 저장 (시스템 `.env`와 분리)
 
-→ 상세: [auth.md](../auth.md)
+→ 상세: [auth.md](../reference/auth.md)
 
 ---
 
@@ -50,7 +50,7 @@
 - 모든 AI 호출 결과는 `ai_call_log` 테이블에 기록 (프롬프트·응답·토큰·비용·소요시간)
 - Default 키 호출 시 RPM throttle 적용 (12 req/min)
 
-→ 상세: [ai-providers.md](../ai-providers.md)
+→ 상세: [ai-providers.md](../reference/ai-providers.md)
 
 ---
 

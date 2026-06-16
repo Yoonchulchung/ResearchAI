@@ -30,8 +30,8 @@ export function ExperienceCard({ exp, isActive, onCardClick, aiCategories, sugge
     <div
       ref={ref}
       onClick={(e) => { e.stopPropagation(); ref.current && onCardClick(ref.current); }}
-      className={`relative bg-white border rounded-2xl p-4 flex flex-col gap-3 hover:shadow-md transition-all min-h-64 cursor-pointer select-none ${
-        isActive ? "border-indigo-300 shadow-md ring-2 ring-indigo-100" : "border-slate-200"
+      className={`relative bg-white border rounded-md p-4 flex flex-col gap-3 transition-all min-h-64 cursor-pointer select-none ${
+        isActive ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200"
       }`}
     >
       <div className="flex items-start justify-between gap-1 flex-wrap">

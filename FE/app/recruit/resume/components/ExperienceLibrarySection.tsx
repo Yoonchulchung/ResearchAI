@@ -97,7 +97,7 @@ export function ExperienceLibrarySection({
   return (
     <ViewSection title={title}>
       <div className="mb-3">
-        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+        <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="shrink-0 text-slate-400">
             <circle cx="5.5" cy="5.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
             <path d="M8.5 8.5L11 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />

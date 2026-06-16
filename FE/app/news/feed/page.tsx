@@ -50,7 +50,7 @@ function NewsCard({ item, isDark }: { item: NewsItem; isDark: boolean }) {
       href={item.link}
       target="_blank"
       rel="noreferrer"
-      className={`group flex flex-col gap-2 rounded-xl border p-4 transition ${isDark ? "border-white/10 bg-white/5 hover:border-emerald-400/30" : "border-slate-200 bg-white hover:border-emerald-300 hover:shadow-md"}`}
+      className={`group flex flex-col gap-2 rounded-md border p-4 transition ${isDark ? "border-white/10 bg-white/5 hover:border-emerald-400/30" : "border-slate-200 bg-white hover:border-emerald-300"}`}
     >
       <div className="flex items-center gap-2">
         <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-700"}`}>{item.source}</span>
@@ -72,7 +72,7 @@ function NewsCard({ item, isDark }: { item: NewsItem; isDark: boolean }) {
 function Skeleton({ isDark }: { isDark: boolean }) {
   const pulse = isDark ? "bg-white/10" : "bg-slate-100";
   return (
-    <div className={`rounded-xl border p-4 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
+    <div className={`rounded-md border p-4 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
       <div className={`mb-2 h-4 w-20 animate-pulse rounded ${pulse}`} />
       <div className={`mb-1 h-4 w-full animate-pulse rounded ${pulse}`} />
       <div className={`h-4 w-4/5 animate-pulse rounded ${pulse}`} />
@@ -142,7 +142,7 @@ export default function NewsFeedPage() {
     <main className={`h-full overflow-y-auto ${pageClass}`}>
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
         {/* Header */}
-        <section className={`rounded-2xl border p-5 shadow-sm ${panelClass}`}>
+        <section className={`rounded-md border p-5 ${panelClass}`}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <button
@@ -159,12 +159,12 @@ export default function NewsFeedPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="제목, 출처 검색"
-                className={`h-9 w-full rounded-xl border px-3 text-sm outline-none transition focus:ring-2 focus:ring-emerald-200/50 sm:w-52 ${inputClass}`}
+                className={`h-9 w-full rounded-md border px-3 text-sm outline-none transition focus:ring-2 focus:ring-emerald-200/50 sm:w-52 ${inputClass}`}
               />
               <button
                 onClick={() => load(category, true)}
                 disabled={refreshing}
-                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold transition disabled:opacity-60 ${isDark ? "bg-white/10 text-white hover:bg-white/15" : "bg-slate-900 text-white hover:bg-emerald-700"}`}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-3 text-sm font-semibold transition disabled:opacity-60 ${isDark ? "bg-white/10 text-white hover:bg-white/15" : "bg-slate-900 text-white hover:bg-emerald-700"}`}
               >
                 <IconRefresh spinning={refreshing} />
                 새로고침
@@ -175,14 +175,14 @@ export default function NewsFeedPage() {
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[200px_1fr]">
           {/* Sidebar: category list */}
-          <aside className={`hidden h-fit rounded-2xl border p-3 shadow-sm lg:block ${panelClass}`}>
+          <aside className={`hidden h-fit rounded-md border p-3 lg:block ${panelClass}`}>
             <div className={`px-2 pb-2 text-xs font-semibold ${textSub}`}>카테고리</div>
             <div className="space-y-0.5">
               {ALL_CATEGORIES.map(([id, label]) => (
                 <button
                   key={id}
                   onClick={() => setCategory(id)}
-                  className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${
+                  className={`flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm transition ${
                     category === id
                       ? isDark ? "bg-emerald-500/15 font-semibold text-emerald-300" : "bg-emerald-50 font-semibold text-emerald-700"
                       : isDark ? "text-white/60 hover:bg-white/5" : "text-slate-600 hover:bg-slate-50"
@@ -202,7 +202,7 @@ export default function NewsFeedPage() {
                 <button
                   key={id}
                   onClick={() => setCategory(id)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
                     category === id
                       ? isDark ? "bg-emerald-500/20 text-emerald-300" : "bg-emerald-100 text-emerald-700"
                       : isDark ? "bg-white/5 text-white/60" : "bg-slate-100 text-slate-600"
@@ -220,7 +220,7 @@ export default function NewsFeedPage() {
             </div>
 
             {error && (
-              <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${isDark ? "border-red-900/50 bg-red-950/40 text-red-300" : "border-red-200 bg-red-50 text-red-700"}`}>
+              <div className={`mb-4 rounded-md border px-4 py-3 text-sm ${isDark ? "border-red-900/50 bg-red-950/40 text-red-300" : "border-red-200 bg-red-50 text-red-700"}`}>
                 {error}
               </div>
             )}

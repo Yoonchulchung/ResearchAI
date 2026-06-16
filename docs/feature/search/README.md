@@ -23,6 +23,10 @@
 | Summary | 세션 전체 요약 |
 | RAG Chat | 세션 결과를 기반으로 한 질의응답 |
 
+## 상세 문서
+
+- [Research AI 신뢰성 평가](./ai-reliability.md): Deep Research 결과의 신뢰도 평가, 저장, 재평가 구조
+
 ## Light Research
 
 ### 기능 요구

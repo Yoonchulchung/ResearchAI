@@ -58,7 +58,7 @@ export function CollectSettingsModal({
 
   useEffect(() => {
     if (open) fetchPreview(config);
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     if (open) fetchPreview(config);
@@ -85,7 +85,7 @@ export function CollectSettingsModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
     >
-      <div className="w-full max-w-sm mx-4 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="w-full max-w-sm mx-4 bg-white dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
@@ -103,7 +103,7 @@ export function CollectSettingsModal({
 
         <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
           {/* 예상 수집 건수 */}
-          <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+          <div className="flex items-center justify-between px-3 py-2.5 rounded-md bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">예상 수집 건수</span>
             {previewLoading ? (
               <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin" />
@@ -126,7 +126,7 @@ export function CollectSettingsModal({
                   <button
                     key={ct}
                     onClick={() => onChange({ ...config, companyTypes: toggleItem(companyTypes, ct) })}
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                    className={`px-2.5 py-1 rounded-sm text-xs font-semibold border transition-all ${
                       active
                         ? "bg-indigo-600 text-white border-indigo-600"
                         : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300"
@@ -151,7 +151,7 @@ export function CollectSettingsModal({
                   <button
                     key={jt}
                     onClick={() => onChange({ ...config, jobTypes: toggleItem(jobTypes, jt) })}
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                    className={`px-2.5 py-1 rounded-sm text-xs font-semibold border transition-all ${
                       active
                         ? "bg-emerald-600 text-white border-emerald-600"
                         : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300"
@@ -176,7 +176,7 @@ export function CollectSettingsModal({
                   <button
                     key={cat}
                     onClick={() => onChange({ ...config, jobs: toggleItem(jobs, cat) })}
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                    className={`px-2.5 py-1 rounded-sm text-xs font-semibold border transition-all ${
                       active
                         ? "bg-violet-600 text-white border-violet-600"
                         : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300"
@@ -197,7 +197,7 @@ export function CollectSettingsModal({
                 <button
                   key={m.value}
                   onClick={() => onChange({ ...config, model: m.value })}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border text-left transition-all ${
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-md border text-left transition-all ${
                     config.model === m.value
                       ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 dark:border-indigo-500"
                       : "border-slate-200 dark:border-slate-700 hover:border-slate-300 bg-white dark:bg-slate-800/50"
@@ -229,9 +229,9 @@ export function CollectSettingsModal({
               </div>
               <button
                 onClick={() => onChange({ ...config, skipExisting: !config.skipExisting })}
-                className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ml-3 ${(config.skipExisting ?? true) ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700"}`}
+                className={`relative w-9 h-5 rounded-sm transition-colors shrink-0 ml-3 ${(config.skipExisting ?? true) ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700"}`}
               >
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${(config.skipExisting ?? true) ? "translate-x-4" : "translate-x-0"}`} />
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-sm bg-white shadow transition-transform ${(config.skipExisting ?? true) ? "translate-x-4" : "translate-x-0"}`} />
               </button>
             </div>
 
@@ -243,9 +243,9 @@ export function CollectSettingsModal({
               </div>
               <button
                 onClick={() => onChange({ ...config, enableVlm: !config.enableVlm })}
-                className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ml-3 ${config.enableVlm ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700"}`}
+                className={`relative w-9 h-5 rounded-sm transition-colors shrink-0 ml-3 ${config.enableVlm ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700"}`}
               >
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${config.enableVlm ? "translate-x-4" : "translate-x-0"}`} />
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-sm bg-white shadow transition-transform ${config.enableVlm ? "translate-x-4" : "translate-x-0"}`} />
               </button>
             </div>
           </div>
@@ -261,7 +261,7 @@ export function CollectSettingsModal({
               max={500}
               value={config.maxItems ?? 0}
               onChange={(e) => onChange({ ...config, maxItems: Math.max(0, Number(e.target.value)) })}
-              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-400"
+              className="w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-md bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-400"
               placeholder="0"
             />
           </div>
@@ -271,14 +271,14 @@ export function CollectSettingsModal({
         <div className="px-5 pb-5 pt-2 flex gap-2 border-t border-slate-100 dark:border-slate-800">
           <button
             onClick={onClose}
-            className="flex-1 py-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            className="flex-1 py-2 text-xs font-semibold rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
             취소
           </button>
           <button
             onClick={handleStart}
             disabled={collectLoading || preview === 0}
-            className="flex-1 py-2 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+            className="flex-1 py-2 text-xs font-semibold rounded-md bg-amber-500 hover:bg-amber-600 text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
           >
             {collectLoading ? (
               <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />

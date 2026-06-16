@@ -149,7 +149,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       } else if (entity.taskType === QueueJob.TaskType.LIGHTRESEARCH) {
         // LightResearch는 SSE가 끊겼으므로 Stopped 처리
         await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.STOPPED);
-      } else if (entity.taskType === QueueJob.TaskType.WRITEASSIST) {
+      } else if (QueueJob.isWriteAssist(entity.taskType as QueueJob.TaskType)) {
         // WriteAssist는 SSE가 끊겼으므로 Stopped 처리
         await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.STOPPED);
       } else if (entity.taskType === QueueJob.TaskType.COMPANYPROFILE || entity.taskType === QueueJob.TaskType.COMPANYANALYSIS) {
@@ -1525,7 +1525,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
         this.sessionCommandService.updateSession(job.sessionId, ResearchState.ERROR).catch(() => {});
         this.sessionGateway.emitSessionUpdate(job.sessionId).catch(() => {});
 
-      } else if (job.taskType === QueueJob.TaskType.WRITEASSIST) {
+      } else if (QueueJob.isWriteAssist(job.taskType)) {
 
         const subject = this.writeAssistSubjects.get(job.jobId);
         subject?.next({ data: { type: SseEventType.ERROR, message: msg } });

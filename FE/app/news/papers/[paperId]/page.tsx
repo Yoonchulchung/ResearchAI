@@ -381,7 +381,7 @@ export default function PaperReaderPage() {
               key={action.value}
               onClick={() => runQuickAction(action.value)}
               disabled={aiLoading || !paper}
-              className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${isDark ? "border-indigo-400/20 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20" : "border-indigo-100 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"}`}
+              className={`rounded-md border px-2.5 py-1 text-xs font-medium transition disabled:opacity-50 ${isDark ? "border-indigo-400/20 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20" : "border-indigo-100 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"}`}
             >
               {action.label}
             </button>
@@ -400,15 +400,15 @@ export default function PaperReaderPage() {
           {messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               {msg.role === "user" ? (
-                <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-indigo-600 px-3.5 py-2.5 text-sm text-white">
+                <div className="max-w-[85%] rounded-md rounded-tr-sm bg-indigo-600 px-3.5 py-2.5 text-sm text-white">
                   {msg.content}
                 </div>
               ) : (
-                <div className={`max-w-[92%] rounded-2xl rounded-tl-sm px-3.5 py-2.5 ${isDark ? "bg-white/8 text-white/90" : "bg-slate-100 text-slate-800"}`}>
+                <div className={`max-w-[92%] rounded-md rounded-tl-sm px-3.5 py-2.5 ${isDark ? "bg-white/8 text-white/90" : "bg-slate-100 text-slate-800"}`}>
                   {msg.streaming && !msg.content ? (
                     <div className="flex items-center gap-1 py-1">
                       {[0, 1, 2].map((i) => (
-                        <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" style={{ animationDelay: `${i * 0.15}s` }} />
+                        <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-sm bg-slate-400" style={{ animationDelay: `${i * 0.15}s` }} />
                       ))}
                     </div>
                   ) : (
@@ -426,7 +426,7 @@ export default function PaperReaderPage() {
 
       {/* Input */}
       <div className={`border-t px-4 py-3 ${isDark ? "border-white/10" : "border-slate-100"}`}>
-        <div className={`flex items-end gap-2 rounded-xl border px-3 py-2 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
+        <div className={`flex items-end gap-2 rounded-md border px-3 py-2 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}>
           <textarea
             ref={inputRef}
             value={input}
@@ -441,7 +441,7 @@ export default function PaperReaderPage() {
           <button
             onClick={() => sendMessage(input)}
             disabled={aiLoading || !paper || !input.trim()}
-            className="rounded-lg bg-indigo-600 p-1.5 text-white transition hover:bg-indigo-700 disabled:opacity-40"
+            className="rounded-md bg-indigo-600 p-1.5 text-white transition hover:bg-indigo-700 disabled:opacity-40"
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path d="M2 8L14 8M14 8L9 3M14 8L9 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -478,7 +478,7 @@ export default function PaperReaderPage() {
         <div className={`flex h-full flex-col items-center justify-center gap-3 text-sm ${textSub}`}>
           <p>{pdfFetchError}</p>
           {paper?.pdfUrl && (
-            <a href={paper.pdfUrl} target="_blank" rel="noreferrer" className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+            <a href={paper.pdfUrl} target="_blank" rel="noreferrer" className={`rounded-md border px-3 py-1.5 text-xs font-medium ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
               원본에서 직접 열기
             </a>
           )}
@@ -504,7 +504,7 @@ export default function PaperReaderPage() {
         <div className="flex min-w-0 items-center gap-2 sm:flex-1">
         <button
           onClick={() => router.back()}
-          className={`shrink-0 rounded-lg p-1.5 transition ${isDark ? "text-white/50 hover:bg-white/10 hover:text-white" : "text-slate-400 hover:bg-slate-100 hover:text-slate-800"}`}
+          className={`shrink-0 rounded-md p-1.5 transition ${isDark ? "text-white/50 hover:bg-white/10 hover:text-white" : "text-slate-400 hover:bg-slate-100 hover:text-slate-800"}`}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -537,7 +537,7 @@ export default function PaperReaderPage() {
         {pdfBlobUrl && (
           <button
             onClick={handleDownload}
-            className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+            className={`shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
             title="PDF 다운로드"
           >
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" className="inline-block align-[-1px]">
@@ -547,7 +547,7 @@ export default function PaperReaderPage() {
           </button>
         )}
         {paper?.url && (
-          <a href={paper.url} target="_blank" rel="noreferrer" className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+          <a href={paper.url} target="_blank" rel="noreferrer" className={`shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition ${isDark ? "border-white/10 text-white/60 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
             원문
           </a>
         )}

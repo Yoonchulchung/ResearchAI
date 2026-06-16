@@ -131,5 +131,5 @@ Local AI  Ollama                    :11434 (선택)
 
 | 파일 | 내용 |
 |------|------|
-| [docs/architecture.md](./docs/architecture.md) | 전체 아키텍처, 모듈 구조, 데이터 흐름 |
-| [docs/api-reference.md](./docs/api-reference.md) | API 엔드포인트 레퍼런스 |
+| [docs/architecture/overview.md](./docs/architecture/overview.md) | 전체 아키텍처, 모듈 구조, 데이터 흐름 |
+| [docs/reference/api-reference.md](./docs/reference/api-reference.md) | API 엔드포인트 레퍼런스 |

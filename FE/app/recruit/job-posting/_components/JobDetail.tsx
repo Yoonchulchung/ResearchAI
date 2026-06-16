@@ -206,7 +206,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
   return (
     <div onScroll={onScroll} className={`flex-1 overflow-y-auto flex flex-col transition-all ${isDark ? "bg-slate-950" : "bg-[#F8F9FA]"}`}>
       <div className="p-0 sm:p-6 w-full">
-        <div className={`sm:rounded-2xl overflow-hidden transition-all ${isDark ? "bg-slate-900 border border-slate-800 shadow-xl" : "bg-white sm:border sm:border-slate-200/80 sm:shadow-sm"}`}>
+        <div className={`sm:rounded-md overflow-hidden transition-all ${isDark ? "bg-slate-900 border border-slate-800" : "bg-white sm:border sm:border-slate-200/80"}`}>
           {/* Header */}
           <div className={`p-4 sm:p-8 border-b ${isDark ? "border-slate-800" : "border-slate-100"}`}>
             <div className="flex items-start justify-between gap-3 mb-3 sm:mb-4">
@@ -234,7 +234,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
                 type="button"
                 onClick={(e) => onToggleFavorite(selected, e)}
                 aria-label={selected.favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition-colors ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border transition-colors ${
                   selected.favorite
                     ? "bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50"
                     : "bg-white border-slate-200 text-slate-400 hover:text-amber-500 hover:border-amber-200 hover:bg-amber-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-750"
@@ -293,7 +293,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
           <div className="p-4 sm:p-8">
             {/* Info grid */}
             {(selected.companyType || selected.jobs || selected.homepage) && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 sm:mb-8 p-4 sm:p-5 rounded-xl bg-slate-50 border border-slate-100 dark:bg-slate-950/40 dark:border-slate-850">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 sm:mb-8 p-4 sm:p-5 rounded-md bg-slate-50 border border-slate-100 dark:bg-slate-950/40 dark:border-slate-850">
                 {selected.companyType && (
                   <div>
                     <p className="text-[13px] font-semibold text-slate-400 mb-1">기업형태</p>
@@ -326,7 +326,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
             {selected.category && !selected.jobs && (
               <div className="mb-8">
                 <p className="text-[13px] font-bold text-indigo-600 mb-2 flex items-center gap-2 dark:text-indigo-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
+                  <span className="w-1.5 h-1.5 rounded-sm bg-indigo-600 dark:bg-indigo-400" />
                   직무 분야
                 </p>
                 <p className="text-[15px] font-medium text-slate-700 pl-3.5 border-l-2 border-indigo-100 dark:text-slate-350 dark:border-indigo-950">{selected.category}</p>
@@ -334,13 +334,13 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
             )}
 
             {/* AI Tools */}
-            <div className="mb-6 p-4 rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="mb-6 p-4 rounded-md border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
               <p className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider dark:text-slate-400">AI 도구</p>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => runAi("analysis")}
                   disabled={aiLoading}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all disabled:opacity-50 ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border transition-all disabled:opacity-50 ${
                     aiMode === "analysis" && (aiLoading || aiResult)
                       ? "bg-indigo-600 text-white border-indigo-600"
                       : "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:bg-slate-800 dark:border-indigo-900/50 dark:text-indigo-300 dark:hover:bg-slate-750"
@@ -359,7 +359,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
                 <button
                   onClick={() => runAi("interview")}
                   disabled={aiLoading}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all disabled:opacity-50 ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border transition-all disabled:opacity-50 ${
                     aiMode === "interview" && (aiLoading || aiResult)
                       ? "bg-violet-600 text-white border-violet-600"
                       : "bg-white text-violet-600 border-violet-200 hover:bg-violet-50 dark:bg-slate-800 dark:border-violet-900/50 dark:text-violet-300 dark:hover:bg-slate-750"
@@ -376,7 +376,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
                 </button>
                 <button
                   onClick={handleCompanyAnalysis}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border bg-white text-emerald-600 border-emerald-200 hover:bg-emerald-50 transition-all dark:bg-slate-800 dark:border-emerald-900/50 dark:text-emerald-300 dark:hover:bg-slate-750"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border bg-white text-emerald-600 border-emerald-200 hover:bg-emerald-50 transition-all dark:bg-slate-800 dark:border-emerald-900/50 dark:text-emerald-300 dark:hover:bg-slate-750"
                 >
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" />
@@ -387,7 +387,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
                 {/* Cover letter picker button */}
                 <button
                   onClick={openPicker}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border transition-all ${
                     coverLetter
                       ? "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100 dark:bg-orange-950/40 dark:border-orange-900/50 dark:text-orange-350"
                       : pickerOpen
@@ -414,7 +414,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
 
               {/* Cover letter picker panel */}
               {pickerOpen && (
-                <div className="mt-3 border border-slate-200 rounded-lg bg-white overflow-hidden dark:border-slate-800 dark:bg-slate-900">
+                <div className="mt-3 border border-slate-200 rounded-md bg-white overflow-hidden dark:border-slate-800 dark:bg-slate-900">
                   <div className="p-2 border-b border-slate-100 flex items-center gap-2 dark:border-slate-800">
                     <input
                       autoFocus
@@ -563,7 +563,7 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
                 href={selected.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 text-[15px] font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md transition-all w-full sm:w-auto dark:bg-indigo-600 dark:hover:bg-indigo-700"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 text-[15px] font-bold rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-all w-full sm:w-auto dark:bg-indigo-600 dark:hover:bg-indigo-700"
               >
                 {sourceLabel}에서 공고 보기
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

@@ -23,8 +23,8 @@ export function DocumentCard({ doc, isActive, onDocOpen, onDetailClick }: Props)
     <div
       ref={ref}
       onClick={() => onDocOpen()}
-      className={`relative bg-white border rounded-2xl p-4 flex flex-col gap-3 hover:shadow-md transition-all min-h-64 cursor-pointer select-none ${
-        isActive ? "border-indigo-300 shadow-md ring-2 ring-indigo-100" : "border-slate-200"
+      className={`relative bg-white border rounded-md p-4 flex flex-col gap-3 transition-all min-h-64 cursor-pointer select-none ${
+        isActive ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200"
       }`}
     >
       <div className="flex items-start justify-between">

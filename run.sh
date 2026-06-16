@@ -5,13 +5,27 @@ trap 'kill $(jobs -p) 2>/dev/null; exit' INT TERM EXIT
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 MODE="${1:-dev}"
-if [[ "$MODE" != "dev" && "$MODE" != "prod" && "$MODE" != "deploy" ]]; then
-  echo "사용법: $0 [dev|prod|deploy [build [tag]]]"
+if [[ "$MODE" != "dev" && "$MODE" != "prod" && "$MODE" != "deploy" && "$MODE" != "docs" ]]; then
+  echo "사용법: $0 [dev|prod|docs|deploy [build [tag]]]"
   echo "  dev    — 개발 모드 (watch)"
   echo "  prod   — 프로덕션 빌드 + HAProxy(port 80) + Fail2Ban"
+  echo "  docs   — docs 통합 HTML/PDF 생성"
   echo "  deploy — k3s/ArgoCD/Grafana 설정 및 GitOps 매니페스트 적용"
   echo "  deploy build [tag] — Docker 이미지 로컬 빌드 후 k3s 에 직접 주입"
   exit 1
+fi
+
+# ── Docs 모드 ────────────────────────────────────────────────────────────────
+if [ "$MODE" = "docs" ]; then
+  echo "📚 docs 통합 HTML/PDF 생성 중..."
+
+  if [ ! -d "$ROOT/node_modules/markdown-it" ] || [ ! -d "$ROOT/node_modules/mermaid" ]; then
+    echo "📦 루트 node_modules 설치 중..."
+    cd "$ROOT" && npm install
+  fi
+
+  cd "$ROOT" && npm run docs:pdf
+  exit $?
 fi
 
 # ── Deploy 모드 (k3s) ────────────────────────────────────────────────────────

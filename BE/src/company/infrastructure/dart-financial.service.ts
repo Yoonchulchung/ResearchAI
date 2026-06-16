@@ -11,13 +11,29 @@ const CORP_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24시간
 
 export interface YearlyFinancial {
   year: number;
+  // 손익계산서
   revenue: number | null;
   revenueFormatted: string | null;
   operatingProfit: number | null;
   operatingProfitFormatted: string | null;
   netIncome: number | null;
   netIncomeFormatted: string | null;
-  operatingMargin: number | null;
+  operatingMargin: number | null;  // 영업이익률(%)
+  netIncomeMargin: number | null;  // 순이익률(%)
+  // 재무상태표
+  totalAssets: number | null;      // 자산총계(억)
+  totalLiabilities: number | null; // 부채총계(억)
+  totalEquity: number | null;      // 자본총계(억)
+  capitalAmount: number | null;    // 자본금(억)
+  currentAssets: number | null;    // 유동자산(억)
+  currentLiabilities: number | null; // 유동부채(억)
+  // 파생 비율
+  debtRatio: number | null;        // 부채비율(%) = 부채총계/자본총계*100
+  currentRatio: number | null;     // 유동비율(%) = 유동자산/유동부채*100
+  // 현금흐름
+  operatingCashFlow: number | null;   // 영업활동현금흐름(억)
+  investingCashFlow: number | null;   // 투자활동현금흐름(억)
+  financingCashFlow: number | null;   // 재무활동현금흐름(억)
 }
 
 export interface EmployeeDetail {
@@ -350,10 +366,18 @@ export class DartFinancialService {
       const find = (names: string[]) =>
         r.list!.find((item) => names.some((n) => item.account_nm.includes(n)))?.thstrm_amount ?? null;
 
-      const revenueRaw = find(['매출액', '수익(매출액)']);
-      const opRaw      = find(['영업이익', '영업손익']);
-      const niRaw      = find(['당기순이익', '당기순손익']);
-      const capitalRaw = find(['자본금']);
+      const revenueRaw           = find(['매출액', '수익(매출액)']);
+      const opRaw                = find(['영업이익', '영업손익']);
+      const niRaw                = find(['당기순이익', '당기순손익']);
+      const capitalRaw           = find(['자본금']);
+      const totalAssetsRaw       = find(['자산총계']);
+      const totalLiabilitiesRaw  = find(['부채총계']);
+      const totalEquityRaw       = find(['자본총계']);
+      const currentAssetsRaw     = find(['유동자산']);
+      const currentLiabRaw       = find(['유동부채']);
+      const opCashRaw            = find(['영업활동으로 인한 현금흐름', '영업활동현금흐름', '영업활동으로인한현금흐름']);
+      const invCashRaw           = find(['투자활동으로 인한 현금흐름', '투자활동현금흐름', '투자활동으로인한현금흐름']);
+      const finCashRaw           = find(['재무활동으로 인한 현금흐름', '재무활동현금흐름', '재무활동으로인한현금흐름']);
 
       const toEok = (raw: string | null) => {
         if (!raw) return null;
@@ -361,13 +385,23 @@ export class DartFinancialService {
         return isNaN(n) ? null : Math.round(n / 100_000_000);
       };
 
-      const revenue = toEok(revenueRaw);
-      const operatingProfit = toEok(opRaw);
-      const netIncome = toEok(niRaw);
-      const operatingMargin =
-        revenue && operatingProfit && revenue !== 0
-          ? Math.round((operatingProfit / revenue) * 1000) / 10
-          : null;
+      const revenue           = toEok(revenueRaw);
+      const operatingProfit   = toEok(opRaw);
+      const netIncome         = toEok(niRaw);
+      const totalAssets       = toEok(totalAssetsRaw);
+      const totalLiabilities  = toEok(totalLiabilitiesRaw);
+      const totalEquity       = toEok(totalEquityRaw);
+      const currentAssets     = toEok(currentAssetsRaw);
+      const currentLiabilities = toEok(currentLiabRaw);
+      const capitalAmount     = toEok(capitalRaw);
+
+      const pct = (a: number | null, b: number | null) =>
+        a != null && b != null && b !== 0 ? Math.round((a / b) * 1000) / 10 : null;
+
+      const operatingMargin   = pct(operatingProfit, revenue);
+      const netIncomeMargin   = pct(netIncome, revenue);
+      const debtRatio         = pct(totalLiabilities, totalEquity);
+      const currentRatio      = pct(currentAssets, currentLiabilities);
 
       // 가장 최신 연도의 자본금 저장
       if (capitalRaw) latestCapital = this.fmtAmount(capitalRaw);
@@ -381,6 +415,18 @@ export class DartFinancialService {
         netIncome,
         netIncomeFormatted: niRaw ? this.fmtAmount(niRaw) : null,
         operatingMargin,
+        netIncomeMargin,
+        totalAssets,
+        totalLiabilities,
+        totalEquity,
+        capitalAmount,
+        currentAssets,
+        currentLiabilities,
+        debtRatio,
+        currentRatio,
+        operatingCashFlow:  toEok(opCashRaw),
+        investingCashFlow:  toEok(invCashRaw),
+        financingCashFlow:  toEok(finCashRaw),
       });
     }
 

@@ -76,7 +76,6 @@ function CompaniesContent() {
 
   useEffect(() => {
     loadCompanies(query);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onlyAnalyzed]);
 
   useEffect(() => {
@@ -131,7 +130,7 @@ function CompaniesContent() {
   return (
     <main className={`h-full overflow-y-auto ${pageClass}`}>
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
-        <section className={`rounded-2xl border p-5 shadow-sm ${panelClass}`}>
+        <section className={`rounded-md border p-5 ${panelClass}`}>
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className={`text-sm font-semibold ${subtleText}`}>Companies</p>
@@ -142,7 +141,7 @@ function CompaniesContent() {
             </div>
             <button
               onClick={() => router.push("/companies/analysis")}
-              className={`w-fit rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
+              className={`w-fit rounded-md px-4 py-2 text-sm font-bold transition-colors ${
                 isDark ? "bg-white text-slate-950 hover:bg-white/90" : "bg-slate-950 text-white hover:bg-slate-800"
               }`}
             >
@@ -151,7 +150,7 @@ function CompaniesContent() {
           </div>
 
           <form onSubmit={handleSearch} className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <div className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl border px-4 py-3 ${
+            <div className={`flex min-w-0 flex-1 items-center gap-2 rounded-md border px-4 py-3 ${
               isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
             }`}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={subtleText}>
@@ -169,7 +168,7 @@ function CompaniesContent() {
               <button
                 type="button"
                 onClick={() => setOnlyAnalyzed((value) => !value)}
-                className={`rounded-xl border px-4 py-3 text-sm font-bold transition-colors ${
+                className={`rounded-md border px-4 py-3 text-sm font-bold transition-colors ${
                   onlyAnalyzed
                     ? "border-indigo-500 bg-indigo-600 text-white"
                     : isDark ? "border-white/10 text-white/70 hover:bg-white/5" : "border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -179,7 +178,7 @@ function CompaniesContent() {
               </button>
               <button
                 type="submit"
-                className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-indigo-700"
+                className="rounded-md bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-indigo-700"
               >
                 검색
               </button>
@@ -188,7 +187,7 @@ function CompaniesContent() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[15rem_1fr]">
-          <aside className={`flex flex-col gap-4 rounded-2xl border p-5 shadow-sm ${panelClass}`}>
+          <aside className={`flex flex-col gap-4 rounded-md border p-5 ${panelClass}`}>
             <div>
               <p className={`text-xs font-bold uppercase tracking-widest ${subtleText}`}>Summary</p>
               <div className="mt-5 space-y-4">
@@ -204,7 +203,7 @@ function CompaniesContent() {
             </div>
 
             {/* 결측치 현황 */}
-            <div className={`rounded-xl border p-4 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
+            <div className={`rounded-md border p-4 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
               <p className={`text-xs font-bold uppercase tracking-widest ${subtleText}`}>결측치</p>
               <div className="mt-3 space-y-2">
                 {missingStats ? (
@@ -230,7 +229,7 @@ function CompaniesContent() {
                 <button
                   onClick={handleRefreshAllMissing}
                   disabled={refreshing || missingStats?.missingCompanyType === 0}
-                  className={`w-full rounded-lg px-3 py-2 text-xs font-bold transition-colors disabled:opacity-50 ${
+                  className={`w-full rounded-md px-3 py-2 text-xs font-bold transition-colors disabled:opacity-50 ${
                     isDark ? "bg-indigo-500 text-white hover:bg-indigo-400" : "bg-indigo-600 text-white hover:bg-indigo-700"
                   }`}
                 >
@@ -239,7 +238,7 @@ function CompaniesContent() {
                 <button
                   onClick={handleStopRefresh}
                   disabled={refreshStopping}
-                  className={`w-full rounded-lg px-3 py-2 text-xs font-bold transition-colors disabled:opacity-50 ${
+                  className={`w-full rounded-md px-3 py-2 text-xs font-bold transition-colors disabled:opacity-50 ${
                     isDark ? "bg-white/10 text-white/60 hover:bg-white/15" : "bg-slate-200 text-slate-600 hover:bg-slate-300"
                   }`}
                 >
@@ -254,7 +253,7 @@ function CompaniesContent() {
             </div>
 
             {/* 공고 수집 큐 on/off */}
-            <div className={`rounded-xl border p-4 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
+            <div className={`rounded-md border p-4 ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
               <p className={`text-xs font-bold uppercase tracking-widest ${subtleText}`}>수집 큐</p>
               <div className="mt-3 flex items-center justify-between gap-3">
                 <div>
@@ -266,13 +265,13 @@ function CompaniesContent() {
                 <button
                   onClick={handleToggleCollect}
                   disabled={collectToggling}
-                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-sm transition-colors disabled:opacity-50 ${
                     collectEnabled ? "bg-indigo-600" : isDark ? "bg-white/20" : "bg-slate-300"
                   }`}
                   role="switch"
                   aria-checked={collectEnabled}
                 >
-                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                  <span className={`inline-block h-4 w-4 rounded-sm bg-white shadow transition-transform ${
                     collectEnabled ? "translate-x-6" : "translate-x-1"
                   }`} />
                 </button>
@@ -282,7 +281,7 @@ function CompaniesContent() {
             <EnrichQueueWidget />
           </aside>
 
-          <div className={`min-h-112 rounded-2xl border p-4 shadow-sm ${panelClass}`}>
+          <div className={`min-h-112 rounded-md border p-4 ${panelClass}`}>
             {loading ? (
               <div className={`flex h-64 items-center justify-center text-sm ${subtleText}`}>기업 목록을 불러오는 중...</div>
             ) : error ? (
@@ -292,7 +291,7 @@ function CompaniesContent() {
                 <p>조회된 기업이 없습니다.</p>
                 <button
                   onClick={() => router.push(query.trim() ? `/companies/analysis?company=${encodeURIComponent(query.trim())}` : "/companies/analysis")}
-                  className="rounded-lg bg-indigo-600 px-4 py-2 font-bold text-white"
+                  className="rounded-md bg-indigo-600 px-4 py-2 font-bold text-white"
                 >
                   새 기업 분석
                 </button>
@@ -311,7 +310,7 @@ function CompaniesContent() {
                         openCompany(company);
                       }
                     }}
-                    className={`flex min-h-48 cursor-pointer flex-col rounded-xl border p-4 transition-colors ${
+                    className={`flex min-h-48 cursor-pointer flex-col rounded-md border p-4 transition-colors ${
                       isDark ? "border-white/10 bg-white/5 hover:bg-white/10" : "border-slate-200 bg-white hover:bg-slate-50"
                     }`}
                   >
@@ -320,7 +319,7 @@ function CompaniesContent() {
                         <h2 className="truncate text-lg font-black">{company.name}</h2>
                         <p className={`mt-1 truncate text-sm ${subtleText}`}>{metadata(company)}</p>
                       </div>
-                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+                      <span className={`shrink-0 rounded-sm px-2.5 py-1 text-xs font-bold ${
                         company.hasAnalysis
                           ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200"
                           : isDark ? "bg-white/10 text-white/45" : "bg-slate-100 text-slate-500"
@@ -342,7 +341,7 @@ function CompaniesContent() {
                           event.stopPropagation();
                           openAnalysis(company);
                         }}
-                        className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
+                        className={`rounded-md px-3 py-2 text-xs font-bold transition-colors ${
                           company.hasAnalysis
                             ? "bg-indigo-600 text-white hover:bg-indigo-700"
                             : isDark ? "bg-white/10 text-white hover:bg-white/15" : "bg-slate-900 text-white hover:bg-slate-800"

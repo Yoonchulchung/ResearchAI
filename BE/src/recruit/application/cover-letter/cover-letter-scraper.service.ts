@@ -9,6 +9,8 @@ import {
   CoverLetterJobAnalysis,
   CoverLetterJobAnalysisRequest,
   CoverLetterListFilters,
+  CoverLetterQuestion,
+  CoverLetterQuestionSearchItem,
   JobCategory,
   JobCategoryTarget,
   ScrapeOptions,
@@ -20,6 +22,7 @@ import { CatchAuthService } from '../../../browse/infrastructure/auth/catch-auth
 import { requestContext } from '../../../shared/request-context';
 import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
 import { CoverLetterEntity } from '../../domain/cover-letter/entity/cover-letter.entity';
+import { CoverLetterQuestionEntity } from '../../domain/cover-letter/entity/cover-letter-question.entity';
 import { CoverLetterSpecAnalysisEntity } from '../../domain/cover-letter/entity/cover-letter-spec-analysis.entity';
 import { CompanyEntity } from '../../../company/domain/entity/company.entity';
 import { CompanyEnrichQueueService } from '../../../company/application/company-enrich-queue.service';
@@ -29,6 +32,19 @@ const JSONL_FILE = path.join(DATA_DIR, 'cover-letters.jsonl');
 const SPEC_ANALYSIS_MAX_ITEMS = 20;
 const SPEC_ANALYSIS_TOKEN_BUDGET = 120_000;
 const SPEC_ANALYSIS_ANSWER_PREVIEW_CHARS = 550;
+
+const QUESTION_TAG_RULES: Array<{ tag: string; patterns: RegExp[] }> = [
+  { tag: '성장과정', patterns: [/성장\s*과정/, /성장\s*배경/, /어린\s*시절/, /가정환경/, /인생관/, /가치관/] },
+  { tag: '지원동기', patterns: [/지원\s*동기/, /지원한\s*이유/, /관심을\s*갖게/, /왜\s*(?:우리|당사|귀사)/] },
+  { tag: '입사후포부', patterns: [/입사\s*후\s*포부/, /입사\s*후\s*계획/, /향후\s*계획/, /10년\s*후/, /비전/] },
+  { tag: '직무역량', patterns: [/직무\s*역량/, /전문성/, /강점/, /역량/, /능력/, /경쟁력/, /skill/i] },
+  { tag: '도전/실패', patterns: [/도전/, /실패/, /극복/, /어려움/, /난관/, /한계/, /위기/, /문제\s*해결/] },
+  { tag: '협업/갈등', patterns: [/협업/, /팀워크/, /갈등/, /소통/, /의견\s*차이/, /조율/, /협력/, /팀\s*프로젝트/] },
+  { tag: '리더십', patterns: [/리더십/, /주도/, /이끌/, /대표/, /책임자/, /팀장/, /initiative/i] },
+  { tag: '창의/개선', patterns: [/창의/, /개선/, /아이디어/, /혁신/, /효율/, /변화/, /제안/] },
+  { tag: '성과/경험', patterns: [/성과/, /경험/, /프로젝트/, /활동/, /인턴/, /공모전/, /수상/] },
+  { tag: '성격/장단점', patterns: [/성격/, /장점/, /단점/, /보완점/, /생활\s*신조/] },
+];
 
 type CatchCredentials = { id: string; password: string };
 type InternalScrapeOptions = ScrapeOptions & { catchCredentials?: CatchCredentials };
@@ -55,6 +71,8 @@ export class CoverLetterScraperService implements OnModuleInit {
     private readonly aiProvider: AiProviderService,
     @InjectRepository(CoverLetterEntity)
     private readonly coverLetterRepo: Repository<CoverLetterEntity>,
+    @InjectRepository(CoverLetterQuestionEntity)
+    private readonly questionRepo: Repository<CoverLetterQuestionEntity>,
     @InjectRepository(CoverLetterSpecAnalysisEntity)
     private readonly specAnalysisRepo: Repository<CoverLetterSpecAnalysisEntity>,
     @InjectRepository(CompanyEntity)
@@ -67,6 +85,7 @@ export class CoverLetterScraperService implements OnModuleInit {
   async onModuleInit() {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     await this.migrateJsonlToDb();
+    await this.backfillQuestionRows();
     await this.loadCollectedIdsFromDb();
     this.status.totalCollected = this.collectedIds.size;
   }
@@ -142,6 +161,11 @@ export class CoverLetterScraperService implements OnModuleInit {
     const jobCategory = filters.jobCategory?.trim();
 
     const qb = this.coverLetterRepo.createQueryBuilder('coverLetter');
+    if (filters.hidden === true) {
+      qb.andWhere('coverLetter.isHidden = :isHidden', { isHidden: true });
+    } else {
+      qb.andWhere('(coverLetter.isHidden = :isHidden OR coverLetter.isHidden IS NULL)', { isHidden: false });
+    }
     if (source && source !== 'all' && source !== '전체') {
       qb.andWhere('coverLetter.source = :source', { source });
     }
@@ -178,10 +202,76 @@ export class CoverLetterScraperService implements OnModuleInit {
   }
 
   async getById(id: string): Promise<CoverLetter | null> {
-    const entity = await this.coverLetterRepo.findOne({ where: { id } });
+    const entity = await this.coverLetterRepo.findOne({
+      where: { id },
+      relations: { questionItems: true },
+    });
     if (!entity) return null;
     const industryMap = await this.lookupIndustries([entity.company]);
     return this.toCoverLetter(entity, industryMap.get(entity.company));
+  }
+
+  async setHidden(id: string, isHidden: boolean): Promise<CoverLetter | null> {
+    const entity = await this.coverLetterRepo.findOne({ where: { id } });
+    if (!entity) return null;
+    entity.isHidden = isHidden;
+    await this.coverLetterRepo.save(entity);
+    return this.getById(id);
+  }
+
+  async searchQuestions(
+    query: string,
+    limit = 20,
+  ): Promise<{ items: CoverLetterQuestionSearchItem[]; total: number }> {
+    const search = this.normalizeSearchText(query);
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+    const qb = this.questionRepo
+      .createQueryBuilder('question')
+      .leftJoinAndSelect('question.coverLetter', 'coverLetter')
+      .orderBy('coverLetter.collectedAt', 'DESC')
+      .addOrderBy('question.number', 'ASC')
+      .take(safeLimit);
+    qb.andWhere('(coverLetter.isHidden = :isHidden OR coverLetter.isHidden IS NULL)', { isHidden: false });
+
+    if (search) {
+      qb.andWhere('question.searchText LIKE :search', { search: `%${search}%` });
+    }
+
+    const [rows, total] = await qb.getManyAndCount();
+    const companyNames = [...new Set(rows.map((row) => row.coverLetter?.company).filter(Boolean))] as string[];
+    const industryMap = await this.lookupIndustries(companyNames);
+    return {
+      items: rows
+        .filter((row) => row.coverLetter)
+        .map((row) => {
+          const coverLetter = this.toCoverLetter(row.coverLetter, industryMap.get(row.coverLetter.company));
+          const coverLetterSummary = {
+            id: coverLetter.id,
+            url: coverLetter.url,
+            source: coverLetter.source,
+            companyType: coverLetter.companyType,
+            jobCategory: coverLetter.jobCategory,
+            company: coverLetter.company,
+            position: coverLetter.position,
+            season: coverLetter.season,
+            spec: coverLetter.spec,
+            viewCount: coverLetter.viewCount,
+            collectedAt: coverLetter.collectedAt,
+            industry: coverLetter.industry,
+          };
+          return {
+            id: row.id,
+            coverLetterId: row.coverLetterId,
+            number: row.number,
+            question: row.question,
+            answer: row.answer,
+            keywords: this.parseJsonArray(row.keywords),
+            tags: this.parseJsonArray(row.tags),
+            coverLetter: coverLetterSummary,
+          };
+        }),
+      total,
+    };
   }
 
   async analyzeJobsWithAi(
@@ -193,6 +283,7 @@ export class CoverLetterScraperService implements OnModuleInit {
     const entities = idSet.size > 0
       ? await this.coverLetterRepo.find({ where: { id: In([...idSet]) } })
       : await this.coverLetterRepo.find({
+        where: { isHidden: false },
         order: { collectedAt: 'DESC', createdAt: 'DESC' },
         take: limit,
       });
@@ -374,6 +465,7 @@ export class CoverLetterScraperService implements OnModuleInit {
   private async saveCoverLetter(cl: CoverLetter) {
     const normalized = this.normalizeCoverLetterForView(cl);
     await this.coverLetterRepo.save(this.toEntity(normalized));
+    await this.saveQuestionRows(normalized);
     this.collectedIds.add(cl.id);
     if (cl.company?.trim()) {
       const normalizedName = this.normalizeCompanyName(cl.company);
@@ -435,18 +527,60 @@ export class CoverLetterScraperService implements OnModuleInit {
       viewCount: normalized.viewCount ?? null,
       questions: JSON.stringify(normalized.questions ?? []),
       searchText: this.buildSearchText(normalized),
+      isHidden: normalized.isHidden ?? false,
       collectedAt: this.parseDate(normalized.collectedAt),
     });
   }
 
-  private toCoverLetter(entity: CoverLetterEntity, industry?: string | null): CoverLetter {
-    let questions: CoverLetter['questions'] = [];
-    try {
-      const parsed = JSON.parse(entity.questions || '[]');
-      questions = Array.isArray(parsed) ? parsed : [];
-    } catch {
-      questions = [];
+  private toQuestionEntities(item: CoverLetter): CoverLetterQuestionEntity[] {
+    return (item.questions ?? []).map((question, index) => {
+      const number = Number(question.number) || index + 1;
+      const tags = this.classifyQuestionTags(question);
+      const keywords = this.extractQuestionKeywords(question, tags);
+      return this.questionRepo.create({
+        id: `${item.id}:${index + 1}`,
+        coverLetterId: item.id,
+        number,
+        question: question.question ?? '',
+        answer: question.answer ?? '',
+        tags: JSON.stringify(tags),
+        keywords: JSON.stringify(keywords),
+        searchText: this.normalizeSearchText([
+          item.company,
+          item.position,
+          item.season,
+          item.spec,
+          question.question,
+          question.answer,
+          ...tags,
+          ...keywords,
+        ].filter(Boolean).join('\n')),
+      });
+    });
+  }
+
+  private async saveQuestionRows(item: CoverLetter): Promise<void> {
+    await this.questionRepo.delete({ coverLetterId: item.id });
+    const entities = this.toQuestionEntities(item);
+    if (entities.length > 0) {
+      await this.questionRepo.save(entities);
     }
+  }
+
+  private toCoverLetter(entity: CoverLetterEntity, industry?: string | null): CoverLetter {
+    const relationQuestions = (entity.questionItems ?? [])
+      .slice()
+      .sort((a, b) => a.number - b.number)
+      .map((question): CoverLetterQuestion => ({
+        number: question.number,
+        question: question.question,
+        answer: question.answer,
+        keywords: this.parseJsonArray(question.keywords),
+        tags: this.parseJsonArray(question.tags),
+      }));
+    const questions = relationQuestions.length > 0
+      ? relationQuestions
+      : this.parseLegacyQuestions(entity.questions);
 
     return this.normalizeCoverLetterForView({
       id: entity.id,
@@ -459,6 +593,7 @@ export class CoverLetterScraperService implements OnModuleInit {
       season: entity.season,
       spec: entity.spec,
       viewCount: entity.viewCount ?? undefined,
+      isHidden: entity.isHidden,
       questions,
       collectedAt: entity.collectedAt.toISOString(),
       industry: industry ?? null,
@@ -476,6 +611,48 @@ export class CoverLetterScraperService implements OnModuleInit {
       item.spec,
       ...item.questions.flatMap((question) => [question.question, question.answer]),
     ].filter(Boolean).join('\n'));
+  }
+
+  private parseLegacyQuestions(value?: string | null): CoverLetterQuestion[] {
+    try {
+      const parsed = JSON.parse(value || '[]');
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map((question, index) => {
+        const normalized: CoverLetterQuestion = {
+          number: Number(question?.number) || index + 1,
+          question: question?.question ?? '',
+          answer: question?.answer ?? '',
+        };
+        const tags = this.classifyQuestionTags(normalized);
+        return {
+          ...normalized,
+          tags,
+          keywords: this.extractQuestionKeywords(normalized, tags),
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  private classifyQuestionTags(question: Pick<CoverLetterQuestion, 'question' | 'answer'>): string[] {
+    const text = `${question.question ?? ''}\n${question.answer ?? ''}`;
+    return QUESTION_TAG_RULES
+      .filter((rule) => rule.patterns.some((pattern) => pattern.test(text)))
+      .map((rule) => rule.tag);
+  }
+
+  private extractQuestionKeywords(
+    question: Pick<CoverLetterQuestion, 'question' | 'answer'>,
+    tags: string[],
+  ): string[] {
+    const text = `${question.question ?? ''}\n${question.answer ?? ''}`;
+    const words = text
+      .match(/[가-힣A-Za-z0-9+#.]{2,}/g)
+      ?.map((word) => word.toLowerCase())
+      .filter((word) => !/^(그리고|하지만|입니다|합니다|있는|없는|제가|저는|이를|통해|대한|위해|에서|으로|하게|되어|하며|또한)$/.test(word))
+      .slice(0, 80) ?? [];
+    return [...new Set([...tags, ...words])].slice(0, 80);
   }
 
   private parseDate(value?: string | Date | null): Date {
@@ -619,9 +796,15 @@ ${JSON.stringify(rows, null, 2)}
     return raw.trim();
   }
 
-  private parseJsonArray(val: string | null): string[] {
-    if (!val) return [];
-    try { const a = JSON.parse(val); return Array.isArray(a) ? a : []; } catch { return []; }
+  private parseJsonArray(value?: string | null): string[] {
+    try {
+      const parsed = JSON.parse(value || '[]');
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === 'string')
+        : [];
+    } catch {
+      return [];
+    }
   }
 
   private entityToJobAnalysis(row: CoverLetterSpecAnalysisEntity): CoverLetterJobAnalysis {
@@ -762,6 +945,29 @@ ${JSON.stringify(rows, null, 2)}
       updated += chunk.length;
     }
     this.logger.log(`백필 완료: ${updated}건 jobCategory 분류`);
+    return { updated };
+  }
+
+  async backfillQuestionRows(): Promise<{ updated: number }> {
+    const rows = await this.coverLetterRepo.find();
+    if (rows.length === 0) return { updated: 0 };
+
+    await this.questionRepo.clear();
+
+    let updated = 0;
+    const chunkSize = 50;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const questionRows = chunk.flatMap((row) => {
+        const item = this.toCoverLetter(row);
+        return this.toQuestionEntities(item);
+      });
+      if (questionRows.length > 0) {
+        await this.questionRepo.save(questionRows);
+        updated += questionRows.length;
+      }
+    }
+    if (updated > 0) this.logger.log(`합격 자소서 문항 ${updated}건을 분리 테이블로 백필`);
     return { updated };
   }
 

@@ -126,6 +126,7 @@ export interface CompanyProfile {
 
 export interface YearlyFinancial {
   year: number;
+  // 손익계산서
   revenue: number | null;
   revenueFormatted: string | null;
   operatingProfit: number | null;
@@ -133,6 +134,21 @@ export interface YearlyFinancial {
   netIncome: number | null;
   netIncomeFormatted: string | null;
   operatingMargin: number | null;
+  netIncomeMargin: number | null;
+  // 재무상태표
+  totalAssets: number | null;
+  totalLiabilities: number | null;
+  totalEquity: number | null;
+  capitalAmount: number | null;
+  currentAssets: number | null;
+  currentLiabilities: number | null;
+  // 파생 비율
+  debtRatio: number | null;
+  currentRatio: number | null;
+  // 현금흐름
+  operatingCashFlow: number | null;
+  investingCashFlow: number | null;
+  financingCashFlow: number | null;
 }
 
 export interface CompanyAnalysis {

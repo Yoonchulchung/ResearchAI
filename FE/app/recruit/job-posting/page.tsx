@@ -28,7 +28,7 @@ function JobPostingPageContent() {
 
   return (
     <div className={`h-full flex flex-col overflow-hidden transition-all ${isGlass ? "p-3 bg-transparent" : isDark ? "bg-slate-900 text-white" : "bg-[#F4F5F7] text-slate-900"}`}>
-      <div className={isGlass ? `glass-panel rounded-2xl shadow-xl border overflow-hidden flex-1 flex flex-col min-h-0 ${isDark ? "border-white/20" : "border-black/5"}` : "flex-1 flex flex-col min-h-0 overflow-hidden"}>
+      <div className={isGlass ? `glass-panel rounded-md border overflow-hidden flex-1 flex flex-col min-h-0 ${isDark ? "border-white/20" : "border-black/5"}` : "flex-1 flex flex-col min-h-0 overflow-hidden"}>
         <JobHeader
           total={posts.total}
           selected={posts.selected}

@@ -14,6 +14,23 @@
 
 ---
 
+## 통합 PDF 생성
+
+`docs` 아래의 Markdown 문서를 분류별 제목과 목차가 포함된 하나의 인쇄용 문서로 생성합니다.
+
+```bash
+npm run docs:pdf
+```
+
+출력 파일:
+
+- `docs/generated/ResearchAI-docs.html`
+- `docs/generated/ResearchAI-docs.pdf`
+
+PDF 변환은 로컬 Chrome/Chromium의 headless print 기능을 사용합니다. Chrome을 찾지 못하면 HTML까지만 생성됩니다.
+
+---
+
 ## 기술 스택
 
 ```
@@ -65,7 +82,7 @@ Local AI  Ollama                   :11434
 | [feature/README.md](feature/README.md) | 기능 명세 인덱스 |
 | [feature/common/README.md](feature/common/README.md) | 공통 UX, 인증, 권한, API 통신 |
 | [feature/dashboard/README.md](feature/dashboard/README.md) | 메인 대시보드, 검색 진입 |
-| [feature/research/README.md](feature/research/README.md) | 리서치 세션, Light/Deep Research, RAG 채팅 |
+| [feature/search/README.md](feature/search/README.md) | 리서치 세션, Light/Deep Research, RAG 채팅 |
 | [feature/recruit/README.md](feature/recruit/README.md) | 채용 공고, 이력서, 자기소개서, 문서 파싱 |
 | [feature/company/README.md](feature/company/README.md) | 기업 목록, 상세, 분석, 정보 보강 |
 | [feature/news/README.md](feature/news/README.md) | 뉴스, 논문, 기술 블로그, AI 리더보드 |
@@ -80,11 +97,20 @@ Local AI  Ollama                   :11434
 | [pipelines/light-research.md](pipelines/light-research.md) | Light Research — 태스크 목록 자동 생성 |
 | [pipelines/deep-research.md](pipelines/deep-research.md) | Deep Research — 태스크별 심층 분석 |
 | [pipelines/chat-rag.md](pipelines/chat-rag.md) | RAG 채팅 파이프라인 |
+| [pipelines/summary.md](pipelines/summary.md) | 요약 작업 파이프라인 |
 
-### 기능 상세
+### 참조
 
 | 파일 | 설명 |
 |------|------|
-| [auth.md](auth.md) | 인증(JWT), 역할(visitor/admin), 사용자별 API 키 |
-| [ai-providers.md](ai-providers.md) | AI 프로바이더 멀티-폴백 체인, 요금 정보 |
-| [api-reference.md](api-reference.md) | REST API 엔드포인트 레퍼런스 |
+| [reference/auth.md](reference/auth.md) | 인증(JWT), 역할(visitor/admin), 사용자별 API 키 |
+| [reference/ai-providers.md](reference/ai-providers.md) | AI 프로바이더 멀티-폴백 체인, 요금 정보 |
+| [reference/api-reference.md](reference/api-reference.md) | REST API 엔드포인트 레퍼런스 |
+| [desktop/desktop-app.md](desktop/desktop-app.md) | macOS 데스크탑 앱 전환 설계 |
+
+### Legacy
+
+| 파일 | 설명 |
+|------|------|
+| [legacy/architecture.md](legacy/architecture.md) | 이전 단일 아키텍처 문서 |
+| [legacy/frontend.md](legacy/frontend.md) | 이전 단일 프론트엔드 문서 |

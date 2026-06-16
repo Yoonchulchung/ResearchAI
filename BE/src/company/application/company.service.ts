@@ -32,6 +32,7 @@ interface EnrichResult {
   homeUrl: string | null;
   ceoName: string | null;
   corpCode: string | null;
+  stockCode: string | null;
   industry: string | null;
   dartUrl: string | null;
   source: string;
@@ -48,6 +49,7 @@ export interface CompanyListItem {
   homeUrl: string | null;
   ceoName: string | null;
   corpCode: string | null;
+  stockCode: string | null;
   industry: string | null;
   source: string | null;
   sources: string[];
@@ -57,6 +59,23 @@ export interface CompanyListItem {
   analysisSummary: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface CompanyStockQuote {
+  symbol: string | null;
+  stockCode: string | null;
+  companyName: string;
+  currency: string | null;
+  exchangeName: string | null;
+  regularMarketPrice: number | null;
+  previousClose: number | null;
+  change: number | null;
+  changePercent: number | null;
+  chart: { date: string; open: number | null; high: number | null; low: number | null; close: number; volume: number | null }[];
+  interval: string;
+  source: string;
+  fetchedAt: string;
+  error?: string;
 }
 
 export interface CompanySlimItem {
@@ -160,6 +179,17 @@ export class CompanyService {
       : items;
   }
 
+  /** DART financial 엔티티에 저장된 종목코드 반환 (stock/KRX 조회에 사용) */
+  async findStockCode(idOrName: string): Promise<string | null> {
+    const normalized = this.normalizeName(idOrName);
+    const company = await this.repo.findOne({
+      where: [{ id: idOrName }, { normalizedName: normalized }, { name: idOrName }],
+    });
+    if (!company) return null;
+    const financial = await this.financialRepo.findOne({ where: { companyId: company.id } });
+    return financial?.stockCode?.trim() || null;
+  }
+
   async findCompany(idOrName: string): Promise<CompanyListItem | null> {
     const normalized = this.normalizeName(idOrName);
     const company = await this.repo.findOne({
@@ -172,6 +202,60 @@ export class CompanyService {
       order: { updatedAt: 'DESC' },
     });
     return this.toListItem(company, analysis ?? null);
+  }
+
+  async getStockQuote(idOrName: string, interval: string = '1d'): Promise<CompanyStockQuote> {
+    const normalized = this.normalizeName(idOrName);
+    const company = await this.repo.findOne({
+      where: [{ id: idOrName }, { normalizedName: normalized }, { name: idOrName }],
+    });
+    if (!company) throw new NotFoundException('기업을 찾을 수 없습니다.');
+
+    const financial = await this.financialRepo.findOne({ where: { companyId: company.id } });
+    const stockCode = financial?.stockCode ?? null;
+    const fetchedAt = new Date().toISOString();
+
+    if (!stockCode?.trim()) {
+      return {
+        symbol: null,
+        stockCode: null,
+        companyName: company.name,
+        currency: null,
+        exchangeName: null,
+        regularMarketPrice: null,
+        previousClose: null,
+        change: null,
+        changePercent: null,
+        chart: [],
+        interval,
+        source: 'Yahoo Finance',
+        fetchedAt,
+        error: '저장된 종목코드가 없습니다.',
+      };
+    }
+
+    const candidates = this.stockSymbolCandidates(stockCode);
+    for (const symbol of candidates) {
+      const quote = await this.fetchYahooChart(symbol, company.name, stockCode, fetchedAt, interval).catch(() => null);
+      if (quote && quote.regularMarketPrice != null) return quote;
+    }
+
+    return {
+      symbol: candidates[0] ?? stockCode,
+      stockCode,
+      companyName: company.name,
+      currency: null,
+      exchangeName: null,
+      regularMarketPrice: null,
+      previousClose: null,
+      change: null,
+      changePercent: null,
+      chart: [],
+      interval,
+      source: 'Yahoo Finance',
+      fetchedAt,
+      error: '주식 데이터를 가져오지 못했습니다.',
+    };
   }
 
   async refreshMissing(idOrName: string, { force = false, signal }: { force?: boolean; signal?: AbortSignal } = {}): Promise<CompanyListItem> {
@@ -695,6 +779,7 @@ export class CompanyService {
       homeUrl: company.homeUrl,
       ceoName: company.ceoName,
       corpCode: company.corpCode,
+      stockCode: null,
       industry: company.industry ?? null,
       source: company.source,
       sources: this.parseSources(company.sources),
@@ -704,6 +789,149 @@ export class CompanyService {
       analysisSummary: analysis?.summary ?? null,
       createdAt: company.createdAt,
       updatedAt: company.updatedAt,
+    };
+  }
+
+  private stockSymbolCandidates(stockCode: string): string[] {
+    const code = stockCode.trim();
+    if (!code) return [];
+    if (/[.]/.test(code) || /[A-Za-z]/.test(code)) return [code.toUpperCase()];
+    const sixDigit = code.padStart(6, '0');
+    return [`${sixDigit}.KS`, `${sixDigit}.KQ`, sixDigit];
+  }
+
+  private intervalConfig(interval: string): { yahooInterval: string; range: string; aggregate: number } {
+    switch (interval) {
+      case '15m': return { yahooInterval: '15m', range: '5d', aggregate: 1 };
+      case '1h':  return { yahooInterval: '60m', range: '1mo', aggregate: 1 };
+      case '4h':  return { yahooInterval: '60m', range: '1mo', aggregate: 4 };
+      case '1w':  return { yahooInterval: '1wk', range: '1y', aggregate: 1 };
+      default:    return { yahooInterval: '1d', range: '3mo', aggregate: 1 };
+    }
+  }
+
+  private formatCandleDate(timestamp: number, intraday: boolean): string {
+    const d = new Date(timestamp * 1000);
+    if (!intraday) return d.toISOString().slice(0, 10);
+    // KST = UTC+9
+    const kst = new Date(d.getTime() + 9 * 3600 * 1000);
+    return kst.toISOString().slice(0, 16).replace('T', ' ');
+  }
+
+  private async fetchYahooChart(
+    symbol: string,
+    companyName: string,
+    stockCode: string,
+    fetchedAt: string,
+    interval: string = '1d',
+  ): Promise<CompanyStockQuote> {
+    const { yahooInterval, range, aggregate } = this.intervalConfig(interval);
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${yahooInterval}`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 ResearchAI/1.0', Accept: 'application/json' },
+    });
+    if (!response.ok) throw new Error(`Yahoo Finance 응답 오류: ${response.status}`);
+
+    const payload = await response.json() as {
+      chart?: {
+        result?: Array<{
+          meta?: {
+            currency?: string;
+            exchangeName?: string;
+            regularMarketPrice?: number;
+            previousClose?: number;
+            chartPreviousClose?: number;
+          };
+          timestamp?: number[];
+          indicators?: {
+            quote?: Array<{
+              open?: Array<number | null>;
+              high?: Array<number | null>;
+              low?: Array<number | null>;
+              close?: Array<number | null>;
+              volume?: Array<number | null>;
+            }>;
+          };
+        }>;
+      };
+    };
+
+    const result = payload.chart?.result?.[0];
+    if (!result) throw new Error('Yahoo Finance 데이터 없음');
+
+    const meta = result.meta ?? {};
+    const previousClose = meta.previousClose ?? meta.chartPreviousClose ?? null;
+    const regularMarketPrice = typeof meta.regularMarketPrice === 'number' ? meta.regularMarketPrice : null;
+    const change = regularMarketPrice != null && previousClose != null ? regularMarketPrice - previousClose : null;
+    const changePercent = change != null && previousClose ? (change / previousClose) * 100 : null;
+
+    const q        = result.indicators?.quote?.[0] ?? {};
+    const opens    = q.open   ?? [];
+    const highs    = q.high   ?? [];
+    const lows     = q.low    ?? [];
+    const closes   = q.close  ?? [];
+    const volumes  = q.volume ?? [];
+    const timestamps = result.timestamp ?? [];
+    const intraday = ['15m', '1h', '4h'].includes(interval);
+
+    const num = (arr: Array<number | null | undefined>, i: number): number | null => {
+      const v = arr[i];
+      return typeof v === 'number' ? v : null;
+    };
+
+    type Candle = { date: string; open: number | null; high: number | null; low: number | null; close: number; volume: number | null };
+
+    const raw: Candle[] = timestamps
+      .map((ts, i) => {
+        const close = closes[i];
+        if (typeof close !== 'number') return null;
+        return {
+          date:   this.formatCandleDate(ts, intraday),
+          open:   num(opens,   i),
+          high:   num(highs,   i),
+          low:    num(lows,    i),
+          close,
+          volume: num(volumes, i),
+        };
+      })
+      .filter((c): c is Candle => c !== null);
+
+    // 4h 집계: 1h 캔들 4개씩 묶기
+    const chart: Candle[] =
+      aggregate > 1
+        ? raw.reduce<Candle[]>((acc, candle, i) => {
+            if (i % aggregate === 0) {
+              const group = raw.slice(i, i + aggregate);
+              const vol = group.reduce<number | null>((s, g) => (g.volume != null ? (s ?? 0) + g.volume : s), null);
+              const highs2 = group.map((g) => g.high).filter((v): v is number => v != null);
+              const lows2  = group.map((g) => g.low).filter((v): v is number => v != null);
+              acc.push({
+                date:   candle.date,
+                open:   candle.open,
+                high:   highs2.length ? Math.max(...highs2) : null,
+                low:    lows2.length  ? Math.min(...lows2)  : null,
+                close:  group[group.length - 1].close,
+                volume: vol,
+              });
+            }
+            return acc;
+          }, [])
+        : raw;
+
+    return {
+      symbol,
+      stockCode,
+      companyName,
+      currency: meta.currency ?? null,
+      exchangeName: meta.exchangeName ?? null,
+      regularMarketPrice,
+      previousClose,
+      change,
+      changePercent,
+      chart,
+      interval,
+      source: 'Yahoo Finance',
+      fetchedAt,
     };
   }
 }

@@ -30,6 +30,23 @@ export interface CompanySlimItem {
   companyType: string | null;
 }
 
+export interface CompanyStockQuote {
+  symbol: string | null;
+  stockCode: string | null;
+  companyName: string;
+  currency: string | null;
+  exchangeName: string | null;
+  regularMarketPrice: number | null;
+  previousClose: number | null;
+  change: number | null;
+  changePercent: number | null;
+  chart: { date: string; open: number | null; high: number | null; low: number | null; close: number; volume: number | null }[];
+  interval: string;
+  source: string;
+  fetchedAt: string;
+  error?: string;
+}
+
 export async function listCompanies(params?: {
   q?: string;
   hasAnalysis?: boolean;
@@ -55,6 +72,10 @@ export async function listCompaniesSlim(params?: {
 
 export async function getCompany(id: string): Promise<CompanyListItem | null> {
   return apiFetch<CompanyListItem | null>(`/companies/${encodeURIComponent(id)}`);
+}
+
+export async function getCompanyStock(id: string, interval = '1d'): Promise<CompanyStockQuote> {
+  return apiFetch<CompanyStockQuote>(`/companies/${encodeURIComponent(id)}/stock?interval=${interval}`);
 }
 
 export async function refreshCompanyMissing(id: string): Promise<CompanyListItem> {
@@ -89,6 +110,40 @@ export interface CompanyMissingRefreshStatus {
 
 export async function getMissingRefreshStatus(): Promise<CompanyMissingRefreshStatus> {
   return apiFetch<CompanyMissingRefreshStatus>("/companies/refresh-all-missing/status");
+}
+
+export interface CompanyNewsItem {
+  id?: string;
+  title: string;
+  url: string;
+  snippet: string;
+  fetchedAt?: string;
+}
+
+export async function getCompanyNews(id: string, limit = 12): Promise<CompanyNewsItem[]> {
+  return apiFetch<CompanyNewsItem[]>(`/companies/${encodeURIComponent(id)}/news?limit=${limit}`);
+}
+
+export async function getSavedCompanyNews(id: string, limit = 50): Promise<CompanyNewsItem[]> {
+  return apiFetch<CompanyNewsItem[]>(`/companies/${encodeURIComponent(id)}/news/saved?limit=${limit}`);
+}
+
+export interface InvestorTradingRecord {
+  date: string;
+  individual: number | null;
+  foreign: number | null;
+  institutional: number | null;
+}
+
+export interface InvestorTradingData {
+  stockCode: string | null;
+  records: InvestorTradingRecord[];
+  source: string;
+  error?: string;
+}
+
+export async function getCompanyInvestorTrading(id: string, days = 30): Promise<InvestorTradingData> {
+  return apiFetch<InvestorTradingData>(`/companies/${encodeURIComponent(id)}/investor-trading?days=${days}`);
 }
 
 export async function getCompanyCollectEnabled(): Promise<boolean> {

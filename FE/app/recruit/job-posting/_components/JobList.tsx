@@ -29,9 +29,9 @@ export function JobList({ items, loading, selected, search, externalSearchLoadin
       <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6 bg-white dark:bg-slate-900/40">
         {/* 회전 서클 + 돋보기 아이콘 */}
         <div className="relative flex items-center justify-center w-20 h-20">
-          <div className="absolute inset-0 rounded-full border-2 border-indigo-100 dark:border-indigo-900/60" />
+          <div className="absolute inset-0 rounded-sm border-2 border-indigo-100 dark:border-indigo-900/60" />
           <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-indigo-500 animate-spin" />
-          <div className="absolute inset-1 rounded-full border border-transparent border-t-indigo-300/50 animate-[spin_2s_linear_infinite_reverse]" />
+          <div className="absolute inset-1 rounded-sm border border-transparent border-t-indigo-300/50 animate-[spin_2s_linear_infinite_reverse]" />
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-indigo-500 dark:text-indigo-400">
             <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
             <path d="M16.5 16.5L21 21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -49,12 +49,12 @@ export function JobList({ items, loading, selected, search, externalSearchLoadin
         </div>
 
         {/* 수집 카운터 */}
-        <div className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-sm transition-all ${
           externalSearchCount > 0
             ? "bg-indigo-50 dark:bg-indigo-950/50"
             : "bg-slate-50 dark:bg-white/5"
         }`}>
-          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-sm bg-indigo-400 animate-pulse" />
           <span className="text-xs font-bold tabular-nums text-indigo-600 dark:text-indigo-300">
             {externalSearchCount > 0 ? `${externalSearchCount}건 수집됨` : "사이트 연결 중..."}
           </span>
@@ -65,7 +65,7 @@ export function JobList({ items, loading, selected, search, externalSearchLoadin
           {[0, 150, 300].map((delay) => (
             <span
               key={delay}
-              className="w-1.5 h-1.5 rounded-full bg-indigo-300 dark:bg-indigo-600 animate-bounce"
+              className="w-1.5 h-1.5 rounded-sm bg-indigo-300 dark:bg-indigo-600 animate-bounce"
               style={{ animationDelay: `${delay}ms` }}
             />
           ))}
@@ -79,8 +79,8 @@ export function JobList({ items, loading, selected, search, externalSearchLoadin
       {/* 결과 있을 때 상단 프로그레스 바 */}
       {externalSearchLoading && items.length > 0 && (
         <div className="shrink-0 px-3 py-2 bg-indigo-50 dark:bg-indigo-950/40 border-b border-indigo-100 dark:border-indigo-900/50 flex items-center gap-2.5">
-          <div className="relative flex-1 h-1 rounded-full bg-indigo-100 dark:bg-indigo-900/60 overflow-hidden">
-            <div className="absolute inset-y-0 left-0 bg-indigo-500 rounded-full animate-[indeterminate_1.5s_ease-in-out_infinite]" style={{ width: "40%" }} />
+          <div className="relative flex-1 h-1 rounded-sm bg-indigo-100 dark:bg-indigo-900/60 overflow-hidden">
+            <div className="absolute inset-y-0 left-0 bg-indigo-500 rounded-sm animate-[indeterminate_1.5s_ease-in-out_infinite]" style={{ width: "40%" }} />
           </div>
           <span className="shrink-0 text-xs font-semibold text-indigo-600 dark:text-indigo-300 tabular-nums">
             {externalSearchCount > 0 ? `+${externalSearchCount}건 수집 중` : "검색 중..."}
@@ -99,7 +99,7 @@ export function JobList({ items, loading, selected, search, externalSearchLoadin
           {keyword && (
             <button
               onClick={() => onExternalSearch(keyword)}
-              className="px-4 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+              className="px-4 py-2 text-xs font-bold rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
             >
               &ldquo;{keyword}&rdquo; 외부 사이트에서 검색
             </button>
@@ -158,7 +158,7 @@ export function JobList({ items, loading, selected, search, externalSearchLoadin
               type="button"
               onClick={(e) => onToggleFavorite(p, e)}
               aria-label={p.favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
-              className={`shrink-0 p-1.5 rounded-lg transition-colors ${
+              className={`shrink-0 p-1.5 rounded-md transition-colors ${
                 p.favorite ? "text-amber-500 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400" : "text-slate-300 hover:text-amber-500 hover:bg-amber-50 dark:text-slate-600 dark:hover:text-amber-400"
               }`}
             >
@@ -181,7 +181,7 @@ export function JobList({ items, loading, selected, search, externalSearchLoadin
                   {p.location}
                 </span>
               )}
-              {p.location && p.deadline && <span className="w-0.5 h-0.5 rounded-full bg-slate-300 dark:bg-slate-750" />}
+              {p.location && p.deadline && <span className="w-0.5 h-0.5 rounded-sm bg-slate-300 dark:bg-slate-750" />}
               {p.deadline && (
                 <span className="flex items-center gap-1">
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="none">

@@ -2,6 +2,8 @@ import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { CompanyMissingRefreshService } from '../../queue/application/company-missing-refresh.service';
 import { CompanyEnrichQueueService } from '../application/company-enrich-queue.service';
 import { CompanyService } from '../application/company.service';
+import { CompanyInvestorTradingService } from '../infrastructure/company-investor-trading.service';
+import { CompanyNewsService } from '../infrastructure/company-news.service';
 import { SystemSettingsService } from '../../shared/application/system-settings.service';
 
 @Controller('companies')
@@ -11,6 +13,8 @@ export class CompanyController {
     private readonly missingRefresh: CompanyMissingRefreshService,
     private readonly enrichQueue: CompanyEnrichQueueService,
     private readonly systemSettings: SystemSettingsService,
+    private readonly companyNews: CompanyNewsService,
+    private readonly investorTrading: CompanyInvestorTradingService,
   ) {}
 
   @Get()
@@ -65,6 +69,30 @@ export class CompanyController {
   async setCollectEnabled(@Body() body: { enabled: boolean }) {
     await this.systemSettings.setCompanyCollectEnabled(body.enabled);
     return { enabled: body.enabled };
+  }
+
+  @Get(':id/stock')
+  getCompanyStock(@Param('id') id: string, @Query('interval') interval?: string) {
+    return this.companyService.getStockQuote(id, interval ?? '1d');
+  }
+
+  @Get(':id/investor-trading')
+  async getInvestorTrading(@Param('id') id: string, @Query('days') days?: string) {
+    return this.investorTrading.getDailyInvestorTrading(id, days ? Number(days) : 30);
+  }
+
+  /** 실시간 수집 + DB 자동 저장 */
+  @Get(':id/news')
+  async getCompanyNews(@Param('id') id: string, @Query('limit') limit?: string) {
+    const company = await this.companyService.findCompany(id);
+    if (!company) return [];
+    return this.companyNews.fetchAndSaveNews(id, company.name, limit ? Number(limit) : 12);
+  }
+
+  /** DB에 저장된 뉴스 목록 조회 */
+  @Get(':id/news/saved')
+  async getSavedNews(@Param('id') id: string, @Query('limit') limit?: string) {
+    return this.companyNews.getSavedNews(id, limit ? Number(limit) : 50);
   }
 
   @Get(':id')

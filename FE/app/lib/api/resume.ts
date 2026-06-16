@@ -26,23 +26,47 @@ export interface ResumePrize {
   description?: string | null;
 }
 
+export interface ResumeTraining {
+  id: string;
+  title: string;
+  institution: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  hours?: string | null;
+  description?: string | null;
+}
+
 export interface ResumeTarget {
   id: string;
   companyName: string;
   jobTitle: string;
   appliedAt?: string;
+  updatedAt?: string;
+  isDeleted?: boolean;
   jd: string;
+  interviewScript?: string | null;
   selfIntroductions: ResumeSelfIntro[];
   experiences?: ResumeExperience[];
   prizes?: ResumePrize[];
+  trainings?: ResumeTraining[];
 }
 
 export interface ResumeProfile {
   resumeTargets: ResumeTarget[];
 }
 
-export async function getResume(): Promise<ResumeProfile | null> {
-  const res = await apiFetch<{ resume: ResumeTarget[] } | null>("/resume");
+export async function getResume(ids?: string | string[]): Promise<ResumeProfile | null> {
+  const idList = Array.isArray(ids) ? ids : ids ? [ids] : [];
+  const query = idList.length > 0
+    ? `?ids=${encodeURIComponent(idList.join(","))}`
+    : "";
+  const res = await apiFetch<{ resume: ResumeTarget[] } | null>(`/resume${query}`);
+  if (!res) return null;
+  return { resumeTargets: res.resume ?? [] };
+}
+
+export async function getDeletedResumes(): Promise<ResumeProfile | null> {
+  const res = await apiFetch<{ resume: ResumeTarget[] } | null>("/resume?deleted=true");
   if (!res) return null;
   return { resumeTargets: res.resume ?? [] };
 }
@@ -64,6 +88,78 @@ export async function saveResume(
 
 export async function deleteResume(id: string): Promise<{ ok: boolean }> {
   return apiFetch<{ ok: boolean }>(`/resume/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function restoreResume(id: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/resume/${encodeURIComponent(id)}/restore`, { method: "POST" });
+}
+
+export async function permanentlyDeleteResume(id: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/resume/${encodeURIComponent(id)}/permanent`, { method: "DELETE" });
+}
+
+export async function fetchResumePdf(id: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/resume/${encodeURIComponent(id)}/pdf`, {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("이력서 PDF 생성에 실패했습니다.");
+  return res.blob();
+}
+
+export async function updateResumeInterviewScript(
+  resumeId: string,
+  interviewScript: string,
+): Promise<{ interviewScript: string }> {
+  return apiFetch<{ interviewScript: string }>(
+    `/resume/${encodeURIComponent(resumeId)}/interview-script`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ interviewScript }),
+    },
+  );
+}
+
+export interface ResumeVersionSummary {
+  id: string;
+  resumeId: string;
+  title: string | null;
+  companyName: string;
+  jobTitle: string;
+  appliedAt: string;
+  createdAt: string;
+}
+
+export interface ResumeVersionDetail {
+  version: ResumeVersionSummary;
+  target: ResumeTarget;
+}
+
+export async function getResumeVersions(resumeId: string): Promise<ResumeVersionSummary[]> {
+  const res = await apiFetch<{ items: ResumeVersionSummary[] }>(
+    `/resume/${encodeURIComponent(resumeId)}/versions`,
+  );
+  return res.items ?? [];
+}
+
+export async function getResumeVersion(resumeId: string, versionId: string): Promise<ResumeVersionDetail> {
+  return apiFetch<ResumeVersionDetail>(
+    `/resume/${encodeURIComponent(resumeId)}/versions/${encodeURIComponent(versionId)}`,
+  );
+}
+
+export async function restoreResumeVersion(resumeId: string, versionId: string): Promise<ResumeProfile> {
+  const res = await apiFetch<{ resume: ResumeTarget[] }>(
+    `/resume/${encodeURIComponent(resumeId)}/versions/${encodeURIComponent(versionId)}/restore`,
+    { method: "POST" },
+  );
+  return { resumeTargets: res.resume ?? [] };
+}
+
+export async function deleteResumeVersion(resumeId: string, versionId: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(
+    `/resume/${encodeURIComponent(resumeId)}/versions/${encodeURIComponent(versionId)}`,
+    { method: "DELETE" },
+  );
 }
 
 export interface ResumeSearchCoverLetterItem {
@@ -102,7 +198,21 @@ export interface ResumeSearchPrizeItem {
   description: string | null;
 }
 
-export type ResumeSearchItem = ResumeSearchCoverLetterItem | ResumeSearchExperienceItem | ResumeSearchPrizeItem;
+export interface ResumeSearchTrainingItem {
+  type: "training";
+  id: string;
+  resumeId: string;
+  companyName: string;
+  jobTitle: string;
+  title: string;
+  institution: string;
+  startDate: string | null;
+  endDate: string | null;
+  hours: string | null;
+  description: string | null;
+}
+
+export type ResumeSearchItem = ResumeSearchCoverLetterItem | ResumeSearchExperienceItem | ResumeSearchPrizeItem | ResumeSearchTrainingItem;
 
 export async function searchResume(q: string): Promise<ResumeSearchItem[]> {
   const res = await apiFetch<{ items: ResumeSearchItem[] }>(`/resume/search?q=${encodeURIComponent(q)}`);

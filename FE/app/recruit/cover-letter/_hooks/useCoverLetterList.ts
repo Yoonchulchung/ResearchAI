@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   getCoverLetter,
   listCoverLetters,
+  setCoverLetterHidden,
   type CoverLetter,
   type JobCategory,
   type JobCategoryTarget,
@@ -27,7 +28,8 @@ export function useCoverLetterList(coverId: string | null) {
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [companyTypeFilter, setCompanyTypeFilter] = useState("");
-  const [jobCategoryFilter, setJobCategoryFilter] = useState<JobCategoryFilter>("");
+  const [jobCategoryFilter, setJobCategoryFilter] = useState<JobCategoryFilter>("all");
+  const [showHidden, setShowHidden] = useState(false);
 
   const [selected, setSelected] = useState<CoverLetter | null>(null);
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
@@ -45,9 +47,10 @@ export function useCoverLetterList(coverId: string | null) {
         const res = await listCoverLetters(p, PAGE_SIZE, {
           source: sourceFilter || undefined,
           companyType: companyTypeFilter || undefined,
-          jobCategory: jobCategoryFilter || undefined,
+          jobCategory: jobCategoryFilter === "all" ? undefined : jobCategoryFilter || undefined,
           search: search.trim() || undefined,
           sort: "latest",
+          hidden: showHidden,
         });
         setTotal(res.total);
         setItems((prev) => (reset ? res.items : [...prev, ...res.items]));
@@ -56,7 +59,7 @@ export function useCoverLetterList(coverId: string | null) {
         setLoading(false);
       }
     },
-    [companyTypeFilter, jobCategoryFilter, search, sourceFilter],
+    [companyTypeFilter, jobCategoryFilter, search, showHidden, sourceFilter],
   );
 
   useEffect(() => {
@@ -166,6 +169,17 @@ export function useCoverLetterList(coverId: string | null) {
     router.push(`/recruit/cover-letter?cover=${encodeURIComponent(cl.id)}`);
   };
 
+  const handleToggleHidden = useCallback(async (id: string, isHidden: boolean) => {
+    const updated = await setCoverLetterHidden(id, isHidden);
+    setItems((prev) => prev.filter((item) => item.id !== id));
+    setTotal((prev) => Math.max(0, prev - 1));
+    if (selected?.id === id) {
+      setSelected(null);
+      router.push("/recruit/cover-letter");
+    }
+    return updated;
+  }, [router, selected?.id]);
+
   const handleBack = () => {
     if (selected) {
       setSelected(null);
@@ -193,6 +207,8 @@ export function useCoverLetterList(coverId: string | null) {
     setCompanyTypeFilter,
     jobCategoryFilter,
     setJobCategoryFilter,
+    showHidden,
+    setShowHidden,
     selected,
     isHeaderHidden,
     filtered,
@@ -200,6 +216,7 @@ export function useCoverLetterList(coverId: string | null) {
     handleListScroll,
     handleDetailScroll,
     handleSelect,
+    handleToggleHidden,
     handleBack,
     reload,
   };

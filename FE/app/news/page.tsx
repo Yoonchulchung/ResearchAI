@@ -1,497 +1,42 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useRouter } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
-import { listTechBlogPosts, markTechBlogRead, type TechBlogPost } from "@/lib/api/tech-blogs";
-import { listPapers, markPaperRead, type Paper } from "@/lib/api/papers";
+import { getTopModels, type AiModelEntry } from "@/lib/api/ai-leaderboard";
 import { getNewsFeed, type NewsItem } from "@/lib/api/news-feed";
-import { getTopModels, MODEL_TYPE_LABELS, type AiModelEntry } from "@/lib/api/ai-leaderboard";
-
-function IconFeed() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <circle cx="4.5" cy="13.5" r="1.4" fill="currentColor" />
-      <path d="M3.5 8.5C6.8 8.5 9.5 11.2 9.5 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M3.5 4C9.3 4 14 8.7 14 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconPaper() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <path d="M5 2.5H10.5L14 6V15C14 15.55 13.55 16 13 16H5C4.45 16 4 15.55 4 15V3.5C4 2.95 4.45 2.5 5 2.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M10.5 2.5V6H14" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M6.5 9H11.5M6.5 12H10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconBookmark({ filled = false }: { filled?: boolean }) {
-  return (
-    <svg width="13" height="13" viewBox="0 0 18 18" fill={filled ? "currentColor" : "none"} aria-hidden="true">
-      <path d="M5 3.25h8v11.5L9 12.3l-4 2.45V3.25Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconSparkles() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-      <path d="M8.5 1.8L9.7 5.1L13 6.3L9.7 7.5L8.5 10.8L7.3 7.5L4 6.3L7.3 5.1L8.5 1.8Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-      <path d="M3.2 9.4L3.8 11L5.4 11.6L3.8 12.2L3.2 13.8L2.6 12.2L1 11.6L2.6 11L3.2 9.4Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconNewspaper() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <rect x="2" y="3" width="14" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M5 7H13M5 10H10M5 13H9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconTrophy() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <path d="M9 13v2.5M6 15.5h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M3.5 3.5H5v5a4 4 0 0 0 8 0V3.5h1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M5 5.5H3.5a1 1 0 0 0-1 1V8a2 2 0 0 0 2 2H5M13 5.5h1.5a1 1 0 0 1 1 1V8a2 2 0 0 1-2 2H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconSearch() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <circle cx="7.5" cy="7.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M11 11L14.5 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconEconomy() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <path d="M3 13L6.5 9L9.5 11.5L14 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M11 5h3v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconScience() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <path d="M7 2v5.5L4 13.5a1 1 0 0 0 .87 1.5h8.26a1 1 0 0 0 .87-1.5L11 7.5V2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M6 2h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <circle cx="7.5" cy="11.5" r="0.7" fill="currentColor" />
-      <circle cx="10.5" cy="12.5" r="0.7" fill="currentColor" />
-    </svg>
-  );
-}
-
-function IconGlobe() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M9 2.5C9 2.5 6.5 5.5 6.5 9s2.5 6.5 2.5 6.5M9 2.5c0 0 2.5 3 2.5 6.5S9 15.5 9 15.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M2.5 9h13M3.5 6h11M3.5 12h11" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconCode() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <path d="M6 5L2 9l4 4M12 5l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M10 3.5l-2 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconHugging() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <circle cx="9" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M3 15c0-2.76 2.69-5 6-5s6 2.24 6 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <path d="M6.5 6.5C7 6 7.5 5.5 9 5.5s2 .5 2.5 1" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ModelListItem({ model, isDark, border, onClick }: { model: AiModelEntry; isDark: boolean; border: boolean; onClick: () => void }) {
-  const rankEmoji = model.rank <= 3 ? ["🥇", "🥈", "🥉"][model.rank - 1] : null;
-  const typeColors: Record<string, string> = {
-    chat: isDark ? "bg-indigo-500/15 text-indigo-300" : "bg-indigo-50 text-indigo-700",
-    pretrained: isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-700",
-    "fine-tuned": isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-700",
-    merge: isDark ? "bg-purple-500/15 text-purple-300" : "bg-purple-50 text-purple-700",
-  };
-  return (
-    <button
-      onClick={onClick}
-      className={`group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
-    >
-      <span className={`w-7 shrink-0 text-center text-sm font-bold tabular-nums ${isDark ? "text-white/30" : "text-slate-400"}`}>
-        {rankEmoji ?? `#${model.rank}`}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className={`truncate text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-indigo-300" : "text-slate-900 group-hover:text-indigo-600"}`}>
-            {model.modelName}
-          </span>
-          {model.modelType && (
-            <span className={`shrink-0 rounded px-1.5 py-0.5 text-2xs font-semibold ${typeColors[model.modelType] ?? (isDark ? "bg-white/10 text-white/50" : "bg-slate-100 text-slate-500")}`}>
-              {MODEL_TYPE_LABELS[model.modelType] ?? model.modelType}
-            </span>
-          )}
-        </div>
-        <p className={`truncate text-xs ${isDark ? "text-white/35" : "text-slate-400"}`}>
-          {model.org}{model.params != null ? ` · ${model.params >= 1 ? `${model.params.toFixed(0)}B` : `${(model.params * 1000).toFixed(0)}M`}` : ""}
-        </p>
-      </div>
-      <span className={`shrink-0 text-sm font-bold tabular-nums ${isDark ? "text-indigo-300" : "text-indigo-700"}`}>
-        {model.average?.toFixed(2) ?? "—"}
-      </span>
-    </button>
-  );
-}
-
-function formatDate(value?: string) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - date.getTime()) / 86400000);
-  if (diff === 0) return "오늘";
-  if (diff === 1) return "어제";
-  if (diff < 7) return `${diff}일 전`;
-  return date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
-}
-
-function stripHtml(html: string) {
-  return html.replace(/<[^>]*>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"');
-}
-
-function BlogListItem({
-  post,
-  isDark,
-  border,
-  onMarkRead,
-}: {
-  post: TechBlogPost;
-  isDark: boolean;
-  border: boolean;
-  onMarkRead: (post: TechBlogPost) => void;
-}) {
-  const read = Boolean(post.readAt);
-  return (
-    <a
-      href={post.url}
-      target="_blank"
-      rel="noreferrer"
-      onClick={() => onMarkRead(post)}
-      className={`group flex h-full flex-col px-4 py-3 transition-colors ${read ? "opacity-60" : ""} ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
-    >
-      <div className="mb-1 flex flex-wrap items-center gap-1.5">
-        <span className={`text-xs font-semibold ${isDark ? "text-indigo-400" : "text-indigo-600"}`}>{post.sourceName}</span>
-        <span className={`text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>{formatDate(post.publishedAt)}</span>
-        {post.bookmarked && (
-          <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-semibold ${isDark ? "bg-amber-400/10 text-amber-300" : "bg-amber-50 text-amber-600"}`}>
-            <IconBookmark filled />
-            북마크
-          </span>
-        )}
-        {read && <span className={`rounded px-1.5 py-0.5 text-2xs font-semibold ${isDark ? "bg-white/5 text-white/35" : "bg-slate-100 text-slate-400"}`}>읽음</span>}
-      </div>
-      <p className={`line-clamp-2 text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-indigo-300" : "text-slate-900 group-hover:text-indigo-600"}`}>
-        {post.title}
-      </p>
-      {post.summary && (
-        <p className={`mt-1 line-clamp-2 text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-400"}`}>{post.summary}</p>
-      )}
-    </a>
-  );
-}
-
-function PaperListItem({
-  paper,
-  isDark,
-  border,
-  onOpenSummary,
-  onMarkRead,
-}: {
-  paper: Paper;
-  isDark: boolean;
-  border: boolean;
-  onOpenSummary: (paper: Paper) => void;
-  onMarkRead: (paper: Paper) => void;
-}) {
-  const read = Boolean(paper.readAt);
-  return (
-    <div className={`group flex h-full flex-col px-4 py-3 transition-colors ${read ? "opacity-60" : ""} ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}>
-      <div className="mb-1 flex flex-wrap items-center gap-1.5">
-        <span className={`text-xs font-semibold ${isDark ? "text-indigo-400" : "text-indigo-600"}`}>{paper.sourceName}</span>
-        {typeof paper.upvotes === "number" && (
-          <span className={`text-xs font-semibold ${isDark ? "text-amber-400" : "text-amber-600"}`}>▲ {paper.upvotes}</span>
-        )}
-        {paper.publishedAt && <span className={`text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>{formatDate(paper.publishedAt)}</span>}
-        {paper.bookmarked && (
-          <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs font-semibold ${isDark ? "bg-amber-400/10 text-amber-300" : "bg-amber-50 text-amber-600"}`}>
-            <IconBookmark filled />
-            북마크
-          </span>
-        )}
-        {read && <span className={`rounded px-1.5 py-0.5 text-2xs font-semibold ${isDark ? "bg-white/5 text-white/35" : "bg-slate-100 text-slate-400"}`}>읽음</span>}
-      </div>
-      <a
-        href={paper.url}
-        target="_blank"
-        rel="noreferrer"
-        onClick={() => onMarkRead(paper)}
-        className={`line-clamp-2 text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-indigo-300" : "text-slate-900 group-hover:text-indigo-600"}`}
-      >
-        {paper.title}
-      </a>
-      {paper.summary && (
-        <p className={`mt-1 line-clamp-2 text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-400"}`}>{paper.summary}</p>
-      )}
-      {paper.aiSummary && (
-        <button
-          onClick={() => onOpenSummary(paper)}
-          className={`mt-auto pt-2 inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-semibold transition ${isDark ? "border-indigo-400/20 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/15" : "border-indigo-100 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"}`}
-        >
-          <IconSparkles />
-          AI 요약 보기
-        </button>
-      )}
-    </div>
-  );
-}
-
-function PaperSummaryModal({
-  paper,
-  isDark,
-  onClose,
-}: {
-  paper: Paper;
-  isDark: boolean;
-  onClose: () => void;
-}) {
-  const markdownComponents = {
-    h1: ({ children }: { children?: ReactNode }) => <h1 className="mb-4 mt-7 text-2xl font-bold first:mt-0">{children}</h1>,
-    h2: ({ children }: { children?: ReactNode }) => <h2 className="mb-4 mt-7 text-xl font-bold first:mt-0">{children}</h2>,
-    h3: ({ children }: { children?: ReactNode }) => <h3 className="mb-3 mt-6 text-lg font-bold first:mt-0">{children}</h3>,
-    p: ({ children }: { children?: ReactNode }) => <p className="my-5 text-lg leading-9 sm:text-xl sm:leading-10">{children}</p>,
-    ul: ({ children }: { children?: ReactNode }) => <ul className="my-5 list-disc space-y-2.5 pl-6 text-lg leading-9 sm:text-xl sm:leading-10">{children}</ul>,
-    ol: ({ children }: { children?: ReactNode }) => <ol className="my-5 list-decimal space-y-2.5 pl-6 text-lg leading-9 sm:text-xl sm:leading-10">{children}</ol>,
-    li: ({ children }: { children?: ReactNode }) => <li>{children}</li>,
-    strong: ({ children }: { children?: ReactNode }) => <strong className="font-bold">{children}</strong>,
-    code: ({ children }: { children?: ReactNode }) => (
-      <code className={`rounded px-1.5 py-0.5 text-[0.9em] ${isDark ? "bg-white/10 text-indigo-200" : "bg-slate-100 text-indigo-700"}`}>
-        {children}
-      </code>
-    ),
-    pre: ({ children }: { children?: ReactNode }) => (
-      <pre className={`my-4 overflow-x-auto rounded-xl p-4 text-sm leading-6 ${isDark ? "bg-black/30 text-white/80" : "bg-slate-100 text-slate-700"}`}>
-        {children}
-      </pre>
-    ),
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 py-6 backdrop-blur-sm" onClick={onClose}>
-      <section
-        className={`flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border shadow-2xl ${isDark ? "border-white/10 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-900"}`}
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="논문 AI 요약"
-      >
-        <header className={`border-b px-5 py-4 ${isDark ? "border-white/10" : "border-slate-200"}`}>
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className={`mb-2 flex flex-wrap items-center gap-2 text-xs ${isDark ? "text-white/45" : "text-slate-500"}`}>
-                <span className={`rounded-md px-2 py-1 font-semibold ${isDark ? "bg-indigo-500/15 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>{paper.sourceName}</span>
-                {paper.aiSummaryModel && <span>{paper.aiSummaryModel}</span>}
-                {paper.aiSummaryAt && <span>{new Date(paper.aiSummaryAt).toLocaleString("ko-KR")}</span>}
-              </div>
-              <h2 className="line-clamp-2 text-lg font-bold leading-snug">{paper.title}</h2>
-            </div>
-            <button
-              onClick={onClose}
-              className={`shrink-0 rounded-lg border px-2 py-1 text-sm font-bold transition ${isDark ? "border-white/10 text-white/70 hover:bg-white/10" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}
-              aria-label="닫기"
-            >
-              ×
-            </button>
-          </div>
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 sm:px-8">
-          <div className={isDark ? "text-white/85" : "text-slate-900"}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {paper.aiSummary || "아직 AI 요약이 없습니다."}
-            </ReactMarkdown>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function NewsListItem({ item, isDark, border }: { item: NewsItem; isDark: boolean; border: boolean }) {
-  return (
-    <a
-      href={item.link}
-      target="_blank"
-      rel="noreferrer"
-      className={`group flex h-full flex-col px-4 py-3 transition-colors ${border ? isDark ? "md:border-t md:border-white/5" : "md:border-t md:border-slate-100" : ""} ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
-    >
-      <div className="mb-1 flex flex-wrap items-center gap-1.5">
-        <span className={`text-xs font-semibold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>{item.source}</span>
-        {item.pubDate && <span className={`text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>{formatDate(item.pubDate)}</span>}
-      </div>
-      <p className={`line-clamp-2 text-sm font-semibold leading-snug transition-colors ${isDark ? "text-white group-hover:text-emerald-300" : "text-slate-900 group-hover:text-emerald-600"}`}>
-        {stripHtml(item.title)}
-      </p>
-      {item.description && (
-        <p className={`mt-1 line-clamp-2 text-xs leading-relaxed ${isDark ? "text-white/40" : "text-slate-400"}`}>{stripHtml(item.description)}</p>
-      )}
-    </a>
-  );
-}
-
-function SkeletonRow({ isDark, border }: { isDark: boolean; border: boolean }) {
-  const pulse = isDark ? "bg-white/10" : "bg-slate-100";
-  return (
-    <div className={`px-4 py-3 ${border ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""}`}>
-      <div className={`mb-1.5 h-3 w-20 animate-pulse rounded ${pulse}`} />
-      <div className={`h-4 w-5/6 animate-pulse rounded ${pulse}`} />
-    </div>
-  );
-}
-
-const BLOG_GRADIENTS = [
-  "from-indigo-500 to-violet-600",
-  "from-blue-500 to-indigo-600",
-  "from-teal-500 to-emerald-600",
-  "from-rose-500 to-pink-600",
-  "from-amber-500 to-orange-600",
-  "from-cyan-500 to-blue-600",
-  "from-purple-500 to-indigo-600",
-];
-
-function MobileFeaturedCard({ post, isDark, onRead }: { post: TechBlogPost; isDark: boolean; onRead: () => void }) {
-  const grad = BLOG_GRADIENTS[(post.sourceName.charCodeAt(0) ?? 0) % BLOG_GRADIENTS.length];
-  return (
-    <a
-      href={post.url}
-      target="_blank"
-      rel="noreferrer"
-      onClick={onRead}
-      className={`block overflow-hidden rounded-2xl shadow-md ${post.readAt ? "opacity-60" : ""}`}
-    >
-      <div className={`bg-linear-to-br ${grad} px-5 pb-6 pt-5`}>
-        <span className="text-xs font-semibold text-white/70">#{post.sourceName}</span>
-        <h2 className="mt-1 line-clamp-3 text-xl font-bold leading-snug text-white">
-          {post.title}
-        </h2>
-      </div>
-      <div className={`flex items-center gap-3 px-5 py-3 ${isDark ? "border border-t-0 border-white/10 bg-slate-900/80" : "border border-t-0 border-slate-200 bg-white"} rounded-b-2xl`}>
-        {post.summary ? (
-          <p className={`line-clamp-1 flex-1 text-xs ${isDark ? "text-white/40" : "text-slate-500"}`}>{post.summary}</p>
-        ) : (
-          <span className="flex-1" />
-        )}
-        {post.publishedAt && (
-          <span className={`shrink-0 text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>{formatDate(post.publishedAt)}</span>
-        )}
-      </div>
-    </a>
-  );
-}
-
-const FEED_CATEGORIES = [
-  { id: "it", label: "IT" },
-  { id: "economy", label: "경제" },
-  { id: "science", label: "과학" },
-  { id: "world", label: "세계" },
-  { id: "github", label: "GitHub" },
-  { id: "huggingface", label: "Hugging Face" },
-] as const;
-
-type FeedCategory = typeof FEED_CATEGORIES[number]["id"];
-
-const TECH_BLOG_SEARCH_SOURCES = [
-  { id: "naver-place", keywords: ["네이버 플레이스", "naver place", "플레이스"] },
-  { id: "naver-d2", keywords: ["네이버 d2", "naver d2", "네이버", "naver"] },
-  { id: "kakao-tech", keywords: ["카카오 테크", "카카오 기술", "kakao tech", "카카오"] },
-  { id: "kakaopay", keywords: ["카카오페이", "kakaopay", "kakao pay"] },
-  { id: "banksalad", keywords: ["뱅크샐러드", "banksalad", "뱅샐"] },
-  { id: "toss", keywords: ["토스", "toss"] },
-  { id: "line", keywords: ["라인", "line"] },
-  { id: "woowa", keywords: ["우아한형제들", "우아한", "배민", "woowa"] },
-  { id: "daangn", keywords: ["당근", "당근마켓", "daangn"] },
-  { id: "kurly", keywords: ["컬리", "마켓컬리", "kurly"] },
-  { id: "hyundai-autoever", keywords: ["현대오토에버", "autoever", "오토에버"] },
-  { id: "hyundai", keywords: ["현대자동차", "hyundai"] },
-  { id: "google-developers", keywords: ["구글 개발자", "google developers", "google developer"] },
-  { id: "google-ai", keywords: ["구글 ai", "google ai"] },
-  { id: "github", keywords: ["깃허브", "github"] },
-  { id: "openai", keywords: ["오픈ai", "openai"] },
-  { id: "anthropic", keywords: ["앤트로픽", "anthropic"] },
-  { id: "meta-ai", keywords: ["메타 ai", "meta ai"] },
-  { id: "meta", keywords: ["메타", "meta"] },
-  { id: "microsoft", keywords: ["마이크로소프트", "microsoft"] },
-  { id: "aws-blog", keywords: ["aws", "아마존 aws"] },
-  { id: "amazon-science", keywords: ["아마존 사이언스", "amazon science"] },
-  { id: "netflix", keywords: ["넷플릭스", "netflix"] },
-  { id: "spotify", keywords: ["스포티파이", "spotify"] },
-  { id: "airbnb", keywords: ["에어비앤비", "airbnb"] },
-] as const;
-
-function normalizeSearchText(value: string) {
-  return value.toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-function findTechBlogSourceId(query: string): string | null {
-  const normalized = normalizeSearchText(query);
-  for (const source of TECH_BLOG_SEARCH_SOURCES) {
-    if (source.keywords.some((keyword) => normalized.includes(keyword.toLowerCase()))) {
-      return source.id;
-    }
-  }
-  return null;
-}
-
-function cleanSearchKeyword(query: string) {
-  return query
-    .replace(/기술\s*블로그/g, " ")
-    .replace(/블로그/g, " ")
-    .replace(/논문/g, " ")
-    .replace(/뉴스/g, " ")
-    .replace(/피드/g, " ")
-    .replace(/찾아줘|찾아 줘|검색해줘|검색해 줘|검색|보여줘|보여 줘|알려줘|알려 줘/g, " ")
-    .replace(/의|에\s*대한|관련|에서/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function inferFeedCategory(query: string): FeedCategory {
-  const normalized = normalizeSearchText(query);
-  if (normalized.includes("경제") || normalized.includes("주가") || normalized.includes("환율")) return "economy";
-  if (normalized.includes("과학") || normalized.includes("science")) return "science";
-  if (normalized.includes("세계") || normalized.includes("해외") || normalized.includes("world")) return "world";
-  if (normalized.includes("github") || normalized.includes("깃허브")) return "github";
-  if (normalized.includes("hugging") || normalized.includes("허깅페이스")) return "huggingface";
-  return "it";
-}
+import { listPapers, markPaperRead, type Paper } from "@/lib/api/papers";
+import { listTechBlogPosts, markTechBlogRead, type TechBlogPost } from "@/lib/api/tech-blogs";
+import PaperSummaryModal from "./_components/PaperSummaryModal";
+import {
+  HotPapersSection,
+  ModelRankingSection,
+  NewsFeedSection,
+  TechBlogsSection,
+} from "./_components/home-sections";
+import {
+  MobileFeaturedCard,
+} from "./_components/list-items";
+import {
+  IconCode,
+  IconEconomy,
+  IconFeed,
+  IconGlobe,
+  IconHugging,
+  IconNewspaper,
+  IconPaper,
+  IconScience,
+  IconSearch,
+  IconTrophy,
+} from "./_components/icons";
+import {
+  cleanSearchKeyword,
+  findTechBlogSourceId,
+  inferFeedCategory,
+  normalizeSearchText,
+  type FeedCategory,
+} from "./_lib/news-search";
 
 export default function NewsPage() {
   const router = useRouter();
@@ -644,7 +189,7 @@ export default function NewsPage() {
             <h1 className={`text-2xl font-bold tracking-tight ${textMain}`}>뉴스</h1>
             <button
               onClick={() => setShowMobileSearch((s) => !s)}
-              className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${isDark ? "bg-white/5 text-white/60 hover:bg-white/10" : "bg-slate-100 text-slate-500 hover:bg-slate-200"} ${showMobileSearch ? isDark ? "bg-white/10 text-indigo-300" : "bg-indigo-50 text-indigo-600" : ""}`}
+              className={`flex h-9 w-9 items-center justify-center rounded-md transition ${isDark ? "bg-white/5 text-white/60 hover:bg-white/10" : "bg-slate-100 text-slate-500 hover:bg-slate-200"} ${showMobileSearch ? isDark ? "bg-white/10 text-indigo-300" : "bg-indigo-50 text-indigo-600" : ""}`}
               aria-label="검색"
             >
               <IconSearch />
@@ -658,11 +203,11 @@ export default function NewsPage() {
                 value={newsSearch}
                 onChange={(e) => setNewsSearch(e.target.value)}
                 placeholder='블로그, 논문, 뉴스 검색...'
-                className={`flex-1 rounded-xl border px-3 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-indigo-200/50 ${isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/30 focus:border-indigo-400/50" : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-indigo-300"}`}
+                className={`flex-1 rounded-md border px-3 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-indigo-200/50 ${isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/30 focus:border-indigo-400/50" : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-indigo-300"}`}
               />
               <button
                 type="submit"
-                className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${isDark ? "bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30" : "bg-slate-900 text-white hover:bg-indigo-600"}`}
+                className={`shrink-0 rounded-md px-4 py-2.5 text-sm font-semibold transition ${isDark ? "bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30" : "bg-slate-900 text-white hover:bg-indigo-600"}`}
               >
                 찾기
               </button>
@@ -674,9 +219,9 @@ export default function NewsPage() {
             <MobileFeaturedCard post={blogs[0]} isDark={isDark} onRead={() => handleMarkBlogRead(blogs[0])} />
           )}
           {blogLoading && (
-            <div className={`overflow-hidden rounded-2xl shadow-md`}>
+            <div className="overflow-hidden rounded-md">
               <div className={`h-36 w-full animate-pulse ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
-              <div className={`flex items-center gap-3 px-5 py-3 ${isDark ? "border border-t-0 border-white/10 bg-slate-900/80" : "border border-t-0 border-slate-200 bg-white"} rounded-b-2xl`}>
+              <div className={`flex items-center gap-3 px-5 py-3 ${isDark ? "border border-t-0 border-white/10 bg-slate-900/80" : "border border-t-0 border-slate-200 bg-white"} rounded-b-md`}>
                 <div className={`h-3 w-2/3 animate-pulse rounded ${isDark ? "bg-white/10" : "bg-slate-100"}`} />
               </div>
             </div>
@@ -697,7 +242,7 @@ export default function NewsPage() {
                 { icon: <IconHugging />, label: "HuggingFace", href: "/news/feed?category=huggingface", bg: isDark ? "bg-yellow-500/15 text-yellow-300" : "bg-yellow-50 text-yellow-600" },
               ].map((s) => (
                 <Link key={s.label} href={s.href} className="flex shrink-0 flex-col items-center gap-1.5">
-                  <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${s.bg}`}>
+                  <div className={`flex h-14 w-14 items-center justify-center rounded-md ${s.bg}`}>
                     {s.icon}
                   </div>
                   <span className={`whitespace-pre-line text-center text-2xs font-medium leading-tight ${isDark ? "text-white/55" : "text-slate-600"}`}>{s.label}</span>
@@ -708,7 +253,7 @@ export default function NewsPage() {
         </div>
 
         {/* ===== Desktop header (full search panel) ===== */}
-        <section className={`hidden md:block rounded-2xl border p-5 shadow-sm ${panelClass}`}>
+        <section className={`hidden md:block rounded-md border p-5 ${panelClass}`}>
           <h1 className={`text-3xl font-bold tracking-tight ${textMain}`}>뉴스</h1>
           <p className={`mt-1.5 text-sm ${textSub}`}>국내외 기술 블로그, 핫한 논문, 뉴스 피드를 한 곳에서 모아봅니다.</p>
           <form onSubmit={handleNewsSearch} className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:items-center">
@@ -716,196 +261,67 @@ export default function NewsPage() {
               value={newsSearch}
               onChange={(e) => setNewsSearch(e.target.value)}
               placeholder='예: "네이버 기술 블로그", "AI 논문"'
-              className={`min-h-12 w-full min-w-0 flex-1 rounded-xl border px-4 py-3 text-base leading-6 outline-none transition focus:ring-2 focus:ring-indigo-200/50 sm:min-h-11 sm:py-2.5 sm:text-sm ${isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/30 focus:border-indigo-400/50" : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-indigo-300"}`}
+              className={`min-h-12 w-full min-w-0 flex-1 rounded-md border px-4 py-3 text-base leading-6 outline-none transition focus:ring-2 focus:ring-indigo-200/50 sm:min-h-11 sm:py-2.5 sm:text-sm ${isDark ? "border-white/10 bg-white/5 text-white placeholder:text-white/30 focus:border-indigo-400/50" : "border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:border-indigo-300"}`}
             />
             <button
               type="submit"
-              className={`min-h-12 w-full rounded-xl px-5 py-3 text-base font-semibold leading-6 transition sm:min-h-11 sm:w-auto sm:py-2.5 sm:text-sm ${isDark ? "bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30" : "bg-slate-900 text-white hover:bg-indigo-600"}`}
+              className={`min-h-12 w-full rounded-md px-5 py-3 text-base font-semibold leading-6 transition sm:min-h-11 sm:w-auto sm:py-2.5 sm:text-sm ${isDark ? "bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30" : "bg-slate-900 text-white hover:bg-indigo-600"}`}
             >
               찾아보기
             </button>
           </form>
         </section>
 
-        {/* Top row: tech blogs + hot papers */}
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          {/* 기술 블로그 */}
-          <section className={`flex flex-col rounded-2xl border shadow-sm ${panelClass}`}>
-            <div className={`flex items-center justify-between px-4 py-3.5 ${isDark ? "border-b border-white/5" : "border-b border-slate-100"}`}>
-              <div className="flex items-center gap-2">
-                <span className={isDark ? "text-indigo-400" : "text-indigo-600"}><IconFeed /></span>
-                <span className={`font-bold ${textMain}`}>기술 블로그</span>
-                {!blogLoading && <span className={`text-xs ${textSub}`}>{blogs.length}개</span>}
-              </div>
-              <button
-                onClick={() => router.push("/news/tech-blogs")}
-                className={`text-xs font-semibold transition-colors ${isDark ? "text-white/40 hover:text-indigo-400" : "text-slate-400 hover:text-indigo-600"}`}
-              >
-                전체 보기
-              </button>
-            </div>
-            {/* 모바일: 가로 스와이프 / 데스크탑: 세로 스크롤 */}
-            <div className={`md:max-h-88 md:overflow-y-auto ${isDark ? "md:divide-y md:divide-white/5" : "md:divide-y md:divide-slate-100"} max-md:flex max-md:gap-3 max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:pb-1.5 max-md:px-4`}>
-              {blogLoading ? (
-                Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="max-md:shrink-0 max-md:w-64 max-md:snap-start">
-                    <SkeletonRow isDark={isDark} border={false} />
-                  </div>
-                ))
-              ) : blogError ? (
-                <p className={`px-4 py-6 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{blogError}</p>
-              ) : (
-                blogs.map((post) => (
-                  <div key={post.id} className={`max-md:shrink-0 max-md:w-64 max-md:snap-start max-md:rounded-xl max-md:overflow-hidden max-md:border ${isDark ? "max-md:border-white/10" : "max-md:border-slate-200"}`}>
-                    <BlogListItem
-                      post={post}
-                      isDark={isDark}
-                      border={false}
-                      onMarkRead={handleMarkBlogRead}
-                    />
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-
-          {/* 핫한 논문 */}
-          <section className={`flex flex-col rounded-2xl border shadow-sm ${panelClass}`}>
-            <div className={`flex items-center justify-between px-4 py-3.5 ${isDark ? "border-b border-white/5" : "border-b border-slate-100"}`}>
-              <div className="flex items-center gap-2">
-                <span className={isDark ? "text-indigo-400" : "text-indigo-600"}><IconPaper /></span>
-                <span className={`font-bold ${textMain}`}>핫한 논문</span>
-                {!paperLoading && <span className={`text-xs ${textSub}`}>{papers.length}개</span>}
-              </div>
-              <button
-                onClick={() => router.push("/news/papers")}
-                className={`text-xs font-semibold transition-colors ${isDark ? "text-white/40 hover:text-indigo-400" : "text-slate-400 hover:text-indigo-600"}`}
-              >
-                전체 보기
-              </button>
-            </div>
-            <div className={`md:max-h-88 md:overflow-y-auto ${isDark ? "md:divide-y md:divide-white/5" : "md:divide-y md:divide-slate-100"} max-md:flex max-md:gap-3 max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:pb-1.5 max-md:px-4`}>
-              {paperLoading ? (
-                Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="max-md:shrink-0 max-md:w-64 max-md:snap-start">
-                    <SkeletonRow isDark={isDark} border={false} />
-                  </div>
-                ))
-              ) : paperError ? (
-                <p className={`px-4 py-6 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{paperError}</p>
-              ) : (
-                papers.map((paper) => (
-                  <div key={paper.id} className={`max-md:shrink-0 max-md:w-64 max-md:snap-start max-md:rounded-xl max-md:overflow-hidden max-md:border ${isDark ? "max-md:border-white/10" : "max-md:border-slate-200"}`}>
-                    <PaperListItem
-                      paper={paper}
-                      isDark={isDark}
-                      border={false}
-                      onOpenSummary={setSummaryPaper}
-                      onMarkRead={handleMarkPaperRead}
-                    />
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
+          <TechBlogsSection
+            blogs={blogs}
+            loading={blogLoading}
+            error={blogError}
+            isDark={isDark}
+            panelClass={panelClass}
+            textMain={textMain}
+            textSub={textSub}
+            onMarkRead={handleMarkBlogRead}
+            onViewAll={() => router.push("/news/tech-blogs")}
+          />
+          <HotPapersSection
+            papers={papers}
+            loading={paperLoading}
+            error={paperError}
+            isDark={isDark}
+            panelClass={panelClass}
+            textMain={textMain}
+            textSub={textSub}
+            onOpenSummary={setSummaryPaper}
+            onMarkRead={handleMarkPaperRead}
+            onViewAll={() => router.push("/news/papers")}
+          />
         </div>
 
-        {/* AI 모델 랭킹 */}
-        <section className={`flex flex-col rounded-2xl border shadow-sm ${panelClass}`}>
-          <div className={`flex items-center justify-between px-4 py-3.5 ${isDark ? "border-b border-white/5" : "border-b border-slate-100"}`}>
-            <div className="flex items-center gap-2">
-              <span className={isDark ? "text-amber-400" : "text-amber-600"}><IconTrophy /></span>
-              <span className={`font-bold ${textMain}`}>AI 모델 랭킹</span>
-              <span className={`text-xs ${textSub}`}>HuggingFace Open LLM Leaderboard v2</span>
-            </div>
-            <button
-              onClick={() => router.push("/news/leaderboard")}
-              className={`text-xs font-semibold transition-colors ${isDark ? "text-white/40 hover:text-amber-400" : "text-slate-400 hover:text-amber-600"}`}
-            >
-              전체 보기
-            </button>
-          </div>
-          <div className={`${isDark ? "md:divide-y md:divide-white/5" : "md:divide-y md:divide-slate-100"} max-md:flex max-md:gap-3 max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:pb-1.5 max-md:px-4`}>
-            {modelsLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="max-md:shrink-0 max-md:w-64 max-md:snap-start">
-                  <SkeletonRow isDark={isDark} border={false} />
-                </div>
-              ))
-            ) : modelsError ? (
-              <p className={`px-4 py-6 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{modelsError}</p>
-            ) : (
-              models.map((model) => (
-                <div key={model.id} className={`max-md:shrink-0 max-md:w-56 max-md:snap-start max-md:rounded-xl max-md:overflow-hidden max-md:border ${isDark ? "max-md:border-white/10" : "max-md:border-slate-200"}`}>
-                  <ModelListItem
-                    model={model}
-                    isDark={isDark}
-                    border={false}
-                    onClick={() => router.push(`/news/leaderboard/${encodeURIComponent(model.id)}`)}
-                  />
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+        <ModelRankingSection
+          models={models}
+          loading={modelsLoading}
+          error={modelsError}
+          isDark={isDark}
+          panelClass={panelClass}
+          textMain={textMain}
+          textSub={textSub}
+          onViewAll={() => router.push("/news/leaderboard")}
+          onModelClick={(model) => router.push(`/news/leaderboard/${encodeURIComponent(model.id)}`)}
+        />
 
-        {/* Bottom: 뉴스 피드 */}
-        <section className={`flex flex-col rounded-2xl border shadow-sm ${panelClass}`}>
-          <div className={`flex flex-col gap-3 px-4 py-3.5 ${isDark ? "border-b border-white/5" : "border-b border-slate-100"}`}>
-            {/* Top Row: Title & View All */}
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2">
-                <span className={isDark ? "text-emerald-400" : "text-emerald-600"}><IconNewspaper /></span>
-                <span className={`font-bold ${textMain} whitespace-nowrap`}>뉴스 피드</span>
-                {!feedLoading && <span className={`text-xs ${textSub} whitespace-nowrap`}>{feedItems.length}개</span>}
-              </div>
-              <button
-                onClick={() => router.push("/news/feed")}
-                className={`text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${isDark ? "text-white/40 hover:text-emerald-400" : "text-slate-400 hover:text-emerald-600"}`}
-              >
-                전체 보기
-              </button>
-            </div>
-
-            {/* Bottom Row: Scrollable Category tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide -mx-4 px-4 pb-1">
-              {FEED_CATEGORIES.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setFeedCategory(cat.id)}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${
-                    feedCategory === cat.id
-                      ? isDark
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                        : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      : isDark
-                        ? "text-white/50 border border-transparent hover:text-white hover:bg-white/5"
-                        : "text-slate-500 border border-transparent hover:text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="md:grid md:grid-cols-2 max-md:flex max-md:gap-3 max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory max-md:pb-1.5 max-md:px-4">
-            {feedLoading ? (
-              Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="max-md:shrink-0 max-md:w-64 max-md:snap-start">
-                  <SkeletonRow isDark={isDark} border={false} />
-                </div>
-              ))
-            ) : feedError ? (
-              <p className={`px-4 py-6 text-xs ${isDark ? "text-red-400" : "text-red-600"}`}>{feedError}</p>
-            ) : (
-              feedItems.slice(0, 10).map((item, i) => (
-                <div key={`${item.link}-${i}`} className={`max-md:shrink-0 max-md:w-64 max-md:snap-start max-md:rounded-xl max-md:overflow-hidden max-md:border ${isDark ? "max-md:border-white/10" : "max-md:border-slate-200"}`}>
-                  <NewsListItem item={item} isDark={isDark} border={i >= 2} />
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+        <NewsFeedSection
+          feedItems={feedItems}
+          loading={feedLoading}
+          error={feedError}
+          feedCategory={feedCategory}
+          isDark={isDark}
+          panelClass={panelClass}
+          textMain={textMain}
+          textSub={textSub}
+          onCategoryChange={setFeedCategory}
+          onViewAll={() => router.push("/news/feed")}
+        />
       </div>
     </main>
   );

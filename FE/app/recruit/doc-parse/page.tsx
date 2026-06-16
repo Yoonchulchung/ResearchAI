@@ -75,7 +75,7 @@ function TypingDot() {
   return (
     <div className="flex items-center gap-1 px-4 py-3">
       {[0, 1, 2].map((i) => (
-        <span key={i} className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"
+        <span key={i} className="w-1.5 h-1.5 bg-slate-400 rounded-sm animate-bounce"
           style={{ animationDelay: `${i * 0.15}s` }} />
       ))}
     </div>
@@ -537,7 +537,7 @@ export default function DocParsePage() {
   if (!hydrated) {
     return (
       <div className={`h-full flex flex-col overflow-hidden transition-all ${isGlass ? "p-3 bg-transparent" : isDark ? "bg-slate-900" : "bg-slate-50"}`}>
-        <div className={`flex-1 flex flex-col md:flex-row overflow-hidden ${isGlass ? "glass-panel rounded-2xl shadow-xl border " + (isDark ? "border-white/20" : "border-black/5") : "rounded-2xl border " + (isDark ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white")}`}>
+        <div className={`flex-1 flex flex-col md:flex-row overflow-hidden ${isGlass ? "glass-panel rounded-md border " + (isDark ? "border-white/20" : "border-black/5") : "rounded-md border " + (isDark ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white")}`}>
           
           {/* Left Panel: 뷰어 스켈레톤 */}
           <div className={`flex-1 flex flex-col min-w-0 min-h-[40vh] md:min-h-0 border-b md:border-b-0 md:border-r ${isDark ? "border-slate-800" : "border-slate-200"}`}>
@@ -547,12 +547,12 @@ export default function DocParsePage() {
                 <div className={`h-4 w-16 rounded-md animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
                 <div className={`h-3.5 w-24 rounded-md animate-pulse ${isDark ? "bg-slate-800/60" : "bg-slate-200/60"}`} />
               </div>
-              <div className={`h-7 w-20 rounded-lg animate-pulse ${isDark ? "bg-indigo-950/40" : "bg-indigo-50"}`} />
+              <div className={`h-7 w-20 rounded-md animate-pulse ${isDark ? "bg-indigo-950/40" : "bg-indigo-50"}`} />
             </div>
             {/* Big Content Body */}
             <div className="flex-1 p-6 flex flex-col items-center justify-center gap-4 overflow-hidden relative">
-              <div className={`w-3/4 max-w-lg h-5/6 rounded-xl border border-dashed flex flex-col items-center justify-center p-6 gap-4 animate-pulse ${isDark ? "border-slate-800 bg-slate-950/20" : "border-slate-200 bg-slate-100/10"}`}>
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+              <div className={`w-3/4 max-w-lg h-5/6 rounded-md border border-dashed flex flex-col items-center justify-center p-6 gap-4 animate-pulse ${isDark ? "border-slate-800 bg-slate-950/20" : "border-slate-200 bg-slate-100/10"}`}>
+                <div className={`w-14 h-14 rounded-md flex items-center justify-center ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
                 <div className="w-full flex flex-col items-center gap-2">
                   <div className={`h-3 w-1/2 rounded-md ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
                   <div className={`h-2.5 w-1/3 rounded-md ${isDark ? "bg-slate-800/60" : "bg-slate-200/60"}`} />
@@ -567,15 +567,15 @@ export default function DocParsePage() {
             <div className={`px-4 py-3.5 border-b shrink-0 ${isDark ? "border-slate-800" : "border-slate-200"}`}>
               <div className="flex items-center gap-2">
                 <div className={`h-4 w-20 rounded-md animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
-                <div className={`h-3.5 w-6 rounded-full animate-pulse ${isDark ? "bg-indigo-950/60" : "bg-indigo-100"}`} />
+                <div className={`h-3.5 w-6 rounded-sm animate-pulse ${isDark ? "bg-indigo-950/60" : "bg-indigo-100"}`} />
               </div>
-              <div className={`mt-2.5 h-8 w-full rounded-lg animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+              <div className={`mt-2.5 h-8 w-full rounded-md animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
             </div>
             {/* Messages Body */}
             <div className="flex-1 p-4 space-y-4 overflow-hidden">
               {/* Message 1 (AI) */}
               <div className="flex justify-start gap-2.5">
-                <div className={`w-6 h-6 rounded-full shrink-0 animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                <div className={`w-6 h-6 rounded-sm shrink-0 animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
                 <div className="flex-1 space-y-2 max-w-[80%]">
                   <div className={`h-3 w-2/3 rounded-md animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
                   <div className={`h-3 w-5/6 rounded-md animate-pulse ${isDark ? "bg-slate-800/70" : "bg-slate-200/70"}`} />
@@ -591,7 +591,7 @@ export default function DocParsePage() {
               </div>
               {/* Message 3 (AI) */}
               <div className="flex justify-start gap-2.5">
-                <div className={`w-6 h-6 rounded-full shrink-0 animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+                <div className={`w-6 h-6 rounded-sm shrink-0 animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
                 <div className="flex-1 space-y-2 max-w-[70%]">
                   <div className={`h-3 w-full rounded-md animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
                   <div className={`h-3 w-2/3 rounded-md animate-pulse ${isDark ? "bg-slate-800/70" : "bg-slate-200/70"}`} />
@@ -600,7 +600,7 @@ export default function DocParsePage() {
             </div>
             {/* Input Bar */}
             <div className={`p-3 border-t shrink-0 ${isDark ? "border-slate-800" : "border-slate-200"}`}>
-              <div className={`h-16 w-full rounded-xl animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
+              <div className={`h-16 w-full rounded-md animate-pulse ${isDark ? "bg-slate-800" : "bg-slate-200"}`} />
               <div className={`mt-2 h-2.5 w-1/3 mx-auto rounded-md animate-pulse ${isDark ? "bg-slate-800/50" : "bg-slate-200/50"}`} />
             </div>
           </div>
@@ -612,7 +612,7 @@ export default function DocParsePage() {
 
   return (
     <div className={`h-full flex flex-col overflow-hidden transition-all ${isGlass ? "p-3 bg-transparent" : isDark ? "bg-slate-900" : "bg-slate-50"}`}>
-      <div className={`flex-1 flex flex-col md:flex-row overflow-hidden ${isGlass ? "glass-panel rounded-2xl shadow-xl border " + (isDark ? "border-white/20" : "border-black/5") : ""}`}>
+      <div className={`flex-1 flex flex-col md:flex-row overflow-hidden ${isGlass ? "glass-panel rounded-md border " + (isDark ? "border-white/20" : "border-black/5") : ""}`}>
 
         {/* Left: 문서 뷰어 */}
         <div className={`flex-1 flex flex-col min-w-0 min-h-[40vh] md:min-h-0 border-b md:border-b-0 md:border-r ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : (isDark ? "border-slate-700" : "border-slate-200")}`}>
@@ -621,13 +621,13 @@ export default function DocParsePage() {
             {filename && <span className="text-xs text-slate-400 truncate max-w-32">{filename} {pageCount > 0 && `· ${pageCount}p`}</span>}
             {/* 시각적 ↔ 텍스트 뷰 토글 */}
             {isReady && docPages.length > 0 && (
-              <div className="ml-auto flex overflow-hidden rounded-lg border border-slate-200 text-xs">
+              <div className="ml-auto flex overflow-hidden rounded-md border border-slate-200 text-xs">
                 <button onClick={() => setViewMode("visual")} className={`px-2.5 py-1 font-semibold transition-colors ${viewMode === "visual" ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>시각적</button>
                 <button onClick={() => setViewMode("text")} className={`px-2.5 py-1 font-semibold transition-colors ${viewMode === "text" ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>텍스트</button>
               </div>
             )}
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-              className={`${isReady && docPages.length > 0 && pdfViewerFile ? "" : "ml-auto"} shrink-0 text-xs font-semibold px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors`}>
+              className={`${isReady && docPages.length > 0 && pdfViewerFile ? "" : "ml-auto"} shrink-0 text-xs font-semibold px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors`}>
               {uploading ? "파싱 중..." : "파일 열기"}
             </button>
             <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md" className="hidden"
@@ -674,11 +674,11 @@ export default function DocParsePage() {
 
             {/* 페이지별 AI 분석 플로팅 위젯 */}
             {isReady && docPages.length > 0 && (
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white/95 px-3 py-2 shadow-lg backdrop-blur-sm">
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-md border border-slate-200 bg-white/95 px-3 py-2 backdrop-blur-sm">
                 <button
                   onClick={() => scrollToPage(Math.max(0, currentPage - 1))}
                   disabled={currentPage === 0}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-base text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-30"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-base text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-30"
                 >
                   ‹
                 </button>
@@ -688,7 +688,7 @@ export default function DocParsePage() {
                 <button
                   onClick={() => scrollToPage(Math.min(pageCount - 1, currentPage + 1))}
                   disabled={currentPage >= pageCount - 1}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-base text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-30"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-base text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-30"
                 >
                   ›
                 </button>
@@ -696,7 +696,7 @@ export default function DocParsePage() {
                 <button
                   onClick={() => analyzeCurrentPage()}
                   disabled={loading}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
                 >
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                     <path d="M8.5 1.8L9.7 5.1L13 6.3L9.7 7.5L8.5 10.8L7.3 7.5L4 6.3L7.3 5.1L8.5 1.8Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
@@ -709,7 +709,7 @@ export default function DocParsePage() {
             {/* 파일 미업로드 플레이스홀더 */}
             {!pdfViewerFile && !docPages.length && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-slate-400">
-                <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-md bg-slate-100 flex items-center justify-center">
                   <svg width="28" height="28" viewBox="0 0 28 28" fill="none" className="text-slate-400">
                     <rect x="4" y="2" width="16" height="20" rx="2" stroke="currentColor" strokeWidth="1.8"/>
                     <path d="M8 8H16M8 12H16M8 16H12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
@@ -720,7 +720,7 @@ export default function DocParsePage() {
                   <p className="text-xs mt-1">PDF, TXT, MD 파일을 지원합니다</p>
                 </div>
                 <button onClick={() => fileInputRef.current?.click()}
-                  className="text-sm font-semibold px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors">
+                  className="text-sm font-semibold px-5 py-2.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
                   파일 선택
                 </button>
               </div>
@@ -742,14 +742,14 @@ export default function DocParsePage() {
           <div className={`px-4 py-3 border-b shrink-0 ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : (isDark ? "border-slate-700" : "border-slate-100")}`}>
             <div className="flex items-center gap-2">
               <span className={`text-sm font-bold ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"}`}>AI 문서 분석</span>
-              <span className="text-2xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-semibold">AI</span>
+              <span className="text-2xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-sm font-semibold">AI</span>
             </div>
             <div className="mt-2">
               {modelsLoading ? (
-                <div className="h-7 bg-slate-100 rounded-lg animate-pulse" />
+                <div className="h-7 bg-slate-100 rounded-md animate-pulse" />
               ) : (
                 <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}
-                  className={`w-full text-xs ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"} bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-300 cursor-pointer`}>
+                  className={`w-full text-xs ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"} bg-slate-50 border border-slate-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-300 cursor-pointer`}>
                   <option value={DEFAULT_FREE_MODEL_ID}>Gemini (기본 무료)</option>
                   {cloudAiModels.length > 0 && (
                     <optgroup label="클라우드 AI">
@@ -776,7 +776,7 @@ export default function DocParsePage() {
               <div className="grid grid-cols-5 gap-1.5">
                 {QUICK_ACTIONS.map((a) => (
                   <button key={a.value} onClick={() => runQuickAction(a.value)} disabled={loading}
-                    className={`py-1.5 px-1 rounded-lg text-2xs font-semibold transition-colors disabled:opacity-40 ${
+                    className={`py-1.5 px-1 rounded-md text-2xs font-semibold transition-colors disabled:opacity-40 ${
                       a.value === "evaluate"
                         ? "bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
                         : "bg-slate-50 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"
@@ -803,13 +803,13 @@ export default function DocParsePage() {
               messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} px-3`}>
                   {msg.role === "assistant" && (
-                    <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-xs shrink-0 mt-0.5 mr-2">AI</div>
+                    <div className="w-6 h-6 rounded-sm bg-indigo-100 flex items-center justify-center text-xs shrink-0 mt-0.5 mr-2">AI</div>
                   )}
-                  <div className={`rounded-2xl px-4 py-2.5 text-xs leading-relaxed ${
+                  <div className={`rounded-md px-4 py-2.5 text-xs leading-relaxed ${
                     msg.role === "user"
                       ? "bg-indigo-600 text-white rounded-br-sm max-w-[85%] space-y-1"
                       : msg.markdown
-                      ? `bg-white border border-slate-200 ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"} rounded-bl-sm w-[95%] shadow-sm`
+                      ? `bg-white border border-slate-200 ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"} rounded-bl-sm w-[95%]`
                       : `bg-slate-50 ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"} rounded-bl-sm max-w-[85%] space-y-1`
                   }`}>
                     {msg.role === "assistant" && msg.streaming && !msg.content ? (
@@ -846,7 +846,7 @@ export default function DocParsePage() {
 
           {/* Input */}
           <div className={`px-3 py-3 border-t shrink-0 ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : (isDark ? "border-slate-700" : "border-slate-100")}`}>
-            <div className="flex items-end gap-2 bg-slate-50 rounded-xl border border-slate-200 focus-within:border-indigo-300 focus-within:ring-1 focus-within:ring-indigo-200 px-3 py-2 transition-all">
+            <div className="flex items-end gap-2 bg-slate-50 rounded-md border border-slate-200 focus-within:border-indigo-300 focus-within:ring-1 focus-within:ring-indigo-200 px-3 py-2 transition-all">
               <textarea value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
                 disabled={!isReady || loading}
@@ -855,7 +855,7 @@ export default function DocParsePage() {
                 className={`flex-1 bg-transparent text-xs ${isDark && isGlass ? "text-slate-100" : isDark ? "text-slate-200" : "text-slate-700"} placeholder-slate-300 resize-none focus:outline-none disabled:opacity-50`}
               />
               <button onClick={() => sendMessage(input)} disabled={!isReady || loading || !input.trim()}
-                className="w-7 h-7 flex items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition-colors shrink-0">
+                className="w-7 h-7 flex items-center justify-center rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 transition-colors shrink-0">
                 ↑
               </button>
             </div>

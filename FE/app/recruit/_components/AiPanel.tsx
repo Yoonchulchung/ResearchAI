@@ -174,7 +174,7 @@ export function AiPanel({
               className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border disabled:opacity-40 disabled:cursor-not-allowed transition-all ${
                 isGlass && isDark
                   ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10 hover:text-white"
-                  : "text-slate-600 bg-white shadow-sm hover:bg-indigo-50 hover:text-indigo-700 border-slate-200 hover:border-indigo-200"
+                  : "text-slate-600 bg-white hover:bg-indigo-50 hover:text-indigo-700 border-slate-200 hover:border-indigo-200"
               }`}
             >
               {KEY_TO_ICON[action.key]}
@@ -247,7 +247,7 @@ export function AiPanel({
         <select
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          className={`min-w-0 max-w-[6rem] sm:max-w-none text-xs sm:text-sm border rounded-lg px-2 py-1 focus:outline-none cursor-pointer disabled:opacity-50 ${isGlass && isDark
+          className={`min-w-0 max-w-[6rem] sm:max-w-none text-xs sm:text-sm border rounded-md px-2 py-1 focus:outline-none cursor-pointer disabled:opacity-50 ${isGlass && isDark
               ? "!bg-white/10 !text-white !border-white/20 focus:ring-1 focus:ring-white/40"
               : "text-slate-600 bg-slate-50 border-slate-200 focus:ring-1 focus:ring-indigo-200"
             }`}
@@ -269,7 +269,7 @@ export function AiPanel({
               onChange={(e) => setRagQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleRagSearch(); }}
               placeholder="경험 검색..."
-              className={`flex-1 text-xs border rounded-lg px-3 py-1.5 focus:outline-none transition-colors ${
+              className={`flex-1 text-xs border rounded-md px-3 py-1.5 focus:outline-none transition-colors ${
                 isGlass && isDark
                   ? "!bg-black/20 !text-white !border-white/20 placeholder-white/40 focus:border-white/50"
                   : "bg-white text-slate-700 border-slate-200 placeholder-slate-400 focus:border-indigo-300"
@@ -278,7 +278,7 @@ export function AiPanel({
             <button
               onClick={handleRagSearch}
               disabled={ragLoading}
-              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-40 transition-all ${isGlass && isDark ? "bg-white/10 border border-white/20 text-white hover:bg-white/20" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
+              className={`shrink-0 px-3 py-1.5 rounded-md text-xs font-medium disabled:opacity-40 transition-all ${isGlass && isDark ? "bg-white/10 border border-white/20 text-white hover:bg-white/20" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
             >
               {ragLoading ? <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin block" /> : "검색"}
             </button>
@@ -296,7 +296,7 @@ export function AiPanel({
                 <button
                   key={exp.id}
                   onClick={() => toggleExperience(exp)}
-                  className={`text-left rounded-xl border px-3 py-2.5 transition-all ${
+                  className={`text-left rounded-md border px-3 py-2.5 transition-all ${
                     selected
                       ? isGlass && isDark
                         ? "bg-indigo-500/20 border-indigo-400/40 text-white"
@@ -345,18 +345,18 @@ export function AiPanel({
         {messages.map((msg) => (
           <div key={msg.id} className={`flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}>
             {msg.role === "user" ? (
-              <div className={`max-w-[85%] px-4 py-2.5 text-sm rounded-2xl rounded-tr-sm leading-relaxed ${isGlass ? "bg-indigo-500/80 text-white shadow-md border border-indigo-400/30 backdrop-blur-sm" : "bg-indigo-600 text-white"}`}>
+              <div className={`max-w-[85%] px-4 py-2.5 text-sm rounded-md rounded-tr-sm leading-relaxed ${isGlass ? "bg-indigo-500/80 text-white border border-indigo-400/30 backdrop-blur-sm" : "bg-indigo-600 text-white"}`}>
                 {msg.content}
               </div>
             ) : (
               <div className="w-full">
-                <div className={`${PROSE_CLASS} border rounded-2xl rounded-tl-sm px-4 py-3 text-sm ${isGlass
-                  ? (isDark ? "bg-white/10 border-white/20 text-white/95 shadow-lg prose-invert backdrop-blur-md" : "bg-white/60 border-black/10 text-slate-800 shadow-sm backdrop-blur-md")
-                  : "bg-white border-slate-200/80 shadow-sm"} ${msg.streaming ? "opacity-80" : ""}`}>
+                <div className={`${PROSE_CLASS} border rounded-md rounded-tl-sm px-4 py-3 text-sm ${isGlass
+                  ? (isDark ? "bg-white/10 border-white/20 text-white/95 prose-invert backdrop-blur-md" : "bg-white/60 border-black/10 text-slate-800 backdrop-blur-md")
+                  : "bg-white border-slate-200/80"} ${msg.streaming ? "opacity-80" : ""}`}>
                   {msg.streaming && !msg.content ? (
                     <div className="flex gap-1.5 py-1">
                       {[0, 1, 2].map((i) => (
-                        <span key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-300 animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                        <span key={i} className="w-1.5 h-1.5 rounded-sm bg-indigo-300 animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
                       ))}
                     </div>
                   ) : (
@@ -381,7 +381,7 @@ export function AiPanel({
                     <button
                       onClick={() => onApplyResult(msg.content, "replace")}
                       className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${
-                        isGlass && isDark ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10" : "text-slate-600 bg-white hover:bg-slate-50 border-slate-200/60 shadow-sm"
+                        isGlass && isDark ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10" : "text-slate-600 bg-white hover:bg-slate-50 border-slate-200/60"
                       }`}
                     >
                       <IconInsert /> 교체
@@ -389,7 +389,7 @@ export function AiPanel({
                     <button
                       onClick={() => onCopyText(msg.content, msg.id)}
                       className={`flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-md border transition-colors ${
-                        isGlass && isDark ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10" : "text-slate-600 bg-white hover:bg-slate-50 border-slate-200/60 shadow-sm"
+                        isGlass && isDark ? "text-white/80 bg-white/5 border-white/10 hover:bg-white/10" : "text-slate-600 bg-white hover:bg-slate-50 border-slate-200/60"
                       }`}
                     >
                       <IconCopy /> {copiedId === msg.id ? "복사됨" : "복사"}
@@ -402,7 +402,7 @@ export function AiPanel({
         ))}
 
         {aiError && (
-          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <div className="bg-red-50 border border-red-200 rounded-md px-4 py-3">
             <p className="text-sm text-red-600">{aiError}</p>
           </div>
         )}
@@ -427,16 +427,16 @@ export function AiPanel({
             placeholder="직접 요청 입력..."
             rows={1}
             style={{ maxHeight: "72px" }}
-            className={`flex-1 text-xs sm:text-sm border rounded-lg px-3 py-1 sm:py-2 focus:outline-none resize-none overflow-hidden transition-colors ${
+            className={`flex-1 text-xs sm:text-sm border rounded-md px-3 py-1 sm:py-2 focus:outline-none resize-none overflow-hidden transition-colors ${
                 isGlass && isDark
                 ? "bg-black/20! text-white! border-white/20! placeholder-white/40 focus:border-white/50"
-                : "bg-white text-slate-700 border-slate-200 shadow-sm placeholder-slate-400 focus:bg-white focus:border-indigo-300"
+                : "bg-white text-slate-700 border-slate-200 placeholder-slate-400 focus:bg-white focus:border-indigo-300"
               }`}
           />
           <button
             onClick={() => { if (customPrompt.trim()) onRunAssist(customPrompt); }}
             disabled={!customPrompt.trim() || aiLoading}
-            className={`shrink-0 px-2.5 sm:px-3 rounded-lg min-h-8 sm:min-h-10 disabled:opacity-40 disabled:cursor-not-allowed transition-all ${isGlass && isDark ? "bg-white/10 border border-white/20 text-white hover:bg-white/20" : "bg-indigo-600 text-white shadow-sm hover:bg-indigo-700"
+            className={`shrink-0 px-2.5 sm:px-3 rounded-md min-h-8 sm:min-h-10 disabled:opacity-40 disabled:cursor-not-allowed transition-all ${isGlass && isDark ? "bg-white/10 border border-white/20 text-white hover:bg-white/20" : "bg-indigo-600 text-white hover:bg-indigo-700"
               }`}
           >
             {aiLoading ? (

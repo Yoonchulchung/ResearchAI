@@ -10,6 +10,8 @@
     "build:fe": "cd FE && npm run build",
     "build": "npm run build:be && npm run build:fe && npm run electron:compile",
     "dev": "npm run build:be && npm run electron:compile && electron .",
+    "docs:html": "node scripts/build-docs-pdf.mjs --html-only",
+    "docs:pdf": "node scripts/build-docs-pdf.mjs",
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac"
   },
@@ -17,6 +19,8 @@
     "@types/node": "^25.6.0",
     "electron": "^41.2.0",
     "electron-builder": "^26.8.1",
+    "markdown-it": "^14.2.0",
+    "mermaid": "^11.15.0",
     "typescript": "^6.0.2"
   }
 }

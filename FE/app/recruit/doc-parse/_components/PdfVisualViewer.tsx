@@ -708,7 +708,7 @@ export default function PdfVisualViewer({ file, onPageChange, onAnalyzePage, scr
                     <div
                       key={i}
                       ref={(el) => setPageRef(el, i)}
-                      className={`group relative overflow-hidden rounded-lg border border-slate-200 shadow-sm ${shouldRender ? "bg-white" : "bg-slate-50"}`}
+                      className={`group relative overflow-hidden rounded-md border border-slate-200 ${shouldRender ? "bg-white" : "bg-slate-50"}`}
                       style={{ width: `${renderWidth}px`, height: `${pageHeight}px` }}
                     >
                       {shouldRender ? (

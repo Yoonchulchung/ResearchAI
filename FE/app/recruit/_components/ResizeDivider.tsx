@@ -21,7 +21,7 @@ export function ResizeDivider({ onMouseDown, isDragging }: Props) {
       } ${dark ? "hover:bg-slate-700" : "hover:bg-indigo-100"}`}
     >
       <div
-        className={`w-0.5 h-10 rounded-full transition-colors ${
+        className={`w-0.5 h-10 rounded-sm transition-colors ${
           isDragging
             ? dark ? "bg-slate-500" : "bg-indigo-400"
             : dark ? "bg-slate-600 group-hover:bg-slate-500" : "bg-slate-300 group-hover:bg-indigo-300"

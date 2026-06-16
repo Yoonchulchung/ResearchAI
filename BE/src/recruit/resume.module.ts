@@ -5,6 +5,8 @@ import { ResumeEntity } from './domain/resume/resume.entity';
 import { ResumeCoverLetterEntity } from './domain/resume/resume-cover-letter.entity';
 import { ResumeExperienceEntity } from './domain/resume/resume-experience.entity';
 import { ResumePrizeEntity } from './domain/resume/resume-prize.entity';
+import { ResumeTrainingEntity } from './domain/resume/resume-training.entity';
+import { ResumeVersionEntity } from './domain/resume/resume-version.entity';
 import { ResumeAiEvalEntity } from './domain/resume/resume-ai-eval.entity';
 import { RecruitResumeCompanyJdEntity } from './domain/resume/recruit-resume-company-jd.entity';
 import { RecruitCompanyNewsEntity } from './domain/company-news/recruit-company-news.entity';
@@ -19,6 +21,8 @@ import { ResumeController } from './presentation/resume/resume.controller';
       ResumeCoverLetterEntity,
       ResumeExperienceEntity,
       ResumePrizeEntity,
+      ResumeTrainingEntity,
+      ResumeVersionEntity,
       ResumeAiEvalEntity,
       RecruitResumeCompanyJdEntity,
       RecruitCompanyNewsEntity,

@@ -12,11 +12,12 @@ export interface WriteAssistExtras {
 }
 
 /** 글 평가 — 문항 유형 (AI Agent 1단계에서 분류) */
-export type QuestionType = 'motivation' | 'experience' | 'competency' | 'general';
+export type QuestionType = 'motivation' | 'experience' | 'competency' | 'personality' | 'general';
 
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   motivation: '지원 동기',
   experience: '경험 서술',
   competency: '직무 역량',
+  personality: '인성·행동',
   general: '일반 자기소개',
 };

@@ -10,7 +10,7 @@
 |------|------|
 | [common/README.md](common/README.md) | 공통 UX, 인증, 권한, API 통신, 큐 이벤트 |
 | [dashboard/README.md](dashboard/README.md) | 메인 대시보드, 뉴스/날씨/마켓/검색 진입 |
-| [research/README.md](research/README.md) | 리서치 세션, Light/Deep Research, RAG 채팅, 요약 |
+| [search/README.md](search/README.md) | 리서치 세션, Light/Deep Research, RAG 채팅, 요약 |
 | [recruit/README.md](recruit/README.md) | 채용 공고, 이력서, 자기소개서, 문서 파싱, 스펙 관리 |
 | [company/README.md](company/README.md) | 기업 목록, 기업 상세, 기업 분석, 기업 정보 보강 |
 | [news/README.md](news/README.md) | 뉴스, 논문, 기술 블로그, AI 리더보드 |

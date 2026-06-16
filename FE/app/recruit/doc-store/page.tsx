@@ -79,7 +79,7 @@ function DocStorePageInner() {
         >
           저장된 문서
           {docs.documents.length > 0 && (
-            <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${tab === "docs" ? "bg-indigo-100 text-indigo-600" : "bg-slate-100 text-slate-400"}`}>
+            <span className={`ml-1.5 px-1.5 py-0.5 rounded-sm text-xs ${tab === "docs" ? "bg-indigo-100 text-indigo-600" : "bg-slate-100 text-slate-400"}`}>
               {docs.documents.length}
             </span>
           )}
@@ -92,7 +92,7 @@ function DocStorePageInner() {
         >
           경험
           {exp.experiences.length > 0 && (
-            <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${tab === "exp" ? "bg-indigo-100 text-indigo-600" : "bg-slate-100 text-slate-400"}`}>
+            <span className={`ml-1.5 px-1.5 py-0.5 rounded-sm text-xs ${tab === "exp" ? "bg-indigo-100 text-indigo-600" : "bg-slate-100 text-slate-400"}`}>
               {exp.experiences.length}
             </span>
           )}
@@ -106,7 +106,7 @@ function DocStorePageInner() {
             value={docs.docSearch}
             onChange={(e) => docs.setDocSearch(e.target.value)}
             placeholder="문서 검색..."
-            className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200 w-44"
+            className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200 w-44"
           />
         )}
         {tab === "exp" && (
@@ -114,7 +114,7 @@ function DocStorePageInner() {
             value={exp.expSearch}
             onChange={(e) => exp.setExpSearch(e.target.value)}
             placeholder="경험 검색..."
-            className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200 w-44"
+            className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-200 w-44"
           />
         )}
 
@@ -124,7 +124,7 @@ function DocStorePageInner() {
         {tab === "docs" && (
           <button
             onClick={() => { window.location.href = "/recruit/write"; }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
           >
             <IconPlus /> 자소서 작성
           </button>
@@ -132,7 +132,7 @@ function DocStorePageInner() {
         {tab === "exp" && (
           <button
             onClick={exp.openAdd}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
           >
             <IconPlus /> 경험 추가
           </button>
@@ -189,7 +189,7 @@ function DocStorePageInner() {
 
       {extracting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
-          <div className="bg-white rounded-2xl shadow-xl px-6 py-5 flex items-center gap-3">
+          <div className="bg-white rounded-md px-6 py-5 flex items-center gap-3">
             <span className="w-4 h-4 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
             <span className="text-sm text-slate-600">AI가 경험을 추출하고 있습니다...</span>
           </div>

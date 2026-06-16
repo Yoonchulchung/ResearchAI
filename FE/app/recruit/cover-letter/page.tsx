@@ -14,7 +14,7 @@ const SOURCE_FILTERS = [
 ] as const;
 const COMPANY_TYPE_FILTERS = ["", "대기업", "중견기업", "중소기업", "금융권"] as const;
 const JOB_CATEGORY_FILTERS = [
-  { value: "", label: "직무 전체" },
+  { value: "all", label: "전체" },
   { value: "IT+전자", label: "IT+전자" },
   { value: "IT", label: "IT" },
   { value: "전자", label: "전자" },
@@ -37,6 +37,17 @@ function CoverLetterPageContent() {
   const list = useCoverLetterList(coverId);
   const scraping = useCoverLetterScraping(list.reload);
   const [showAnalysis, setShowAnalysis] = useState(true);
+  const [hideLoading, setHideLoading] = useState(false);
+
+  const handleSelectedHiddenToggle = async () => {
+    if (!list.selected || hideLoading) return;
+    setHideLoading(true);
+    try {
+      await list.handleToggleHidden(list.selected.id, !list.selected.isHidden);
+    } finally {
+      setHideLoading(false);
+    }
+  };
 
   useEffect(() => {
     // 부모 main 엘리먼트의 스크롤을 막아서 중첩 스크롤 및 뷰포트 밀림 방지
@@ -52,7 +63,7 @@ function CoverLetterPageContent() {
 
   return (
     <div className={`h-full flex flex-col overflow-hidden ${isGlass ? "p-3 pr-4 pb-4 bg-transparent" : "bg-slate-100"}`}>
-      <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-2xl shadow-xl border border-white/20" : ""}`}>
+      <div className={`flex-1 flex flex-col min-h-0 overflow-hidden transition-all ${isGlass ? "glass-panel rounded-md border border-white/20" : ""}`}>
 
         {/* Topbar */}
         <div className={`shrink-0 flex flex-col border-b transition-all duration-200 ease-out overflow-hidden ${isGlass ? (isDark ? "border-white/20" : "border-black/10") : "bg-white border-slate-200/60"} ${
@@ -74,7 +85,7 @@ function CoverLetterPageContent() {
             <div className="flex-1" />
             <button
               onClick={() => window.location.assign("/recruit/spec")}
-              className={`hidden sm:inline-flex shrink-0 items-center rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+              className={`hidden sm:inline-flex shrink-0 items-center rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
                 isDark ? "text-indigo-300 hover:bg-white/10" : "text-indigo-600 hover:bg-indigo-50"
               }`}
             >
@@ -83,7 +94,7 @@ function CoverLetterPageContent() {
             <button
               onClick={() => setShowAnalysis((v) => !v)}
               title="기업 분석 패널"
-              className={`hidden xl:inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+              className={`hidden xl:inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
                 showAnalysis
                   ? isDark ? "bg-violet-500/20 text-violet-300" : "bg-violet-50 text-violet-700"
                   : isDark ? "text-white/40 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
@@ -95,7 +106,7 @@ function CoverLetterPageContent() {
               </svg>
               기업분석
             </button>
-            <div className={`hidden sm:flex shrink-0 items-center gap-1 rounded-lg p-0.5 border ${
+            <div className={`hidden sm:flex shrink-0 items-center gap-1 rounded-md p-0.5 border ${
               isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
             }`}>
               {(["all", "catch", "linkareer"] as const).map((source) => (
@@ -105,7 +116,7 @@ function CoverLetterPageContent() {
                   disabled={scraping.status?.running || scraping.scrapeLoading}
                   className={`px-2 py-1 text-xs font-semibold rounded-md transition-all disabled:opacity-50 ${
                     scraping.scrapeSource === source
-                      ? isDark ? "bg-white/20 text-white" : "bg-white text-slate-800 shadow-sm"
+                      ? isDark ? "bg-white/20 text-white" : "bg-white text-slate-800"
                       : isDark ? "text-white/45 hover:text-white/80" : "text-slate-400 hover:text-slate-700"
                   }`}
                 >
@@ -117,7 +128,7 @@ function CoverLetterPageContent() {
               <button
                 onClick={scraping.handleStop}
                 disabled={scraping.scrapeLoading}
-                className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-all disabled:opacity-50 bg-red-500 text-white border-red-500 hover:bg-red-600"
+                className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all disabled:opacity-50 bg-red-500 text-white border-red-500 hover:bg-red-600"
               >
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                   <rect x="1.5" y="1.5" width="7" height="7" rx="1" fill="currentColor"/>
@@ -128,7 +139,7 @@ function CoverLetterPageContent() {
               <button
                 onClick={scraping.handleStart}
                 disabled={scraping.scrapeLoading}
-                className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all disabled:opacity-50 bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md border transition-all disabled:opacity-50 bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
               >
                 {scraping.scrapeLoading ? (
                   <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -143,8 +154,8 @@ function CoverLetterPageContent() {
           </div>
           {scraping.status?.running && (
             <div className="flex items-center px-4 sm:px-5 pb-2">
-              <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full ${isDark ? "bg-emerald-500/15 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm ${isDark ? "bg-emerald-500/15 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
+                <span className="w-1.5 h-1.5 rounded-sm bg-emerald-500 animate-pulse" />
                 수집 중 {scraping.status.totalCollected.toLocaleString()}건 · p.{scraping.status.currentPage}
               </div>
             </div>
@@ -166,7 +177,7 @@ function CoverLetterPageContent() {
                   value={list.search}
                   onChange={(e) => list.setSearch(e.target.value)}
                   placeholder="기업명, 직무, 시즌 검색"
-                  className={`w-full pl-7 pr-3 py-1.5 text-sm rounded-lg border focus:outline-none transition-colors ${
+                  className={`w-full pl-7 pr-3 py-1.5 text-sm rounded-md border focus:outline-none transition-colors ${
                     isGlass && isDark
                       ? "bg-white/10 border-white/20 text-white placeholder-white/40 focus:border-white/40"
                       : "bg-slate-50 border-slate-200 text-slate-700 placeholder-slate-400 focus:bg-white focus:border-indigo-300"
@@ -174,7 +185,7 @@ function CoverLetterPageContent() {
                 />
               </div>
               <div className="mt-2 flex flex-col gap-2">
-                <div className={`grid grid-cols-3 gap-1 rounded-lg p-0.5 border ${
+                <div className={`grid grid-cols-3 gap-1 rounded-md p-0.5 border ${
                   isGlass && isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
                 }`}>
                   {SOURCE_FILTERS.map((item) => (
@@ -183,7 +194,7 @@ function CoverLetterPageContent() {
                       onClick={() => list.setSourceFilter(item.value)}
                       className={`h-7 rounded-md text-xs font-semibold transition-all ${
                         list.sourceFilter === item.value
-                          ? isGlass && isDark ? "bg-white/20 text-white" : "bg-white text-slate-800 shadow-sm"
+                          ? isGlass && isDark ? "bg-white/20 text-white" : "bg-white text-slate-800"
                           : isGlass && isDark ? "text-white/45 hover:text-white/80" : "text-slate-400 hover:text-slate-700"
                       }`}
                     >
@@ -191,10 +202,34 @@ function CoverLetterPageContent() {
                     </button>
                   ))}
                 </div>
+                <div className={`grid grid-cols-2 gap-1 rounded-md p-0.5 border ${
+                  isGlass && isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"
+                }`}>
+                  <button
+                    onClick={() => list.setShowHidden(false)}
+                    className={`h-8 rounded-md text-xs font-semibold transition-all ${
+                      !list.showHidden
+                        ? isGlass && isDark ? "bg-white/20 text-white" : "bg-white text-slate-800"
+                        : isGlass && isDark ? "text-white/45 hover:text-white/80" : "text-slate-400 hover:text-slate-700"
+                    }`}
+                  >
+                    일반
+                  </button>
+                  <button
+                    onClick={() => list.setShowHidden(true)}
+                    className={`h-8 rounded-md text-xs font-semibold transition-all ${
+                      list.showHidden
+                        ? isGlass && isDark ? "bg-white/20 text-white" : "bg-white text-slate-800"
+                        : isGlass && isDark ? "text-white/45 hover:text-white/80" : "text-slate-400 hover:text-slate-700"
+                    }`}
+                  >
+                    숨긴 자소서
+                  </button>
+                </div>
                 <select
                   value={list.companyTypeFilter}
                   onChange={(e) => list.setCompanyTypeFilter(e.target.value)}
-                  className={`w-full h-8 px-2.5 text-xs font-semibold rounded-lg border outline-none transition-colors ${
+                  className={`w-full h-8 px-2.5 text-xs font-semibold rounded-md border outline-none transition-colors ${
                     isGlass && isDark
                       ? "bg-white/10 border-white/20 text-white focus:border-white/40"
                       : "bg-white border-slate-200 text-slate-600 focus:border-indigo-300"
@@ -213,7 +248,7 @@ function CoverLetterPageContent() {
                       <button
                         key={item.value || "all"}
                         onClick={() => list.setJobCategoryFilter(item.value)}
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold transition-colors whitespace-nowrap ${
+                        className={`rounded-sm px-2 py-0.5 text-xs font-semibold transition-colors whitespace-nowrap ${
                           list.jobCategoryFilter === item.value
                             ? "bg-indigo-600 text-white"
                             : isGlass && isDark
@@ -229,7 +264,7 @@ function CoverLetterPageContent() {
 
                 <button
                   onClick={() => window.location.assign("/recruit/spec")}
-                  className={`flex h-8 items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold transition-all disabled:opacity-50 ${
+                  className={`flex h-8 items-center justify-center gap-1.5 rounded-md border text-xs font-semibold transition-all disabled:opacity-50 ${
                     isGlass && isDark
                       ? "border-indigo-400/30 bg-indigo-500/20 text-indigo-100 hover:bg-indigo-500/30"
                       : "border-indigo-100 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
@@ -248,7 +283,7 @@ function CoverLetterPageContent() {
                     <path d="M6 4h20v24H6V4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
                     <path d="M10 10h12M10 15h12M10 20h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
                   </svg>
-                  <p className="text-sm">자소서가 없습니다</p>
+                  <p className="text-sm">{list.showHidden ? "숨긴 자소서가 없습니다" : "자소서가 없습니다"}</p>
                 </div>
               )}
               {list.filtered.map((cl) => (
@@ -271,19 +306,22 @@ function CoverLetterPageContent() {
                       </p>
                     </div>
                     {cl.source === "catch" && (
-                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full ${isDark ? "bg-sky-500/15 text-sky-300" : "bg-sky-50 text-sky-600"}`}>캐치</span>
+                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-sm ${isDark ? "bg-sky-500/15 text-sky-300" : "bg-sky-50 text-sky-600"}`}>캐치</span>
                     )}
                     {(!cl.source || cl.source === "linkareer") && (
-                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full ${isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-600"}`}>링커리어</span>
+                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-sm ${isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-600"}`}>링커리어</span>
                     )}
                     {cl.jobCategory && (
-                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full ${isDark ? "bg-indigo-500/20 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>{cl.jobCategory}</span>
+                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-sm ${isDark ? "bg-indigo-500/20 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>{cl.jobCategory}</span>
+                    )}
+                    {cl.isHidden && (
+                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-sm ${isDark ? "bg-rose-500/20 text-rose-300" : "bg-rose-50 text-rose-600"}`}>숨김</span>
                     )}
                     {cl.companyType && (
-                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full ${isDark ? "bg-white/10 text-white/50" : "bg-slate-100 text-slate-500"}`}>{cl.companyType}</span>
+                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-sm ${isDark ? "bg-white/10 text-white/50" : "bg-slate-100 text-slate-500"}`}>{cl.companyType}</span>
                     )}
                     {cl.questions.length > 0 && (
-                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full ${isDark ? "bg-white/10 text-white/50" : "bg-slate-100 text-slate-400"}`}>{cl.questions.length}문항</span>
+                      <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-sm ${isDark ? "bg-white/10 text-white/50" : "bg-slate-100 text-slate-400"}`}>{cl.questions.length}문항</span>
                     )}
                   </div>
                   {cl.questions[0] && (
@@ -315,21 +353,40 @@ function CoverLetterPageContent() {
                 <div className="px-3 pt-3 pb-20 sm:px-8 sm:pt-6 sm:pb-24 sm:max-w-3xl w-full mx-auto">
                   <div className="mb-5 sm:mb-6">
                     <div className="flex flex-wrap items-center gap-1.5 mb-3">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-sm ${isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
                         합격 자소서
                       </span>
+                      {list.selected.isHidden && (
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-sm ${isDark ? "bg-rose-500/20 text-rose-300" : "bg-rose-50 text-rose-600"}`}>
+                          숨김
+                        </span>
+                      )}
                       {list.selected.companyType && (
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-700"}`}>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-sm ${isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-700"}`}>
                           {list.selected.companyType}
                         </span>
                       )}
                       {list.selected.jobCategory && (
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isDark ? "bg-indigo-500/20 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-sm ${isDark ? "bg-indigo-500/20 text-indigo-300" : "bg-indigo-50 text-indigo-600"}`}>
                           {list.selected.jobCategory}
                         </span>
                       )}
                     </div>
-                    <h1 className={`text-[28px] sm:text-2xl font-bold mb-1 ${isDark ? "text-white" : "text-slate-900"}`}>{list.selected.company}</h1>
+                    <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
+                      <h1 className={`text-[28px] sm:text-2xl font-bold ${isDark ? "text-white" : "text-slate-900"}`}>{list.selected.company}</h1>
+                      <button
+                        onClick={handleSelectedHiddenToggle}
+                        disabled={hideLoading}
+                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                          list.selected.isHidden
+                            ? isDark ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25" : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            : isDark ? "border-rose-400/30 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25" : "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                        }`}
+                      >
+                        {hideLoading && <span className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />}
+                        {list.selected.isHidden ? "숨김 해제" : "숨김"}
+                      </button>
+                    </div>
                     <div className={`flex flex-wrap gap-2 text-sm ${isDark ? "text-white/50" : "text-slate-500"}`}>
                       {list.selected.position && <span>{list.selected.position}</span>}
                       {list.selected.position && list.selected.season && <span>·</span>}
@@ -349,7 +406,7 @@ function CoverLetterPageContent() {
                       {list.selected.questions.map((q, i) => (
                         <div key={i}>
                           <p className={`text-[15px] sm:text-sm font-semibold mb-3 leading-relaxed ${isDark ? "text-white/80" : "text-slate-700"}`}>
-                            <span className={`inline-block w-5 h-5 rounded-full text-xs font-bold text-center leading-5 mr-2 shrink-0 ${isDark ? "bg-white/10 text-white/70" : "bg-slate-100 text-slate-500"}`}>
+                            <span className={`inline-block w-5 h-5 rounded-sm text-xs font-bold text-center leading-5 mr-2 shrink-0 ${isDark ? "bg-white/10 text-white/70" : "bg-slate-100 text-slate-500"}`}>
                               {q.number}
                             </span>
                             {q.question}

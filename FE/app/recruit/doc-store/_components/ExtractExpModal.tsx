@@ -50,7 +50,7 @@ export function ExtractExpModal({ docId, docTitle, items, onClose, onSaved }: Pr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 flex flex-col max-h-[80vh]">
+      <div className="bg-white rounded-md w-full max-w-xl mx-4 flex flex-col max-h-[80vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <div>
@@ -76,7 +76,7 @@ export function ExtractExpModal({ docId, docTitle, items, onClose, onSaved }: Pr
               {items.map((item, i) => (
                 <label
                   key={i}
-                  className={`flex gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                  className={`flex gap-3 p-3 rounded-md border cursor-pointer transition-all ${
                     selected.has(i)
                       ? "border-indigo-300 bg-indigo-50/60"
                       : "border-slate-200 bg-white hover:border-slate-300"
@@ -117,14 +117,14 @@ export function ExtractExpModal({ docId, docTitle, items, onClose, onSaved }: Pr
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              className="px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
             >
               취소
             </button>
             <button
               onClick={handleSave}
               disabled={selected.size === 0 || saving || done}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                 done
                   ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                   : "bg-indigo-600 text-white hover:bg-indigo-700"

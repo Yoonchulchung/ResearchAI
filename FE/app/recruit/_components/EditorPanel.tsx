@@ -154,7 +154,7 @@ export function EditorPanel({
             onChange={(e) => setJobDescription(e.target.value)}
             placeholder="Job Description 전체 내용을 붙여넣으세요. 평가/개선 시 이 JD에 부합하는지를 핵심 기준으로 사용합니다."
             rows={6}
-            className={`w-full text-sm border rounded-lg px-3 py-2 resize-y focus:outline-none focus:ring-1 ${
+            className={`w-full text-sm border rounded-md px-3 py-2 resize-y focus:outline-none focus:ring-1 ${
               isDark
                 ? "bg-white/5 border-white/10 text-white placeholder-white/30 focus:ring-indigo-400 focus:border-indigo-400"
                 : "bg-slate-50 border-slate-200 text-slate-700 placeholder-slate-400 focus:ring-indigo-300 focus:border-indigo-300"

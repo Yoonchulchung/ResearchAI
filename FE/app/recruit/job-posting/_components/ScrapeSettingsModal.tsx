@@ -47,7 +47,7 @@ export function ScrapeSettingsModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
     >
-      <div className="w-full max-w-sm mx-4 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="w-full max-w-sm mx-4 bg-white dark:bg-slate-900 rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
           <span className="text-sm font-bold text-slate-800 dark:text-slate-100">크롤링 설정</span>
@@ -73,7 +73,7 @@ export function ScrapeSettingsModal({
                 <button
                   key={src}
                   onClick={() => setScrapeSource(src)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                  className={`px-2.5 py-1 rounded-sm text-xs font-semibold border transition-all ${
                     scrapeSource === src
                       ? "bg-indigo-600 text-white border-indigo-600"
                       : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500"
@@ -96,7 +96,7 @@ export function ScrapeSettingsModal({
                   <button
                     key={ct}
                     onClick={() => setJobkoreaCompanyTypes(toggleItem(jobkoreaCompanyTypes, ct))}
-                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                    className={`px-2.5 py-1 rounded-sm text-xs font-semibold border transition-all ${
                       jobkoreaCompanyTypes.includes(ct)
                         ? "bg-indigo-600 text-white border-indigo-600"
                         : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500"
@@ -115,7 +115,7 @@ export function ScrapeSettingsModal({
               <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
                 공고 유형
               </label>
-              <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-semibold w-fit">
+              <div className="flex rounded-md border border-slate-200 dark:border-slate-700 overflow-hidden text-xs font-semibold w-fit">
                 {(["INTERN", "RECRUIT"] as const).map((jt) => (
                   <button
                     key={jt}
@@ -139,7 +139,7 @@ export function ScrapeSettingsModal({
           <button
             onClick={handleStart}
             disabled={scrapeLoading}
-            className="w-full py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-all disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+            className="w-full py-2.5 rounded-md text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {scrapeLoading ? (
               <>

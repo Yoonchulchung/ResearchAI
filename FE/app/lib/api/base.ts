@@ -71,10 +71,18 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
     ...getAuthHeaders()
   };
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { ...headers, ...(options?.headers as Record<string, string> | undefined) },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: { ...headers, ...(options?.headers as Record<string, string> | undefined) },
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(`API 서버에 연결할 수 없습니다 (${API_BASE}). BE가 실행 중인지 확인해 주세요.`);
+    }
+    throw error;
+  }
 
   // 슬라이딩 JWT 갱신
   const newToken = res.headers.get("X-New-Token");
@@ -134,9 +142,9 @@ export async function readSSE<T>(
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
       for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
+        if (!line.startsWith("data:")) continue;
         try {
-          const event = JSON.parse(line.slice(6)) as T;
+          const event = JSON.parse(line.slice(5).trimStart()) as T;
           if (onEvent(event) === true) return;
         } catch { /* ignore parse errors */ }
       }

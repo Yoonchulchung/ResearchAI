@@ -18,6 +18,8 @@ import { CompanyAnalysisEntity } from '../company/domain/entity/company-analysis
 import { CompanyEntity } from '../company/domain/entity/company.entity';
 import { CompanyEnrichQueueEntity } from '../company/domain/entity/company-enrich-queue.entity';
 import { CompanyFinancialEntity } from '../company/domain/entity/company-financial.entity';
+import { CompanyInvestorTradingEntity } from '../company/domain/entity/company-investor-trading.entity';
+import { CompanyNewsEntity } from '../company/domain/entity/company-news.entity';
 import { CompanyRateEntity } from '../company/domain/entity/company-rate.entity';
 import { AiCallLogEntity } from '../ai/domain/entity/ai-call-log.entity';
 import { UserEntity } from '../auth/domain/entity/user.entity';
@@ -35,10 +37,13 @@ import { ResumeEntity } from '../recruit/domain/resume/resume.entity';
 import { ResumeCoverLetterEntity } from '../recruit/domain/resume/resume-cover-letter.entity';
 import { ResumeExperienceEntity } from '../recruit/domain/resume/resume-experience.entity';
 import { ResumePrizeEntity } from '../recruit/domain/resume/resume-prize.entity';
+import { ResumeTrainingEntity } from '../recruit/domain/resume/resume-training.entity';
+import { ResumeVersionEntity } from '../recruit/domain/resume/resume-version.entity';
 import { ResumeAiEvalEntity } from '../recruit/domain/resume/resume-ai-eval.entity';
 import { RecruitResumeCompanyJdEntity } from '../recruit/domain/resume/recruit-resume-company-jd.entity';
 import { RecruitCompanyNewsEntity } from '../recruit/domain/company-news/recruit-company-news.entity';
 import { CoverLetterEntity } from '../recruit/domain/cover-letter/entity/cover-letter.entity';
+import { CoverLetterQuestionEntity } from '../recruit/domain/cover-letter/entity/cover-letter-question.entity';
 import { CoverLetterSpecAnalysisEntity } from '../recruit/domain/cover-letter/entity/cover-letter-spec-analysis.entity';
 import { RecruitJobPostingEntity } from '../recruit/domain/job-posting/entity/recruit-job-posting.entity';
 import { RecruitJobRecommendEntity } from '../recruit/domain/job-posting/entity/recruit-job-recommend.entity';
@@ -91,14 +96,14 @@ function renameTableIfNeeded(db: BetterSqliteDatabase, from: string, to: string)
                  TokenHistoryEntity, QueueJobEntity,
                  NewsBriefingEntity, NewsArticleSummaryEntity, AppConfigEntity,
                  DocumentEntity,
-                 CompanyAnalysisEntity, CompanyEntity, CompanyEnrichQueueEntity, CompanyFinancialEntity, CompanyRateEntity, SessionJobEntity,
+                 CompanyAnalysisEntity, CompanyEntity, CompanyEnrichQueueEntity, CompanyFinancialEntity, CompanyInvestorTradingEntity, CompanyNewsEntity, CompanyRateEntity, SessionJobEntity,
                  AiCallLogEntity, UserEntity, LoginHistoryEntity,
                  PaperEntity, PaperTrendSummaryEntity, AiLeaderboardEntryEntity,
                  TechBlogPostEntity, TechBlogTrendSummaryEntity, ContentRefreshStateEntity,
                  ExamEventEntity, ResumeEntity, ResumeCoverLetterEntity,
-                 ResumeExperienceEntity, ResumePrizeEntity, ResumeAiEvalEntity,
+                 ResumeExperienceEntity, ResumePrizeEntity, ResumeTrainingEntity, ResumeVersionEntity, ResumeAiEvalEntity,
                  RecruitResumeCompanyJdEntity, RecruitCompanyNewsEntity, CoverLetterEntity,
-                 CoverLetterSpecAnalysisEntity, RecruitJobPostingEntity, RecruitJobRecommendEntity,
+                 CoverLetterQuestionEntity, CoverLetterSpecAnalysisEntity, RecruitJobPostingEntity, RecruitJobRecommendEntity,
                  SystemSettingEntity],
       synchronize: true,
       // WAL 모드: 동시 읽기/쓰기 성능 향상 (다중 기기 동시 접속 대응)

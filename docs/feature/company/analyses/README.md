@@ -16,6 +16,10 @@ Spring BE와 BE_BROWSE 분리 이후에는 이 흐름을 기준으로 기업 분
 | 기업 분석 DTO | `BE/src/company/domain/company-analysis.types.ts` |
 | 기업 분석 저장 엔티티 | `BE/src/company/domain/entity/company-analysis.entity.ts` |
 
+## 상세 문서
+
+- [기업 분석 데이터 파이프라인](./data-pipeline.md): 크롤링, 외부 API 연동, 데이터 정제, 저장 구조 중심 정리
+
 ## 전체 동작 구조
 
 ```mermaid

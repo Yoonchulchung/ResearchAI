@@ -9,6 +9,24 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: "/recruit/resume",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store",
+          },
+        ],
+      },
+      {
+        source: "/recruit/resume/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store",
+          },
+        ],
+      },
+      {
         source: "/recruit",
         headers: [
           {

@@ -57,7 +57,7 @@ export function JobHeader({
 
   return (
     <div
-      className={`shrink-0 flex flex-col px-4 sm:px-6 sm:py-3 bg-white border-b border-slate-200/80 shadow-sm z-10 transition-all duration-200 ease-out overflow-hidden dark:bg-slate-900/80 dark:border-slate-800 ${
+      className={`shrink-0 flex flex-col px-4 sm:px-6 sm:py-3 bg-white border-b border-slate-200/80 z-10 transition-all duration-200 ease-out overflow-hidden dark:bg-slate-900/80 dark:border-slate-800 ${
         isHeaderHidden
           ? "max-md:max-h-0 max-md:py-0 max-md:opacity-0 max-md:-translate-y-2 max-md:pointer-events-none max-md:border-b-0"
           : "max-md:max-h-28 max-md:py-3 max-md:opacity-100 max-md:translate-y-0"
@@ -79,7 +79,7 @@ export function JobHeader({
         </button>
         <div className="w-px h-4 bg-slate-200 mx-1 shrink-0 dark:bg-slate-800" />
         <span className="text-base font-bold text-slate-800 tracking-tight shrink-0 dark:text-slate-100">채용 공고</span>
-        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-xs font-semibold text-slate-500 shrink-0 dark:bg-slate-800 dark:text-slate-400">
+        <span className="px-2 py-0.5 rounded-sm bg-slate-100 text-xs font-semibold text-slate-500 shrink-0 dark:bg-slate-800 dark:text-slate-400">
           {total.toLocaleString()}건
         </span>
         <div className="flex-1" />
@@ -104,7 +104,7 @@ export function JobHeader({
             <button
               onClick={() => setCollectSettingsOpen(true)}
               disabled={collectLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-l-md border transition-all disabled:opacity-50 bg-amber-500 text-white border-amber-500 hover:bg-amber-600 shadow-sm dark:bg-amber-600 dark:border-amber-600 dark:hover:bg-amber-700"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-l-md border transition-all disabled:opacity-50 bg-amber-500 text-white border-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:border-amber-600 dark:hover:bg-amber-700"
             >
               {collectLoading ? (
                 <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -120,7 +120,7 @@ export function JobHeader({
               onClick={() => setCollectSettingsOpen(true)}
               disabled={collectLoading}
               title="AI 수집 설정"
-              className="flex items-center justify-center px-2 py-1.5 text-xs font-semibold rounded-r-md border-y border-r transition-all disabled:opacity-50 bg-amber-600 text-white border-amber-600 hover:bg-amber-700 shadow-sm dark:bg-amber-700 dark:border-amber-700 dark:hover:bg-amber-800"
+              className="flex items-center justify-center px-2 py-1.5 text-xs font-semibold rounded-r-md border-y border-r transition-all disabled:opacity-50 bg-amber-600 text-white border-amber-600 hover:bg-amber-700 dark:bg-amber-700 dark:border-amber-700 dark:hover:bg-amber-800"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                 <path d="M8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z" stroke="currentColor" strokeWidth="1.3" />
@@ -157,7 +157,7 @@ export function JobHeader({
             <button
               onClick={handleStart}
               disabled={scrapeLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-l-md border transition-all disabled:opacity-50 bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 shadow-sm dark:bg-indigo-600 dark:border-indigo-600 dark:hover:bg-indigo-700"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-l-md border transition-all disabled:opacity-50 bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:border-indigo-600 dark:hover:bg-indigo-700"
             >
               {scrapeLoading ? (
                 <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -172,7 +172,7 @@ export function JobHeader({
               onClick={() => setScrapeSettingsOpen(true)}
               disabled={scrapeLoading}
               title="크롤링 설정"
-              className="flex items-center justify-center px-2 py-1.5 text-xs font-semibold rounded-r-md border-y border-r transition-all disabled:opacity-50 bg-indigo-700 text-white border-indigo-700 hover:bg-indigo-800 shadow-sm dark:bg-indigo-700 dark:border-indigo-700 dark:hover:bg-indigo-800"
+              className="flex items-center justify-center px-2 py-1.5 text-xs font-semibold rounded-r-md border-y border-r transition-all disabled:opacity-50 bg-indigo-700 text-white border-indigo-700 hover:bg-indigo-800 dark:bg-indigo-700 dark:border-indigo-700 dark:hover:bg-indigo-800"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                 <path d="M8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z" stroke="currentColor" strokeWidth="1.3" />
@@ -199,7 +199,7 @@ export function JobHeader({
       {/* 수집 진행 상태 표시 */}
       {status?.running && (
         <div className="flex items-center gap-1.5 mt-2 text-xs px-3 py-1.5 rounded-md bg-emerald-50 text-emerald-600 font-medium border border-emerald-100 w-fit dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-sm bg-emerald-500 animate-pulse" />
           수집 중 {status.totalCollected.toLocaleString()}건 · p.{status.currentPage}
         </div>
       )}

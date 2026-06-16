@@ -50,6 +50,7 @@ export class CoverLetterScraperController {
     @Query('jobCategory') jobCategory?: string,
     @Query('search') search?: string,
     @Query('sort') sort?: string,
+    @Query('hidden') hidden?: string,
   ) {
     const parsedOffset = offset === undefined ? undefined : Number(offset);
     return this.service.getData(
@@ -61,6 +62,7 @@ export class CoverLetterScraperController {
         jobCategory,
         search,
         sort: sort === 'latest' ? 'latest' : undefined,
+        hidden: hidden === 'true',
       },
       Number.isFinite(parsedOffset) ? parsedOffset : undefined,
     );
@@ -74,9 +76,29 @@ export class CoverLetterScraperController {
     return this.service.backfillJobCategories();
   }
 
+  @Post('backfill-questions')
+  backfillQuestions() {
+    return this.service.backfillQuestionRows();
+  }
+
+  @Get('questions')
+  searchQuestions(
+    @Query('q') q = '',
+    @Query('limit') limit = '20',
+  ) {
+    return this.service.searchQuestions(q, Number(limit));
+  }
+
   @Get('data/:id')
   async detail(@Param('id') id: string) {
     const item = await this.service.getById(id);
+    if (!item) throw new NotFoundException('자소서를 찾을 수 없습니다.');
+    return item;
+  }
+
+  @Post('data/:id/hidden')
+  async setHidden(@Param('id') id: string, @Body() body: { isHidden?: boolean }) {
+    const item = await this.service.setHidden(id, body.isHidden === true);
     if (!item) throw new NotFoundException('자소서를 찾을 수 없습니다.');
     return item;
   }

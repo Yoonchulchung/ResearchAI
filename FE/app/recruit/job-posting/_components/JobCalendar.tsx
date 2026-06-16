@@ -55,11 +55,11 @@ export function JobCalendar({
                     href={rec.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex flex-col gap-1.5 rounded-xl border border-amber-100 bg-amber-50/60 hover:bg-amber-50 hover:border-amber-200 transition-colors p-3 w-full"
+                    className="flex flex-col gap-1.5 rounded-md border border-amber-100 bg-amber-50/60 hover:bg-amber-50 hover:border-amber-200 transition-colors p-3 w-full"
                   >
                     <div className="flex items-center justify-between gap-1">
                       <span className="text-xs font-bold text-slate-800 truncate">{rec.company}</span>
-                      <span className="shrink-0 text-xs font-black text-amber-600 bg-amber-100 rounded-full px-1.5 py-0.5">{rec.score}</span>
+                      <span className="shrink-0 text-xs font-black text-amber-600 bg-amber-100 rounded-sm px-1.5 py-0.5">{rec.score}</span>
                     </div>
                     <p className="text-xs text-slate-600 leading-snug line-clamp-2">{rec.title}</p>
                     {rec.reason && (
@@ -72,7 +72,7 @@ export function JobCalendar({
                   {onDeleteRecommendation && (
                     <button
                       onClick={(e) => { e.preventDefault(); onDeleteRecommendation(rec.id); }}
-                      className="absolute top-1.5 right-1.5 hidden group-hover:flex items-center justify-center w-4 h-4 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-500 text-micro font-bold leading-none"
+                      className="absolute top-1.5 right-1.5 hidden group-hover:flex items-center justify-center w-4 h-4 rounded-sm bg-slate-200 hover:bg-slate-300 text-slate-500 text-micro font-bold leading-none"
                       title="추천 공고 삭제"
                     >
                       ✕
@@ -95,7 +95,7 @@ export function JobCalendar({
             <span className="text-xs text-slate-400 font-medium">· 캐치 인기 공고</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden bg-white text-xs font-bold shrink-0">
+            <div className="flex items-center rounded-md border border-slate-200 overflow-hidden bg-white text-xs font-bold shrink-0">
               <button
                 onClick={() => moveCalendarMonth(-1)}
                 className="px-3 py-1.5 text-slate-500 hover:bg-slate-50 border-r border-slate-200"
@@ -114,7 +114,7 @@ export function JobCalendar({
                 ›
               </button>
             </div>
-            <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-white text-xs font-bold shrink-0">
+            <div className="flex rounded-md border border-slate-200 overflow-hidden bg-white text-xs font-bold shrink-0">
               {(
                 [
                   ["", "전체"],
@@ -137,7 +137,7 @@ export function JobCalendar({
         </div>
 
         {popularLoading ? (
-          <div className="grid grid-cols-7 rounded-2xl overflow-hidden border border-slate-200 bg-white">
+          <div className="grid grid-cols-7 rounded-md overflow-hidden border border-slate-200 bg-white">
             {Array.from({ length: 35 }).map((_, i) => (
               <div key={i} className="h-32 border-r border-b border-slate-100 bg-slate-50/60 animate-pulse" />
             ))}
@@ -151,7 +151,7 @@ export function JobCalendar({
             <p className="text-sm font-medium">{popularCategoryFilter} 카테고리 인기 공고가 없습니다</p>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
             <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-200">
               {["일", "월", "화", "수", "목", "금", "토"].map((day) => (
                 <div key={day} className="px-3 py-2 text-center text-xs font-bold text-slate-500 border-r border-slate-200 last:border-r-0">
@@ -176,7 +176,7 @@ export function JobCalendar({
                       <span
                         className={`text-sm font-bold ${
                           isToday
-                            ? "inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-600 text-white"
+                            ? "inline-flex items-center justify-center w-6 h-6 rounded-sm bg-indigo-600 text-white"
                             : isCurrentMonth
                               ? "text-slate-700"
                               : "text-slate-300"

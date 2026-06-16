@@ -81,11 +81,11 @@ export function EnrichQueueWidget() {
   const eta = formatEta(status.estimatedMs);
 
   return (
-    <div className={`rounded-xl border p-4 transition-all ${panelClass}`}>
+    <div className={`rounded-md border p-4 transition-all ${panelClass}`}>
       <div className="flex items-center justify-between">
         <p className={`text-xs font-bold uppercase tracking-widest ${subtleText}`}>공고 수집 큐</p>
         {status.processing && (
-          <span className="inline-flex h-2 w-2 rounded-full bg-blue-500 opacity-80" />
+          <span className="inline-flex h-2 w-2 rounded-sm bg-blue-500 opacity-80" />
         )}
       </div>
 

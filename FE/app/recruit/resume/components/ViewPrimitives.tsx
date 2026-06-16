@@ -56,7 +56,7 @@ export function ExpandableCard({
             height="13"
             viewBox="0 0 13 13"
             fill="none"
-            className={`mt-0.5 shrink-0 text-slate-300 transition-transform ${open ? "rotate-180" : ""}`}
+            className={`mt-0.5 shrink-0 text-slate-300 transition-transform print:hidden ${open ? "rotate-180" : ""}`}
           >
             <path
               d="M2 4.5L6.5 9L11 4.5"
@@ -68,8 +68,8 @@ export function ExpandableCard({
           </svg>
         )}
       </button>
-      {open && content && (
-        <div className="pb-4">
+      {content && (
+        <div className={`pb-4 print:block ${open ? "block" : "hidden"}`}>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">{content}</p>
         </div>
       )}

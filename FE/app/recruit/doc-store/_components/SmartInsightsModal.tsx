@@ -111,8 +111,8 @@ export function SmartInsightsModal({ doc, onClose, onSaved, onDocOpen, onDocDele
         {/* Top Header Row */}
         <div className="flex items-center justify-between z-10">
           <div>
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">
-              <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-sm bg-white/10 border border-white/10 text-white/70 text-xs font-semibold uppercase tracking-widest mb-4">
+              <div className="w-1.5 h-1.5 rounded-sm bg-indigo-400 animate-pulse" />
               Document Analysis
             </span>
             <h1 className="text-4xl font-light text-white tracking-tight">
@@ -124,10 +124,10 @@ export function SmartInsightsModal({ doc, onClose, onSaved, onDocOpen, onDocDele
           </div>
           
           <div className="flex items-center gap-3">
-            <button onClick={() => onDocOpen(doc.id)} className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-medium transition-all">
+            <button onClick={() => onDocOpen(doc.id)} className="px-4 py-2 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-medium transition-all">
               원문 열기
             </button>
-            <button onClick={() => { onDocDelete(doc.id); onClose(); }} className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-red-400 hover:text-red-300 text-sm font-medium transition-all">
+            <button onClick={() => { onDocDelete(doc.id); onClose(); }} className="px-4 py-2 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-red-400 hover:text-red-300 text-sm font-medium transition-all">
               삭제
             </button>
             <button onClick={onClose} className="p-2 ml-4 text-white/40 hover:text-white transition-colors">
@@ -145,35 +145,35 @@ export function SmartInsightsModal({ doc, onClose, onSaved, onDocOpen, onDocDele
               {/* 3D Frosted Glass Folder Representation */}
               <div className="relative w-48 h-36 mb-12">
                 {/* Back flap */}
-                <div className="absolute inset-0 bg-white/5 backdrop-blur-2xl rounded-2xl rounded-tl-sm border border-white/10 shadow-2xl" />
+                <div className="absolute inset-0 bg-white/5 backdrop-blur-2xl rounded-md rounded-tl-sm border border-white/10" />
                 {/* Papers inside */}
-                <div className="absolute bottom-4 left-4 right-4 top-2 bg-white/90 rounded-xl shadow-lg transform -rotate-3 origin-bottom-left" />
-                <div className="absolute bottom-4 left-6 right-2 top-0 bg-white rounded-xl shadow-lg transform rotate-2 origin-bottom-right flex flex-col p-3">
-                  <div className="w-1/3 h-2 bg-slate-200 rounded-full mb-4" />
+                <div className="absolute bottom-4 left-4 right-4 top-2 bg-white/90 rounded-md transform -rotate-3 origin-bottom-left" />
+                <div className="absolute bottom-4 left-6 right-2 top-0 bg-white rounded-md transform rotate-2 origin-bottom-right flex flex-col p-3">
+                  <div className="w-1/3 h-2 bg-slate-200 rounded-sm mb-4" />
                   <div className="space-y-2">
-                    <div className="w-full h-1.5 bg-slate-100 rounded-full" />
-                    <div className="w-5/6 h-1.5 bg-slate-100 rounded-full" />
-                    <div className="w-4/6 h-1.5 bg-slate-100 rounded-full" />
+                    <div className="w-full h-1.5 bg-slate-100 rounded-sm" />
+                    <div className="w-5/6 h-1.5 bg-slate-100 rounded-sm" />
+                    <div className="w-4/6 h-1.5 bg-slate-100 rounded-sm" />
                   </div>
                 </div>
                 {/* Front flap (frosted) */}
-                <div className="absolute inset-0 top-8 bg-white/10 backdrop-blur-xl rounded-2xl border-t border-white/30 shadow-[0_-8px_30px_rgba(255,255,255,0.1)] flex items-end justify-start p-4 gap-2">
-                   <div className="w-6 h-6 rounded-md bg-zinc-900 border border-white/20 flex items-center justify-center text-[10px] font-bold text-white shadow-lg">N</div>
-                   <div className="w-6 h-6 rounded-md bg-emerald-500 border border-white/20 flex items-center justify-center text-white shadow-lg">
+                <div className="absolute inset-0 top-8 bg-white/10 backdrop-blur-xl rounded-md border-t border-white/30 shadow-[0_-8px_30px_rgba(255,255,255,0.1)] flex items-end justify-start p-4 gap-2">
+                   <div className="w-6 h-6 rounded-md bg-zinc-900 border border-white/20 flex items-center justify-center text-[10px] font-bold text-white">N</div>
+                   <div className="w-6 h-6 rounded-md bg-emerald-500 border border-white/20 flex items-center justify-center text-white">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2zm4 8h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
                    </div>
-                   <div className="w-6 h-6 rounded-md bg-purple-600 border border-white/20 flex items-center justify-center text-white shadow-lg">❖</div>
+                   <div className="w-6 h-6 rounded-md bg-purple-600 border border-white/20 flex items-center justify-center text-white">❖</div>
                 </div>
               </div>
 
               <span className="text-white/60 text-sm tracking-wide font-medium">Scanning blueprints & extracting insights...</span>
-              <div className="w-64 h-1 bg-white/10 rounded-full mt-6 overflow-hidden relative">
-                <div className="absolute inset-y-0 left-0 bg-indigo-500 w-1/3 rounded-full animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_15px_rgba(99,102,241,0.6)]" style={{ animation: "progress 2s ease-in-out infinite" }}/>
+              <div className="w-64 h-1 bg-white/10 rounded-sm mt-6 overflow-hidden relative">
+                <div className="absolute inset-y-0 left-0 bg-indigo-500 w-1/3 rounded-sm animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_15px_rgba(99,102,241,0.6)]" style={{ animation: "progress 2s ease-in-out infinite" }}/>
               </div>
             </div>
           ) : items.length === 0 ? (
              <div className="flex flex-col items-center justify-center m-auto">
-               <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-6">
+               <div className="w-20 h-20 rounded-sm bg-white/5 border border-white/10 flex items-center justify-center mb-6">
                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="text-white/20">
                    <path d="M21 21l-6-6M3 10a7 7 0 1014 0 7 7 0 00-14 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                  </svg>
@@ -190,10 +190,10 @@ export function SmartInsightsModal({ doc, onClose, onSaved, onDocOpen, onDocDele
                     <div 
                       key={i} 
                       onClick={() => toggle(i)}
-                      className={`relative shrink-0 snap-center w-[220px] md:w-[240px] h-[300px] rounded-2xl p-4 cursor-pointer transition-all duration-500 will-change-transform ${
+                      className={`relative shrink-0 snap-center w-[220px] md:w-[240px] h-[300px] rounded-md p-4 cursor-pointer transition-all duration-500 will-change-transform ${
                         isSelected 
                           ? "bg-[#5D6BFE] text-white shadow-[0_0_40px_-5px_rgba(93,107,254,0.4)] scale-100" 
-                          : "bg-white text-slate-900 shadow-xl scale-95 opacity-60 hover:opacity-100 hover:scale-[0.98]"
+                          : "bg-white text-slate-900 scale-95 opacity-60 hover:opacity-100 hover:scale-[0.98]"
                       }`}
                       style={{
                         transformStyle: 'preserve-3d',
@@ -218,7 +218,7 @@ export function SmartInsightsModal({ doc, onClose, onSaved, onDocOpen, onDocDele
                       {/* Mega Checkmark Overlay for selected state */}
                       {isSelected && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="w-12 h-12 rounded-xl bg-blue-600 shadow-lg flex items-center justify-center transform rotate-12 animate-in zoom-in-50 duration-300">
+                          <div className="w-12 h-12 rounded-md bg-blue-600 flex items-center justify-center transform rotate-12 animate-in zoom-in-50 duration-300">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                               <path d="M5 13l4 4L19 7" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
@@ -254,7 +254,7 @@ export function SmartInsightsModal({ doc, onClose, onSaved, onDocOpen, onDocDele
                   <button
                     onClick={handleSave}
                     disabled={selected.size === 0 || saving || done}
-                    className={`relative overflow-hidden flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-base transition-all ${
+                    className={`relative overflow-hidden flex items-center gap-2 px-6 py-3 rounded-md font-semibold text-base transition-all ${
                        done ? "bg-emerald-500 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)]"
                        : "bg-white text-black hover:bg-slate-100 hover:shadow-[0_0_30px_rgba(255,255,255,0.3)]"
                     } disabled:opacity-50 disabled:cursor-not-allowed`}

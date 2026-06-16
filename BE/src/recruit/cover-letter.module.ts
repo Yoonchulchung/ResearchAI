@@ -6,6 +6,7 @@ import { SharedModule } from '../shared/shared.module';
 import { AiModule } from '../ai/ai.module';
 import { CompanyModule } from '../company/company.module';
 import { CoverLetterEntity } from './domain/cover-letter/entity/cover-letter.entity';
+import { CoverLetterQuestionEntity } from './domain/cover-letter/entity/cover-letter-question.entity';
 import { CoverLetterSpecAnalysisEntity } from './domain/cover-letter/entity/cover-letter-spec-analysis.entity';
 import { CompanyEntity } from '../company/domain/entity/company.entity';
 
@@ -14,7 +15,7 @@ import { CompanyEntity } from '../company/domain/entity/company.entity';
     SharedModule,
     forwardRef(() => AiModule),
     forwardRef(() => CompanyModule),
-    TypeOrmModule.forFeature([CoverLetterEntity, CoverLetterSpecAnalysisEntity, CompanyEntity]),
+    TypeOrmModule.forFeature([CoverLetterEntity, CoverLetterQuestionEntity, CoverLetterSpecAnalysisEntity, CompanyEntity]),
   ],
   controllers: [CoverLetterScraperController],
   providers: [CoverLetterScraperService],
