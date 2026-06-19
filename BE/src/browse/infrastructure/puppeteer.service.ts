@@ -1,6 +1,11 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import puppeteer, { Browser, Page } from 'puppeteer';
-import { BROWSER_ARGS, BROWSER_USER_AGENT } from './browser-automation.util';
+import { BROWSER_ARGS, BROWSER_USER_AGENT } from 'src/browse/infrastructure/browser-automation.util';
 
 @Injectable()
 export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
@@ -44,7 +49,9 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
       this.logger.log('Puppeteer browser launched');
       return this.browser;
     } catch (e) {
-      this.logger.warn(`Puppeteer 초기화 실패 - 웹 크롤링 비활성화: ${(e as Error).message}`);
+      this.logger.warn(
+        `Puppeteer 초기화 실패 - 웹 크롤링 비활성화: ${(e as Error).message}`,
+      );
       this.browser = null;
       return null;
     }
@@ -59,7 +66,18 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
 
   private isConnectionClosedError(error: unknown): boolean {
     const message = error instanceof Error ? error.message : String(error);
-    return /Connection closed|Target closed|Session closed|Protocol error/i.test(message);
+    return /Connection closed|Target closed|Session closed|Protocol error/i.test(
+      message,
+    );
+  }
+
+  async withPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
+    const page = await this.newPage();
+    try {
+      return await fn(page);
+    } finally {
+      await page.close().catch(() => {});
+    }
   }
 
   private async newPage(): Promise<Page> {
@@ -70,10 +88,89 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
       return await browser.newPage();
     } catch (error) {
       if (!this.isConnectionClosedError(error)) throw error;
-      this.logger.warn(`Puppeteer page 생성 실패 - 브라우저 재시작 후 재시도: ${(error as Error).message}`);
+      this.logger.warn(
+        `Puppeteer page 생성 실패 - 브라우저 재시작 후 재시도: ${(error as Error).message}`,
+      );
       browser = await this.recreateBrowser();
       if (!browser) throw new Error('Browser not initialized');
       return browser.newPage();
+    }
+  }
+
+  private async gotoArticlePage(page: Page, url: string): Promise<void> {
+    const isGoogleNews = url.includes('news.google.com');
+
+    if (isGoogleNews) {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+
+      if (page.url().includes('google.com')) {
+        await page
+          .waitForNavigation({
+            waitUntil: 'domcontentloaded',
+            timeout: 10000,
+          })
+          .catch(() => {});
+      }
+
+      if (page.url().includes('google.com')) {
+        const articleUrl = await page.evaluate(() => {
+          const a = document.querySelector(
+            'a[href^="http"]:not([href*="google.com"])',
+          );
+          return a ? (a as HTMLAnchorElement).href : null;
+        });
+        if (articleUrl) {
+          await page.goto(articleUrl, {
+            waitUntil: 'domcontentloaded',
+            timeout: 15000,
+          });
+        }
+      }
+      return;
+    }
+
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+  }
+
+  private normalizeImageUrl(image: string, baseUrl: string): string | undefined {
+    const trimmed = image.trim();
+    if (!trimmed) return undefined;
+
+    try {
+      const normalized = new URL(trimmed, baseUrl).toString();
+      return /^https?:\/\//i.test(normalized) ? normalized : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async fetchOpenGraphImage(url: string): Promise<{
+    image?: string;
+    finalUrl: string;
+  }> {
+    const page: Page = await this.newPage();
+    try {
+      await page.setUserAgent(BROWSER_USER_AGENT);
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+      });
+
+      await this.gotoArticlePage(page, url);
+
+      const finalUrl = page.url();
+      const image = await page
+        .$eval(
+          'meta[property="og:image"], meta[name="twitter:image"]',
+          (el) => el.getAttribute('content') ?? '',
+        )
+        .catch(() => '');
+
+      return {
+        image: this.normalizeImageUrl(image, finalUrl),
+        finalUrl,
+      };
+    } finally {
+      await page.close();
     }
   }
 
@@ -86,61 +183,57 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
     const page: Page = await this.newPage();
     try {
       await page.setUserAgent(BROWSER_USER_AGENT);
-      await page.setExtraHTTPHeaders({ 'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8' });
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+      });
 
-      const isGoogleNews = url.includes('news.google.com');
-
-      if (isGoogleNews) {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-
-        if (page.url().includes('google.com')) {
-          await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => {});
-        }
-
-        if (page.url().includes('google.com')) {
-          const articleUrl = await page.evaluate(() => {
-            const a = document.querySelector('a[href^="http"]:not([href*="google.com"])');
-            return a ? (a as HTMLAnchorElement).href : null;
-          });
-          if (articleUrl) {
-            await page.goto(articleUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-          }
-        }
-      } else {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-      }
+      await this.gotoArticlePage(page, url);
 
       await page.waitForSelector('p', { timeout: 5000 }).catch(() => {});
 
       const finalUrl = page.url();
       const image = await page
-        .$eval('meta[property="og:image"]', (el) => el.getAttribute('content') ?? '')
+        .$eval(
+          'meta[property="og:image"]',
+          (el) => el.getAttribute('content') ?? '',
+        )
         .catch(() => '');
       const title = await page
-        .$eval('meta[property="og:title"]', (el) => el.getAttribute('content') ?? '')
+        .$eval(
+          'meta[property="og:title"]',
+          (el) => el.getAttribute('content') ?? '',
+        )
         .catch(async () => page.title());
 
       const content = await page.evaluate(() => {
         document
           .querySelectorAll(
             'script, style, nav, header, footer, aside, iframe,' +
-            '.ad, .ads, .advertisement, .banner,' +
-            '.related, .recommend, .comment, .share, .sns,' +
-            '[class*="ad-"], [id*="ad-"], [class*="banner"], [id*="banner"]',
+              '.ad, .ads, .advertisement, .banner,' +
+              '.related, .recommend, .comment, .share, .sns,' +
+              '[class*="ad-"], [id*="ad-"], [class*="banner"], [id*="banner"]',
           )
           .forEach((n) => n.remove());
 
         const SELECTORS = [
           'article',
-          '[class*="article_body"]', '[class*="article-body"]',
-          '[id*="article_body"]', '[id*="articleBody"]',
-          '[class*="article_txt"]', '[class*="art_txt"]',
-          '[class*="news_view"]', '[class*="news-view"]',
-          '[class*="view_text"]', '[class*="view-text"]',
-          '[id*="newsContent"]', '[id*="news_content"]',
+          '[class*="article_body"]',
+          '[class*="article-body"]',
+          '[id*="article_body"]',
+          '[id*="articleBody"]',
+          '[class*="article_txt"]',
+          '[class*="art_txt"]',
+          '[class*="news_view"]',
+          '[class*="news-view"]',
+          '[class*="view_text"]',
+          '[class*="view-text"]',
+          '[id*="newsContent"]',
+          '[id*="news_content"]',
           '[id*="articleBodyContents"]',
-          '[class*="content_area"]', '[class*="contentArea"]',
-          '[class*="story-body"]', '[class*="storyBody"]',
+          '[class*="content_area"]',
+          '[class*="contentArea"]',
+          '[class*="story-body"]',
+          '[class*="storyBody"]',
           'main',
         ];
 
@@ -169,7 +262,12 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
         return paras.join('\n\n');
       });
 
-      return { title, content, image: image || undefined, finalUrl };
+      return {
+        title,
+        content,
+        image: this.normalizeImageUrl(image, finalUrl),
+        finalUrl,
+      };
     } finally {
       await page.close();
     }
@@ -179,7 +277,10 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
   async fetchRenderedHtml(
     url: string,
     waitSelector?: string,
-    options: { waitUntil?: 'domcontentloaded' | 'networkidle2'; selectorTimeout?: number } = {},
+    options: {
+      waitUntil?: 'domcontentloaded' | 'networkidle2';
+      selectorTimeout?: number;
+    } = {},
   ): Promise<string | null> {
     const { waitUntil = 'domcontentloaded', selectorTimeout = 8000 } = options;
     const page: Page = await this.newPage();
@@ -188,24 +289,39 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
       await page.setExtraHTTPHeaders({ 'Accept-Language': 'ko-KR,ko;q=0.9' });
       await page.goto(url, { waitUntil, timeout: 20000 });
       if (waitSelector) {
-        await page.waitForSelector(waitSelector, { timeout: selectorTimeout }).catch(() => {});
+        await page
+          .waitForSelector(waitSelector, { timeout: selectorTimeout })
+          .catch(() => {});
       }
       return await page.content();
     } catch (e) {
-      this.logger.warn(`fetchRenderedHtml 오류 — ${url}: ${(e as Error).message}`);
+      this.logger.warn(
+        `fetchRenderedHtml 오류 — ${url}: ${(e as Error).message}`,
+      );
       return null;
     } finally {
       await page.close();
     }
   }
 
-  async searchGoogle(query: string, limit = 8): Promise<{ title: string; url: string; snippet: string }[]> {
+  async searchGoogle(
+    query: string,
+    limit = 8,
+    offset = 0,
+  ): Promise<{ title: string; url: string; snippet: string }[]> {
     const page: Page = await this.newPage();
     try {
       await page.setUserAgent(BROWSER_USER_AGENT);
-      await page.setExtraHTTPHeaders({ 'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8' });
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+      });
 
-      const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=kr-kr`;
+      const params = new URLSearchParams({
+        q: query,
+        kl: 'kr-kr',
+      });
+      if (offset > 0) params.set('s', String(offset));
+      const url = `https://html.duckduckgo.com/html/?${params.toString()}`;
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
       await page.waitForSelector('.result', { timeout: 8000 }).catch(() => {});
 
@@ -216,7 +332,7 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
         for (const block of blocks) {
           if (items.length >= maxItems) break;
 
-          const anchor = block.querySelector('.result__a') as HTMLAnchorElement | null;
+          const anchor = block.querySelector('.result__a');
           const snippetEl = block.querySelector('.result__snippet');
 
           const title = anchor?.textContent?.trim() ?? '';
@@ -229,7 +345,8 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
             rawUrl = match ? decodeURIComponent(match[1]) : '';
           }
 
-          const snippet = snippetEl?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+          const snippet =
+            snippetEl?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
           if (!title || !rawUrl || rawUrl.includes('duckduckgo.com')) continue;
 
@@ -238,7 +355,9 @@ export class PuppeteerService implements OnModuleInit, OnModuleDestroy {
         return items;
       }, limit);
 
-      this.logger.log(`searchGoogle(DDG): query="${query}" results=${results.length}`);
+      this.logger.log(
+        `searchGoogle(DDG): query="${query}" offset=${offset} results=${results.length}`,
+      );
       return results;
     } finally {
       await page.close();

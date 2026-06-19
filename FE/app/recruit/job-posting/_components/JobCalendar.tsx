@@ -1,5 +1,4 @@
 "use client";
-
 import type { JobPosting, JobRecommendation } from "@/lib/api/recruit/job-posting";
 import type { CalendarEvent } from "../_types";
 import { toDateKey } from "../_utils";
@@ -45,34 +44,44 @@ export function JobCalendar({
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none" className="text-amber-500">
                 <path d="M8 1L9.8 5.8L15 6.3L11 9.8L12.2 15L8 12.4L3.8 15L5 9.8L1 6.3L6.2 5.8L8 1Z" fill="currentColor" />
               </svg>
-              <h2 className="text-sm font-extrabold text-slate-800">AI 추천 공고</h2>
+              <h2 className="text-sm font-extrabold text-slate-800 dark:text-slate-100">AI 추천 공고</h2>
               <span className="text-xs text-slate-400 font-medium">· 상세 수집 기반 맞춤 추천</span>
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+            <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none -mx-1 px-1">
               {recommendations.slice(0, 10).map((rec) => (
-                <div key={rec.id} className="relative shrink-0 w-56 group">
+                <div key={rec.id} className="relative shrink-0 w-60 group">
                   <a
                     href={rec.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex flex-col gap-1.5 rounded-md border border-amber-100 bg-amber-50/60 hover:bg-amber-50 hover:border-amber-200 transition-colors p-3 w-full"
+                    className="flex flex-col gap-2 rounded-xl border border-slate-200/80 bg-white dark:bg-slate-850 dark:border-slate-800/60 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 p-4 w-full h-full min-h-36"
                   >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-xs font-bold text-slate-800 truncate">{rec.company}</span>
-                      <span className="shrink-0 text-xs font-black text-amber-600 bg-amber-100 rounded-sm px-1.5 py-0.5">{rec.score}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold text-slate-900 dark:text-slate-100 truncate">{rec.company}</span>
+                      <span className="shrink-0 text-[10px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200/60 rounded-full px-2 py-0.5 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/30">
+                        {rec.score}% 매칭
+                      </span>
                     </div>
-                    <p className="text-xs text-slate-600 leading-snug line-clamp-2">{rec.title}</p>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 leading-relaxed line-clamp-2">{rec.title}</p>
                     {rec.reason && (
-                      <p className="text-xs text-slate-500 leading-snug line-clamp-2 mt-0.5">{rec.reason}</p>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-450 leading-relaxed line-clamp-2 mt-0.5 px-2 py-1 bg-slate-50 dark:bg-slate-900/60 rounded-md">
+                        {rec.reason}
+                      </div>
                     )}
                     {rec.deadline && (
-                      <p className="text-xs text-slate-400 mt-auto pt-1">마감 {rec.deadline}</p>
+                      <div className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-auto pt-1 flex items-center gap-1">
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className="text-slate-350 dark:text-slate-650">
+                          <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
+                          <path d="M8 4V8H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                        <span>마감 {rec.deadline}</span>
+                      </div>
                     )}
                   </a>
                   {onDeleteRecommendation && (
                     <button
                       onClick={(e) => { e.preventDefault(); onDeleteRecommendation(rec.id); }}
-                      className="absolute top-1.5 right-1.5 hidden group-hover:flex items-center justify-center w-4 h-4 rounded-sm bg-slate-200 hover:bg-slate-300 text-slate-500 text-micro font-bold leading-none"
+                      className="absolute top-2.5 right-2.5 hidden group-hover:flex items-center justify-center w-4.5 h-4.5 rounded-full bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-500 dark:text-slate-300 text-[10px] font-bold leading-none shadow-sm transition-colors"
                       title="추천 공고 삭제"
                     >
                       ✕
@@ -91,7 +100,7 @@ export function JobCalendar({
               <path d="M9 1C9 1 13 5 13 9C13 11.2091 11.2091 13 9 13C6.79086 13 5 11.2091 5 9C5 7.5 5.5 6.5 6 5.5C6 5.5 6.5 7 8 7C8 7 7 5 9 1Z" fill="currentColor" />
               <path d="M9 13C9 13 11 14 11 16H7C7 14 9 13 9 13Z" fill="currentColor" opacity="0.5" />
             </svg>
-            <h2 className="text-base font-extrabold text-slate-800">채용 일정 캘린더</h2>
+            <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-200">채용 일정 캘린더</h2>
             <span className="text-xs text-slate-400 font-medium">· 캐치 인기 공고</span>
           </div>
           <div className="flex items-center gap-2">

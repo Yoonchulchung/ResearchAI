@@ -1,5 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { JobRepository, JobFilter } from '../infrastructure/repository/job-repository';
+import {
+  JobRepository,
+  JobFilter,
+} from 'src/recruit/infrastructure/repository/job-repository';
 
 @Injectable()
 export class JobsService {

@@ -27,7 +27,8 @@ function CompanyAnalysisInner() {
   const [selectedModel, setSelectedModel] = useState("");
   useEffect(() => {
     if (selectedModel || modelsLoading) return;
-    setSelectedModel(cloudAiModels[0]?.id ?? DEFAULT_FREE_MODEL_ID);
+    const haikuModel = cloudAiModels.find((model) => model.id.toLowerCase().includes("haiku"));
+    setSelectedModel(haikuModel?.id ?? cloudAiModels[0]?.id ?? DEFAULT_FREE_MODEL_ID);
   }, [cloudAiModels, modelsLoading, selectedModel]);
 
   const {

@@ -1,13 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
-import { SearchMode, PlannerMode, SearchPlan } from '../domain/model/search-planner.model';
-import { AI_MODEL_PREFIX } from '../../ai/domain/models';
-
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
+import {
+  SearchMode,
+  PlannerMode,
+  SearchPlan,
+} from 'src/research/domain/model/search-planner.model';
+import { AI_MODEL_PREFIX } from 'src/ai/domain/models';
 
 export type SearchModeInput = SearchMode | PlannerMode;
 
-const SYSTEM = '당신은 리서치 쿼리를 분류하는 전문가입니다. JSON만 반환하고 다른 텍스트는 절대 포함하지 마세요.';
-
+const SYSTEM =
+  '당신은 리서치 쿼리를 분류하는 전문가입니다. JSON만 반환하고 다른 텍스트는 절대 포함하지 마세요.';
 
 @Injectable()
 export class SearchPlannerService {
@@ -23,8 +26,10 @@ export class SearchPlannerService {
     // - 그 외 bare 이름 (llama3.1, phi4:latest 등): Ollama local 모델로 간주 → ollama: prefix 추가
     const CLOUD_PREFIXES = [
       AI_MODEL_PREFIX.ANTHROPIC, // 'claude'
-      AI_MODEL_PREFIX.GOOGLE,    // 'gemini'
-      'gpt-', 'o1', 'o3',        // OpenAI 계열
+      AI_MODEL_PREFIX.GOOGLE, // 'gemini'
+      'gpt-',
+      'o1',
+      'o3', // OpenAI 계열
     ];
 
     let aiModel: string;
@@ -35,14 +40,19 @@ export class SearchPlannerService {
       } else if (
         trimmed.startsWith(AI_MODEL_PREFIX.OLLAMA) ||
         trimmed.startsWith(AI_MODEL_PREFIX.LLAMA_CPP) ||
-        CLOUD_PREFIXES.some((p) => trimmed.toLowerCase().startsWith(p.toLowerCase()))
+        CLOUD_PREFIXES.some((p) =>
+          trimmed.toLowerCase().startsWith(p.toLowerCase()),
+        )
       ) {
         aiModel = trimmed; // 이미 provider 식별 가능 — 그대로 사용
       } else {
         aiModel = `${AI_MODEL_PREFIX.OLLAMA}${trimmed}`; // bare 로컬 모델명 → Ollama로 간주
       }
     } else {
-      const envModel = process.env.OLLAMA_PLANNER_MODEL ?? process.env.OLLAMA_MODEL ?? 'llama3.1';
+      const envModel =
+        process.env.OLLAMA_PLANNER_MODEL ??
+        process.env.OLLAMA_MODEL ??
+        'llama3.1';
       aiModel = envModel.startsWith(AI_MODEL_PREFIX.OLLAMA)
         ? envModel
         : `${AI_MODEL_PREFIX.OLLAMA}${envModel}`;
@@ -105,33 +115,58 @@ export class SearchPlannerService {
         companyTypes?: unknown;
         jobTypes?: unknown;
       };
-      if (!(Object.values(SearchMode) as string[]).includes(parsed.source ?? '')) {
+      if (
+        !(Object.values(SearchMode) as string[]).includes(parsed.source ?? '')
+      ) {
         return this.fallback(aiModel, topic, '유효하지 않은 source 값');
       }
 
       const searchMode = parsed.source as SearchMode;
 
-      const keyword = typeof parsed.keywords === 'string' && parsed.keywords.trim()
-        ? parsed.keywords.trim()
-        : topic;
+      const keyword =
+        typeof parsed.keywords === 'string' && parsed.keywords.trim()
+          ? parsed.keywords.trim()
+          : topic;
 
-      const companyTypes = Array.isArray(parsed.companyTypes) && parsed.companyTypes.length > 0
-        ? (parsed.companyTypes as string[]).filter((v) => typeof v === 'string')
-        : undefined;
-      const jobTypes = Array.isArray(parsed.jobTypes) && parsed.jobTypes.length > 0
-        ? (parsed.jobTypes as string[]).filter((v) => typeof v === 'string')
-        : undefined;
+      const companyTypes =
+        Array.isArray(parsed.companyTypes) && parsed.companyTypes.length > 0
+          ? (parsed.companyTypes as string[]).filter(
+              (v) => typeof v === 'string',
+            )
+          : undefined;
+      const jobTypes =
+        Array.isArray(parsed.jobTypes) && parsed.jobTypes.length > 0
+          ? (parsed.jobTypes as string[]).filter((v) => typeof v === 'string')
+          : undefined;
 
-      const plan: SearchPlan = { searchMode, reason: '', keyword, companyTypes, jobTypes, model: aiModel };
+      const plan: SearchPlan = {
+        searchMode,
+        reason: '',
+        keyword,
+        companyTypes,
+        jobTypes,
+        model: aiModel,
+      };
       return plan;
     } catch {
-      return this.fallback(aiModel, topic, 'Ollama 호출 실패 (미설치 또는 타임아웃)');
+      return this.fallback(
+        aiModel,
+        topic,
+        'Ollama 호출 실패 (미설치 또는 타임아웃)',
+      );
     }
   }
 
   private fallback(model: string, topic: string, reason: string): SearchPlan {
-    const plan: SearchPlan = { searchMode: SearchMode.WEB, reason: `fallback — ${reason}`, keyword: topic, model };
-    this.logger.warn(`[플래너] topic="${topic}" model=${model} → fallback:web (${reason})`);
+    const plan: SearchPlan = {
+      searchMode: SearchMode.WEB,
+      reason: `fallback — ${reason}`,
+      keyword: topic,
+      model,
+    };
+    this.logger.warn(
+      `[플래너] topic="${topic}" model=${model} → fallback:web (${reason})`,
+    );
     return plan;
   }
 }

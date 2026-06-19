@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ApiKeyEntity } from '../entity/api-key.entity';
+import { ApiKeyEntity } from 'src/overview/domain/entity/api-key.entity';
 
 @Injectable()
 export class ApiKeyRepository {
@@ -22,7 +22,10 @@ export class ApiKeyRepository {
     return this.repo.save(entity);
   }
 
-  async update(id: string, partial: Partial<Pick<ApiKeyEntity, 'apiName' | 'key'>>): Promise<ApiKeyEntity> {
+  async update(
+    id: string,
+    partial: Partial<Pick<ApiKeyEntity, 'apiName' | 'key'>>,
+  ): Promise<ApiKeyEntity> {
     await this.repo.update(id, partial);
     return this.repo.findOne({ where: { id } }) as Promise<ApiKeyEntity>;
   }

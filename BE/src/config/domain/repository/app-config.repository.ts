@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AppConfigEntity } from '../entity/app-config.entity';
+import { AppConfigEntity } from 'src/config/domain/entity/app-config.entity';
 
 @Injectable()
 export class AppConfigRepository {

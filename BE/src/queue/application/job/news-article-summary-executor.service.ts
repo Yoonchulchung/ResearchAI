@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
-import { NewsService } from '../../../news/application/service/news.service';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
+import { NewsService } from 'src/news/application/service/news.service';
 
 export interface NewsArticleSummaryRequest {
   title: string;
@@ -25,14 +25,20 @@ export class NewsArticleSummaryExecutorService {
     onChunk: (chunk: string) => void,
     signal?: AbortSignal,
   ): Promise<string> {
-    this.logger.log(`[NewsArticleSummary] 요약 시작 title=${request.title.slice(0, 80)}`);
+    this.logger.log(
+      `[NewsArticleSummary] 요약 시작 title=${request.title.slice(0, 80)}`,
+    );
 
     const cacheUrl = request.url?.trim();
     if (cacheUrl && !request.refresh) {
-      const cached = await this.newsService.getArticleSummary(cacheUrl).catch(() => null);
+      const cached = await this.newsService
+        .getArticleSummary(cacheUrl)
+        .catch(() => null);
       if (cached?.summary) {
         onChunk(cached.summary);
-        this.logger.log(`[NewsArticleSummary] 저장된 요약 사용 title=${request.title.slice(0, 80)}`);
+        this.logger.log(
+          `[NewsArticleSummary] 저장된 요약 사용 title=${request.title.slice(0, 80)}`,
+        );
         return cached.summary;
       }
     }
@@ -41,10 +47,7 @@ export class NewsArticleSummaryExecutorService {
       ? await this.newsService.getArticleContent(request.url).catch(() => null)
       : null;
 
-    const content = [
-      article?.content,
-      request.description,
-    ]
+    const content = [article?.content, request.description]
       .filter(Boolean)
       .join('\n\n')
       .replace(/\s+\n/g, '\n')
@@ -64,16 +67,23 @@ export class NewsArticleSummaryExecutorService {
       request.url ? `원문 URL: ${request.url}` : '',
       '',
       '기사 내용:',
-      content || '(본문을 가져오지 못했습니다. 제목과 설명만 기반으로 요약하세요.)',
+      content ||
+        '(본문을 가져오지 못했습니다. 제목과 설명만 기반으로 요약하세요.)',
       '',
       '아래 형식의 마크다운으로 작성하세요.',
       '- 핵심 요약: 3문장 이내',
       '- 주요 포인트: 3~5개 bullet',
       '- 왜 중요한가: 1~2문장',
-    ].filter(Boolean).join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     let fullText = '';
-    for await (const chunk of this.aiProvider.stream(request.model ?? '', system, [{ role: 'user', content: prompt }])) {
+    for await (const chunk of this.aiProvider.stream(
+      request.model ?? '',
+      system,
+      [{ role: 'user', content: prompt }],
+    )) {
       if (signal?.aborted) break;
       fullText += chunk;
       onChunk(chunk);
@@ -82,17 +92,21 @@ export class NewsArticleSummaryExecutorService {
     this.logger.log(`[NewsArticleSummary] 완료 length=${fullText.length}`);
     const summary = fullText.trim();
     if (cacheUrl && summary) {
-      await this.newsService.saveArticleSummary({
-        url: cacheUrl,
-        title: request.title,
-        source: request.source ?? null,
-        description: request.description ?? null,
-        summary,
-        model: request.model ?? null,
-        articleUrl: article?.finalUrl ?? cacheUrl,
-      }).catch((error) => {
-        this.logger.warn(`[NewsArticleSummary] 요약 저장 실패: ${(error as Error).message}`);
-      });
+      await this.newsService
+        .saveArticleSummary({
+          url: cacheUrl,
+          title: request.title,
+          source: request.source ?? null,
+          description: request.description ?? null,
+          summary,
+          model: request.model ?? null,
+          articleUrl: article?.finalUrl ?? cacheUrl,
+        })
+        .catch((error) => {
+          this.logger.warn(
+            `[NewsArticleSummary] 요약 저장 실패: ${(error as Error).message}`,
+          );
+        });
     }
     return summary;
   }

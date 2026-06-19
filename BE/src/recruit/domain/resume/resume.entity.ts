@@ -6,10 +6,10 @@ import {
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ResumeCoverLetterEntity } from './resume-cover-letter.entity';
-import { ResumeExperienceEntity } from './resume-experience.entity';
-import { ResumePrizeEntity } from './resume-prize.entity';
-import { ResumeTrainingEntity } from './resume-training.entity';
+import { ResumeCoverLetterEntity } from 'src/recruit/domain/resume/resume-cover-letter.entity';
+import { ResumeExperienceEntity } from 'src/recruit/domain/resume/resume-experience.entity';
+import { ResumePrizeEntity } from 'src/recruit/domain/resume/resume-prize.entity';
+import { ResumeTrainingEntity } from 'src/recruit/domain/resume/resume-training.entity';
 
 @Entity('recruit_resume')
 export class ResumeEntity {
@@ -28,7 +28,12 @@ export class ResumeEntity {
   @Column({ type: 'text', nullable: true, default: null })
   jd: string | null;
 
-  @Column({ name: 'interview_script', type: 'text', nullable: true, default: null })
+  @Column({
+    name: 'interview_script',
+    type: 'text',
+    nullable: true,
+    default: null,
+  })
   interviewScript: string | null;
 
   @Column({ name: 'order_index', type: 'integer', default: 0 })
@@ -37,13 +42,20 @@ export class ResumeEntity {
   @Column({ name: 'is_deleted', type: 'boolean', default: false })
   isDeleted: boolean;
 
+  @Column({ name: 'company_id', type: 'text', nullable: true, default: null })
+  companyId: string | null;
+
   // Deprecated migration source. New writes are stored in normalized child tables.
   @Column({ type: 'text', nullable: true, default: null })
   profileJson: string | null;
 
-  @OneToMany(() => ResumeCoverLetterEntity, (coverLetter) => coverLetter.resume, {
-    cascade: true,
-  })
+  @OneToMany(
+    () => ResumeCoverLetterEntity,
+    (coverLetter) => coverLetter.resume,
+    {
+      cascade: true,
+    },
+  )
   coverLetters: ResumeCoverLetterEntity[];
 
   @OneToMany(() => ResumeExperienceEntity, (experience) => experience.resume, {

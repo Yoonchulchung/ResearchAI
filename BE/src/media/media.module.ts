@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { MediaController } from './media.controller';
-import { MediaService } from './media.service';
-import { VectorModule } from '../vector/vector.module';
-import { AiModule } from '../ai/ai.module';
+import { MediaController } from 'src/media/media.controller';
+import { MediaService } from 'src/media/media.service';
+import { VectorModule } from 'src/vector/vector.module';
+import { AiModule } from 'src/ai/ai.module';
 
 @Module({
   imports: [VectorModule, AiModule],

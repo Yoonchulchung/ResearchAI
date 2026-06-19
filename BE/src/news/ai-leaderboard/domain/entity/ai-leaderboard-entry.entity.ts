@@ -1,4 +1,10 @@
-import { Column, Entity, Index, PrimaryColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  Index,
+  PrimaryColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 @Entity('ai_leaderboard_entry')
 @Index(['category', 'rank'])

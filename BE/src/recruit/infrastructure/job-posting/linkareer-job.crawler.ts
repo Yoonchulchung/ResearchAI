@@ -1,12 +1,13 @@
 import { load } from 'cheerio';
-import type { JobPosting } from '../../domain/job-posting.model';
-import { normalizeJobType } from './job-type.util';
+import type { JobPosting } from 'src/recruit/domain/job-posting.model';
+import { normalizeJobType } from 'src/recruit/infrastructure/job-posting/job-type.util';
 
 const BASE_URL = 'https://linkareer.com';
 const GQL_URL = 'https://api.linkareer.com/graphql';
 
 // Persisted query hash for RecruitList operation
-const RECRUIT_LIST_HASH = 'c49dc332ee92bdac9ed8efc415dc82822984240ff4ba1421245c54fb7c4b14e3';
+const RECRUIT_LIST_HASH =
+  'c49dc332ee92bdac9ed8efc415dc82822984240ff4ba1421245c54fb7c4b14e3';
 
 const GQL_HEADERS = {
   'User-Agent':
@@ -58,26 +59,31 @@ export class LinkareerJobCrawler {
 
     return nodes.map((node) => {
       const deadline = node.recruitCloseAt
-        ? new Date(node.recruitCloseAt).toLocaleDateString('ko-KR', {
-            year: 'numeric', month: '2-digit', day: '2-digit',
-          }).replace(/\. /g, '.').replace(/\.$/, '')
+        ? new Date(node.recruitCloseAt)
+            .toLocaleDateString('ko-KR', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+            })
+            .replace(/\. /g, '.')
+            .replace(/\.$/, '')
         : '';
 
-      const location = (node.regions as any[] ?? [])
-        .map((r: any) => r.name)
-        .join(', ')
-        || (node.addresses as any[] ?? [])
+      const location =
+        ((node.regions as any[]) ?? []).map((r: any) => r.name).join(', ') ||
+        ((node.addresses as any[]) ?? [])
           .map((a: any) => a.sido)
           .filter((v: string, i: number, arr: string[]) => arr.indexOf(v) === i)
           .join(', ');
 
-      const jobs = (node.categories as any[] ?? [])
+      const jobs = ((node.categories as any[]) ?? [])
         .map((c: any) => c.name)
         .join(', ');
 
       const rawType =
         node.recruitInformations?.[0]?.internTypes?.[0]?.name ??
-        node.jobTypes?.[0] ?? '';
+        node.jobTypes?.[0] ??
+        '';
 
       return {
         id: String(node.id),
@@ -102,7 +108,10 @@ export class LinkareerJobCrawler {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 15_000);
-      const res = await fetch(url, { headers: HTML_HEADERS, signal: controller.signal });
+      const res = await fetch(url, {
+        headers: HTML_HEADERS,
+        signal: controller.signal,
+      });
       clearTimeout(timer);
       if (!res.ok) return {};
       html = await res.text();
@@ -129,10 +138,16 @@ export class LinkareerJobCrawler {
           const a = fn(data);
           if (!a) continue;
           companyType = a.organizationType ?? a.companyType ?? undefined;
-          jobs = (a.jobs ?? []).map((j: any) => j?.name ?? '').filter(Boolean).join(', ') || undefined;
+          jobs =
+            (a.jobs ?? [])
+              .map((j: any) => j?.name ?? '')
+              .filter(Boolean)
+              .join(', ') || undefined;
           break;
         }
-      } catch { /* fall through */ }
+      } catch {
+        /* fall through */
+      }
     }
 
     // HTML 직접 파싱 — 기업형태·모집직무 보완
@@ -140,8 +155,9 @@ export class LinkareerJobCrawler {
       $('.field-label').each((_, dt) => {
         const label = $(dt).text().trim();
         const value = $(dt).next('dd').text().replace(/\s+/g, ' ').trim();
-        if (label === '기업형태' && !companyType) companyType = value || undefined;
-        if (label === '모집직무' && !jobs)        jobs        = value || undefined;
+        if (label === '기업형태' && !companyType)
+          companyType = value || undefined;
+        if (label === '모집직무' && !jobs) jobs = value || undefined;
       });
     }
 

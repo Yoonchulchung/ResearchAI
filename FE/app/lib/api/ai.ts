@@ -41,6 +41,23 @@ export async function improveTask(
   });
 }
 
+export async function analyzeChart(payload: {
+  symbol: string;
+  companyName?: string;
+  interval: string;
+  currentPrice: number;
+  changePercent: number;
+  recentCandles: Array<{ date: string; open: number; high: number; low: number; close: number; volume?: number }>;
+  signals: Array<{ label: string; direction: string; description: string }>;
+  activeStrategy?: string;
+  model?: string;
+}): Promise<{ analysis: string }> {
+  return apiFetch("/ai/analyze-chart", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function chatTasks(
   topic: string,
   tasks: Array<{ id: number; title: string; webSearchPrompt: string }>,

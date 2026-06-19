@@ -1,16 +1,25 @@
-import {Column, ManyToOne, CreateDateColumn, PrimaryColumn, Entity, JoinColumn} from 'typeorm';
-import { LightResearchEntity } from './lightsearch.entity';
+import {
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+  PrimaryColumn,
+  Entity,
+  JoinColumn,
+} from 'typeorm';
+import { LightResearchEntity } from 'src/research/domain/entity/lightsearch.entity';
 
 @Entity('search_list')
-export class SearchListEntity{
-
+export class SearchListEntity {
   @PrimaryColumn()
   id: string;
-  
+
   @Column({ name: 'light_research_id' })
   lightResearchId: string;
 
-  @ManyToOne(() => LightResearchEntity, (lightResearch) => lightResearch.searchList)
+  @ManyToOne(
+    () => LightResearchEntity,
+    (lightResearch) => lightResearch.searchList,
+  )
   @JoinColumn({ name: 'light_research_id' })
   lightResearch: LightResearchEntity;
 
@@ -22,5 +31,4 @@ export class SearchListEntity{
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
-
 }

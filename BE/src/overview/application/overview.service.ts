@@ -1,16 +1,20 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { LIGHT_RESEARCH_PROMPTS } from '../../research/domain/prompt/research.prompts';
-import { makeCache } from '../../research/infrastructure/cache/ttl-cache';
-import { fetchTavilyUsage } from '../infrastructure/tavily.client';
-import { fetchAnthropicUsageReport } from '../infrastructure/anthropic.client';
-import { ApiKeyRepository } from '../domain/repository/api-key.repository';
-import { TokenHistoryRepository } from '../domain/repository/token-history.repository';
-import { ApiKeyResponseDto } from '../presentation/dto/response/api-key.response.dto';
-import { isEnvKeySet } from '../../shared/env/env.utils';
-import { MODELS } from '../../ai/domain/models';
+import { LIGHT_RESEARCH_PROMPTS } from 'src/research/domain/prompt/research.prompts';
+import { makeCache } from 'src/research/infrastructure/cache/ttl-cache';
+import { fetchTavilyUsage } from 'src/overview/infrastructure/tavily.client';
+import { fetchAnthropicUsageReport } from 'src/overview/infrastructure/anthropic.client';
+import { ApiKeyRepository } from 'src/overview/domain/repository/api-key.repository';
+import { TokenHistoryRepository } from 'src/overview/domain/repository/token-history.repository';
+import { ApiKeyResponseDto } from 'src/overview/presentation/dto/response/api-key.response.dto';
+import { isEnvKeySet } from 'src/shared/env/env.utils';
+import { MODELS } from 'src/ai/domain/models';
 
 const ALLOWED_KEYS = [
   'ANTHROPIC_ADMIN_API_KEY',
@@ -37,8 +41,10 @@ const KEY_LABELS: Record<AllowedKey, string> = {
 @Injectable()
 export class OverviewService {
   private readonly envPath = path.resolve(process.cwd(), '.env');
-  private tavilyCache = makeCache<Awaited<ReturnType<OverviewService['getTavilyOverview']>>>();
-  private anthropicCache = makeCache<Awaited<ReturnType<OverviewService['getAnthropicUsage']>>>();
+  private tavilyCache =
+    makeCache<Awaited<ReturnType<OverviewService['getTavilyOverview']>>>();
+  private anthropicCache =
+    makeCache<Awaited<ReturnType<OverviewService['getAnthropicUsage']>>>();
 
   constructor(
     private readonly apiKeyRepository: ApiKeyRepository,
@@ -48,7 +54,11 @@ export class OverviewService {
   private maskKey(value: string | undefined): string | null {
     if (!value || !isEnvKeySet(value)) return null;
     if (value.length <= 8) return value.slice(0, 2) + '****';
-    return value.slice(0, 10) + '*'.repeat(Math.min(value.length - 10, 20)) + value.slice(-4);
+    return (
+      value.slice(0, 10) +
+      '*'.repeat(Math.min(value.length - 10, 20)) +
+      value.slice(-4)
+    );
   }
 
   getApiKeys() {
@@ -91,9 +101,15 @@ export class OverviewService {
 
   getPromptTemplates() {
     return {
-      lightResearchCloud: LIGHT_RESEARCH_PROMPTS.taskList('{{topic}}', '{{searchContext}}'),
+      lightResearchCloud: LIGHT_RESEARCH_PROMPTS.taskList(
+        '{{topic}}',
+        '{{searchContext}}',
+      ),
       system: LIGHT_RESEARCH_PROMPTS.system,
-      ollamaFilter: LIGHT_RESEARCH_PROMPTS.ollamaFilter('{{query}}', '{{context}}'),
+      ollamaFilter: LIGHT_RESEARCH_PROMPTS.ollamaFilter(
+        '{{query}}',
+        '{{context}}',
+      ),
     };
   }
 
@@ -144,7 +160,11 @@ export class OverviewService {
     const endingAt = now.toISOString();
 
     try {
-      const response = await fetchAnthropicUsageReport(adminKey, startingAt, endingAt);
+      const response = await fetchAnthropicUsageReport(
+        adminKey,
+        startingAt,
+        endingAt,
+      );
 
       if (!response.ok) {
         return { configured: true, data: null, error: response.error };
@@ -155,10 +175,16 @@ export class OverviewService {
           acc.input_tokens += bucket.input_tokens ?? 0;
           acc.output_tokens += bucket.output_tokens ?? 0;
           acc.cache_read_input_tokens += bucket.cache_read_input_tokens ?? 0;
-          acc.cache_creation_input_tokens += bucket.cache_creation_input_tokens ?? 0;
+          acc.cache_creation_input_tokens +=
+            bucket.cache_creation_input_tokens ?? 0;
           return acc;
         },
-        { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        {
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+        },
       );
 
       const result = {
@@ -190,21 +216,37 @@ export class OverviewService {
     return ApiKeyResponseDto.from(k);
   }
 
-  async createStoredApiKey(apiName: string, key: string): Promise<ApiKeyResponseDto> {
-    const entity = await this.apiKeyRepository.save({ id: randomUUID(), apiName, key });
+  async createStoredApiKey(
+    apiName: string,
+    key: string,
+  ): Promise<ApiKeyResponseDto> {
+    const entity = await this.apiKeyRepository.save({
+      id: randomUUID(),
+      apiName,
+      key,
+    });
     return ApiKeyResponseDto.from(entity);
   }
 
-  async updateStoredApiKey(id: string, apiName?: string, key?: string): Promise<ApiKeyResponseDto> {
+  async updateStoredApiKey(
+    id: string,
+    apiName?: string,
+    key?: string,
+  ): Promise<ApiKeyResponseDto> {
     const existing = await this.apiKeyRepository.findById(id);
-    if (!existing) throw new NotFoundException(`API 키를 찾을 수 없습니다: ${id}`);
-    const updated = await this.apiKeyRepository.update(id, { ...(apiName && { apiName }), ...(key && { key }) });
+    if (!existing)
+      throw new NotFoundException(`API 키를 찾을 수 없습니다: ${id}`);
+    const updated = await this.apiKeyRepository.update(id, {
+      ...(apiName && { apiName }),
+      ...(key && { key }),
+    });
     return ApiKeyResponseDto.from(updated);
   }
 
   async deleteStoredApiKey(id: string) {
     const existing = await this.apiKeyRepository.findById(id);
-    if (!existing) throw new NotFoundException(`API 키를 찾을 수 없습니다: ${id}`);
+    if (!existing)
+      throw new NotFoundException(`API 키를 찾을 수 없습니다: ${id}`);
     await this.apiKeyRepository.delete(id);
     return { ok: true };
   }
@@ -213,8 +255,13 @@ export class OverviewService {
   // Logs     //
   // ******** //
   async getLogs(page: number, limit: number) {
-    const { data, total } = await this.tokenHistoryRepository.findPaginated(page, limit);
-    const modelNameMap = new Map<string, string>(MODELS.map((m) => [m.id, m.name]));
+    const { data, total } = await this.tokenHistoryRepository.findPaginated(
+      page,
+      limit,
+    );
+    const modelNameMap = new Map<string, string>(
+      MODELS.map((m) => [m.id, m.name]),
+    );
 
     const logs = data.map((entry) => {
       const tokens = entry.usedTokens ?? '';
@@ -250,10 +297,14 @@ export class OverviewService {
       cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     }
 
-    const filtered = cutoff ? all.filter((e) => new Date(e.createdAt) >= cutoff!) : all;
+    const filtered = cutoff
+      ? all.filter((e) => new Date(e.createdAt) >= cutoff)
+      : all;
 
     // model id → display name
-    const modelNameMap = new Map<string, string>(MODELS.map((m) => [m.id, m.name]));
+    const modelNameMap = new Map<string, string>(
+      MODELS.map((m) => [m.id, m.name]),
+    );
 
     const getKey = (createdAt: Date): string => {
       const d = new Date(createdAt);
@@ -283,7 +334,10 @@ export class OverviewService {
 
       if (!byDateModel.has(key)) byDateModel.set(key, new Map());
       const dateMap = byDateModel.get(key)!;
-      dateMap.set(modelName, (dateMap.get(modelName) ?? 0) + (entry.estimatedFees ?? 0));
+      dateMap.set(
+        modelName,
+        (dateMap.get(modelName) ?? 0) + (entry.estimatedFees ?? 0),
+      );
     }
 
     // Build sorted chart data

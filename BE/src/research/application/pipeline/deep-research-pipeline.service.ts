@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { DEEP_RESEARCH_PROMPTS as PROMPTS } from '../../domain/prompt/research.prompts';
-import { SearchSources } from '../../domain/model/search-sources.model';
-import { ConfidenceScore } from '../../domain/model/confidence.model';
-import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
-import { AiService } from '../../../ai/application/ai.service';
-import { WebSearchService } from '../web-search.service';
-import { SearchEngine, isBuiltinSearchEngine } from '../../domain/model/search-planner.model';
+import { DEEP_RESEARCH_PROMPTS as PROMPTS } from 'src/research/domain/prompt/research.prompts';
+import { SearchSources } from 'src/research/domain/model/search-sources.model';
+import { ConfidenceScore } from 'src/research/domain/model/confidence.model';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
+import { AiService } from 'src/ai/application/ai.service';
+import { WebSearchService } from 'src/research/application/web-search.service';
+import {
+  SearchEngine,
+  isBuiltinSearchEngine,
+} from 'src/research/domain/model/search-planner.model';
 
 export interface DeepResearchResult {
   aiResult: string;
@@ -69,13 +72,17 @@ export class DeepResearchPipelineService {
 
     if (contextOverride) {
       // 미리 가져온 컨텍스트: 기존 방식으로 분석
-      const usage = await this.deepAnalyze(aiModel, prompt, contextOverride, signal);
+      const usage = await this.deepAnalyze(
+        aiModel,
+        prompt,
+        contextOverride,
+        signal,
+      );
       aiResult = usage.text;
       inputTokens = usage.inputTokens;
       outputTokens = usage.outputTokens;
       estimatedFees = usage.estimatedFees;
       webSources = { [webModel]: contextOverride };
-
     } else if (isBuiltinSearchEngine(webModel)) {
       // AI 벤더 내장 검색: useBuiltinSearch=true 로 AI 단독 처리
       const usage = await this.deepAnalyze(aiModel, prompt, '', signal);
@@ -85,9 +92,12 @@ export class DeepResearchPipelineService {
       estimatedFees = usage.estimatedFees;
       if (usage.searchLog?.length) {
         searchLog = usage.searchLog;
-        webSources = { [webModel]: usage.searchLog.map((s) => `Q: ${s.query}\n${s.result}`).join('\n\n') };
+        webSources = {
+          [webModel]: usage.searchLog
+            .map((s) => `Q: ${s.query}\n${s.result}`)
+            .join('\n\n'),
+        };
       }
-
     } else if (this.supportsAgentLoop(aiModel)) {
       // Claude / OpenAI: AI 에이전트 루프
       const searchFn = this.getSearchFn(webModel, filterModel);
@@ -105,7 +115,9 @@ export class DeepResearchPipelineService {
       estimatedFees = agentResult.estimatedFees;
       if (agentResult.searchLog.length > 0) {
         searchLog = agentResult.searchLog;
-        webSources = { [webModel]: agentResult.searchLog.map((s) => s.result).join('\n\n') };
+        webSources = {
+          [webModel]: agentResult.searchLog.map((s) => s.result).join('\n\n'),
+        };
       }
     } else {
       // Gemini / Ollama: 고정 파이프라인 (검색 → 분석)
@@ -131,28 +143,62 @@ export class DeepResearchPipelineService {
     const context = webSources[webModel] ?? '';
     const confidence = context
       ? await this.evaluateConfidence(aiResult, context)
-      : { score: 50, reason: '검색 결과 없이 AI 자체 지식으로 답변하여 신뢰도를 측정할 수 없습니다.' };
+      : {
+          score: 50,
+          reason:
+            '검색 결과 없이 AI 자체 지식으로 답변하여 신뢰도를 측정할 수 없습니다.',
+        };
 
-    return { aiResult, webSources, confidence, inputTokens, outputTokens, estimatedFees, searchLog, usedWebModel: webModel };
+    return {
+      aiResult,
+      webSources,
+      confidence,
+      inputTokens,
+      outputTokens,
+      estimatedFees,
+      searchLog,
+      usedWebModel: webModel,
+    };
   }
 
   /** Claude / OpenAI는 tool use API 지원 → 에이전트 루프 사용 */
   private supportsAgentLoop(aiModel: string): boolean {
-    return aiModel.startsWith('claude') || (!aiModel.startsWith('gemini') && !aiModel.startsWith('ollama:'));
+    return (
+      aiModel.startsWith('claude') ||
+      (!aiModel.startsWith('gemini') && !aiModel.startsWith('ollama:'))
+    );
   }
 
-  private getSearchFn(webModel: SearchEngine, filterModel?: string): (query: string) => Promise<string> {
-    return (query: string) => this.webSearch.searchByEngine(webModel, query, filterModel);
+  private getSearchFn(
+    webModel: SearchEngine,
+    filterModel?: string,
+  ): (query: string) => Promise<string> {
+    return (query: string) =>
+      this.webSearch.searchByEngine(webModel, query, filterModel);
   }
 
-  private doSearch(webModel: SearchEngine, query: string, filterModel?: string): Promise<string | undefined> {
+  private doSearch(
+    webModel: SearchEngine,
+    query: string,
+    filterModel?: string,
+  ): Promise<string | undefined> {
     return this.webSearch.searchByEngine(webModel, query, filterModel);
   }
 
-  private deepAnalyze(aiModel: string, prompt: string, context: string, signal?: AbortSignal) {
-    const fullPrompt = context ? PROMPTS.withSearchContext(context, prompt) : prompt;
+  private deepAnalyze(
+    aiModel: string,
+    prompt: string,
+    context: string,
+    signal?: AbortSignal,
+  ) {
+    const fullPrompt = context
+      ? PROMPTS.withSearchContext(context, prompt)
+      : prompt;
     const useBuiltinSearch = !context;
-    return this.aiProvider.call(aiModel, PROMPTS.system, fullPrompt, { useBuiltinSearch, signal });
+    return this.aiProvider.call(aiModel, PROMPTS.system, fullPrompt, {
+      useBuiltinSearch,
+      signal,
+    });
   }
 
   /**
@@ -179,8 +225,15 @@ export class DeepResearchPipelineService {
       .join('\n\n');
   }
 
-  private async evaluateConfidence(answer: string, context: string): Promise<ConfidenceScore> {
+  private async evaluateConfidence(
+    answer: string,
+    context: string,
+  ): Promise<ConfidenceScore> {
     const compressed = this.compressContext(context);
-    return this.aiService.evaluateConfidence(answer, compressed, DeepResearchPipelineService.CONFIDENCE_MODEL);
+    return this.aiService.evaluateConfidence(
+      answer,
+      compressed,
+      DeepResearchPipelineService.CONFIDENCE_MODEL,
+    );
   }
 }

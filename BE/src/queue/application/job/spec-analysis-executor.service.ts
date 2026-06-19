@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CoverLetterScraperService } from '../../../recruit/application/cover-letter/cover-letter-scraper.service';
-import type { CoverLetterJobAnalysisRequest } from '../../../recruit/domain/cover-letter/cover-letter.model';
+import { CoverLetterScraperService } from 'src/recruit/application/cover-letter/cover-letter-scraper.service';
+import type { CoverLetterJobAnalysisRequest } from 'src/recruit/domain/cover-letter/cover-letter.model';
 
 @Injectable()
 export class SpecAnalysisExecutorService {

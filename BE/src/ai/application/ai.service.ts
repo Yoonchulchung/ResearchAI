@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { AiProviderService } from '../infrastructure/ai-provider.service';
-import { getProvider, AIProvider } from '../domain/models';
-import { InvalidAiTypeException } from '../../shared/exceptions/invalid-ai-type.exception';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
+import { getProvider, AIProvider } from 'src/ai/domain/models';
+import { InvalidAiTypeException } from 'src/shared/exceptions/invalid-ai-type.exception';
 
 @Injectable()
 export class AiService {
@@ -15,7 +15,12 @@ export class AiService {
     system: string,
     prompt: string,
     opts?: { useBuiltinSearch?: boolean },
-  ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number }> {
+  ): Promise<{
+    text: string;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedFees: number;
+  }> {
     return this.aiProvider.call(aiModel, system, prompt, opts);
   }
 
@@ -32,7 +37,13 @@ export class AiService {
     searchFn: (query: string) => Promise<string>,
     maxIterations = 5,
     signal?: AbortSignal,
-  ): Promise<{ result: string; searchLog: Array<{ query: string; result: string }>; inputTokens: number; outputTokens: number; estimatedFees: number }> {
+  ): Promise<{
+    result: string;
+    searchLog: Array<{ query: string; result: string }>;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedFees: number;
+  }> {
     const searchLog: Array<{ query: string; result: string }> = [];
     let inputTokens = 0;
     let outputTokens = 0;
@@ -41,10 +52,13 @@ export class AiService {
 
     const anthropicTool = {
       name: 'web_search',
-      description: '웹에서 최신 정보를 검색합니다. 학습 데이터에 없는 최신 정보나 특정 사실 확인이 필요한 경우에만 호출하세요.',
+      description:
+        '웹에서 최신 정보를 검색합니다. 학습 데이터에 없는 최신 정보나 특정 사실 확인이 필요한 경우에만 호출하세요.',
       input_schema: {
         type: 'object',
-        properties: { query: { type: 'string', description: '검색할 쿼리 (영어 권장)' } },
+        properties: {
+          query: { type: 'string', description: '검색할 쿼리 (영어 권장)' },
+        },
         required: ['query'],
       },
     };
@@ -52,31 +66,49 @@ export class AiService {
       type: 'function',
       function: {
         name: 'web_search',
-        description: '웹에서 최신 정보를 검색합니다. 학습 데이터에 없는 최신 정보나 특정 사실 확인이 필요한 경우에만 호출하세요.',
+        description:
+          '웹에서 최신 정보를 검색합니다. 학습 데이터에 없는 최신 정보나 특정 사실 확인이 필요한 경우에만 호출하세요.',
         parameters: {
           type: 'object',
-          properties: { query: { type: 'string', description: '검색할 쿼리 (영어 권장)' } },
+          properties: {
+            query: { type: 'string', description: '검색할 쿼리 (영어 권장)' },
+          },
           required: ['query'],
         },
       },
     };
-    const tools = provider === AIProvider.ANTHROPIC ? [anthropicTool] : [openaiTool]; // Ollama도 OpenAI 호환 format 사용
+    const tools =
+      provider === AIProvider.ANTHROPIC ? [anthropicTool] : [openaiTool]; // Ollama도 OpenAI 호환 format 사용
     const messages: any[] = [{ role: 'user', content: prompt }];
 
     for (let i = 0; i < maxIterations; i++) {
-      const result = await this.aiProvider.call(aiModel, system, messages, { tools, signal });
+      const result = await this.aiProvider.call(aiModel, system, messages, {
+        tools,
+        signal,
+      });
       inputTokens += result.inputTokens;
       outputTokens += result.outputTokens;
       estimatedFees += result.estimatedFees;
       if (!result.toolCalls?.length || result.stopReason === 'end_turn') {
-        return { result: result.text, searchLog, inputTokens, outputTokens, estimatedFees };
+        return {
+          result: result.text,
+          searchLog,
+          inputTokens,
+          outputTokens,
+          estimatedFees,
+        };
       }
 
       if (provider === AIProvider.ANTHROPIC) {
         const content: any[] = [];
         if (result.text) content.push({ type: 'text', text: result.text });
         for (const tc of result.toolCalls) {
-          content.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
+          content.push({
+            type: 'tool_use',
+            id: tc.id,
+            name: tc.name,
+            input: tc.input,
+          });
         }
         messages.push({ role: 'assistant', content });
 
@@ -85,10 +117,17 @@ export class AiService {
           const query = (tc.input as { query: string }).query;
           const searchResult = await searchFn(query);
           searchLog.push({ query, result: searchResult });
-          toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: searchResult });
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: tc.id,
+            content: searchResult,
+          });
         }
         messages.push({ role: 'user', content: toolResults });
-      } else if (provider === AIProvider.OPENAI || provider === AIProvider.OLLAMA) {
+      } else if (
+        provider === AIProvider.OPENAI ||
+        provider === AIProvider.OLLAMA
+      ) {
         // OpenAI / Ollama (OpenAI 호환 format)
         messages.push({
           role: 'assistant',
@@ -103,7 +142,11 @@ export class AiService {
           const query = (tc.input as { query: string }).query;
           const searchResult = await searchFn(query);
           searchLog.push({ query, result: searchResult });
-          messages.push({ role: 'tool', tool_call_id: tc.id, content: searchResult });
+          messages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: searchResult,
+          });
         }
       } else {
         throw new InvalidAiTypeException(aiModel);
@@ -111,12 +154,20 @@ export class AiService {
     }
 
     const lastAssistant = messages.filter((m) => m.role === 'assistant').at(-1);
-    const lastText = typeof lastAssistant?.content === 'string'
-      ? lastAssistant.content
-      : Array.isArray(lastAssistant?.content)
-        ? (lastAssistant.content.find((c: any) => c.type === 'text')?.text ?? '')
-        : '';
-    return { result: lastText, searchLog, inputTokens, outputTokens, estimatedFees };
+    const lastText =
+      typeof lastAssistant?.content === 'string'
+        ? lastAssistant.content
+        : Array.isArray(lastAssistant?.content)
+          ? (lastAssistant.content.find((c: any) => c.type === 'text')?.text ??
+            '')
+          : '';
+    return {
+      result: lastText,
+      searchLog,
+      inputTokens,
+      outputTokens,
+      estimatedFees,
+    };
   }
 
   /**
@@ -149,7 +200,9 @@ ${answer}
 
     let raw = '';
     try {
-      ({ text: raw } = await this.aiProvider.call(model, '', evalPrompt, { useBuiltinSearch: false }));
+      ({ text: raw } = await this.aiProvider.call(model, '', evalPrompt, {
+        useBuiltinSearch: false,
+      }));
       const cleaned = raw
         .replace(/^```json\s*/m, '')
         .replace(/^```\s*/m, '')
@@ -211,7 +264,7 @@ ${answer}
 - 요청된 내용만 반환하고 불필요한 설명은 하지 않습니다`;
 
     const prompt = `## 현재 문서 내용
-${content.trim() || "(빈 문서)"}
+${content.trim() || '(빈 문서)'}
 
 ## 요청사항
 ${instruction}
@@ -219,7 +272,9 @@ ${instruction}
 위 요청에 따라 마크다운으로 작성해주세요.`;
 
     try {
-      const { text } = await this.aiProvider.call(model, systemPrompt, prompt, { useBuiltinSearch: false });
+      const { text } = await this.aiProvider.call(model, systemPrompt, prompt, {
+        useBuiltinSearch: false,
+      });
       return { result: text };
     } catch (err) {
       throw err;
@@ -250,7 +305,9 @@ ${taskList}
 
     let raw = '';
     try {
-      ({ text: raw } = await this.aiProvider.call(model, '', prompt, { useBuiltinSearch: false }));
+      ({ text: raw } = await this.aiProvider.call(model, '', prompt, {
+        useBuiltinSearch: false,
+      }));
       const cleaned = raw
         .replace(/^```json\s*/m, '')
         .replace(/^```\s*/m, '')
@@ -273,13 +330,23 @@ ${taskList}
     history: Array<{ role: string; content: string }>,
   ): Promise<{ tasks: typeof tasks; reply: string }> {
     const historyText = history.length
-      ? history.map((m) => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`).join('\n') + '\n\n'
+      ? history
+          .map((m) => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`)
+          .join('\n') + '\n\n'
       : '';
 
     const evalPrompt = `리서치 주제: "${topic}"
 
 현재 조사 항목 (JSON):
-${JSON.stringify(tasks.map((t) => ({ id: t.id, title: t.title, webSearchPrompt: t.webSearchPrompt })), null, 2)}
+${JSON.stringify(
+  tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    webSearchPrompt: t.webSearchPrompt,
+  })),
+  null,
+  2,
+)}
 
 ${historyText}사용자 요청: ${message}
 
@@ -289,8 +356,14 @@ ${historyText}사용자 요청: ${message}
 {"tasks": [{"id": <정수>, "title": "제목 (10자 이내)", "webSearchPrompt": "검색 프롬프트 (영어 권장)"}], "reply": "수행한 작업을 한국어로 간결하게"}`;
 
     try {
-      const { text: raw } = await this.aiProvider.call(model, '', evalPrompt, { useBuiltinSearch: false });
-      const cleaned = raw.replace(/^```json\s*/m, '').replace(/^```\s*/m, '').replace(/```\s*$/m, '').trim();
+      const { text: raw } = await this.aiProvider.call(model, '', evalPrompt, {
+        useBuiltinSearch: false,
+      });
+      const cleaned = raw
+        .replace(/^```json\s*/m, '')
+        .replace(/^```\s*/m, '')
+        .replace(/```\s*$/m, '')
+        .trim();
       return JSON.parse(cleaned) as { tasks: typeof tasks; reply: string };
     } catch {
       return { tasks, reply: '처리 중 오류가 발생했습니다.' };

@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ResearchService } from '../../../research/application/research.service';
-import { LightResearchEvent } from '../../../research/application/pipeline/light-research-pipeline.service';
-import { SearchModeInput } from '../../../research/application/search-planner.service';
+import { ResearchService } from 'src/research/application/research.service';
+import { LightResearchEvent } from 'src/research/application/pipeline/light-research-pipeline.service';
+import { SearchModeInput } from 'src/research/application/search-planner.service';
 import { SearchEngine } from 'src/research/domain/model/search-planner.model';
-import { AttachedFilePayload } from '../../presentation/dto/request/enqueue-light-research.dto';
+import { AttachedFilePayload } from 'src/queue/presentation/dto/request/enqueue-light-research.dto';
 
 @Injectable()
 export class LightResearchExecutorService {

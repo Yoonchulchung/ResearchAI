@@ -1,6 +1,6 @@
 import { Controller, Post, Body } from '@nestjs/common';
-import { VectorService } from './vector.service';
-import { requestContext } from '../shared/request-context';
+import { VectorService } from 'src/vector/vector.service';
+import { requestContext } from 'src/shared/request-context';
 
 @Controller('vector')
 export class VectorController {

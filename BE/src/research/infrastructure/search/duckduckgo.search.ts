@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 import puppeteer from 'puppeteer';
-import { getCircuitBreaker } from '../../../shared/resilience/circuit-breaker';
+import { getCircuitBreaker } from 'src/shared/resilience/circuit-breaker';
 
 const policy = getCircuitBreaker('duckduckgo');
 
@@ -98,13 +98,21 @@ async function fetchPageContent(url: string): Promise<string> {
 
     // Content-Type이 PDF면 스킵
     const contentType = res.headers.get('content-type') ?? '';
-    if (contentType.includes('application/pdf') || contentType.includes('application/octet-stream')) {
+    if (
+      contentType.includes('application/pdf') ||
+      contentType.includes('application/octet-stream')
+    ) {
       return '';
     }
 
     const $ = cheerio.load(await res.text());
-    $('script, style, nav, footer, header, aside, [class*="ad"], [id*="ad"]').remove();
-    const text = ($('article, main, [class*="content"], [id*="content"]').first().text() || $('body').text())
+    $(
+      'script, style, nav, footer, header, aside, [class*="ad"], [id*="ad"]',
+    ).remove();
+    const text = (
+      $('article, main, [class*="content"], [id*="content"]').first().text() ||
+      $('body').text()
+    )
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, PAGE_CONTENT_MAX_CHARS);
@@ -133,10 +141,10 @@ async function searchViaHtml(query: string): Promise<SearchResult[]> {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       'User-Agent': randomUA(),
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
-      'Referer': 'https://duckduckgo.com/',
-      'Origin': 'https://duckduckgo.com',
+      Referer: 'https://duckduckgo.com/',
+      Origin: 'https://duckduckgo.com',
     },
     body,
   });
@@ -148,17 +156,25 @@ async function searchViaHtml(query: string): Promise<SearchResult[]> {
 async function searchViaPuppeteer(query: string): Promise<SearchResult[]> {
   const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+    ],
   });
   try {
     const page = await browser.newPage();
     await page.setUserAgent(randomUA());
-    await page.setExtraHTTPHeaders({ 'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8' });
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+    });
     await page.goto(
       `https://duckduckgo.com/?q=${encodeURIComponent(query)}&ia=web&kl=kr-kr`,
       { waitUntil: 'networkidle2', timeout: 20_000 },
     );
-    await page.waitForSelector('[data-testid="result"], .result', { timeout: 8_000 }).catch(() => {});
+    await page
+      .waitForSelector('[data-testid="result"], .result', { timeout: 8_000 })
+      .catch(() => {});
     return parseResults(await page.content());
   } finally {
     await browser.close();

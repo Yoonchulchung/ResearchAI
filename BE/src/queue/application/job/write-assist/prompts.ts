@@ -1,5 +1,5 @@
-import { QueueJob } from '../../../domain/queue-job.model';
-import { QuestionType } from './types';
+import { QueueJob } from 'src/queue/domain/queue-job.model';
+import { QuestionType } from 'src/queue/application/job/write-assist/types';
 
 // ────────────────────────────────────────────────────────────────────────────
 // 액션별 정적 프롬프트 (계속 작성 / 섹션 / 개선 / 맞춤법 / 요약 / 표절 검사)
@@ -7,7 +7,8 @@ import { QuestionType } from './types';
 // ────────────────────────────────────────────────────────────────────────────
 
 export const ACTION_PROMPTS: Partial<Record<QueueJob.TaskType, string>> = {
-  [QueueJob.TaskType.WRITEASSIST_PLAGIARISM]: `당신은 AI 생성 텍스트 감지 전문가입니다. 아래 문서를 분석하여 AI 표절 가능성을 평가해주세요.
+  [QueueJob.TaskType.WRITEASSIST_PLAGIARISM]:
+    `당신은 AI 생성 텍스트 감지 전문가입니다. 아래 문서를 분석하여 AI 표절 가능성을 평가해주세요.
 
 ## 분석 항목
 1. **AI 생성 가능성** — 문장 패턴, 반복적 구조, 지나치게 완성된 문체 등 AI 특징 여부 (0~100%)
@@ -31,7 +32,8 @@ export const ACTION_PROMPTS: Partial<Record<QueueJob.TaskType, string>> = {
 
   // WRITEASSIST_IMPROVE 는 동적 — executeImprove() 에서 평가→문제도출→개선 파이프라인 조합
 
-  [QueueJob.TaskType.WRITEASSIST_SPELLCHECK]: `당신은 한국어 맞춤법·문법 교정 전문가입니다. 아래 문서의 **맞춤법, 띄어쓰기, 문법 오류만** 교정합니다.
+  [QueueJob.TaskType.WRITEASSIST_SPELLCHECK]:
+    `당신은 한국어 맞춤법·문법 교정 전문가입니다. 아래 문서의 **맞춤법, 띄어쓰기, 문법 오류만** 교정합니다.
 
 ## 절대 규칙
 - **원문의 의미·내용·문장 구조·어휘 선택을 절대 바꾸지 마세요**
@@ -78,7 +80,8 @@ export const ACTION_PROMPTS: Partial<Record<QueueJob.TaskType, string>> = {
   [QueueJob.TaskType.WRITEASSIST_SUMMARIZE]:
     '아래 문서의 핵심 내용을 간결하게 요약해주세요:\n\n{content}',
 
-  [QueueJob.TaskType.WRITEASSIST_EXAMPLE]: `당신은 대기업 신입 공채 자기소개서 코치입니다.
+  [QueueJob.TaskType.WRITEASSIST_EXAMPLE]:
+    `당신은 대기업 신입 공채 자기소개서 코치입니다.
 아래 지원 정보와 문항을 바탕으로, 지원자가 직접 답변을 작성할 수 있도록 방향과 소재를 제안하세요.
 완성본을 길게 대필하지 말고, 문항 의도·추천 소재·구조·짧은 예시 단락 중심으로 안내하세요.
 

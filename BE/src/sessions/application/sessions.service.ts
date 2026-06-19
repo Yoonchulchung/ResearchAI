@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Task } from '../domain/session.model';
-import { ResearchState } from '../domain/entity/session.entity';
-import { SessionResponseDto } from '../presentation/dto/response/session.response.dto';
-import { SessionQueryService } from './query/session-query.service';
-import { SessionCommandService } from './command/session-command.service';
+import { Task } from 'src/sessions/domain/session.model';
+import { ResearchState } from 'src/sessions/domain/entity/session.entity';
+import { SessionResponseDto } from 'src/sessions/presentation/dto/response/session.response.dto';
+import { SessionQueryService } from 'src/sessions/application/query/session-query.service';
+import { SessionCommandService } from 'src/sessions/application/command/session-command.service';
 
 /**
  * Facade — 기존 의존성(QueueService, ResearchService 등)이 그대로 사용할 수 있도록 유지.
@@ -19,29 +19,80 @@ export class SessionsService {
   // *********** //
   // DB 조회용 로직 //
   // *********** //
-  findAll(userId: string | null): Promise<SessionResponseDto[]> { return this.query.findAll(userId); }
-  findOne(id: string)                        { return this.query.findOne(id); }
-  findItemsWithResults(sessionId: string)    { return this.query.findItemsWithResults(sessionId); }
-  getSummary(id: string)                     { return this.query.getSummary(id); }
-  buildSummaryContext(id: string)            { return this.query.buildSummaryContext(id); }
+  findAll(userId: string | null): Promise<SessionResponseDto[]> {
+    return this.query.findAll(userId);
+  }
+  findOne(id: string) {
+    return this.query.findOne(id);
+  }
+  findItemsWithResults(sessionId: string) {
+    return this.query.findItemsWithResults(sessionId);
+  }
+  getSummary(id: string) {
+    return this.query.getSummary(id);
+  }
+  buildSummaryContext(id: string) {
+    return this.query.buildSummaryContext(id);
+  }
 
   // *********** //
   // DB 작성용 로직 //
   // *********** //
-  createSession(topic: string, researchCloudAIModel: string, researchLocalAIModel: string, researchWebModel: string, tasks: Task[], userId?: string | null, sessionType?: string, lightResearchId?: string | null) {
-    return this.command.createSession(topic, researchCloudAIModel, researchLocalAIModel, researchWebModel, tasks, userId, sessionType, lightResearchId);
+  createSession(
+    topic: string,
+    researchCloudAIModel: string,
+    researchLocalAIModel: string,
+    researchWebModel: string,
+    tasks: Task[],
+    userId?: string | null,
+    sessionType?: string,
+    lightResearchId?: string | null,
+  ) {
+    return this.command.createSession(
+      topic,
+      researchCloudAIModel,
+      researchLocalAIModel,
+      researchWebModel,
+      tasks,
+      userId,
+      sessionType,
+      lightResearchId,
+    );
   }
-  updateSessionItem(sessionId: string, itemId: string, aiResult: string, webResult: string, status: ResearchState) {
-    return this.command.updateSessionItem(sessionId, itemId, aiResult, webResult, status);
+  updateSessionItem(
+    sessionId: string,
+    itemId: string,
+    aiResult: string,
+    webResult: string,
+    status: ResearchState,
+  ) {
+    return this.command.updateSessionItem(
+      sessionId,
+      itemId,
+      aiResult,
+      webResult,
+      status,
+    );
   }
   updateSession(sessionId: string, status: ResearchState) {
     return this.command.updateSession(sessionId, status);
   }
-  updateSessionState(sessionId: string, state: ResearchState) { return this.command.updateSessionState(sessionId, state); }
-  removeItem(itemId: string)                                  { return this.command.removeItem(itemId); }
-  remove(id: string)                                          { return this.command.remove(id); }
-  saveSummary(id: string, summary: string)                    { return this.command.saveSummary(id, summary); }
-  setAttachedFileIds(sessionId: string, fileIds: string[])    { return this.command.setAttachedFileIds(sessionId, fileIds); }
-  getAttachedFileIds(sessionId: string)                       { return this.query.getAttachedFileIds(sessionId); }
-
+  updateSessionState(sessionId: string, state: ResearchState) {
+    return this.command.updateSessionState(sessionId, state);
+  }
+  removeItem(itemId: string) {
+    return this.command.removeItem(itemId);
+  }
+  remove(id: string) {
+    return this.command.remove(id);
+  }
+  saveSummary(id: string, summary: string) {
+    return this.command.saveSummary(id, summary);
+  }
+  setAttachedFileIds(sessionId: string, fileIds: string[]) {
+    return this.command.setAttachedFileIds(sessionId, fileIds);
+  }
+  getAttachedFileIds(sessionId: string) {
+    return this.query.getAttachedFileIds(sessionId);
+  }
 }

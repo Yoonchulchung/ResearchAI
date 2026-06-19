@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { VectorService } from './vector.service';
-import { VectorController } from './vector.controller';
+import { VectorService } from 'src/vector/vector.service';
+import { VectorController } from 'src/vector/vector.controller';
 
 @Module({
   controllers: [VectorController],

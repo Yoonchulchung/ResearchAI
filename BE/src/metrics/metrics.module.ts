@@ -1,7 +1,7 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
-import { MetricsService } from './metrics.service';
-import { MetricsController } from './metrics.controller';
-import { HttpMetricsMiddleware } from './http-metrics.middleware';
+import { MetricsService } from 'src/metrics/metrics.service';
+import { MetricsController } from 'src/metrics/metrics.controller';
+import { HttpMetricsMiddleware } from 'src/metrics/http-metrics.middleware';
 
 @Module({
   providers: [MetricsService],

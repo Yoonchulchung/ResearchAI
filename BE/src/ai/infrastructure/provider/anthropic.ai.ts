@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { VlmMessage, ImageContentBlock } from './vlm.types';
+import { VlmMessage, ImageContentBlock } from 'src/ai/infrastructure/provider/vlm.types';
 
 export interface ToolCallResult {
   id: string;
@@ -47,11 +47,14 @@ export async function callAnthropic(
           const query: string = block.input?.query ?? '';
           // 해당 tool_use_id와 매칭되는 결과 블록 찾기
           const resultBlock = blocks.find(
-            (b) => b.type === 'web_search_tool_result' && b.tool_use_id === block.id,
+            (b) =>
+              b.type === 'web_search_tool_result' && b.tool_use_id === block.id,
           );
           const result = resultBlock?.content
             ? (resultBlock.content as any[])
-                .map((r: any) => `[${r.title ?? ''}]\n${r.url ?? ''}\n${r.encrypted_content ?? ''}`.trim())
+                .map((r: any) =>
+                  `[${r.title ?? ''}]\n${r.url ?? ''}\n${r.encrypted_content ?? ''}`.trim(),
+                )
                 .join('\n\n')
             : '';
           if (query) searchLog.push({ query, result });
@@ -59,7 +62,10 @@ export async function callAnthropic(
       }
 
       return {
-        text: blocks.filter((b) => b.type === 'text').map((b) => b.text).join(''),
+        text: blocks
+          .filter((b) => b.type === 'text')
+          .map((b) => b.text)
+          .join(''),
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
         searchLog: searchLog.length ? searchLog : undefined,
@@ -69,20 +75,30 @@ export async function callAnthropic(
     }
   }
 
-  const response = await client.messages.create({
-    model,
-    max_tokens: 8000,
-    system,
-    messages,
-    ...(tools ? { tools } : {}),
-  }, { signal });
+  const response = await client.messages.create(
+    {
+      model,
+      max_tokens: 8000,
+      system,
+      messages,
+      ...(tools ? { tools } : {}),
+    },
+    { signal },
+  );
 
   const toolCalls = response.content
     .filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
-    .map((b) => ({ id: b.id, name: b.name, input: b.input as Record<string, unknown> }));
+    .map((b) => ({
+      id: b.id,
+      name: b.name,
+      input: b.input as Record<string, unknown>,
+    }));
 
   return {
-    text: response.content.filter((b) => b.type === 'text').map((b) => (b as any).text).join(''),
+    text: response.content
+      .filter((b) => b.type === 'text')
+      .map((b) => (b as any).text)
+      .join(''),
     inputTokens: response.usage.input_tokens,
     outputTokens: response.usage.output_tokens,
     toolCalls: toolCalls.length ? toolCalls : undefined,
@@ -90,12 +106,13 @@ export async function callAnthropic(
   };
 }
 
-
-function toAnthropicContent(content: VlmMessage['content']): Anthropic.ContentBlockParam[] {
+function toAnthropicContent(
+  content: VlmMessage['content'],
+): Anthropic.ContentBlockParam[] {
   if (typeof content === 'string') return [{ type: 'text', text: content }];
   return content.map((c): Anthropic.ContentBlockParam => {
     if (typeof c === 'string') return { type: 'text', text: c };
-    const img = c as ImageContentBlock;
+    const img = c;
     return {
       type: 'image',
       source: { type: 'base64', media_type: img.mediaType, data: img.data },
@@ -113,10 +130,16 @@ export async function* streamAnthropic(
     model,
     max_tokens: 4000,
     system,
-    messages: messages.map((m) => ({ role: m.role, content: toAnthropicContent(m.content) })),
+    messages: messages.map((m) => ({
+      role: m.role,
+      content: toAnthropicContent(m.content),
+    })),
   });
   for await (const chunk of stream) {
-    if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+    if (
+      chunk.type === 'content_block_delta' &&
+      chunk.delta.type === 'text_delta'
+    ) {
       yield chunk.delta.text;
     }
   }

@@ -1,5 +1,5 @@
-import { GeneralSuccessCode, SuccessCode } from './success-code';
-import { ErrorCode } from './error-code';
+import { GeneralSuccessCode, SuccessCode } from 'src/shared/response/success-code';
+import { ErrorCode } from 'src/shared/response/error-code';
 
 export class ApiResponse<T = null> {
   readonly isSuccess: boolean;
@@ -7,7 +7,12 @@ export class ApiResponse<T = null> {
   readonly message: string;
   readonly result: T;
 
-  private constructor(isSuccess: boolean, code: string, message: string, result: T) {
+  private constructor(
+    isSuccess: boolean,
+    code: string,
+    message: string,
+    result: T,
+  ) {
     this.isSuccess = isSuccess;
     this.code = code;
     this.message = message;
@@ -23,6 +28,11 @@ export class ApiResponse<T = null> {
   }
 
   static onFailure(errorCode: ErrorCode, message?: string): ApiResponse<null> {
-    return new ApiResponse(false, errorCode.code, message ?? errorCode.message, null);
+    return new ApiResponse(
+      false,
+      errorCode.code,
+      message ?? errorCode.message,
+      null,
+    );
   }
 }

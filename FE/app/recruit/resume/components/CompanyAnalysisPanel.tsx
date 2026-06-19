@@ -10,8 +10,17 @@ import {
   type CompanyAnalysis,
   type AnalyzeProgressEvent,
 } from "@/lib/api/company-analysis";
+import { listCompanies } from "@/lib/api/companies";
 import { useAuth } from "@/contexts/AuthContext";
 import { MODELS, PROSE_CLASS } from "@/recruit/_constants";
+
+function normalizeCompanyName(value: string) {
+  return value.replace(/\s+/g, "").toLowerCase();
+}
+
+function companyAnalysisUrl(companyName: string) {
+  return `/companies/analysis?company=${encodeURIComponent(companyName)}`;
+}
 
 function CompanyDetailInline({
   company,
@@ -20,6 +29,42 @@ function CompanyDetailInline({
   company: CompanyAnalysis;
   onBack: () => void;
 }) {
+  const [companyDetailId, setCompanyDetailId] = useState<string | null>(null);
+  const [companyLinkLoading, setCompanyLinkLoading] = useState(false);
+  const fallbackUrl = companyAnalysisUrl(company.companyName);
+  const companyDetailUrl = companyDetailId ? `/companies/${encodeURIComponent(companyDetailId)}` : fallbackUrl;
+
+  useEffect(() => {
+    let cancelled = false;
+    const companyName = company.companyName.trim();
+    if (!companyName) return;
+
+    setCompanyDetailId(null);
+    setCompanyLinkLoading(true);
+
+    listCompanies({ q: companyName, limit: 20 })
+      .then((items) => {
+        if (cancelled) return;
+        const target = normalizeCompanyName(companyName);
+        const matched =
+          items.find((item) => normalizeCompanyName(item.name) === target) ??
+          items.find((item) => item.analysisCompanyKey === company.companyKey) ??
+          items[0] ??
+          null;
+        setCompanyDetailId(matched?.id ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setCompanyDetailId(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCompanyLinkLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [company.companyKey, company.companyName]);
+
   return (
     <div className="h-full flex flex-col bg-white">
       {/* Header */}
@@ -33,17 +78,25 @@ function CompanyDetailInline({
           </svg>
         </button>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold text-slate-800 truncate">{company.companyName}</p>
+          <a
+            href={companyDetailUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block truncate text-xs font-bold text-slate-800 underline-offset-4 hover:text-indigo-600 hover:underline"
+            title={companyDetailId ? "기업 상세 페이지 열기" : "기업 분석 페이지 열기"}
+          >
+            {company.companyName}
+          </a>
           {company.industry && (
             <span className="text-2xs text-violet-600 font-semibold">{company.industry}</span>
           )}
         </div>
         <a
-          href={`/companies/analysis?company=${encodeURIComponent(company.companyName)}`}
+          href={companyDetailUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="shrink-0 text-slate-300 hover:text-slate-500 transition-colors"
-          title="새 탭에서 보기"
+          title={companyDetailId ? "기업 상세 페이지 열기" : companyLinkLoading ? "기업 상세 페이지 찾는 중" : "기업 분석 페이지 열기"}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M1.5 10.5L10.5 1.5M10.5 1.5H5M10.5 1.5V7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />

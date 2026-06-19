@@ -1,5 +1,16 @@
-import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
-import { AiLeaderboardService, CATEGORY_LABELS, CATEGORY_BENCHMARK_DEFS, CATEGORY_SCORE_LABEL } from '../application/ai-leaderboard.service';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Query,
+} from '@nestjs/common';
+import {
+  AiLeaderboardService,
+  CATEGORY_LABELS,
+  CATEGORY_BENCHMARK_DEFS,
+  CATEGORY_SCORE_LABEL,
+} from 'src/news/ai-leaderboard/application/ai-leaderboard.service';
 
 @Controller('ai-leaderboard')
 export class AiLeaderboardController {
@@ -7,7 +18,11 @@ export class AiLeaderboardController {
 
   @Get('meta')
   getMeta() {
-    return { categories: CATEGORY_LABELS, benchmarks: CATEGORY_BENCHMARK_DEFS, scoreLabels: CATEGORY_SCORE_LABEL };
+    return {
+      categories: CATEGORY_LABELS,
+      benchmarks: CATEGORY_BENCHMARK_DEFS,
+      scoreLabels: CATEGORY_SCORE_LABEL,
+    };
   }
 
   @Get('top')

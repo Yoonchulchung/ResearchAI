@@ -1,7 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { load } from 'cheerio';
-import { PuppeteerService } from '../../browse/infrastructure/puppeteer.service';
-import { SessionGateway } from '../../sessions/presentation/session.gateway';
+import { PuppeteerService } from 'src/browse/infrastructure/puppeteer.service';
+import { SessionGateway } from 'src/sessions/presentation/session.gateway';
 
 export interface SaraminCompanyInfo {
   companyType: string | null;
@@ -15,19 +15,22 @@ export interface SaraminCompanyInfo {
 const MIN_INTERVAL_MS = 3000;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-interface CacheEntry { result: SaraminCompanyInfo | null; cachedAt: number }
+interface CacheEntry {
+  result: SaraminCompanyInfo | null;
+  cachedAt: number;
+}
 
 const SIZE_MAP: Record<string, string> = {
-  '대기업': '대기업',
-  '중견기업': '중견기업',
-  '중소기업': '중소기업',
-  '공공기관': '공공기관',
-  '공기업': '공공기관',
-  '외국계기업': '외국계기업',
-  '외국계': '외국계기업',
-  '금융기관': '금융기관',
-  '스타트업': '중소기업',
-  '벤처기업': '중소기업',
+  대기업: '대기업',
+  중견기업: '중견기업',
+  중소기업: '중소기업',
+  공공기관: '공공기관',
+  공기업: '공공기관',
+  외국계기업: '외국계기업',
+  외국계: '외국계기업',
+  금융기관: '금융기관',
+  스타트업: '중소기업',
+  벤처기업: '중소기업',
   '1000대기업': '대기업',
 };
 
@@ -54,11 +57,15 @@ export class SaraminCompanyService {
     };
   }
 
-  async fetchCompanyInfo(companyName: string, { force = false } = {}): Promise<SaraminCompanyInfo | null> {
+  async fetchCompanyInfo(
+    companyName: string,
+    { force = false } = {},
+  ): Promise<SaraminCompanyInfo | null> {
     const key = companyName.trim().toLowerCase();
     if (!force) {
       const cached = this.cache.get(key);
-      if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) return cached.result;
+      if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS)
+        return cached.result;
     }
 
     this.pendingCount++;
@@ -80,18 +87,26 @@ export class SaraminCompanyService {
         this.gateway?.updateDataSourceStatus(this.getStatus());
       }
     });
-    this.queue = next.then(() => undefined, () => undefined);
+    this.queue = next.then(
+      () => undefined,
+      () => undefined,
+    );
     return next;
   }
 
-  private async fetchWithDelay(companyName: string): Promise<SaraminCompanyInfo | null> {
+  private async fetchWithDelay(
+    companyName: string,
+  ): Promise<SaraminCompanyInfo | null> {
     const elapsed = Date.now() - this.lastRequestAt;
-    if (elapsed < MIN_INTERVAL_MS) await new Promise((r) => setTimeout(r, MIN_INTERVAL_MS - elapsed));
+    if (elapsed < MIN_INTERVAL_MS)
+      await new Promise((r) => setTimeout(r, MIN_INTERVAL_MS - elapsed));
     this.lastRequestAt = Date.now();
     return this.doFetch(companyName);
   }
 
-  private async doFetch(companyName: string): Promise<SaraminCompanyInfo | null> {
+  private async doFetch(
+    companyName: string,
+  ): Promise<SaraminCompanyInfo | null> {
     const url = `https://www.saramin.co.kr/zf_user/company-review?keyword=${encodeURIComponent(companyName)}`;
     const html = await this.puppeteer.fetchRenderedHtml(
       url,
@@ -105,9 +120,13 @@ export class SaraminCompanyService {
     return this.parseResult(html, companyName);
   }
 
-  private parseResult(html: string, companyName: string): SaraminCompanyInfo | null {
+  private parseResult(
+    html: string,
+    companyName: string,
+  ): SaraminCompanyInfo | null {
     const $ = load(html);
-    const norm = (s: string) => s.replace(/[\s(주)㈜주식회사]/g, '').toLowerCase();
+    const norm = (s: string) =>
+      s.replace(/[\s(주)㈜주식회사]/g, '').toLowerCase();
     const target = norm(companyName);
 
     // .item .front 구조에서 회사명 일치 항목 찾기
@@ -142,7 +161,7 @@ export class SaraminCompanyService {
     };
 
     // .desc > .info 에서 기업 규모 및 업종 추출
-    (matched as ReturnType<typeof $>).find('.desc .info').each((_, el) => {
+    matched.find('.desc .info').each((_, el) => {
       const text = $(el).text().trim();
       for (const [key, value] of Object.entries(SIZE_MAP)) {
         if (text.includes(key)) {
@@ -157,7 +176,7 @@ export class SaraminCompanyService {
       }
     });
 
-    const fullText = (matched as ReturnType<typeof $>).text();
+    const fullText = matched.text();
     const empM = fullText.match(/(\d[\d,]+)\s*명/);
     if (empM) info.employees = empM[1].replace(/,/g, '') + '명';
 

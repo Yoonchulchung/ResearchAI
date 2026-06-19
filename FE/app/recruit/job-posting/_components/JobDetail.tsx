@@ -203,29 +203,39 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
               ? "링커리어"
               : selected.source;
 
+  const metaItems = [
+    selected.location && { icon: "pin", text: selected.location },
+    (selected.startDate || selected.endDate)
+      ? { icon: "cal", text: `${selected.startDate} ~ ${selected.endDate}` }
+      : selected.deadline
+        ? { icon: "cal", text: selected.deadline }
+        : null,
+    selected.companyType && { icon: null, text: selected.companyType },
+  ].filter(Boolean) as { icon: string | null; text: string }[];
+
   return (
-    <div onScroll={onScroll} className={`flex-1 overflow-y-auto flex flex-col transition-all ${isDark ? "bg-slate-950" : "bg-[#F8F9FA]"}`}>
-      <div className="p-0 sm:p-6 w-full">
-        <div className={`sm:rounded-md overflow-hidden transition-all ${isDark ? "bg-slate-900 border border-slate-800" : "bg-white sm:border sm:border-slate-200/80"}`}>
+    <div onScroll={onScroll} className={`h-full min-h-0 flex-1 overflow-y-auto flex flex-col transition-all ${isDark ? "bg-slate-950" : "bg-[#F8F9FA]"}`}>
+      <div className="p-0 sm:p-6 w-full max-w-3xl mx-auto">
+        <div className={`sm:rounded-xl overflow-hidden transition-all ${isDark ? "bg-slate-900 border border-slate-800" : "bg-white sm:border sm:border-slate-200/80"}`}>
+
           {/* Header */}
-          <div className={`p-4 sm:p-8 border-b ${isDark ? "border-slate-800" : "border-slate-100"}`}>
-            <div className="flex items-start justify-between gap-3 mb-3 sm:mb-4">
-              <div className="flex items-center gap-2 flex-wrap">
+          <div className={`px-5 sm:px-8 pt-6 sm:pt-8 pb-5 sm:pb-6 border-b ${isDark ? "border-slate-800" : "border-slate-100"}`}>
+            {/* Top row: badges + save */}
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {selected.type && (
-                  <span className="inline-block text-xs font-bold px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-350 dark:border-indigo-900/50">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300">
                     {normalizeType(selected.type)}
                   </span>
                 )}
                 {selectedDday && (
-                  <span
-                    className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold border ${
-                      selectedDday === "마감"
-                        ? "bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
-                        : selectedDday === "D-Day"
-                          ? "bg-red-50 text-red-600 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900/50"
-                          : "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50"
-                    }`}
-                  >
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    selectedDday === "마감"
+                      ? "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                      : selectedDday === "D-Day"
+                        ? "bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
+                        : "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
+                  }`}>
                     {selectedDday}
                   </span>
                 )}
@@ -234,339 +244,252 @@ export function JobDetail({ selected, detailLoading, onToggleFavorite, onScroll 
                 type="button"
                 onClick={(e) => onToggleFavorite(selected, e)}
                 aria-label={selected.favorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border transition-colors ${
+                className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors ${
                   selected.favorite
-                    ? "bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50"
-                    : "bg-white border-slate-200 text-slate-400 hover:text-amber-500 hover:border-amber-200 hover:bg-amber-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-750"
+                    ? "bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/50"
+                    : "border-slate-200 text-slate-400 hover:text-amber-500 hover:border-amber-200 hover:bg-amber-50 dark:border-slate-700 dark:text-slate-400"
                 }`}
               >
                 <FavoriteIcon active={!!selected.favorite} />
                 {selected.favorite ? "저장됨" : "저장"}
               </button>
             </div>
+
+            {/* Company */}
             <button
               type="button"
               onClick={() => router.push(
-                companyId
-                  ? `/companies/${companyId}`
-                  : `/companies?q=${encodeURIComponent(selected.company)}`
+                companyId ? `/companies/${companyId}` : `/companies?q=${encodeURIComponent(selected.company)}`
               )}
-              className="text-sm font-bold text-slate-500 mb-2 tracking-wide hover:text-indigo-600 hover:underline transition-colors text-left dark:text-slate-400 dark:hover:text-indigo-400"
+              className={`text-sm font-semibold mb-1.5 hover:underline transition-colors text-left ${isDark ? "text-slate-400 hover:text-indigo-400" : "text-slate-500 hover:text-indigo-600"}`}
             >
               {selected.company}
             </button>
-            <h1 className="text-[26px] sm:text-3xl font-extrabold leading-tight mb-4 sm:mb-5 text-slate-900 tracking-tight dark:text-slate-100">
+
+            {/* Title */}
+            <h1 className={`text-xl sm:text-2xl font-bold leading-snug mb-4 tracking-tight ${isDark ? "text-slate-100" : "text-slate-900"}`}>
               {selected.title}
             </h1>
 
-            <div className="flex flex-wrap gap-x-4 sm:gap-x-6 gap-y-2 text-[15px] font-medium text-slate-600 dark:text-slate-400">
-              {selected.location && (
-                <span className="flex items-center gap-1.5">
-                  <svg className="text-slate-400" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 1.5c-3.3 0-6 2.7-6 6 0 3.8 6 7.5 6 7.5s6-3.7 6-7.5c0-3.3-2.7-6-6-6zm0 8.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" fill="currentColor" />
-                  </svg>
-                  {selected.location}
-                </span>
-              )}
-              {selected.startDate || selected.endDate ? (
-                <span className="flex items-center gap-1.5">
-                  <svg className="text-slate-400" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
-                    <path d="M5 1.5v3M11 1.5v3M2 6.5h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                  {selected.startDate} ~ {selected.endDate}
-                </span>
-              ) : (
-                selected.deadline && (
-                  <span className="flex items-center gap-1.5">
-                    <svg className="text-slate-400" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
-                      <path d="M5 1.5v3M11 1.5v3M2 6.5h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                    {selected.deadline}
+            {/* Meta row */}
+            {metaItems.length > 0 && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {metaItems.map((m, i) => (
+                  <span key={i} className={`flex items-center gap-1 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                    {m.icon === "pin" && (
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" className="shrink-0 opacity-60">
+                        <path d="M8 1.5c-3.3 0-6 2.7-6 6 0 3.8 6 7.5 6 7.5s6-3.7 6-7.5c0-3.3-2.7-6-6-6zm0 8.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" fill="currentColor" />
+                      </svg>
+                    )}
+                    {m.icon === "cal" && (
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" className="shrink-0 opacity-60">
+                        <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                        <path d="M5 1.5v3M11 1.5v3M2 6.5h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      </svg>
+                    )}
+                    {m.text}
                   </span>
-                )
-              )}
-            </div>
+                ))}
+                {selected.homepage && (
+                  <a
+                    href={selected.homepage.startsWith("http") ? selected.homepage : `https://${selected.homepage}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-indigo-500 hover:text-indigo-700 hover:underline dark:text-indigo-400"
+                  >
+                    {selected.homepage}
+                  </a>
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="p-4 sm:p-8">
-            {/* Info grid */}
-            {(selected.companyType || selected.jobs || selected.homepage) && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 sm:mb-8 p-4 sm:p-5 rounded-md bg-slate-50 border border-slate-100 dark:bg-slate-950/40 dark:border-slate-850">
-                {selected.companyType && (
-                  <div>
-                    <p className="text-[13px] font-semibold text-slate-400 mb-1">기업형태</p>
-                    <p className="font-bold text-slate-800 dark:text-slate-200">{selected.companyType}</p>
-                  </div>
-                )}
-                {selected.jobs && (
-                  <div>
-                    <p className="text-[13px] font-semibold text-slate-400 mb-1">모집직무</p>
-                    <p className="font-bold text-slate-800 dark:text-slate-200">{selected.jobs}</p>
-                  </div>
-                )}
-                {selected.homepage && (
-                  <div className="sm:col-span-2 mt-1 pt-4 border-t border-slate-200/60 dark:border-slate-800">
-                    <p className="text-[13px] font-semibold text-slate-400 mb-1">홈페이지</p>
-                    <a
-                      href={selected.homepage.startsWith("http") ? selected.homepage : `https://${selected.homepage}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline break-all dark:text-indigo-400 dark:hover:text-indigo-300"
-                    >
-                      {selected.homepage}
-                    </a>
-                  </div>
-                )}
-              </div>
-            )}
+          {/* AI Tools — minimal toolbar */}
+          <div className={`px-5 sm:px-8 py-3 border-b flex flex-wrap items-center gap-2 ${isDark ? "border-slate-800 bg-slate-900/60" : "border-slate-100 bg-slate-50/60"}`}>
+            <button
+              onClick={() => runAi("analysis")}
+              disabled={aiLoading}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all disabled:opacity-50 ${
+                aiMode === "analysis" && (aiLoading || aiResult)
+                  ? "bg-indigo-600 text-white"
+                  : isDark ? "text-indigo-300 hover:bg-indigo-950/40" : "text-indigo-600 hover:bg-indigo-50"
+              }`}
+            >
+              {aiLoading && aiMode === "analysis"
+                ? <span className="w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                : <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" /><path d="M4 6h4M6 4v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+              }
+              공고 분석
+            </button>
+            <button
+              onClick={() => runAi("interview")}
+              disabled={aiLoading}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all disabled:opacity-50 ${
+                aiMode === "interview" && (aiLoading || aiResult)
+                  ? "bg-violet-600 text-white"
+                  : isDark ? "text-violet-300 hover:bg-violet-950/40" : "text-violet-600 hover:bg-violet-50"
+              }`}
+            >
+              {aiLoading && aiMode === "interview"
+                ? <span className="w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                : <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M10 1H2C1.45 1 1 1.45 1 2V8c0 .55.45 1 1 1h2l2 2 2-2h2c.55 0 1-.45 1-1V2c0-.55-.45-1-1-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
+              }
+              면접 질문
+            </button>
+            <button
+              onClick={handleCompanyAnalysis}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${isDark ? "text-emerald-300 hover:bg-emerald-950/40" : "text-emerald-600 hover:bg-emerald-50"}`}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" /><path d="M4 8L8 4M8 4H5.5M8 4V6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              기업 분석
+            </button>
+            <div className={`w-px h-4 self-center ${isDark ? "bg-slate-700" : "bg-slate-200"}`} />
+            <button
+              onClick={openPicker}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                coverLetter
+                  ? "text-orange-600 bg-orange-50 dark:text-orange-350 dark:bg-orange-950/40"
+                  : isDark ? "text-slate-400 hover:bg-slate-800" : "text-slate-500 hover:bg-slate-100"
+              }`}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 1.5h8a.5.5 0 01.5.5v8a.5.5 0 01-.5.5H2a.5.5 0 01-.5-.5V2a.5.5 0 01.5-.5z" stroke="currentColor" strokeWidth="1.5" /><path d="M4 4h4M4 6h4M4 8h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg>
+              {coverLetter ? coverLetter.company : "자소서"}
+              {coverLetter && (
+                <span role="button" onClick={(e) => { e.stopPropagation(); setCoverLetter(null); }} className="opacity-50 hover:opacity-100">×</span>
+              )}
+            </button>
+          </div>
 
-            {/* Category */}
-            {selected.category && !selected.jobs && (
-              <div className="mb-8">
-                <p className="text-[13px] font-bold text-indigo-600 mb-2 flex items-center gap-2 dark:text-indigo-400">
-                  <span className="w-1.5 h-1.5 rounded-sm bg-indigo-600 dark:bg-indigo-400" />
-                  직무 분야
-                </p>
-                <p className="text-[15px] font-medium text-slate-700 pl-3.5 border-l-2 border-indigo-100 dark:text-slate-350 dark:border-indigo-950">{selected.category}</p>
-              </div>
-            )}
-
-            {/* AI Tools */}
-            <div className="mb-6 p-4 rounded-md border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
-              <p className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider dark:text-slate-400">AI 도구</p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => runAi("analysis")}
-                  disabled={aiLoading}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border transition-all disabled:opacity-50 ${
-                    aiMode === "analysis" && (aiLoading || aiResult)
-                      ? "bg-indigo-600 text-white border-indigo-600"
-                      : "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:bg-slate-800 dark:border-indigo-900/50 dark:text-indigo-300 dark:hover:bg-slate-750"
-                  }`}
-                >
-                  {aiLoading && aiMode === "analysis" ? (
-                    <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" />
-                      <path d="M4 6h4M6 4v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    </svg>
-                  )}
-                  AI 공고 분석
-                </button>
-                <button
-                  onClick={() => runAi("interview")}
-                  disabled={aiLoading}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border transition-all disabled:opacity-50 ${
-                    aiMode === "interview" && (aiLoading || aiResult)
-                      ? "bg-violet-600 text-white border-violet-600"
-                      : "bg-white text-violet-600 border-violet-200 hover:bg-violet-50 dark:bg-slate-800 dark:border-violet-900/50 dark:text-violet-300 dark:hover:bg-slate-750"
-                  }`}
-                >
-                  {aiLoading && aiMode === "interview" ? (
-                    <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path d="M10 1H2C1.44772 1 1 1.44772 1 2V8C1 8.55228 1.44772 9 2 9H4L6 11L8 9H10C10.5523 9 11 8.55228 11 8V2C11 1.44772 10.5523 1 10 1Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                  면접 예상 질문
-                </button>
-                <button
-                  onClick={handleCompanyAnalysis}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border bg-white text-emerald-600 border-emerald-200 hover:bg-emerald-50 transition-all dark:bg-slate-800 dark:border-emerald-900/50 dark:text-emerald-300 dark:hover:bg-slate-750"
-                >
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" />
-                    <path d="M4 8L8 4M8 4H5.5M8 4V6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  기업 분석하기
-                </button>
-                {/* Cover letter picker button */}
-                <button
-                  onClick={openPicker}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border transition-all ${
-                    coverLetter
-                      ? "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100 dark:bg-orange-950/40 dark:border-orange-900/50 dark:text-orange-350"
-                      : pickerOpen
-                        ? "bg-slate-200 text-slate-700 border-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
-                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-750"
-                  }`}
-                >
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M2 1.5h8a.5.5 0 01.5.5v8a.5.5 0 01-.5.5H2a.5.5 0 01-.5-.5V2a.5.5 0 01.5-.5z" stroke="currentColor" strokeWidth="1.5" />
-                    <path d="M4 4h4M4 6h4M4 8h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                  </svg>
-                  {coverLetter ? `자소서: ${coverLetter.company}` : "자소서 선택"}
-                  {coverLetter && (
-                    <span
-                      role="button"
-                      onClick={(e) => { e.stopPropagation(); setCoverLetter(null); }}
-                      className="ml-0.5 text-orange-400 hover:text-orange-700"
-                    >
-                      ×
-                    </span>
-                  )}
-                </button>
-              </div>
-
-              {/* Cover letter picker panel */}
-              {pickerOpen && (
-                <div className="mt-3 border border-slate-200 rounded-md bg-white overflow-hidden dark:border-slate-800 dark:bg-slate-900">
-                  <div className="p-2 border-b border-slate-100 flex items-center gap-2 dark:border-slate-800">
-                    <input
-                      autoFocus
-                      type="text"
-                      value={pickerSearch}
-                      onChange={(e) => setPickerSearch(e.target.value)}
-                      placeholder="회사명·직무로 검색"
-                      className="flex-1 text-xs px-2 py-1.5 border border-slate-200 rounded-md outline-none focus:border-indigo-300 bg-slate-50 dark:border-slate-850 dark:bg-slate-950/40 dark:text-slate-100"
-                    />
-                    <button onClick={() => setPickerOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm px-1">
-                      ✕
-                    </button>
-                  </div>
-                  <div className="max-h-56 overflow-y-auto">
-                    {pickerLoading ? (
-                      <div className="flex items-center justify-center gap-2 py-6 text-xs text-slate-400">
-                        <span className="w-3 h-3 border-2 border-slate-200 border-t-indigo-400 rounded-full animate-spin" />
-                        불러오는 중...
-                      </div>
-                    ) : (() => {
-                      const q = pickerSearch.trim();
-                      const filtered = q
-                        ? pickerItems.filter(
-                            (cl) =>
-                                cl.company.includes(q) ||
-                                cl.position.includes(q) ||
-                                (cl.spec ?? "").includes(q),
-                          )
-                        : pickerItems;
-                      if (filtered.length === 0) {
-                        return (
-                          <p className="text-xs text-slate-400 text-center py-5">자소서가 없습니다</p>
-                        );
-                      }
-                      return filtered.map((cl) => {
-                        const isSelected = coverLetter?.id === cl.id;
-                        const analyzedModes = [
-                          cachedDocIds.analysis === cl.id ? "분석" : null,
-                          cachedDocIds.interview === cl.id ? "면접" : null,
-                        ].filter(Boolean);
-                        return (
-                          <button
-                            key={cl.id}
-                            onClick={() => {
-                              setCoverLetter(isSelected ? null : cl);
-                              setPickerOpen(false);
-                              setPickerSearch("");
-                            }}
-                            className={`w-full text-left px-3 py-2.5 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors ${
-                              isSelected ? "bg-orange-50 dark:bg-orange-950/20" : "dark:border-slate-800/30 dark:hover:bg-slate-800/40"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold text-slate-800 truncate dark:text-slate-200">
-                                  {cl.company}
-                                  <span className="text-slate-400 font-normal ml-1">{cl.position}</span>
-                                </p>
-                                {cl.spec && (
-                                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{cl.spec}</p>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                {analyzedModes.map((m) => (
-                                  <span key={m} className="text-2xs font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100 whitespace-nowrap dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900/50">
-                                    분석됨 ({m})
-                                  </span>
-                                ))}
-                                {isSelected && (
-                                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="text-orange-500">
-                                    <path d="M2.5 7l3 3 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                  </svg>
-                                )}
-                              </div>
+          <div className="px-5 sm:px-8 py-6">
+            {/* Cover letter picker panel */}
+            {pickerOpen && (
+              <div className={`mb-6 border rounded-lg overflow-hidden ${isDark ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white"}`}>
+                <div className={`p-2 border-b flex items-center gap-2 ${isDark ? "border-slate-800" : "border-slate-100"}`}>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={pickerSearch}
+                    onChange={(e) => setPickerSearch(e.target.value)}
+                    placeholder="회사명·직무로 검색"
+                    className={`flex-1 text-xs px-2 py-1.5 border rounded-md outline-none focus:border-indigo-300 ${isDark ? "border-slate-700 bg-slate-950/40 text-slate-100" : "border-slate-200 bg-slate-50"}`}
+                  />
+                  <button onClick={() => setPickerOpen(false)} className="text-slate-400 hover:text-slate-600 px-1">✕</button>
+                </div>
+                <div className="max-h-52 overflow-y-auto">
+                  {pickerLoading ? (
+                    <div className="flex items-center justify-center gap-2 py-6 text-xs text-slate-400">
+                      <span className="w-3 h-3 border-2 border-slate-200 border-t-indigo-400 rounded-full animate-spin" />불러오는 중...
+                    </div>
+                  ) : (() => {
+                    const q = pickerSearch.trim();
+                    const filtered = q
+                      ? pickerItems.filter((cl) => cl.company.includes(q) || cl.position.includes(q) || (cl.spec ?? "").includes(q))
+                      : pickerItems;
+                    if (!filtered.length) return <p className="text-xs text-slate-400 text-center py-5">자소서가 없습니다</p>;
+                    return filtered.map((cl) => {
+                      const isSelected = coverLetter?.id === cl.id;
+                      const analyzedModes = [
+                        cachedDocIds.analysis === cl.id ? "분석" : null,
+                        cachedDocIds.interview === cl.id ? "면접" : null,
+                      ].filter(Boolean);
+                      return (
+                        <button
+                          key={cl.id}
+                          onClick={() => { setCoverLetter(isSelected ? null : cl); setPickerOpen(false); setPickerSearch(""); }}
+                          className={`w-full text-left px-3 py-2.5 border-b last:border-0 transition-colors ${isSelected ? "bg-orange-50 dark:bg-orange-950/20" : "hover:bg-slate-50 dark:border-slate-800/30 dark:hover:bg-slate-800/40"}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-slate-800 truncate dark:text-slate-200">
+                                {cl.company}<span className="text-slate-400 font-normal ml-1">{cl.position}</span>
+                              </p>
+                              {cl.spec && <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{cl.spec}</p>}
                             </div>
-                          </button>
-                        );
-                      });
+                            <div className="flex items-center gap-1 shrink-0">
+                              {analyzedModes.map((m) => (
+                                <span key={m} className="text-2xs font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300">
+                                  {m}됨
+                                </span>
+                              ))}
+                              {isSelected && (
+                                <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="text-orange-500">
+                                  <path d="M2.5 7l3 3 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* AI Result */}
+            {(aiResult || (aiLoading && aiMode)) && (
+              <div className={`mb-6 rounded-lg border p-4 ${isDark ? "border-slate-800 bg-slate-950/40" : "border-slate-100 bg-slate-50"}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-semibold ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                      {aiMode === "analysis" ? "공고 분석" : "면접 예상 질문"}
+                    </span>
+                    {(() => {
+                      const docId = aiMode ? cachedDocIds[aiMode] : null;
+                      const usedCl = docId ? pickerItems.find((cl) => cl.id === docId) : null;
+                      return usedCl ? (
+                        <span className="text-2xs font-semibold px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-350">
+                          자소서: {usedCl.company}
+                        </span>
+                      ) : null;
                     })()}
                   </div>
-                </div>
-              )}
-
-              {/* AI Result */}
-              {(aiResult || (aiLoading && aiMode)) && (
-                <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-800">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-bold text-slate-500">
-                        {aiMode === "analysis" ? "AI 공고 분석 결과" : "면접 예상 질문"}
-                      </p>
-                      {(() => {
-                        const docId = aiMode ? cachedDocIds[aiMode] : null;
-                        const usedCl = docId ? pickerItems.find((cl) => cl.id === docId) : null;
-                        return usedCl ? (
-                          <span className="text-2xs font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-600 border border-orange-100 dark:bg-orange-950/40 dark:text-orange-350 dark:border-orange-900/50">
-                            자소서: {usedCl.company}
-                          </span>
-                        ) : null;
-                      })()}
-                    </div>
-                    {!aiLoading && aiResult && (
-                      <button
-                        onClick={() => { setAiMode(null); setAiResult(""); }}
-                        className="text-xs text-slate-400 hover:text-slate-600"
-                      >
-                        닫기
-                      </button>
-                    )}
-                  </div>
-                  {aiLoading && !aiResult ? (
-                    <div className="flex items-center gap-2 text-sm text-slate-400 py-2">
-                      <span className="w-4 h-4 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
-                      분석 중...
-                    </div>
-                  ) : (
-                    <div
-                      className={`${PROSE_CLASS} text-sm`}
-                      dangerouslySetInnerHTML={{ __html: aiResult.replace(/\n/g, "<br/>").replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/^- (.*)/gm, "• $1") }}
-                    />
+                  {!aiLoading && aiResult && (
+                    <button onClick={() => { setAiMode(null); setAiResult(""); }} className="text-xs text-slate-400 hover:text-slate-600">닫기</button>
                   )}
                 </div>
-              )}
-            </div>
+                {aiLoading && !aiResult ? (
+                  <div className="flex items-center gap-2 text-sm text-slate-400 py-1">
+                    <span className="w-4 h-4 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />분석 중...
+                  </div>
+                ) : (
+                  <div className={`${PROSE_CLASS} text-sm`} dangerouslySetInnerHTML={{ __html: aiResult.replace(/\n/g, "<br/>").replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/^- (.*)/gm, "• $1") }} />
+                )}
+              </div>
+            )}
 
             {/* Detail content */}
-            <div className="mb-8 sm:mb-10">
-              <p className="text-[15px] font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 dark:text-slate-100 dark:border-slate-800">상세내용</p>
+            <div className="mb-8">
               {detailLoading ? (
                 <div className="flex items-center gap-2 text-slate-400 text-sm py-4">
-                  <span className="w-4 h-4 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />
-                  상세 내용을 불러오는 중...
+                  <span className="w-4 h-4 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />상세 내용을 불러오는 중...
                 </div>
               ) : selected.detailHtml ? (
-                <div className="job-detail-html text-[15px] leading-relaxed text-slate-700 dark:text-slate-350" dangerouslySetInnerHTML={{ __html: selected.detailHtml.replace(/\/api\/recruit\/job-postings\/image\//g, `${BE_BASE}/api/recruit/job-postings/image/`) }} />
+                <div className="job-detail-html text-[15px] leading-relaxed text-slate-700 dark:text-slate-350" dangerouslySetInnerHTML={{ __html: selected.detailHtml
+                    .replace(/\/api\/recruit\/job-postings\/image\//g, `${BE_BASE}/api/recruit/job-postings/image/`)
+                    .replace(/<[^>]+>\s*펼치기\s*<\/[^>]+>/gi, "")
+                    // 상단 요약줄: "신입/경력 | 정규직 | 대졸 | 지역..." 패턴
+                    .replace(/<(?:p|div|span|td)[^>]*>(?:[^<]*\|){2,}[^<]*<\/(?:p|div|span|td)>/gi, "")
+                    // 직무 목록줄: 한국어 단어들이 쉼표로만 구성된 줄 (링크·태그 없음)
+                    .replace(/<(?:p|div|span)[^>]*>(?:[가-힣\w()\s\/·]+,\s*){4,}[가-힣\w()\s\/·]+<\/(?:p|div|span)>/gi, "")
+                }} />
               ) : selected.detailContent ? (
-                <div className="text-[15px] leading-relaxed whitespace-pre-wrap text-slate-700 font-medium dark:text-slate-350">{selected.detailContent}</div>
+                <div className="text-[15px] leading-relaxed whitespace-pre-wrap text-slate-700 dark:text-slate-350">{selected.detailContent}</div>
               ) : (
-                <p className="text-sm text-slate-400">상세 내용을 가져올 수 없습니다. 원본 공고를 확인해주세요.</p>
+                <p className="text-sm text-slate-400">상세 내용을 가져올 수 없습니다.</p>
               )}
             </div>
 
             {/* Action */}
-            <div className="pt-6 border-t border-slate-100 flex justify-end dark:border-slate-800">
+            <div className={`pt-5 border-t ${isDark ? "border-slate-800" : "border-slate-100"}`}>
               <a
                 href={selected.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 text-[15px] font-bold rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-all w-full sm:w-auto dark:bg-indigo-600 dark:hover:bg-indigo-700"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all w-full sm:w-auto"
               >
-                {sourceLabel}에서 공고 보기
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                {sourceLabel}에서 보기
+                <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
                   <path d="M2.5 11.5L11.5 2.5M11.5 2.5H5.5M11.5 2.5V8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </a>

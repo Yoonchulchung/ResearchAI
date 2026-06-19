@@ -63,6 +63,28 @@ export const deleteCompanyNewsByResume = (resumeId: string, companyName?: string
     { method: "DELETE" },
   );
 
+// ── JD 관련 뉴스 검색 ─────────────────────────────────────────────────────────
+
+export interface JdNewsItem {
+  title: string;
+  url: string;
+  snippet: string;
+  date: string;
+  source: string;
+}
+
+export const searchJdNews = (query: string, limit = 10) =>
+  apiFetch<{ items: JdNewsItem[] }>("/resume/jd-news-search", {
+    method: "POST",
+    body: JSON.stringify({ query, limit }),
+  });
+
+export const scrapeJdNewsArticle = (url: string) =>
+  apiFetch<{ title: string; text: string }>("/resume/jd-news-search/article", {
+    method: "POST",
+    body: JSON.stringify({ url }),
+  });
+
 export const getCompanyJdEval = (resumeId: string) =>
   apiFetch<CompanyJdEval | null>(`/resume/${encodeURIComponent(resumeId)}/jd-eval`);
 

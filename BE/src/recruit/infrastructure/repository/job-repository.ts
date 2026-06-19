@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { RecruitDb } from '../database/recruit-db';
-import { JobPosting } from '../../domain/job-posting.model';
+import { RecruitDb } from 'src/recruit/infrastructure/database/recruit-db';
+import { JobPosting } from 'src/recruit/domain/job-posting.model';
 
 interface JobRow {
   id: string;
@@ -27,7 +27,10 @@ export class JobRepository {
   constructor(private readonly recruitDb: RecruitDb) {}
 
   upsert(job: JobPosting): void {
-    this.recruitDb.get().prepare(`
+    this.recruitDb
+      .get()
+      .prepare(
+        `
       INSERT INTO job_postings
         (id, source, source_type, title, company, location, description, skills, url, posted_at, collected_at)
       VALUES
@@ -39,14 +42,16 @@ export class JobRepository {
         description  = excluded.description,
         skills       = excluded.skills,
         collected_at = excluded.collected_at
-    `).run({
-      ...job,
-      source: job.source ?? 'unknown',
-      sourceType: job.sourceType ?? 'crawler',
-      description: job.description ?? '',
-      skills: JSON.stringify(job.skills ?? []),
-      postedAt: job.postedAt ?? null,
-    });
+    `,
+      )
+      .run({
+        ...job,
+        source: job.source ?? 'unknown',
+        sourceType: job.sourceType ?? 'crawler',
+        description: job.description ?? '',
+        skills: JSON.stringify(job.skills ?? []),
+        postedAt: job.postedAt ?? null,
+      });
   }
 
   findAll(filter: JobFilter = {}): JobPosting[] {
@@ -54,7 +59,9 @@ export class JobRepository {
     const params: Record<string, string> = {};
 
     if (filter.keyword) {
-      conditions.push(`(title LIKE @keyword OR company LIKE @keyword OR description LIKE @keyword)`);
+      conditions.push(
+        `(title LIKE @keyword OR company LIKE @keyword OR description LIKE @keyword)`,
+      );
       params.keyword = `%${filter.keyword}%`;
     }
     if (filter.source) {
@@ -66,8 +73,10 @@ export class JobRepository {
       params.company = `%${filter.company}%`;
     }
 
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const rows = this.recruitDb.get()
+    const where =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const rows = this.recruitDb
+      .get()
       .prepare(`SELECT * FROM job_postings ${where} ORDER BY collected_at DESC`)
       .all(params) as JobRow[];
 
@@ -75,36 +84,54 @@ export class JobRepository {
   }
 
   findById(id: string): JobPosting | null {
-    const row = this.recruitDb.get()
+    const row = this.recruitDb
+      .get()
       .prepare(`SELECT * FROM job_postings WHERE id = ?`)
       .get(id) as JobRow | undefined;
     return row ? this.toModel(row) : null;
   }
 
   delete(id: string): boolean {
-    const result = this.recruitDb.get()
+    const result = this.recruitDb
+      .get()
       .prepare(`DELETE FROM job_postings WHERE id = ?`)
       .run(id);
     return result.changes > 0;
   }
 
   deleteAll(): number {
-    const result = this.recruitDb.get().prepare(`DELETE FROM job_postings`).run();
+    const result = this.recruitDb
+      .get()
+      .prepare(`DELETE FROM job_postings`)
+      .run();
     return result.changes;
   }
 
-  stats(): { total: number; bySources: Record<string, number>; lastCollectedAt: string | null } {
-    const total = (this.recruitDb.get()
-      .prepare(`SELECT COUNT(*) as cnt FROM job_postings`)
-      .get() as { cnt: number }).cnt;
+  stats(): {
+    total: number;
+    bySources: Record<string, number>;
+    lastCollectedAt: string | null;
+  } {
+    const total = (
+      this.recruitDb
+        .get()
+        .prepare(`SELECT COUNT(*) as cnt FROM job_postings`)
+        .get() as { cnt: number }
+    ).cnt;
 
-    const bySourceRows = this.recruitDb.get()
-      .prepare(`SELECT source, COUNT(*) as cnt FROM job_postings GROUP BY source`)
+    const bySourceRows = this.recruitDb
+      .get()
+      .prepare(
+        `SELECT source, COUNT(*) as cnt FROM job_postings GROUP BY source`,
+      )
       .all() as { source: string; cnt: number }[];
 
-    const bySources = Object.fromEntries(bySourceRows.map((r) => [r.source, r.cnt]));
+    const bySources = Object.fromEntries(
+      bySourceRows.map((r) => [r.source, r.cnt]),
+    );
 
-    const lastRow = this.recruitDb.get()
+    const lastRow = this.recruitDb
+      .get()
       .prepare(`SELECT MAX(collected_at) as last FROM job_postings`)
       .get() as { last: string | null };
 

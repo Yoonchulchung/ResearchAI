@@ -1,5 +1,13 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, OneToOne, JoinColumn } from 'typeorm';
-import { CompanyEntity } from './company.entity';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToOne,
+  JoinColumn,
+} from 'typeorm';
+import { CompanyEntity } from 'src/company/domain/entity/company.entity';
 
 @Entity('company_financial')
 export class CompanyFinancialEntity {
@@ -9,7 +17,10 @@ export class CompanyFinancialEntity {
   @Column({ name: 'company_id', type: 'text', unique: true })
   companyId!: string;
 
-  @OneToOne(() => CompanyEntity, (c) => c.financial, { nullable: true, onDelete: 'CASCADE' })
+  @OneToOne(() => CompanyEntity, (c) => c.financial, {
+    nullable: true,
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'company_id' })
   company?: CompanyEntity;
 

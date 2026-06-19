@@ -1,13 +1,12 @@
 import type { DragEvent, FormEvent, MouseEvent, RefObject } from "react";
 import type { CompanySlimItem } from "@/lib/api/companies";
-import type { Experience } from "@/lib/api/experiences";
+import type { ResumeTarget } from "@/lib/api/resume";
 import type { CoverLetter } from "@/lib/api/recruit/cover-letter";
 import type { JobRecommendation } from "@/lib/api/recruit/job-posting";
 import type { CalendarJobTypeFilter, RecruitCalendarEvent } from "../_hooks/useExamCalendar";
 import {
   WEEKDAYS,
   deadlineBadge,
-  experienceMeta,
   jobMeta,
   scheduleLabel,
   scheduleTone,
@@ -329,7 +328,7 @@ export function InfoTabsSection({
 }
 
 export function ExperienceLibrarySection({
-  experiences,
+  resumes,
   loading,
   isDark,
   boxClass,
@@ -337,10 +336,23 @@ export function ExperienceLibrarySection({
   textSub,
   onOpenResume,
 }: ThemeProps & {
-  experiences: Experience[];
+  resumes: ResumeTarget[];
   loading: boolean;
-  onOpenResume: () => void;
+  onOpenResume: (resumeId?: string) => void;
 }) {
+  const groupedResumes = resumes.reduce<Record<string, ResumeTarget[]>>((groups, resume) => {
+    const rawDate = resume.appliedAt || resume.updatedAt || "";
+    const matchedYear = rawDate.match(/\d{4}/)?.[0] ?? "연도 미정";
+    if (!groups[matchedYear]) groups[matchedYear] = [];
+    groups[matchedYear].push(resume);
+    return groups;
+  }, {});
+  const years = Object.keys(groupedResumes).sort((a, b) => {
+    if (a === "연도 미정") return 1;
+    if (b === "연도 미정") return -1;
+    return b.localeCompare(a);
+  });
+
   return (
     <section className={`overflow-hidden rounded-md border p-5 ${boxClass}`}>
       <div className="flex items-start justify-between gap-3">
@@ -351,13 +363,13 @@ export function ExperienceLibrarySection({
               이력서 · 경험
             </span>
           </div>
-          <h2 className={`mt-4 text-3xl font-bold tracking-tight ${textMain}`}>경험 라이브러리</h2>
+          <h2 className={`mt-4 text-3xl font-bold tracking-tight ${textMain}`}>이력서</h2>
           <p className={`mt-2 text-sm ${textSub}`}>
-            {loading ? "불러오는 중..." : `${experiences.length}개의 경험이 저장되어 있습니다.`}
+            {loading ? "불러오는 중..." : `${resumes.length}개의 이력서가 저장되어 있습니다.`}
           </p>
         </div>
         <button
-          onClick={onOpenResume}
+          onClick={() => onOpenResume()}
           className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${isDark ? "text-indigo-300 hover:bg-white/10" : "text-indigo-600 hover:bg-indigo-50"}`}
         >
           이력서 관리
@@ -371,35 +383,56 @@ export function ExperienceLibrarySection({
               <div key={i} className={`h-10 rounded-md animate-pulse ${isDark ? "bg-white/5" : "bg-slate-100"}`} />
             ))}
           </div>
-        ) : experiences.length === 0 ? (
+        ) : resumes.length === 0 ? (
           <div className={`flex flex-col items-center justify-center gap-3 py-10 text-sm ${textSub}`}>
-            <span>저장된 경험이 없습니다.</span>
+            <span>저장된 이력서가 없습니다.</span>
             <button
-              onClick={onOpenResume}
+              onClick={() => onOpenResume()}
               className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
             >
-              이력서에서 추가하기
+              이력서 추가하기
             </button>
           </div>
         ) : (
-          <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {experiences.slice(0, 6).map((exp, index) => (
-              <li key={exp.id}>
-                <button
-                  onClick={onOpenResume}
-                  className={`grid w-full grid-cols-[2rem_1fr] items-center gap-3 rounded-md px-2 py-2 text-left transition-colors ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
-                >
-                  <span className={`text-sm sm:text-base font-black tabular-nums ${isDark ? "text-white/35" : "text-slate-400"}`}>
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span className="min-w-0">
-                    <span className={`block truncate text-xs sm:text-sm font-bold ${textMain}`}>{exp.title}</span>
-                    <span className={`block truncate text-[11px] sm:text-xs ${textSub}`}>{experienceMeta(exp)}</span>
-                  </span>
-                </button>
-              </li>
+          <div className="space-y-5">
+            {years.map((year) => (
+              <div key={year}>
+                <div className="mb-2 flex items-center gap-3">
+                  <span className={`text-sm font-black ${isDark ? "text-white/45" : "text-slate-400"}`}>{year}</span>
+                  <span className={`h-px flex-1 ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
+                </div>
+                <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {groupedResumes[year].map((resume, index) => (
+                    <li key={resume.id}>
+                      <button
+                        onClick={() => onOpenResume(resume.id)}
+                        className={`grid w-full grid-cols-[2.5rem_1fr_auto] items-center gap-3 rounded-md border px-3 py-3 text-left transition-colors ${
+                          isDark
+                            ? "border-white/10 bg-white/[0.03] hover:bg-white/10"
+                            : "border-slate-100 bg-white hover:border-indigo-200 hover:bg-indigo-50/40"
+                        }`}
+                      >
+                        <span className={`text-xl font-black tabular-nums ${isDark ? "text-white/20" : "text-slate-200"}`}>
+                          {String(index + 1).padStart(2, "0")}
+                        </span>
+                        <span className="min-w-0">
+                          <span className={`block truncate text-base font-black ${textMain}`}>
+                            {resume.companyName || "기업명 미입력"}
+                          </span>
+                          <span className={`mt-1 block truncate text-xs ${textSub}`}>
+                            {[resume.jobTitle, resume.appliedAt?.slice(5), `${resume.selfIntroductions.length}문항`]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        </span>
+                        <span className={`text-xl ${isDark ? "text-white/25" : "text-slate-300"}`}>›</span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </div>
             ))}
-          </ol>
+          </div>
         )}
       </div>
     </section>

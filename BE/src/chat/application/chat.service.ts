@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { SessionsService } from '../../sessions/application/sessions.service';
-import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
-import { VectorService } from '../../vector/vector.service';
-import { ChatRepository } from '../domain/repository/chat.repository';
-import { ChatMessage, ChatRole } from '../domain/chat-message.model';
-import { WhoSent } from '../domain/entity/chat.entity';
-import { getProvider, AIProvider } from '../../ai/domain/models';
-import { WebSearchService } from '../../research/application/web-search.service';
-import { SearchEngine } from '../../research/domain/model/search-planner.model';
-import { AttachedTextDto } from '../presentation/dto/request/chat-message.dto';
-import { requestContext } from '../../shared/request-context';
+import { SessionsService } from 'src/sessions/application/sessions.service';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
+import { VectorService } from 'src/vector/vector.service';
+import { ChatRepository } from 'src/chat/domain/repository/chat.repository';
+import { ChatMessage, ChatRole } from 'src/chat/domain/chat-message.model';
+import { WhoSent } from 'src/chat/domain/entity/chat.entity';
+import { getProvider, AIProvider } from 'src/ai/domain/models';
+import { WebSearchService } from 'src/research/application/web-search.service';
+import { SearchEngine } from 'src/research/domain/model/search-planner.model';
+import { AttachedTextDto } from 'src/chat/presentation/dto/request/chat-message.dto';
+import { requestContext } from 'src/shared/request-context';
 
 export interface ChatStreamEvent {
   type: 'chunk' | 'status';
@@ -49,7 +49,12 @@ export class ChatService {
     await this.chatRepository.deleteBySessionId(sessionId);
   }
 
-  private async appendMessage(sessionId: string, role: ChatRole, content: string, contextMessage?: string | null): Promise<void> {
+  private async appendMessage(
+    sessionId: string,
+    role: ChatRole,
+    content: string,
+    contextMessage?: string | null,
+  ): Promise<void> {
     await this.chatRepository.save({
       id: randomUUID(),
       sessionId,
@@ -80,7 +85,12 @@ export class ChatService {
     // 리서치 RAG 컨텍스트 구성
     const userId = requestContext.getStore()?.id ?? session.userId ?? null;
     let ragContext: string;
-    const vectorResults = await this.vectorService.search(sessionId, message, 6, userId);
+    const vectorResults = await this.vectorService.search(
+      sessionId,
+      message,
+      6,
+      userId,
+    );
 
     if (vectorResults.length > 0) {
       ragContext = vectorResults
@@ -88,9 +98,12 @@ export class ChatService {
         .join('\n\n---\n\n');
     } else {
       const items = await this.sessionsService.findItemsWithResults(sessionId);
-      ragContext = items.length > 0
-        ? items.map((item) => `### ${item.topic}\n${item.aiResult}`).join('\n\n---\n\n')
-        : '아직 완료된 리서치 결과가 없습니다.';
+      ragContext =
+        items.length > 0
+          ? items
+              .map((item) => `### ${item.topic}\n${item.aiResult}`)
+              .join('\n\n---\n\n')
+          : '아직 완료된 리서치 결과가 없습니다.';
     }
 
     // 첨부 문서: RAG 대신 전체 텍스트 직접 주입
@@ -104,7 +117,10 @@ export class ChatService {
 
     // *** 에이전트 검색 ***
     const provider = getProvider(aiModel);
-    const supportsTools = provider === AIProvider.ANTHROPIC || provider === AIProvider.OPENAI || provider === AIProvider.OLLAMA;
+    const supportsTools =
+      provider === AIProvider.ANTHROPIC ||
+      provider === AIProvider.OPENAI ||
+      provider === AIProvider.OLLAMA;
     const isLocal = provider === AIProvider.OLLAMA;
 
     const systemPrompt = isLocal
@@ -149,10 +165,13 @@ ${ragContext}`;
     if (supportsTools) {
       const anthropicTool = {
         name: 'web_search',
-        description: '최신 뉴스, 구체적인 수치·사례, 리서치 데이터에 없는 내용을 DuckDuckGo로 검색합니다.',
+        description:
+          '최신 뉴스, 구체적인 수치·사례, 리서치 데이터에 없는 내용을 DuckDuckGo로 검색합니다.',
         input_schema: {
           type: 'object',
-          properties: { query: { type: 'string', description: '검색 쿼리 (영어 권장)' } },
+          properties: {
+            query: { type: 'string', description: '검색 쿼리 (영어 권장)' },
+          },
           required: ['query'],
         },
       };
@@ -160,15 +179,19 @@ ${ragContext}`;
         type: 'function',
         function: {
           name: 'web_search',
-          description: '최신 뉴스, 구체적인 수치·사례, 리서치 데이터에 없는 내용을 DuckDuckGo로 검색합니다.',
+          description:
+            '최신 뉴스, 구체적인 수치·사례, 리서치 데이터에 없는 내용을 DuckDuckGo로 검색합니다.',
           parameters: {
             type: 'object',
-            properties: { query: { type: 'string', description: '검색 쿼리 (영어 권장)' } },
+            properties: {
+              query: { type: 'string', description: '검색 쿼리 (영어 권장)' },
+            },
             required: ['query'],
           },
         },
       };
-      const tools = provider === AIProvider.ANTHROPIC ? [anthropicTool] : [openaiTool];
+      const tools =
+        provider === AIProvider.ANTHROPIC ? [anthropicTool] : [openaiTool];
 
       const docNote = hasDocumentContext
         ? isLocal
@@ -187,7 +210,7 @@ ${docNote}
 web_search 호출 조건: 첨부 문서가 없고, 최신 뉴스·구체적 수치·리서치에 없는 사실이 필요한 경우에만 호출하세요.
 web_search를 호출하지 말아야 하는 경우: 인사말, 간단한 질문, 일반 상식으로 답할 수 있는 경우, 업로드된 문서에 대한 질문.
 확실하지 않으면 호출하지 마세요.`;
-      
+
       const decision = await this.aiProvider.call(
         aiModel,
         decisionPrompt,
@@ -200,7 +223,10 @@ web_search를 호출하지 말아야 하는 경우: 인사말, 간단한 질문,
         for (const tc of decision.toolCalls) {
           const query = (tc.input as { query: string }).query;
           yield { type: 'status', text: `"${query}" 검색 중...` };
-          const raw = await this.webSearchService.searchRaw(SearchEngine.DUCKDUCKGO, query);
+          const raw = await this.webSearchService.searchRaw(
+            SearchEngine.DUCKDUCKGO,
+            query,
+          );
           if (raw) parts.push(`### 검색: ${query}\n${raw}`);
         }
         if (parts.length > 0) {
@@ -213,11 +239,17 @@ web_search를 호출하지 말아야 하는 경우: 인사말, 간단한 질문,
     const contextUserContent = extraContext
       ? `${message}\n\n[참조한 웹 검색 결과]\n${extraContext}`
       : null;
-    await this.appendMessage(sessionId, ChatRole.USER, message, contextUserContent);
+    await this.appendMessage(
+      sessionId,
+      ChatRole.USER,
+      message,
+      contextUserContent,
+    );
 
     // *** Sliding Window: 최근 WINDOW_SIZE개 메시지 + 현재 메시지 ***
-    const windowedHistory = (rawHistory as { role: 'user' | 'assistant'; content: string }[])
-      .slice(-ChatService.WINDOW_SIZE);
+    const windowedHistory = (
+      rawHistory as { role: 'user' | 'assistant'; content: string }[]
+    ).slice(-ChatService.WINDOW_SIZE);
     const streamMessages = [
       ...windowedHistory,
       { role: 'user' as const, content: contextUserContent ?? message },
@@ -232,7 +264,11 @@ web_search를 호출하지 말아야 하는 경우: 인사말, 간단한 질문,
     const finalSystem = `${systemPrompt}${searchSuffix}`;
 
     let fullResponse = '';
-    for await (const chunk of this.aiProvider.stream(aiModel, finalSystem, streamMessages)) {
+    for await (const chunk of this.aiProvider.stream(
+      aiModel,
+      finalSystem,
+      streamMessages,
+    )) {
       fullResponse += chunk;
       yield { type: 'chunk', text: chunk };
     }

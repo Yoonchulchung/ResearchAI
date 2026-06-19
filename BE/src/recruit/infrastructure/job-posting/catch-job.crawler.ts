@@ -1,5 +1,5 @@
-import type { JobPosting } from '../../domain/job-posting.model';
-import { normalizeJobType } from './job-type.util';
+import type { JobPosting } from 'src/recruit/domain/job-posting.model';
+import { normalizeJobType } from 'src/recruit/infrastructure/job-posting/job-type.util';
 
 const BASE_URL = 'https://www.catch.co.kr';
 const POPULAR_API_URL = `${BASE_URL}/api/v1.0/recruit/information/recruitPopularList`;
@@ -22,7 +22,9 @@ export class CatchJobCrawler {
       topN: String(topN),
     });
 
-    const res = await fetch(`${POPULAR_API_URL}?${params}`, { headers: HEADERS });
+    const res = await fetch(`${POPULAR_API_URL}?${params}`, {
+      headers: HEADERS,
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
@@ -31,9 +33,10 @@ export class CatchJobCrawler {
     return items.map((item) => {
       const startDate = this.formatDate(item.ApplyStartDatetime);
       const endDate = this.formatDate(item.ApplyEndDatetime);
-      const deadline = item.Dday != null
-        ? `${endDate || '마감일 미정'} · D-${item.Dday}`
-        : endDate;
+      const deadline =
+        item.Dday != null
+          ? `${endDate || '마감일 미정'} · D-${item.Dday}`
+          : endDate;
 
       const typeParts = [item.CareerGubunCode, item.GubunCode].filter(Boolean);
 
@@ -57,7 +60,10 @@ export class CatchJobCrawler {
     });
   }
 
-  async getPostingsFromPage(page: number, pageSize = 30): Promise<JobPosting[]> {
+  async getPostingsFromPage(
+    page: number,
+    pageSize = 30,
+  ): Promise<JobPosting[]> {
     const params = new URLSearchParams({
       Keyword: '',
       JobCode: '',
@@ -84,11 +90,14 @@ export class CatchJobCrawler {
 
     return items.map((item) => {
       const deadline = item.ApplyEndDatetime
-        ? new Date(item.ApplyEndDatetime).toLocaleDateString('ko-KR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-          }).replace(/\. /g, '.').replace(/\.$/, '')
+        ? new Date(item.ApplyEndDatetime)
+            .toLocaleDateString('ko-KR', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+            })
+            .replace(/\. /g, '.')
+            .replace(/\.$/, '')
         : '';
 
       const jobs = item.AssignedTaskNameListString
@@ -119,10 +128,13 @@ export class CatchJobCrawler {
     if (!raw) return '';
     const date = new Date(raw);
     if (Number.isNaN(date.getTime())) return '';
-    return date.toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).replace(/\. /g, '.').replace(/\.$/, '');
+    return date
+      .toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      })
+      .replace(/\. /g, '.')
+      .replace(/\.$/, '');
   }
 }

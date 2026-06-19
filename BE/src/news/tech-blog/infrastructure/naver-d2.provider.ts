@@ -1,15 +1,18 @@
-import type { TechBlogPost, TechBlogSource } from '../domain/tech-blog.types';
+import type { TechBlogPost, TechBlogSource } from 'src/news/tech-blog/domain/tech-blog.types';
 import {
   absoluteUrl,
   cleanText,
   createPost,
   REQUEST_TIMEOUT_MS,
   summaryFromHtml,
-} from './tech-blog-crawler.util';
+} from 'src/news/tech-blog/infrastructure/tech-blog-crawler.util';
 
-const NAVER_D2_CONTENTS_API = 'https://d2.naver.com/api/v1/contents?categoryId=&page=0&size=20';
+const NAVER_D2_CONTENTS_API =
+  'https://d2.naver.com/api/v1/contents?categoryId=&page=0&size=20';
 
-export async function fetchNaverD2Posts(source: TechBlogSource): Promise<TechBlogPost[]> {
+export async function fetchNaverD2Posts(
+  source: TechBlogSource,
+): Promise<TechBlogPost[]> {
   const json = await fetchNaverD2Json();
   const data = JSON.parse(json) as {
     content?: Array<{
@@ -27,13 +30,20 @@ export async function fetchNaverD2Posts(source: TechBlogSource): Promise<TechBlo
       const url = absoluteUrl(item.url ?? '', source.url);
       if (!title || !url) return null;
 
-      const publishedAt = typeof item.postPublishedAt === 'number'
-        ? new Date(item.postPublishedAt).toISOString()
+      const publishedAt =
+        typeof item.postPublishedAt === 'number'
+          ? new Date(item.postPublishedAt).toISOString()
+          : undefined;
+      const thumbnail = item.postImage
+        ? absoluteUrl(item.postImage, source.url)
         : undefined;
-      const thumbnail = item.postImage ? absoluteUrl(item.postImage, source.url) : undefined;
       const summary = summaryFromHtml(item.postHtml ?? '');
 
-      return createPost(source, title, url, { summary, publishedAt, thumbnail });
+      return createPost(source, title, url, {
+        summary,
+        publishedAt,
+        thumbnail,
+      });
     })
     .filter((post): post is TechBlogPost => post !== null);
 }
@@ -46,7 +56,7 @@ async function fetchNaverD2Json(): Promise<string> {
     const res = await fetch(NAVER_D2_CONTENTS_API, {
       signal: controller.signal,
       headers: {
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);

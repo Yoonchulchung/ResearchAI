@@ -10,7 +10,10 @@ export interface HFItem {
 
 @Injectable()
 export class HuggingfaceApi {
-  async fetchTrending(category: 'models' | 'datasets' | 'spaces', limit = 10): Promise<HFItem[]> {
+  async fetchTrending(
+    category: 'models' | 'datasets' | 'spaces',
+    limit = 10,
+  ): Promise<HFItem[]> {
     const res = await fetch(
       `https://huggingface.co/api/${category}?sort=trendingScore&direction=-1&limit=${limit}`,
     );

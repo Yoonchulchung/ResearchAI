@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   searchResume,
+  getResumeActivities,
   type ResumeExperience,
   type ResumePrize,
   type ResumeSearchCoverLetterItem,
@@ -13,6 +14,13 @@ import {
   type ResumeSelfIntro,
   type ResumeTraining,
 } from "@/lib/api/resume";
+import {
+  groupExperiences,
+  groupPrizes,
+  detectCategoryFilter,
+  type ExperienceGroup,
+  type PrizeGroup,
+} from "@/recruit/resume/_lib/activity-groups";
 
 function uid() {
   return Math.random().toString(36).slice(2);
@@ -35,7 +43,9 @@ function TypeBadge({ type }: { type: ResumeSearchItem["type"] }) {
   };
   const { label, cls } = map[type];
   return (
-    <span className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${cls}`}>
+    <span
+      className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-2xs font-bold uppercase tracking-wide ${cls}`}
+    >
       {label}
     </span>
   );
@@ -57,17 +67,42 @@ function CoverLetterCard({
           <div className="flex items-center gap-1.5 mb-1">
             <TypeBadge type="coverLetter" />
             {item.companyName && (
-              <span className="text-[11px] text-slate-400 truncate">{item.companyName}</span>
+              <span className="text-[11px] text-slate-400 truncate">
+                {item.companyName}
+              </span>
             )}
           </div>
-          <p className="text-xs font-semibold text-slate-700 leading-snug line-clamp-2">{item.question || "질문 없음"}</p>
+          <p className="text-xs font-semibold text-slate-700 leading-snug line-clamp-2">
+            {item.question || "질문 없음"}
+          </p>
+          {(item.refinedTitle || item.categories.length > 0) && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {item.refinedTitle && (
+                <span className="rounded bg-violet-50 px-1.5 py-0.5 text-2xs font-semibold text-violet-600">
+                  {item.refinedTitle}
+                </span>
+              )}
+              {item.categories.map((category) => (
+                <span
+                  key={category}
+                  className="rounded bg-slate-100 px-1.5 py-0.5 text-2xs font-semibold text-slate-500"
+                >
+                  {category}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         {onInsert && (
           <button
-            onClick={() => onInsert({ id: uid(), question: item.question, answer })}
+            onClick={() =>
+              onInsert({ id: uid(), question: item.question, answer })
+            }
             className="shrink-0 flex items-center gap-1 rounded-md border border-indigo-200 px-2 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 transition-colors"
           >
-            <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M4.5 1v7M1 4.5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+              <path d="M4.5 1v7M1 4.5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
             추가
           </button>
         )}
@@ -106,6 +141,9 @@ function ExperienceCard({
             {item.activityType && (
               <span className="text-[11px] text-slate-400 truncate">{item.activityType}</span>
             )}
+            {item.companyName && (
+              <span className="text-[11px] text-slate-300 truncate">· {item.companyName}</span>
+            )}
           </div>
           <p className="text-xs font-semibold text-slate-700 leading-snug">
             {item.organizationName || "기관 없음"}
@@ -131,7 +169,9 @@ function ExperienceCard({
             }
             className="shrink-0 flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-[11px] font-bold text-emerald-600 hover:bg-emerald-50 transition-colors"
           >
-            <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M4.5 1v7M1 4.5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+              <path d="M4.5 1v7M1 4.5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
             추가
           </button>
         )}
@@ -171,9 +211,13 @@ function PrizeCard({
               <span className="text-[11px] text-slate-400 truncate">{item.companyName}</span>
             )}
           </div>
-          <p className="text-xs font-semibold text-slate-700 leading-snug">{item.title || "제목 없음"}</p>
-          {item.organization && (
-            <p className="text-[11px] text-slate-400 mt-0.5">{item.organization}</p>
+          <p className="text-xs font-semibold text-slate-700 leading-snug">
+            {item.title || "제목 없음"}
+          </p>
+          {(item.organization || item.issuedDate) && (
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {[item.organization, item.issuedDate].filter(Boolean).join(" · ")}
+            </p>
           )}
         </div>
         {onInsert && (
@@ -189,7 +233,9 @@ function PrizeCard({
             }
             className="shrink-0 flex items-center gap-1 rounded-md border border-amber-200 px-2 py-1 text-[11px] font-bold text-amber-600 hover:bg-amber-50 transition-colors"
           >
-            <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M4.5 1v7M1 4.5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+              <path d="M4.5 1v7M1 4.5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
             추가
           </button>
         )}
@@ -229,10 +275,14 @@ function TrainingCard({
               <span className="text-[11px] text-slate-400 truncate">{item.institution}</span>
             )}
           </div>
-          <p className="text-xs font-semibold text-slate-700 leading-snug">{item.title || "교육명 없음"}</p>
+          <p className="text-xs font-semibold text-slate-700 leading-snug">
+            {item.title || "교육명 없음"}
+          </p>
           {(item.startDate || item.endDate || item.hours) && (
             <p className="text-[11px] text-slate-400 mt-0.5">
-              {[item.startDate, item.endDate, item.hours ? `${item.hours}시간` : ""].filter(Boolean).join(" · ")}
+              {[item.startDate, item.endDate, item.hours ? `${item.hours}시간` : ""]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           )}
         </div>
@@ -251,7 +301,9 @@ function TrainingCard({
             }
             className="shrink-0 flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-[11px] font-bold text-blue-600 hover:bg-blue-50 transition-colors"
           >
-            <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M4.5 1v7M1 4.5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+              <path d="M4.5 1v7M1 4.5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
             추가
           </button>
         )}
@@ -272,67 +324,306 @@ function TrainingCard({
   );
 }
 
+function ExperienceGroupCard({
+  group,
+  onInsert,
+}: {
+  group: ExperienceGroup;
+  onInsert?: (exp: ResumeExperience) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? group.items : group.items.slice(0, 1);
+  const hasMore = group.items.length > 1;
+
+  if (!hasMore) {
+    return <ExperienceCard item={group.items[0]} onInsert={onInsert} />;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-md border border-emerald-100 bg-white">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-emerald-50/60 transition-colors"
+      >
+        <span className="rounded-md px-2 py-1 text-xs font-black bg-emerald-50 text-emerald-700">
+          {group.key || "활동"}
+        </span>
+        <span className="text-xs font-semibold text-slate-400">
+          {group.items.length}개 이력서
+        </span>
+        <span className={`ml-auto text-2xs text-slate-300 transition-transform ${expanded ? "rotate-180" : ""}`}>▼</span>
+      </button>
+      <div className="border-t border-slate-100 divide-y divide-slate-100">
+        {visible.map((item) => (
+          <div key={item.id} className="px-3 py-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                {item.activityType && (
+                  <span className="text-2xs text-slate-400">{item.activityType}</span>
+                )}
+                <p className="text-xs font-semibold text-slate-700 leading-snug">
+                  {item.organizationName}
+                </p>
+                {item.companyName && (
+                  <p className="text-[11px] text-slate-400 mt-0.5">{item.companyName} · {item.jobTitle}</p>
+                )}
+                {item.description && (
+                  <p className="mt-1 line-clamp-1 text-xs text-slate-500">{normalizeLineBreaks(item.description)}</p>
+                )}
+              </div>
+              {onInsert && (
+                <button
+                  onClick={() =>
+                    onInsert({
+                      id: uid(),
+                      activityType: item.activityType,
+                      organizationName: item.organizationName,
+                      startDate: item.startDate,
+                      endDate: item.endDate,
+                      role: item.role,
+                      description: normalizeLineBreaks(item.description),
+                    })
+                  }
+                  className="shrink-0 flex items-center gap-1 rounded-md border border-emerald-200 px-2 py-1 text-[11px] font-bold text-emerald-600 hover:bg-emerald-50 transition-colors"
+                >
+                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                    <path d="M4.5 1v7M1 4.5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                  추가
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+        {!expanded && hasMore && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="w-full px-3 py-2 text-xs font-semibold text-slate-400 hover:bg-slate-50 text-left"
+          >
+            {group.items.length - 1}개 더 보기
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PrizeGroupItemRow({
+  item,
+  onInsert,
+}: {
+  item: ResumeSearchPrizeItem;
+  onInsert?: (prize: ResumePrize) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const description = normalizeLineBreaks(item.description);
+  return (
+    <div className="px-3 py-2.5 flex flex-col gap-1.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold text-slate-700 leading-snug">{item.title}</p>
+          {(item.organization || item.issuedDate) && (
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {[item.organization, item.issuedDate].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          {item.companyName && (
+            <p className="text-[11px] text-slate-300 mt-0.5">{item.companyName} · {item.jobTitle}</p>
+          )}
+        </div>
+        {onInsert && (
+          <button
+            onClick={() =>
+              onInsert({
+                id: uid(),
+                title: item.title,
+                organization: item.organization,
+                issuedDate: item.issuedDate,
+                description,
+              })
+            }
+            className="shrink-0 flex items-center gap-1 rounded-md border border-amber-200 px-2 py-1 text-[11px] font-bold text-amber-600 hover:bg-amber-50 transition-colors"
+          >
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+              <path d="M4.5 1v7M1 4.5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            추가
+          </button>
+        )}
+      </div>
+      {description && (
+        <>
+          <p className={`whitespace-pre-wrap text-xs text-slate-500 leading-relaxed ${open ? "" : "line-clamp-2"}`}>
+            {description}
+          </p>
+          {description.length > 100 && (
+            <button onClick={() => setOpen((v) => !v)} className="text-[11px] text-slate-400 hover:text-slate-600 text-left">
+              {open ? "접기" : "더 보기"}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function PrizeGroupCard({
+  group,
+  onInsert,
+}: {
+  group: PrizeGroup;
+  onInsert?: (prize: ResumePrize) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasMore = group.items.length > 1;
+
+  if (!hasMore) {
+    return <PrizeCard item={group.items[0]} onInsert={onInsert} />;
+  }
+
+  const visible = expanded ? group.items : group.items.slice(0, 1);
+
+  return (
+    <div className="overflow-hidden rounded-md border border-amber-100 bg-white">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-amber-50/60 transition-colors"
+      >
+        <span className="rounded-md px-2 py-1 text-xs font-black bg-amber-50 text-amber-700">
+          {group.key || "수상"}
+        </span>
+        <span className="text-xs font-semibold text-slate-400">
+          {group.items.length}개 이력서
+        </span>
+        <span className={`ml-auto text-2xs text-slate-300 transition-transform ${expanded ? "rotate-180" : ""}`}>▼</span>
+      </button>
+      <div className="border-t border-slate-100 divide-y divide-slate-100">
+        {visible.map((item) => (
+          <PrizeGroupItemRow key={item.id} item={item} onInsert={onInsert} />
+        ))}
+        {!expanded && hasMore && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="w-full px-3 py-2 text-xs font-semibold text-slate-400 hover:bg-slate-50 text-left"
+          >
+            {group.items.length - 1}개 더 보기
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ResumeSearchPanel({
+  resumeId,
   onInsertSelfIntro,
   onInsertExperience,
   onInsertPrize,
   onInsertTraining,
 }: {
+  resumeId?: string;
   onInsertSelfIntro?: (si: ResumeSelfIntro) => void;
   onInsertExperience?: (exp: ResumeExperience) => void;
   onInsertPrize?: (prize: ResumePrize) => void;
   onInsertTraining?: (training: ResumeTraining) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [items, setItems] = useState<ResumeSearchItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [allExperiences, setAllExperiences] = useState<ResumeSearchExperienceItem[]>([]);
+  const [allPrizes, setAllPrizes] = useState<ResumeSearchPrizeItem[]>([]);
+  const [searchItems, setSearchItems] = useState<ResumeSearchItem[]>([]);
+  const [allLoading, setAllLoading] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Load all activities on mount
+  useEffect(() => {
+    setAllLoading(true);
+    getResumeActivities(resumeId)
+      .then((res) => {
+        setAllExperiences(res.experiences);
+        setAllPrizes(res.prizes);
+      })
+      .catch(() => {})
+      .finally(() => setAllLoading(false));
+  }, [resumeId]);
+
+  // Search when query changes
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (!query.trim()) {
-      setItems([]);
+      setSearchItems([]);
       return;
     }
     timerRef.current = setTimeout(async () => {
-      setLoading(true);
+      setSearchLoading(true);
       try {
-        const results = await searchResume(query.trim());
-        setItems(results);
+        const results = await searchResume(query.trim(), resumeId);
+        setSearchItems(results);
       } catch {
-        setItems([]);
+        setSearchItems([]);
       } finally {
-        setLoading(false);
+        setSearchLoading(false);
       }
     }, 350);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [query]);
+  }, [query, resumeId]);
 
-  const coverLetters = items.filter((i): i is ResumeSearchCoverLetterItem => i.type === "coverLetter");
-  const experiences = items.filter((i): i is ResumeSearchExperienceItem => i.type === "experience");
-  const prizes = items.filter((i): i is ResumeSearchPrizeItem => i.type === "prize");
-  const trainings = items.filter((i): i is ResumeSearchTrainingItem => i.type === "training");
+  const isSearchMode = query.trim().length > 0;
+  const categoryFilter = isSearchMode ? detectCategoryFilter(query) : null;
+
+  // In search mode: category keyword → override with all items of that type
+  const filteredExperiences = useMemo((): ResumeSearchExperienceItem[] => {
+    if (!isSearchMode) return allExperiences;
+    if (categoryFilter === "experience") return allExperiences;
+    return searchItems.filter((i): i is ResumeSearchExperienceItem => i.type === "experience");
+  }, [isSearchMode, categoryFilter, allExperiences, searchItems]);
+
+  const filteredPrizes = useMemo((): ResumeSearchPrizeItem[] => {
+    if (!isSearchMode) return allPrizes;
+    if (categoryFilter === "prize") return allPrizes;
+    return searchItems.filter((i): i is ResumeSearchPrizeItem => i.type === "prize");
+  }, [isSearchMode, categoryFilter, allPrizes, searchItems]);
+
+  const coverLetters = useMemo(
+    () => (isSearchMode && !categoryFilter ? searchItems.filter((i): i is ResumeSearchCoverLetterItem => i.type === "coverLetter") : []),
+    [isSearchMode, categoryFilter, searchItems],
+  );
+  const trainings = useMemo(
+    () => (isSearchMode && !categoryFilter ? searchItems.filter((i): i is ResumeSearchTrainingItem => i.type === "training") : []),
+    [isSearchMode, categoryFilter, searchItems],
+  );
+
+  const expGroups = useMemo(() => groupExperiences(filteredExperiences), [filteredExperiences]);
+  const prizeGroups = useMemo(() => groupPrizes(filteredPrizes), [filteredPrizes]);
+
+  const isLoading = allLoading || (isSearchMode && searchLoading);
+  const isEmpty = !isLoading && expGroups.length === 0 && prizeGroups.length === 0 && coverLetters.length === 0 && trainings.length === 0;
 
   return (
     <div className="h-full flex flex-col bg-slate-50/60">
       {/* Header + search */}
       <div className="shrink-0 px-4 pt-5 pb-3 border-b border-slate-100">
-        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">학내외 활동 검색</p>
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-3">
+          학내외 활동 · 수상
+        </p>
         <div className="relative">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">
             <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.3" />
             <path d="M10 10L12.5 12.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
           </svg>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="키워드로 검색"
+            placeholder="키워드·수상·활동 검색"
             className="w-full rounded-md border border-slate-200 bg-white pl-8 pr-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-200"
           />
-          {loading && (
+          {isLoading && (
             <span className="absolute right-3 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-indigo-200 border-t-indigo-500 animate-spin" />
           )}
         </div>
@@ -340,47 +631,64 @@ export default function ResumeSearchPanel({
 
       {/* Results */}
       <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-4">
-        {!query.trim() ? (
+        {allLoading ? (
+          <div className="flex flex-col gap-2 animate-pulse">
+            {[80, 65, 90, 70].map((w, i) => (
+              <div key={i} className="rounded-md border border-slate-100 bg-white p-3">
+                <div className="h-2.5 rounded bg-slate-100 mb-2" style={{ width: `${w}%` }} />
+                <div className="h-2 rounded bg-slate-100 opacity-60" style={{ width: "95%" }} />
+              </div>
+            ))}
+          </div>
+        ) : isEmpty ? (
           <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="text-slate-200">
               <circle cx="14" cy="14" r="10" stroke="currentColor" strokeWidth="1.5" />
               <path d="M22 22L28 28" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-            <p className="text-xs text-slate-400">이전 이력서의 자소서·교육·학내외 활동·수상을<br />검색해서 현재 항목에 추가할 수 있어요.</p>
+            <p className="text-xs text-slate-400">
+              {isSearchMode ? "검색 결과가 없습니다." : "저장된 활동·수상이 없습니다."}
+            </p>
           </div>
-        ) : items.length === 0 && !loading ? (
-          <p className="py-10 text-center text-xs text-slate-400">검색 결과가 없습니다.</p>
         ) : (
           <>
             {coverLetters.length > 0 && (
               <div className="flex flex-col gap-2">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">자기소개서 ({coverLetters.length})</p>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                  자기소개서 ({coverLetters.length})
+                </p>
                 {coverLetters.map((item) => (
                   <CoverLetterCard key={item.id} item={item} onInsert={onInsertSelfIntro} />
                 ))}
               </div>
             )}
-            {experiences.length > 0 && (
+            {expGroups.length > 0 && (
               <div className="flex flex-col gap-2">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">학내외 활동 ({experiences.length})</p>
-                {experiences.map((item) => (
-                  <ExperienceCard key={item.id} item={item} onInsert={onInsertExperience} />
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                  학내외 활동 ({filteredExperiences.length})
+                </p>
+                {expGroups.map((group) => (
+                  <ExperienceGroupCard key={group.id} group={group} onInsert={onInsertExperience} />
                 ))}
               </div>
             )}
             {trainings.length > 0 && (
               <div className="flex flex-col gap-2">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">교육 이수사항 ({trainings.length})</p>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                  교육 이수사항 ({trainings.length})
+                </p>
                 {trainings.map((item) => (
                   <TrainingCard key={item.id} item={item} onInsert={onInsertTraining} />
                 ))}
               </div>
             )}
-            {prizes.length > 0 && (
+            {prizeGroups.length > 0 && (
               <div className="flex flex-col gap-2">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">수상 ({prizes.length})</p>
-                {prizes.map((item) => (
-                  <PrizeCard key={item.id} item={item} onInsert={onInsertPrize} />
+                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                  수상 ({filteredPrizes.length})
+                </p>
+                {prizeGroups.map((group) => (
+                  <PrizeGroupCard key={group.id} group={group} onInsert={onInsertPrize} />
                 ))}
               </div>
             )}

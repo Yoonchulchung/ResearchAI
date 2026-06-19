@@ -1,6 +1,6 @@
-import { SearchModeInput } from '../../../application/search-planner.service';
-import { SearchEngine } from '../../../domain/model/search-planner.model';
-import { SearchPlan } from '../../../domain/model/search-planner.model';
+import { SearchModeInput } from 'src/research/application/search-planner.service';
+import { SearchEngine } from 'src/research/domain/model/search-planner.model';
+import { SearchPlan } from 'src/research/domain/model/search-planner.model';
 
 export class TestStep0PlanDto {
   topic: string;

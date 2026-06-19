@@ -1,13 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { TECH_BLOG_SOURCES } from '../domain/tech-blog.sources';
-import type { TechBlogListResult, TechBlogPost, TechBlogSource } from '../domain/tech-blog.types';
-import { fetchBanksaladPosts } from './banksalad.provider';
-import { fetchGoogleDevelopersPosts } from './google-developers.provider';
-import { fetchHyundaiAutoeverPosts } from './hyundai-autoever.provider';
-import { fetchLinkedInPosts } from './linkedin.provider';
-import { fetchNaverPlacePosts } from './medium.provider';
-import { fetchNaverD2Posts } from './naver-d2.provider';
-import { dedupePosts, fetchText, parseFeed, parseHtml } from './tech-blog-crawler.util';
+import { TECH_BLOG_SOURCES } from 'src/news/tech-blog/domain/tech-blog.sources';
+import type {
+  TechBlogListResult,
+  TechBlogPost,
+  TechBlogSource,
+} from 'src/news/tech-blog/domain/tech-blog.types';
+import { fetchBanksaladPosts } from 'src/news/tech-blog/infrastructure/banksalad.provider';
+import { fetchGoogleDevelopersPosts } from 'src/news/tech-blog/infrastructure/google-developers.provider';
+import { fetchHyundaiAutoeverPosts } from 'src/news/tech-blog/infrastructure/hyundai-autoever.provider';
+import { fetchLinkedInPosts } from 'src/news/tech-blog/infrastructure/linkedin.provider';
+import { fetchNaverPlacePosts } from 'src/news/tech-blog/infrastructure/medium.provider';
+import { fetchNaverD2Posts } from 'src/news/tech-blog/infrastructure/naver-d2.provider';
+import {
+  dedupePosts,
+  fetchText,
+  parseFeed,
+  parseHtml,
+} from 'src/news/tech-blog/infrastructure/tech-blog-crawler.util';
 
 const SOURCE_CONCURRENCY = 8;
 
@@ -19,8 +28,15 @@ export class TechBlogCrawlerService {
     return TECH_BLOG_SOURCES;
   }
 
-  async crawlAll(): Promise<{ posts: TechBlogPost[]; errors: TechBlogListResult['errors'] }> {
-    const settled = await this.mapWithConcurrency(TECH_BLOG_SOURCES, SOURCE_CONCURRENCY, (source) => this.fetchSource(source));
+  async crawlAll(): Promise<{
+    posts: TechBlogPost[];
+    errors: TechBlogListResult['errors'];
+  }> {
+    const settled = await this.mapWithConcurrency(
+      TECH_BLOG_SOURCES,
+      SOURCE_CONCURRENCY,
+      (source) => this.fetchSource(source),
+    );
     const posts: TechBlogPost[] = [];
     const errors: TechBlogListResult['errors'] = [];
 
@@ -30,7 +46,10 @@ export class TechBlogCrawlerService {
         posts.push(...result.value);
         return;
       }
-      const message = result.reason instanceof Error ? result.reason.message : '크롤링에 실패했습니다.';
+      const message =
+        result.reason instanceof Error
+          ? result.reason.message
+          : '크롤링에 실패했습니다.';
       errors.push({ sourceId: source.id, message });
       this.logger.warn(`${source.name} crawl failed: ${message}`);
     });
@@ -42,15 +61,22 @@ export class TechBlogCrawlerService {
     if (source.id === 'naver-d2') return fetchNaverD2Posts(source);
     if (source.id === 'naver-place') return fetchNaverPlacePosts(source);
     if (source.id === 'banksalad') return fetchBanksaladPosts(source);
-    if (source.id === 'google-developers') return fetchGoogleDevelopersPosts(source);
-    if (source.id === 'hyundai-autoever') return fetchHyundaiAutoeverPosts(source);
+    if (source.id === 'google-developers')
+      return fetchGoogleDevelopersPosts(source);
+    if (source.id === 'hyundai-autoever')
+      return fetchHyundaiAutoeverPosts(source);
     if (source.id === 'linkedin') return fetchLinkedInPosts(source);
 
     const url = source.feedUrl ?? source.url;
     const html = await fetchText(url);
     const contentType = html.trimStart();
 
-    if (source.feedUrl || contentType.startsWith('<?xml') || contentType.startsWith('<rss') || contentType.startsWith('<feed')) {
+    if (
+      source.feedUrl ||
+      contentType.startsWith('<?xml') ||
+      contentType.startsWith('<rss') ||
+      contentType.startsWith('<feed')
+    ) {
       const parsed = parseFeed(html, source);
       if (parsed.length > 0) return parsed;
     }
@@ -66,16 +92,22 @@ export class TechBlogCrawlerService {
     const results: PromiseSettledResult<R>[] = new Array(items.length);
     let nextIndex = 0;
 
-    const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-      while (nextIndex < items.length) {
-        const index = nextIndex++;
-        try {
-          results[index] = { status: 'fulfilled', value: await mapper(items[index], index) };
-        } catch (reason) {
-          results[index] = { status: 'rejected', reason };
+    const workers = Array.from(
+      { length: Math.min(concurrency, items.length) },
+      async () => {
+        while (nextIndex < items.length) {
+          const index = nextIndex++;
+          try {
+            results[index] = {
+              status: 'fulfilled',
+              value: await mapper(items[index], index),
+            };
+          } catch (reason) {
+            results[index] = { status: 'rejected', reason };
+          }
         }
-      }
-    });
+      },
+    );
 
     await Promise.all(workers);
     return results;

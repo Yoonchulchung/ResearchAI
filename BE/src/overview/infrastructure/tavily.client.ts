@@ -1,4 +1,4 @@
-import { getCircuitBreaker } from '../../shared/resilience/circuit-breaker';
+import { getCircuitBreaker } from 'src/shared/resilience/circuit-breaker';
 
 const policy = getCircuitBreaker('tavily-usage');
 

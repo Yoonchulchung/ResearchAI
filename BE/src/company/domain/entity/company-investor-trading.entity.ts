@@ -1,5 +1,14 @@
-import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryColumn, UpdateDateColumn } from 'typeorm';
-import { CompanyEntity } from './company.entity';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { CompanyEntity } from 'src/company/domain/entity/company.entity';
 
 @Entity('company_investor_trading')
 @Index(['companyId'], { unique: true })

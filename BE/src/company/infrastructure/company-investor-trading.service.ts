@@ -2,10 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
-import { CompanyEntity } from '../domain/entity/company.entity';
-import { CompanyFinancialEntity } from '../domain/entity/company-financial.entity';
-import { CompanyInvestorTradingEntity } from '../domain/entity/company-investor-trading.entity';
-import { InvestorTradingData, InvestorTradingRecord, KrxInvestorService } from './krx-investor.service';
+import { CompanyEntity } from 'src/company/domain/entity/company.entity';
+import { CompanyFinancialEntity } from 'src/company/domain/entity/company-financial.entity';
+import { CompanyInvestorTradingEntity } from 'src/company/domain/entity/company-investor-trading.entity';
+import {
+  InvestorTradingData,
+  InvestorTradingRecord,
+  KrxInvestorService,
+} from 'src/company/infrastructure/krx-investor.service';
 
 @Injectable()
 export class CompanyInvestorTradingService {
@@ -19,17 +23,28 @@ export class CompanyInvestorTradingService {
     private readonly krxInvestor: KrxInvestorService,
   ) {}
 
-  async getDailyInvestorTrading(idOrName: string, days = 30): Promise<InvestorTradingData> {
+  async getDailyInvestorTrading(
+    idOrName: string,
+    days = 30,
+  ): Promise<InvestorTradingData> {
     const normalizedDays = this.normalizeDays(days);
     const company = await this.findCompany(idOrName);
     if (!company) throw new NotFoundException('기업을 찾을 수 없습니다.');
 
-    const financial = await this.financialRepo.findOne({ where: { companyId: company.id } });
+    const financial = await this.financialRepo.findOne({
+      where: { companyId: company.id },
+    });
     const stockCode = financial?.stockCode?.trim() || null;
     const today = this.todayKey();
-    const cached = await this.tradingRepo.findOne({ where: { companyId: company.id } });
+    const cached = await this.tradingRepo.findOne({
+      where: { companyId: company.id },
+    });
 
-    if (cached && cached.fetchedDate === today && cached.days >= normalizedDays) {
+    if (
+      cached &&
+      cached.fetchedDate === today &&
+      cached.days >= normalizedDays
+    ) {
       return this.toData(cached, normalizedDays);
     }
 
@@ -44,7 +59,10 @@ export class CompanyInvestorTradingService {
       return empty;
     }
 
-    const fresh = await this.krxInvestor.fetchInvestorTrading(stockCode, normalizedDays);
+    const fresh = await this.krxInvestor.fetchInvestorTrading(
+      stockCode,
+      normalizedDays,
+    );
     await this.saveCache(company.id, fresh, normalizedDays, today);
     return fresh;
   }
@@ -52,7 +70,11 @@ export class CompanyInvestorTradingService {
   private async findCompany(idOrName: string) {
     const normalized = this.normalizeName(idOrName);
     return this.companyRepo.findOne({
-      where: [{ id: idOrName }, { normalizedName: normalized }, { name: idOrName }],
+      where: [
+        { id: idOrName },
+        { normalizedName: normalized },
+        { name: idOrName },
+      ],
     });
   }
 
@@ -63,7 +85,8 @@ export class CompanyInvestorTradingService {
     fetchedDate: string,
   ) {
     const existing = await this.tradingRepo.findOne({ where: { companyId } });
-    const entity = existing ?? this.tradingRepo.create({ id: randomUUID(), companyId });
+    const entity =
+      existing ?? this.tradingRepo.create({ id: randomUUID(), companyId });
 
     entity.stockCode = data.stockCode;
     entity.source = data.source;
@@ -76,7 +99,10 @@ export class CompanyInvestorTradingService {
     await this.tradingRepo.save(entity);
   }
 
-  private toData(entity: CompanyInvestorTradingEntity, days: number): InvestorTradingData {
+  private toData(
+    entity: CompanyInvestorTradingEntity,
+    days: number,
+  ): InvestorTradingData {
     return {
       stockCode: entity.stockCode,
       records: this.parseRecords(entity.records).slice(0, days),
@@ -95,7 +121,9 @@ export class CompanyInvestorTradingService {
   }
 
   private normalizeDays(days: number) {
-    return Number.isFinite(days) && days > 0 ? Math.min(Math.floor(days), 120) : 30;
+    return Number.isFinite(days) && days > 0
+      ? Math.min(Math.floor(days), 120)
+      : 30;
   }
 
   private normalizeName(name: string): string {

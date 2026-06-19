@@ -1,10 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { LightResearchPipelineService, JobItem, LightResearchEvent } from './pipeline/light-research-pipeline.service';
-import { DeepResearchPipelineService, DeepResearchResult } from './pipeline/deep-research-pipeline.service';
-import { SearchModeInput } from './search-planner.service';
-import { SearchEngine, SearchPlan, PlannerMode } from '../domain/model/search-planner.model';
-import { LightResearchEventType } from '../domain/model/light-research.model';
-import { AttachedFilePayload } from '../../queue/presentation/dto/request/enqueue-light-research.dto';
+import {
+  LightResearchPipelineService,
+  JobItem,
+  LightResearchEvent,
+} from 'src/research/application/pipeline/light-research-pipeline.service';
+import {
+  DeepResearchPipelineService,
+  DeepResearchResult,
+} from 'src/research/application/pipeline/deep-research-pipeline.service';
+import { SearchModeInput } from 'src/research/application/search-planner.service';
+import {
+  SearchEngine,
+  SearchPlan,
+  PlannerMode,
+} from 'src/research/domain/model/search-planner.model';
+import { LightResearchEventType } from 'src/research/domain/model/light-research.model';
+import { AttachedFilePayload } from 'src/queue/presentation/dto/request/enqueue-light-research.dto';
 
 export interface LightResearchInput {
   type: 'light';
@@ -36,7 +47,9 @@ export class ResearchService {
 
   async research(input: LightResearchInput): Promise<{ tasks: any[] }>;
   async research(input: DeepResearchInput): Promise<DeepResearchResult>;
-  async research(input: LightResearchInput | DeepResearchInput): Promise<{ tasks: any[] } | DeepResearchResult> {
+  async research(
+    input: LightResearchInput | DeepResearchInput,
+  ): Promise<{ tasks: any[] } | DeepResearchResult> {
     if (input.type === 'light') {
       return this.lightPipeline.run(
         input.topic,
@@ -49,59 +62,102 @@ export class ResearchService {
         input.attachedFiles,
       );
     }
-    return this.deepPipeline.run(input.itemContent, input.cloudAIModel, input.webModel, undefined, input.signal, input.filterModel);
+    return this.deepPipeline.run(
+      input.itemContent,
+      input.cloudAIModel,
+      input.webModel,
+      undefined,
+      input.signal,
+      input.filterModel,
+    );
   }
 
   async testGenerateTasks(
     topic: string,
     model: string,
-    opts?: { customPrompt?: string; customSystem?: string; searchMode?: SearchModeInput },
+    opts?: {
+      customPrompt?: string;
+      customSystem?: string;
+      searchMode?: SearchModeInput;
+    },
   ) {
     return this.lightPipeline.testRun(topic, model, opts);
   }
 
-  async testStep0Plan(topic: string, localAIModel: string, searchMode?: SearchModeInput) {
+  async testStep0Plan(
+    topic: string,
+    localAIModel: string,
+    searchMode?: SearchModeInput,
+  ) {
     const logs: string[] = [];
-    const gen = this.lightPipeline.step0Plan(topic, localAIModel, searchMode ?? PlannerMode.AUTO);
+    const gen = this.lightPipeline.step0Plan(
+      topic,
+      localAIModel,
+      searchMode ?? PlannerMode.AUTO,
+    );
     let result = await gen.next();
     while (!result.done) {
-      const event = result.value as LightResearchEvent;
+      const event = result.value;
       if (event.type === LightResearchEventType.LOG) logs.push(event.message);
       result = await gen.next();
     }
     return { logs, searchPlan: result.value };
   }
 
-  async testStep1aWebSearch(keyword: string, webModel: SearchEngine = SearchEngine.TAVILY) {
+  async testStep1aWebSearch(
+    keyword: string,
+    webModel: SearchEngine = SearchEngine.TAVILY,
+  ) {
     const logs: string[] = [];
     const gen = this.lightPipeline.step1aWebSearch(keyword, webModel);
     let result = await gen.next();
     while (!result.done) {
-      const event = result.value as LightResearchEvent;
+      const event = result.value;
       if (event.type === LightResearchEventType.LOG) logs.push(event.message);
       result = await gen.next();
     }
     return { logs, webContext: result.value };
   }
 
-  async testStep1bRecruitSearch(keyword: string, companyTypes?: string[], jobTypes?: string[]) {
+  async testStep1bRecruitSearch(
+    keyword: string,
+    companyTypes?: string[],
+    jobTypes?: string[],
+  ) {
     const logs: string[] = [];
     const jobs: JobItem[] = [];
-    const gen = this.lightPipeline.step1bRecruitSearch(companyTypes, jobTypes, keyword);
+    const gen = this.lightPipeline.step1bRecruitSearch(
+      companyTypes,
+      jobTypes,
+      keyword,
+    );
     let result = await gen.next();
     while (!result.done) {
-      const event = result.value as LightResearchEvent;
+      const event = result.value;
       if (event.type === LightResearchEventType.LOG) logs.push(event.message);
-      else if (event.type === LightResearchEventType.JOBS) jobs.push(...event.jobs);
+      else if (event.type === LightResearchEventType.JOBS)
+        jobs.push(...event.jobs);
       result = await gen.next();
     }
     return { logs, jobs, recruitCtx: result.value };
   }
 
-  async testStep2GenerateTasks(topic: string, model: string, searchPlan: SearchPlan, webContext?: string, recruitCtx?: string) {
+  async testStep2GenerateTasks(
+    topic: string,
+    model: string,
+    searchPlan: SearchPlan,
+    webContext?: string,
+    recruitCtx?: string,
+  ) {
     const logs: string[] = [];
     let tasks: any[] = [];
-    for await (const event of this.lightPipeline.step2GenerateTasks(topic, model, searchPlan, webContext, recruitCtx)) {
+    for await (const event of this.lightPipeline.step2GenerateTasks(
+      topic,
+      model,
+      searchPlan,
+      webContext,
+      recruitCtx,
+    )) {
       if (event.type === LightResearchEventType.LOG) logs.push(event.message);
       else if (event.type === LightResearchEventType.DONE) tasks = event.tasks;
     }

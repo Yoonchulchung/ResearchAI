@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
-import { IntelligentSearchService } from '../../../browse/infrastructure/search/intelligent-search.service';
-import { CollectQuery, JobSource } from '../../domain/job-source.interface';
-import { JobPosting } from '../../domain/job-posting.model';
+import { IntelligentSearchService } from 'src/browse/infrastructure/search/intelligent-search.service';
+import { CollectQuery, JobSource } from 'src/recruit/domain/job-source.interface';
+import { JobPosting } from 'src/recruit/domain/job-posting.model';
 
 /**
  * BrowseModule의 IntelligentSearchService를 JobSource 인터페이스로 감싸는 얇은 어댑터.
@@ -32,7 +32,12 @@ export class IntelligentSearchEngine implements JobSource {
         company: r.company,
         location: '',
         description: r.type,
-        skills: r.type ? r.type.split(',').map((t) => t.trim()).filter(Boolean) : [],
+        skills: r.type
+          ? r.type
+              .split(',')
+              .map((t) => t.trim())
+              .filter(Boolean)
+          : [],
         url: r.url,
         deadline: r.deadline || undefined,
         postedAt: r.deadline || null,

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PapersService } from '../../../news/papers/application/papers.service';
-import type { PaperTrendSummary } from '../../../news/papers/application/papers.service';
+import { PapersService } from 'src/news/papers/application/papers.service';
+import type { PaperTrendSummary } from 'src/news/papers/application/papers.service';
 
 export interface PaperTrendRequest {
   model?: string;
@@ -17,8 +17,13 @@ export class PaperTrendExecutorService {
     request: PaperTrendRequest,
     onChunk: (chunk: string) => void,
   ): Promise<PaperTrendSummary> {
-    this.logger.log(`[PaperTrend] 분석 시작 model=${request.model ?? 'default'}`);
-    const result = await this.papersService.getTrendSummary({ ...request, onChunk });
+    this.logger.log(
+      `[PaperTrend] 분석 시작 model=${request.model ?? 'default'}`,
+    );
+    const result = await this.papersService.getTrendSummary({
+      ...request,
+      onChunk,
+    });
     this.logger.log(`[PaperTrend] 완료 paperCount=${result.paperCount}`);
     return result;
   }

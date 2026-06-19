@@ -1,10 +1,16 @@
-import { Column, CreateDateColumn, Entity, PrimaryColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 export enum QueueJobDbStatus {
-  INIT    = 'init',
+  INIT = 'init',
   RUNNING = 'running',
-  DONE    = 'done',
-  ERROR   = 'error',
+  DONE = 'done',
+  ERROR = 'error',
   STOPPED = 'stopped',
 }
 
@@ -40,7 +46,12 @@ export class QueueJobEntity {
   @Column({ name: 'filter_model', nullable: true })
   filterModel: string;
 
-  @Column({ name: 'job_status', type: 'simple-enum', enum: QueueJobDbStatus, default: QueueJobDbStatus.INIT })
+  @Column({
+    name: 'job_status',
+    type: 'simple-enum',
+    enum: QueueJobDbStatus,
+    default: QueueJobDbStatus.INIT,
+  })
   jobStatus: QueueJobDbStatus;
 
   @CreateDateColumn({ name: 'created_at' })

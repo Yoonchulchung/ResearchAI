@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type { Response } from 'express';
-import { SourceRegistry } from '../infrastructure/sources/source-registry';
-import { JobRepository } from '../infrastructure/repository/job-repository';
-import { CollectQuery } from '../domain/job-source.interface';
+import { SourceRegistry } from 'src/recruit/infrastructure/sources/source-registry';
+import { JobRepository } from 'src/recruit/infrastructure/repository/job-repository';
+import { CollectQuery } from 'src/recruit/domain/job-source.interface';
 
 export type CollectEvent =
   | { type: 'start'; source: string }
@@ -40,7 +40,9 @@ export class CollectService {
 
   addClient(res: Response) {
     this.sseClients.push(res);
-    res.write(`data: ${JSON.stringify({ type: 'connected', running: this.running })}\n\n`);
+    res.write(
+      `data: ${JSON.stringify({ type: 'connected', running: this.running })}\n\n`,
+    );
   }
 
   removeClient(res: Response) {
@@ -74,9 +76,17 @@ export class CollectService {
     return this.running;
   }
 
-  startCollect(query: CollectQuery & { sources?: string[] }): { ok: boolean; jobId?: string; message?: string } {
+  startCollect(query: CollectQuery & { sources?: string[] }): {
+    ok: boolean;
+    jobId?: string;
+    message?: string;
+  } {
     if (this.running) {
-      return { ok: false, jobId: this.currentJobId ?? undefined, message: '이미 수집 중입니다.' };
+      return {
+        ok: false,
+        jobId: this.currentJobId ?? undefined,
+        message: '이미 수집 중입니다.',
+      };
     }
     const jobId = randomUUID();
     this.currentJobId = jobId;
@@ -100,7 +110,10 @@ export class CollectService {
    *     "아우모비스타" vs "바리스타"      → 겹침 1/5 = 20% → 제거
    *     "아우모비스타" vs "우리은행"      → 겹침 0/5 = 0%  → 제거
    */
-  private isKeywordRelevant(job: { title: string; company: string }, keyword?: string): boolean {
+  private isKeywordRelevant(
+    job: { title: string; company: string },
+    keyword?: string,
+  ): boolean {
     if (!keyword?.trim()) return true;
     const kw = keyword.trim().toLowerCase();
     const title = (job.title ?? '').toLowerCase();
@@ -131,7 +144,11 @@ export class CollectService {
     return matched / kwBigrams.size >= 0.5;
   }
 
-  private async collect(jobId: string, query: CollectQuery & { sources?: string[] }, status: CollectJobStatus): Promise<void> {
+  private async collect(
+    jobId: string,
+    query: CollectQuery & { sources?: string[] },
+    status: CollectJobStatus,
+  ): Promise<void> {
     this.running = true;
     const sources = this.registry.getAvailable(query.sources);
 
@@ -144,7 +161,13 @@ export class CollectService {
           for await (const job of source.collect(query)) {
             if (!this.isKeywordRelevant(job, query.keyword)) continue;
             this.jobRepository.upsert(job);
-            this.broadcast({ type: 'job', id: job.id, title: job.title, company: job.company, source: job.source ?? source.name });
+            this.broadcast({
+              type: 'job',
+              id: job.id,
+              title: job.title,
+              company: job.company,
+              source: job.source ?? source.name,
+            });
             sourceCount++;
             status.collected++;
           }
@@ -153,7 +176,11 @@ export class CollectService {
           this.broadcast({ type: 'error', source: source.name, message });
         }
 
-        this.broadcast({ type: 'source_done', source: source.name, count: sourceCount });
+        this.broadcast({
+          type: 'source_done',
+          source: source.name,
+          count: sourceCount,
+        });
       }
     } finally {
       this.running = false;

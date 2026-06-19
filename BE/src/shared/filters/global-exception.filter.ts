@@ -1,9 +1,16 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { BrokenCircuitError } from 'cockatiel';
 import { Request, Response } from 'express';
-import { UndefinedAiAPIException } from '../exceptions/undefined-ai-api.exception';
-import { ApiResponse } from '../response/api-response';
-import { ErrorCode, GeneralErrorCode } from '../response/error-code';
+import { UndefinedAiAPIException } from 'src/shared/exceptions/undefined-ai-api.exception';
+import { ApiResponse } from 'src/shared/response/api-response';
+import { ErrorCode, GeneralErrorCode } from 'src/shared/response/error-code';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -22,10 +29,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       );
     }
 
-    response.status(errorCode.httpStatus).json(ApiResponse.onFailure(errorCode, message));
+    response
+      .status(errorCode.httpStatus)
+      .json(ApiResponse.onFailure(errorCode, message));
   }
 
-  private resolveException(exception: unknown): { errorCode: ErrorCode; message: string } {
+  private resolveException(exception: unknown): {
+    errorCode: ErrorCode;
+    message: string;
+  } {
     if (exception instanceof UndefinedAiAPIException) {
       return {
         errorCode: this.httpStatusToErrorCode(exception.status),
@@ -34,7 +46,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     if (exception instanceof BrokenCircuitError) {
-      return { errorCode: GeneralErrorCode.SERVICE_UNAVAILABLE, message: GeneralErrorCode.SERVICE_UNAVAILABLE.message };
+      return {
+        errorCode: GeneralErrorCode.SERVICE_UNAVAILABLE,
+        message: GeneralErrorCode.SERVICE_UNAVAILABLE.message,
+      };
     }
 
     if (exception instanceof HttpException) {
@@ -44,7 +59,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       };
     }
 
-    return { errorCode: GeneralErrorCode.INTERNAL_SERVER_ERROR, message: GeneralErrorCode.INTERNAL_SERVER_ERROR.message };
+    return {
+      errorCode: GeneralErrorCode.INTERNAL_SERVER_ERROR,
+      message: GeneralErrorCode.INTERNAL_SERVER_ERROR.message,
+    };
   }
 
   private extractHttpMessage(exception: HttpException): string {
@@ -62,10 +80,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   private httpStatusToErrorCode(status: number): ErrorCode {
     switch (status) {
-      case HttpStatus.UNAUTHORIZED:    return GeneralErrorCode.UNAUTHORIZED;
-      case HttpStatus.FORBIDDEN:       return GeneralErrorCode.FORBIDDEN;
-      case HttpStatus.NOT_FOUND:       return GeneralErrorCode.NOT_FOUND;
-      case HttpStatus.SERVICE_UNAVAILABLE: return GeneralErrorCode.SERVICE_UNAVAILABLE;
+      case HttpStatus.UNAUTHORIZED:
+        return GeneralErrorCode.UNAUTHORIZED;
+      case HttpStatus.FORBIDDEN:
+        return GeneralErrorCode.FORBIDDEN;
+      case HttpStatus.NOT_FOUND:
+        return GeneralErrorCode.NOT_FOUND;
+      case HttpStatus.SERVICE_UNAVAILABLE:
+        return GeneralErrorCode.SERVICE_UNAVAILABLE;
       default:
         if (status >= 500) return GeneralErrorCode.INTERNAL_SERVER_ERROR;
         return GeneralErrorCode.BAD_REQUEST;

@@ -3,9 +3,9 @@ import { IsString, IsNotEmpty } from 'class-validator';
 export class SummaryRequestDto {
   @IsString()
   @IsNotEmpty()
-  sessionId: string
+  sessionId: string;
 
   @IsString()
   @IsNotEmpty()
-  localAIModel: string
+  localAIModel: string;
 }

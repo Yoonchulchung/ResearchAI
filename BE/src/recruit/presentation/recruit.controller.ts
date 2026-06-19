@@ -1,9 +1,19 @@
-import { Controller, Get, Post, Delete, Param, Body, Query, Req, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Param,
+  Body,
+  Query,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { CollectService } from '../application/collect.service';
-import { JobsService } from '../application/jobs.service';
-import { RecruitContextService } from '../application/recruit-context.service';
-import { SourceRegistry } from '../infrastructure/sources/source-registry';
+import { CollectService } from 'src/recruit/application/collect.service';
+import { JobsService } from 'src/recruit/application/jobs.service';
+import { RecruitContextService } from 'src/recruit/application/recruit-context.service';
+import { SourceRegistry } from 'src/recruit/infrastructure/sources/source-registry';
 
 @Controller('recruit')
 export class RecruitController {
@@ -17,7 +27,14 @@ export class RecruitController {
   // ── 테스트 ────────────────────────────────────────────────
 
   @Post('test/live-search')
-  async testLiveSearch(@Body() body: { keyword: string; companyTypes?: string[]; jobTypes?: string[] }) {
+  async testLiveSearch(
+    @Body()
+    body: {
+      keyword: string;
+      companyTypes?: string[];
+      jobTypes?: string[];
+    },
+  ) {
     const logs: string[] = [];
     const jobs: any[] = [];
     let result = '';
@@ -45,7 +62,15 @@ export class RecruitController {
   // ── 수집 ─────────────────────────────────────────────────
 
   @Post('collect')
-  collect(@Body() body: { keyword: string; location?: string; limit?: number; sources?: string[] }) {
+  collect(
+    @Body()
+    body: {
+      keyword: string;
+      location?: string;
+      limit?: number;
+      sources?: string[];
+    },
+  ) {
     return this.collectService.startCollect(body);
   }
 

@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
 import { getNewsFeed, NEWS_CATEGORY_LABELS, type NewsCategory, type NewsItem } from "@/lib/api/news-feed";
+import { groupNewsByDailyTopic, type DailyNewsTopicGroup } from "../_lib/news-topic-groups";
 
 function IconRefresh({ spinning = false }: { spinning?: boolean }) {
   return (
@@ -69,6 +70,95 @@ function NewsCard({ item, isDark }: { item: NewsItem; isDark: boolean }) {
   );
 }
 
+function TopicGroupCard({
+  group,
+  isDark,
+}: {
+  group: DailyNewsTopicGroup;
+  isDark: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visibleItems = expanded ? group.items : group.items.slice(0, 3);
+
+  return (
+    <section
+      className={`overflow-hidden rounded-md border xl:col-span-2 ${
+        isDark ? "border-emerald-400/20 bg-white/[0.035]" : "border-emerald-200 bg-white"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded((current) => !current)}
+        className={`flex w-full items-center gap-3 px-4 py-3 text-left transition ${
+          isDark ? "hover:bg-white/5" : "hover:bg-emerald-50/60"
+        }`}
+      >
+        <span
+          className={`rounded-md px-2.5 py-1 text-sm font-black ${
+            isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-700"
+          }`}
+        >
+          {group.keyword}
+        </span>
+        <span className={`text-xs font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
+          같은 날 관련 기사 {group.items.length}건
+        </span>
+        <span
+          className={`ml-auto text-xs transition-transform ${
+            expanded ? "rotate-180" : ""
+          } ${isDark ? "text-white/35" : "text-slate-400"}`}
+        >
+          ▼
+        </span>
+      </button>
+      <div className={isDark ? "border-t border-white/5" : "border-t border-slate-100"}>
+        {visibleItems.map((item, index) => (
+          <a
+            key={item.link}
+            href={item.link}
+            target="_blank"
+            rel="noreferrer"
+            className={`group flex items-start gap-3 px-4 py-3 transition ${
+              index > 0 ? isDark ? "border-t border-white/5" : "border-t border-slate-100" : ""
+            } ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
+          >
+            <span
+              className={`mt-0.5 w-16 shrink-0 text-xs font-semibold ${
+                isDark ? "text-emerald-400" : "text-emerald-600"
+              }`}
+            >
+              {item.source}
+            </span>
+            <span
+              className={`min-w-0 flex-1 text-sm font-semibold leading-snug ${
+                isDark
+                  ? "text-white/85 group-hover:text-emerald-300"
+                  : "text-slate-800 group-hover:text-emerald-700"
+              }`}
+            >
+              {stripHtml(item.title)}
+            </span>
+            <IconExternal />
+          </a>
+        ))}
+        {!expanded && group.items.length > 3 && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className={`w-full border-t px-4 py-2 text-xs font-semibold ${
+              isDark
+                ? "border-white/5 text-white/40 hover:bg-white/5"
+                : "border-slate-100 text-slate-400 hover:bg-slate-50"
+            }`}
+          >
+            {group.items.length - 3}건 더 보기
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function Skeleton({ isDark }: { isDark: boolean }) {
   const pulse = isDark ? "bg-white/10" : "bg-slate-100";
   return (
@@ -81,12 +171,26 @@ function Skeleton({ isDark }: { isDark: boolean }) {
 }
 
 const ALL_CATEGORIES = Object.entries(NEWS_CATEGORY_LABELS) as [NewsCategory, string][];
+const PAGE_SIZE = 30;
+const PAGED_CATEGORIES = new Set<NewsCategory>(["it", "economy", "society", "politics", "world", "culture", "science"]);
+
+function mergeItems(current: NewsItem[], next: NewsItem[]) {
+  const seen = new Set(current.map((item) => item.link));
+  const merged = [...current];
+  for (const item of next) {
+    if (seen.has(item.link)) continue;
+    seen.add(item.link);
+    merged.push(item);
+  }
+  return merged;
+}
 
 export default function NewsFeedPage() {
   const router = useRouter();
   const { theme, uiStyle } = useTheme();
   const isDark = theme === "dark";
   const isGlass = uiStyle === "glass";
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const [category, setCategory] = useState<NewsCategory>(() => {
     if (typeof window === "undefined") return "it";
@@ -95,12 +199,16 @@ export default function NewsFeedPage() {
   });
   const [items, setItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextOffset, setNextOffset] = useState(PAGE_SIZE);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState(() => {
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("q") ?? "";
   });
+  const [groupTopics, setGroupTopics] = useState(true);
 
   const pageClass = isGlass ? "bg-transparent" : isDark ? "bg-slate-950" : "bg-slate-50";
   const panelClass = isGlass ? "glass-panel border-white/20" : isDark ? "border-white/10 bg-slate-900" : "border-slate-200 bg-white";
@@ -114,9 +222,13 @@ export default function NewsFeedPage() {
     setError(null);
     if (force) setRefreshing(true);
     else setLoading(true);
+    setLoadingMore(false);
+    setHasMore(false);
     try {
-      const result = await getNewsFeed(cat);
+      const result = await getNewsFeed(cat, { limit: PAGE_SIZE, offset: 0 });
       setItems(result);
+      setHasMore(PAGED_CATEGORIES.has(cat) && result.length >= PAGE_SIZE);
+      setNextOffset(PAGE_SIZE);
     } catch (e) {
       setError(e instanceof Error ? e.message : "뉴스를 불러오지 못했습니다.");
     } finally {
@@ -126,6 +238,38 @@ export default function NewsFeedPage() {
   }, []);
 
   useEffect(() => { load(category); }, [load, category]);
+
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMore || refreshing || !hasMore || query.trim()) return;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const offset = nextOffset;
+      const result = await getNewsFeed(category, { limit: PAGE_SIZE, offset });
+      setItems((current) => mergeItems(current, result));
+      setHasMore(PAGED_CATEGORIES.has(category) && result.length >= PAGE_SIZE);
+      setNextOffset(offset + PAGE_SIZE);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "뉴스를 더 불러오지 못했습니다.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [category, hasMore, loading, loadingMore, nextOffset, query, refreshing]);
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    if (!target || !hasMore || query.trim()) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) void loadMore();
+      },
+      { rootMargin: "360px 0px" },
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore, query]);
 
   const filtered = query.trim()
     ? items.filter((item) => {
@@ -137,6 +281,13 @@ export default function NewsFeedPage() {
         );
       })
     : items;
+  const topicGroups = useMemo(
+    () => groupNewsByDailyTopic(filtered),
+    [filtered],
+  );
+  const groupedTopicCount = topicGroups.filter(
+    (group) => group.keyword !== null,
+  ).length;
 
   return (
     <main className={`h-full overflow-y-auto ${pageClass}`}>
@@ -213,10 +364,27 @@ export default function NewsFeedPage() {
               ))}
             </div>
 
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <span className={`text-sm font-medium ${textSub}`}>
-                {loading ? "불러오는 중..." : `${filtered.length}개의 기사`}
+                {loading
+                  ? "불러오는 중..."
+                  : groupTopics && groupedTopicCount > 0
+                    ? `${filtered.length}개 기사 · ${groupedTopicCount}개 주제`
+                    : `${filtered.length}개의 기사`}
               </span>
+              <label
+                className={`flex cursor-pointer items-center gap-2 text-sm font-semibold ${
+                  isDark ? "text-white/55" : "text-slate-600"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={groupTopics}
+                  onChange={(event) => setGroupTopics(event.target.checked)}
+                  className="h-4 w-4 accent-emerald-500"
+                />
+                동일 주제 묶기
+              </label>
             </div>
 
             {error && (
@@ -233,6 +401,29 @@ export default function NewsFeedPage() {
               <div className={`py-16 text-center text-sm ${textSub}`}>
                 {query ? `"${query}"에 해당하는 기사가 없습니다.` : "기사가 없습니다."}
               </div>
+            ) : groupTopics ? (
+              <div className="space-y-5">
+                {[...new Set(topicGroups.map((group) => group.dateKey))].map((day) => {
+                  const dayGroups = topicGroups.filter((group) => group.dateKey === day);
+                  return (
+                    <section key={day}>
+                      <div className="mb-2 flex items-center gap-3">
+                        <span className={`text-xs font-black ${textSub}`}>{day}</span>
+                        <div className={`h-px flex-1 ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                        {dayGroups.map((group) =>
+                          group.keyword ? (
+                            <TopicGroupCard key={group.id} group={group} isDark={isDark} />
+                          ) : (
+                            <NewsCard key={group.id} item={group.items[0]} isDark={isDark} />
+                          ),
+                        )}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
             ) : (
               <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                 {filtered.map((item, i) => (
@@ -240,6 +431,18 @@ export default function NewsFeedPage() {
                 ))}
               </div>
             )}
+
+            <div ref={loadMoreRef} className="min-h-8">
+              {!loading && !query.trim() && filtered.length > 0 ? (
+                <p className={`py-5 text-center text-xs ${textSub}`}>
+                  {loadingMore
+                    ? "다음 뉴스를 불러오는 중..."
+                    : hasMore
+                      ? "아래로 스크롤하면 뉴스를 더 가져옵니다."
+                      : "더 가져올 뉴스가 없습니다."}
+                </p>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

@@ -1,42 +1,10 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, IsNull, Like, Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
-import { CompanyAnalysisEntity } from '../domain/entity/company-analysis.entity';
-import { CompanyEntity } from '../domain/entity/company.entity';
-import { CompanyFinancialEntity } from '../domain/entity/company-financial.entity';
-import { CompanyRateEntity } from '../domain/entity/company-rate.entity';
-import { DartFinancialService } from '../infrastructure/dart-financial.service';
-import { NamuWikiService } from '../infrastructure/namu-wiki.service';
-import { JasoseolCompanyService } from '../infrastructure/jasoseol-company.service';
-import { JobkoreaCompanyService } from '../infrastructure/jobkorea-company.service';
-import { JobplanetInfoService } from '../infrastructure/jobplanet-info.service';
-
-// 우선순위: dart > namu-wiki > jobkorea > jasoseol > jobplanet > jobSite > manual
-const SOURCE_PRIORITY: Record<string, number> = {
-  dart: 100,
-  'namu-wiki': 80,
-  jobkorea: 70,
-  jasoseol: 60,
-  jobplanet: 55,
-  'jobplanet-info': 50,
-  jobSite: 30,
-  manual: 10,
-};
-
-interface EnrichResult {
-  companyType: string | null;
-  employees: string | null;
-  foundedDate: string | null;
-  address: string | null;
-  homeUrl: string | null;
-  ceoName: string | null;
-  corpCode: string | null;
-  stockCode: string | null;
-  industry: string | null;
-  dartUrl: string | null;
-  source: string;
-}
+import { CompanyAnalysisEntity } from 'src/company/domain/entity/company-analysis.entity';
+import { CompanyEntity } from 'src/company/domain/entity/company.entity';
+import { CompanyFinancialEntity } from 'src/company/domain/entity/company-financial.entity';
 
 export interface CompanyListItem {
   id: string;
@@ -71,7 +39,27 @@ export interface CompanyStockQuote {
   previousClose: number | null;
   change: number | null;
   changePercent: number | null;
-  chart: { date: string; open: number | null; high: number | null; low: number | null; close: number; volume: number | null }[];
+  marketCap: number | null;
+  marketMetrics: {
+    per: number | null;
+    pbr: number | null;
+    eps: number | null;
+    bps: number | null;
+    estimatedPer: number | null;
+    estimatedEps: number | null;
+    dividendYield: number | null;
+    dividend: number | null;
+    asOf: string | null;
+    source: string;
+  } | null;
+  chart: {
+    date: string;
+    open: number | null;
+    high: number | null;
+    low: number | null;
+    close: number;
+    volume: number | null;
+  }[];
   interval: string;
   source: string;
   fetchedAt: string;
@@ -86,22 +74,13 @@ export interface CompanySlimItem {
 
 @Injectable()
 export class CompanyService {
-  private readonly logger = new Logger(CompanyService.name);
-
   constructor(
     @InjectRepository(CompanyEntity)
     private readonly repo: Repository<CompanyEntity>,
-    @InjectRepository(CompanyRateEntity)
-    private readonly rateRepo: Repository<CompanyRateEntity>,
     @InjectRepository(CompanyAnalysisEntity)
     private readonly analysisRepo: Repository<CompanyAnalysisEntity>,
     @InjectRepository(CompanyFinancialEntity)
     private readonly financialRepo: Repository<CompanyFinancialEntity>,
-    private readonly dartFinancial: DartFinancialService,
-    private readonly namuWiki: NamuWikiService,
-    private readonly jasoseol: JasoseolCompanyService,
-    private readonly jobkorea: JobkoreaCompanyService,
-    private readonly jobplanetInfo: JobplanetInfoService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -109,14 +88,193 @@ export class CompanyService {
     return name.replace(/[\s(주)㈜()（）㈔주식회사]/g, '').toLowerCase();
   }
 
-  async listCompaniesSlim(options: {
-    hasAnalysis?: boolean;
-    limit?: number;
-  } = {}): Promise<CompanySlimItem[]> {
+  private getRepresentativeCategory(industry: string | null | undefined): string {
+    if (!industry) return '기타';
+    const ind = industry.toLowerCase().replace(/\s/g, '');
+
+    if (
+      ind.includes('소프트웨어') ||
+      ind.includes('컴퓨터') ||
+      ind.includes('정보') ||
+      ind.includes('통신') ||
+      ind.includes('포털') ||
+      ind.includes('it') ||
+      ind.includes('프로그래밍') ||
+      ind.includes('네트워크') ||
+      ind.includes('게임') ||
+      ind.includes('인터넷') ||
+      ind.includes('플랫폼')
+    ) {
+      return 'IT / 정보통신';
+    }
+
+    if (
+      ind.includes('제조') ||
+      ind.includes('화학') ||
+      ind.includes('철강') ||
+      ind.includes('조선') ||
+      ind.includes('반도체') ||
+      ind.includes('자동차') ||
+      ind.includes('부품') ||
+      ind.includes('기계') ||
+      ind.includes('금속') ||
+      ind.includes('장비') ||
+      ind.includes('전자제품') ||
+      ind.includes('전기') ||
+      ind.includes('의류') ||
+      ind.includes('식품') ||
+      ind.includes('제과') ||
+      ind.includes('화장품') ||
+      ind.includes('패션')
+    ) {
+      return '제조 / 생산';
+    }
+
+    if (
+      ind.includes('금융') ||
+      ind.includes('은행') ||
+      ind.includes('증권') ||
+      ind.includes('보험') ||
+      ind.includes('투자') ||
+      ind.includes('자산') ||
+      ind.includes('카드') ||
+      ind.includes('캐피탈')
+    ) {
+      return '금융 / 보험';
+    }
+
+    if (
+      ind.includes('바이오') ||
+      ind.includes('제약') ||
+      ind.includes('의약') ||
+      ind.includes('의료') ||
+      ind.includes('헬스케어') ||
+      ind.includes('병원') ||
+      ind.includes('생명공학')
+    ) {
+      return '바이오 / 제약';
+    }
+
+    if (
+      ind.includes('유통') ||
+      ind.includes('물류') ||
+      ind.includes('무역') ||
+      ind.includes('도매') ||
+      ind.includes('소매') ||
+      ind.includes('판매') ||
+      ind.includes('상사') ||
+      ind.includes('커머스') ||
+      ind.includes('쇼핑') ||
+      ind.includes('백화점') ||
+      ind.includes('마트') ||
+      ind.includes('편의점')
+    ) {
+      return '유통 / 물류 / 무역';
+    }
+
+    if (
+      ind.includes('건설') ||
+      ind.includes('부동산') ||
+      ind.includes('토목') ||
+      ind.includes('건축') ||
+      ind.includes('시공') ||
+      ind.includes('개발') && (ind.includes('시행') || ind.includes('공급'))
+    ) {
+      return '건설 / 부동산';
+    }
+
+    if (
+      ind.includes('엔터') ||
+      ind.includes('미디어') ||
+      ind.includes('콘텐츠') ||
+      ind.includes('영화') ||
+      ind.includes('방송') ||
+      ind.includes('출판') ||
+      ind.includes('인쇄') ||
+      ind.includes('문화') ||
+      ind.includes('예술') ||
+      ind.includes('여행') ||
+      ind.includes('관광') ||
+      ind.includes('레저') ||
+      ind.includes('호텔')
+    ) {
+      return '미디어 / 엔터 / 관광';
+    }
+
+    if (
+      ind.includes('교육') ||
+      ind.includes('학원') ||
+      ind.includes('학교') ||
+      ind.includes('대학')
+    ) {
+      return '교육 / 학술';
+    }
+
+    if (
+      ind.includes('에너지') ||
+      ind.includes('환경') ||
+      ind.includes('발전') ||
+      ind.includes('가스') ||
+      ind.includes('전력') ||
+      ind.includes('자원') ||
+      ind.includes('정유') ||
+      ind.includes('유전')
+    ) {
+      return '에너지 / 환경';
+    }
+
+    if (
+      ind.includes('경영') ||
+      ind.includes('컨설팅') ||
+      ind.includes('광고') ||
+      ind.includes('디자인') ||
+      ind.includes('법률') ||
+      ind.includes('회계') ||
+      ind.includes('세무') ||
+      ind.includes('번역') ||
+      ind.includes('서비스') ||
+      ind.includes('인력') ||
+      ind.includes('헤드헌팅') ||
+      ind.includes('시설') ||
+      ind.includes('연구') ||
+      ind.includes('공공') ||
+      ind.includes('단체')
+    ) {
+      return '경영 / 서비스';
+    }
+
+    return '기타';
+  }
+
+  parseSources(raw: string | null): string[] {
+    if (!raw) return [];
+    try {
+      return JSON.parse(raw) as string[];
+    } catch {
+      return [raw];
+    }
+  }
+
+  addSource(entity: CompanyEntity, source: string): void {
+    const list = this.parseSources(entity.sources);
+    if (!list.includes(source)) {
+      entity.sources = JSON.stringify([...list, source]);
+    }
+    if (!entity.source) entity.source = source;
+  }
+
+  async listCompaniesSlim(
+    options: {
+      hasAnalysis?: boolean;
+      limit?: number;
+    } = {},
+  ): Promise<CompanySlimItem[]> {
     const limit = Math.max(1, Math.min(options.limit ?? 300, 1000));
 
     if (options.hasAnalysis === true) {
-      const rows = await this.dataSource.query<{ id: string; name: string; company_type: string | null }[]>(
+      const rows = await this.dataSource.query<
+        { id: string; name: string; company_type: string | null }[]
+      >(
         `SELECT c.id, c.name, c.company_type
          FROM companies c
          INNER JOIN company_analyses ca ON (ca.company_id = c.id OR ca.company_key = c.normalized_name)
@@ -125,7 +283,11 @@ export class CompanyService {
          LIMIT ?`,
         [limit],
       );
-      return rows.map((r) => ({ id: r.id, name: r.name, companyType: r.company_type }));
+      return rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        companyType: r.company_type,
+      }));
     }
 
     const companies = await this.repo.find({
@@ -133,578 +295,160 @@ export class CompanyService {
       order: { updatedAt: 'DESC' },
       take: limit,
     });
-    return companies.map((c) => ({ id: c.id, name: c.name, companyType: c.companyType }));
+    return companies.map((c) => ({
+      id: c.id,
+      name: c.name,
+      companyType: c.companyType,
+    }));
   }
 
-  async listCompanies(options: {
-    q?: string;
-    hasAnalysis?: boolean;
-    limit?: number;
-  } = {}): Promise<CompanyListItem[]> {
+  async listCompanies(
+    options: {
+      q?: string;
+      hasAnalysis?: boolean;
+      limit?: number;
+      industry?: string;
+    } = {},
+  ): Promise<CompanyListItem[]> {
     const limit = Math.max(1, Math.min(options.limit ?? 300, 1000));
     const where = options.q?.trim()
-      ? [{ name: Like(`%${options.q.trim()}%`) }, { normalizedName: Like(`%${this.normalizeName(options.q)}%`) }]
+      ? [
+          { name: Like(`%${options.q.trim()}%`) },
+          { normalizedName: Like(`%${this.normalizeName(options.q)}%`) },
+        ]
       : undefined;
 
+    const fetchLimit = options.industry ? 1000 : limit;
     const companies = await this.repo.find({
       where,
       order: { updatedAt: 'DESC' },
-      take: limit,
+      take: fetchLimit,
     });
 
     if (companies.length === 0) return [];
 
-    const analyses = await this.analysisRepo.find({
-      where: [
-        ...(companies.length ? [{ companyId: In(companies.map((company) => company.id)) }] : []),
-        ...(companies.length ? [{ companyKey: In(companies.map((company) => company.normalizedName)) }] : []),
-      ],
-      order: { updatedAt: 'DESC' },
-    });
+    const [analyses, financials] = await Promise.all([
+      this.analysisRepo.find({
+        where: [
+          ...(companies.length
+            ? [{ companyId: In(companies.map((company) => company.id)) }]
+            : []),
+          ...(companies.length
+            ? [
+                {
+                  companyKey: In(
+                    companies.map((company) => company.normalizedName),
+                  ),
+                },
+              ]
+            : []),
+        ],
+        order: { updatedAt: 'DESC' },
+      }),
+      this.financialRepo.find({
+        where: [
+          ...(companies.length
+            ? [{ companyId: In(companies.map((company) => company.id)) }]
+            : []),
+        ],
+      }),
+    ]);
 
     const byCompanyId = new Map<string, CompanyAnalysisEntity>();
     const byCompanyKey = new Map<string, CompanyAnalysisEntity>();
     for (const analysis of analyses) {
-      if (analysis.companyId && !byCompanyId.has(analysis.companyId)) byCompanyId.set(analysis.companyId, analysis);
-      if (analysis.companyKey && !byCompanyKey.has(analysis.companyKey)) byCompanyKey.set(analysis.companyKey, analysis);
+      if (analysis.companyId && !byCompanyId.has(analysis.companyId))
+        byCompanyId.set(analysis.companyId, analysis);
+      if (analysis.companyKey && !byCompanyKey.has(analysis.companyKey))
+        byCompanyKey.set(analysis.companyKey, analysis);
     }
 
-    const items = companies.map((company) => {
-      const analysis = byCompanyId.get(company.id) ?? byCompanyKey.get(company.normalizedName) ?? null;
-      return this.toListItem(company, analysis);
+    const financialsMap = new Map<string, string>();
+    for (const f of financials) {
+      if (f.companyId && f.stockCode) {
+        financialsMap.set(f.companyId, f.stockCode);
+      }
+    }
+
+    let items = companies.map((company) => {
+      const analysis =
+        byCompanyId.get(company.id) ??
+        byCompanyKey.get(company.normalizedName) ??
+        null;
+      const stockCode = financialsMap.get(company.id) ?? null;
+      return this.toListItem(company, analysis, stockCode);
     });
 
-    return typeof options.hasAnalysis === 'boolean'
-      ? items.filter((item) => item.hasAnalysis === options.hasAnalysis)
-      : items;
+    if (typeof options.hasAnalysis === 'boolean') {
+      items = items.filter((item) => item.hasAnalysis === options.hasAnalysis);
+    }
+
+    if (options.industry) {
+      const selectedCats = options.industry
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (selectedCats.length > 0) {
+        items = items.filter((item) =>
+          selectedCats.includes(this.getRepresentativeCategory(item.industry)),
+        );
+      }
+      items = items.slice(0, limit);
+    }
+
+    return items;
   }
 
-  /** DART financial 엔티티에 저장된 종목코드 반환 (stock/KRX 조회에 사용) */
   async findStockCode(idOrName: string): Promise<string | null> {
     const normalized = this.normalizeName(idOrName);
     const company = await this.repo.findOne({
-      where: [{ id: idOrName }, { normalizedName: normalized }, { name: idOrName }],
+      where: [
+        { id: idOrName },
+        { normalizedName: normalized },
+        { name: idOrName },
+      ],
     });
     if (!company) return null;
-    const financial = await this.financialRepo.findOne({ where: { companyId: company.id } });
+    const financial = await this.financialRepo.findOne({
+      where: { companyId: company.id },
+    });
     return financial?.stockCode?.trim() || null;
   }
 
   async findCompany(idOrName: string): Promise<CompanyListItem | null> {
     const normalized = this.normalizeName(idOrName);
     const company = await this.repo.findOne({
-      where: [{ id: idOrName }, { normalizedName: normalized }, { name: idOrName }],
+      where: [
+        { id: idOrName },
+        { normalizedName: normalized },
+        { name: idOrName },
+      ],
     });
     if (!company) return null;
-
-    const analysis = await this.analysisRepo.findOne({
-      where: [{ companyId: company.id }, { companyKey: company.normalizedName }],
-      order: { updatedAt: 'DESC' },
-    });
-    return this.toListItem(company, analysis ?? null);
-  }
-
-  async getStockQuote(idOrName: string, interval: string = '1d'): Promise<CompanyStockQuote> {
-    const normalized = this.normalizeName(idOrName);
-    const company = await this.repo.findOne({
-      where: [{ id: idOrName }, { normalizedName: normalized }, { name: idOrName }],
-    });
-    if (!company) throw new NotFoundException('기업을 찾을 수 없습니다.');
-
-    const financial = await this.financialRepo.findOne({ where: { companyId: company.id } });
-    const stockCode = financial?.stockCode ?? null;
-    const fetchedAt = new Date().toISOString();
-
-    if (!stockCode?.trim()) {
-      return {
-        symbol: null,
-        stockCode: null,
-        companyName: company.name,
-        currency: null,
-        exchangeName: null,
-        regularMarketPrice: null,
-        previousClose: null,
-        change: null,
-        changePercent: null,
-        chart: [],
-        interval,
-        source: 'Yahoo Finance',
-        fetchedAt,
-        error: '저장된 종목코드가 없습니다.',
-      };
-    }
-
-    const candidates = this.stockSymbolCandidates(stockCode);
-    for (const symbol of candidates) {
-      const quote = await this.fetchYahooChart(symbol, company.name, stockCode, fetchedAt, interval).catch(() => null);
-      if (quote && quote.regularMarketPrice != null) return quote;
-    }
-
-    return {
-      symbol: candidates[0] ?? stockCode,
-      stockCode,
-      companyName: company.name,
-      currency: null,
-      exchangeName: null,
-      regularMarketPrice: null,
-      previousClose: null,
-      change: null,
-      changePercent: null,
-      chart: [],
-      interval,
-      source: 'Yahoo Finance',
-      fetchedAt,
-      error: '주식 데이터를 가져오지 못했습니다.',
-    };
-  }
-
-  async refreshMissing(idOrName: string, { force = false, signal }: { force?: boolean; signal?: AbortSignal } = {}): Promise<CompanyListItem> {
-    const normalized = this.normalizeName(idOrName);
-    const company = await this.repo.findOne({
-      where: [{ id: idOrName }, { normalizedName: normalized }, { name: idOrName }],
-    });
-    if (!company) {
-      throw new NotFoundException('기업을 찾을 수 없습니다.');
-    }
-
-    const results = await this.fetchAllSources(company.name, company.normalizedName, { force, signal });
-    const merged = this.mergeSources(results, null, null);
-
-    let changed = false;
-    const fill = <K extends keyof CompanyEntity>(key: K, value: CompanyEntity[K]) => {
-      if (!company[key] && value) {
-        company[key] = value;
-        changed = true;
-      }
-    };
-
-    fill('companyType', merged.companyType);
-    fill('employees', merged.employees);
-    fill('homeUrl', merged.homeUrl);
-    fill('address', merged.address);
-    fill('ceoName', merged.ceoName);
-    fill('corpCode', merged.corpCode);
-    fill('foundedDate', merged.foundedDate);
-
-    if (!company.source && merged.source) {
-      company.source = merged.source;
-      changed = true;
-    }
-
-    const existingSources = this.parseSources(company.sources);
-    const collectedSources = this.parseSources(merged.sources);
-    const nextSources = [...new Set([...existingSources, ...collectedSources])];
-    if (nextSources.length !== existingSources.length) {
-      company.sources = JSON.stringify(nextSources);
-      changed = true;
-    }
-
-    if (force && !company.companyType) {
-      company.refreshSkippedAt = new Date();
-      changed = true;
-    }
-
-    if (changed) {
-      await this.repo.save(company);
-    }
-
-    const analysis = await this.analysisRepo.findOne({
-      where: [{ companyId: company.id }, { companyKey: company.normalizedName }],
-      order: { updatedAt: 'DESC' },
-    });
-    return this.toListItem(company, analysis ?? null);
-  }
-
-  async findOrCreate(
-    companyName: string,
-    knownType?: string | null,
-    knownEmployees?: string | null,
-    signal?: AbortSignal,
-  ): Promise<CompanyEntity | null> {
-    if (!companyName?.trim()) return null;
-
-    const normalized = this.normalizeName(companyName);
-    const existing = await this.repo.findOne({ where: { normalizedName: normalized } });
-
-    if (existing) {
-      if (existing.source !== 'dart') {
-        return this.enrich(existing, knownType ?? null, knownEmployees ?? null, signal);
-      }
-      let changed = false;
-      if (!existing.companyType && knownType) {
-        existing.companyType = knownType;
-        this.addSource(existing, 'jobSite');
-        changed = true;
-      }
-      if (!existing.employees && knownEmployees) {
-        existing.employees = knownEmployees;
-        this.addSource(existing, 'jobSite');
-        changed = true;
-      }
-      if (changed) await this.repo.save(existing);
-      return existing;
-    }
-
-    return this.createNew(companyName, normalized, knownType ?? null, knownEmployees ?? null, signal);
-  }
-
-  // ── 신규 생성 ──────────────────────────────────────────────────────────
-
-  private async createNew(
-    companyName: string,
-    normalizedName: string,
-    knownType: string | null,
-    knownEmployees: string | null = null,
-    signal?: AbortSignal,
-  ): Promise<CompanyEntity | null> {
-    const results = await this.fetchAllSources(companyName, normalizedName, { signal });
-    const merged = this.mergeSources(results, knownType, knownEmployees);
-
-    const entity = this.repo.create({
-      ...merged,
-      id: randomUUID(),
-      normalizedName,
-      name: companyName,
-    });
-
-    try {
-      await this.repo.save(entity);
-      this.logger.log(`[Company] 저장 — "${companyName}" (type: ${entity.companyType ?? 'null'}, sources: ${entity.sources})`);
-      return entity;
-    } catch {
-      return await this.repo.findOne({ where: { normalizedName } }) ?? null;
-    }
-  }
-
-  // ── 기존 레코드 보완 ───────────────────────────────────────────────────
-
-  private async enrich(entity: CompanyEntity, knownType: string | null, knownEmployees: string | null = null, signal?: AbortSignal): Promise<CompanyEntity> {
-    const results = await this.fetchAllSources(entity.name, this.normalizeName(entity.name), { signal });
-    const merged = this.mergeSources(results, knownType, knownEmployees);
-
-    // 기존값이 더 신뢰도 높은 소스에서 온 경우 유지
-    const existingPriority = SOURCE_PRIORITY[entity.source ?? 'manual'] ?? 0;
-    const newPriority = SOURCE_PRIORITY[merged.source ?? 'manual'] ?? 0;
-
-    if (merged.companyType && (!entity.companyType || newPriority >= existingPriority)) {
-      entity.companyType = merged.companyType;
-      entity.source = merged.source;
-    }
-    // 빈 필드는 새 데이터로 보완
-    if (!entity.employees && merged.employees) entity.employees = merged.employees;
-    if (!entity.homeUrl && merged.homeUrl) entity.homeUrl = merged.homeUrl;
-    if (!entity.address && merged.address) entity.address = merged.address;
-    if (!entity.ceoName && merged.ceoName) entity.ceoName = merged.ceoName;
-    if (!entity.corpCode && merged.corpCode) entity.corpCode = merged.corpCode;
-    if (!entity.foundedDate && merged.foundedDate) entity.foundedDate = merged.foundedDate;
-    if (!entity.industry && merged.industry) entity.industry = merged.industry;
-    if (!entity.dartUrl && merged.dartUrl) entity.dartUrl = merged.dartUrl;
-
-    // sources 배열 통합
-    const existing = this.parseSources(entity.sources);
-    const added = this.parseSources(merged.sources);
-    entity.sources = JSON.stringify([...new Set([...existing, ...added])]);
-
-    await this.repo.save(entity);
-    this.logger.log(`[Company] 보완 — "${entity.name}" (type: ${entity.companyType ?? 'null'}, sources: ${entity.sources})`);
-    return entity;
-  }
-
-  // ── 전체 소스 조회 ─────────────────────────────────────────────────────
-
-  private cleanSearchName(name: string): string {
-    const cleaned = name
-      .replace(/\(주\)|㈜|\(유\)|㈔|주식회사|유한회사|합자회사|합명회사|재단법인|사단법인/gi, '')
-      .replace(/[\s()（）\[\]]/g, '')
-      .trim();
-    return cleaned || name;
-  }
-
-  private inferTypeFromName(name: string): string | null {
-    if (/병원|의원|클리닉|한의원|요양원|치과/.test(name)) return '병원';
-    if (/학교|대학교|대학원|초등학교|중학교|고등학교|유치원|어린이집/.test(name)) return '학교';
-    if (/공단|공사|공기업|지방공기업/.test(name)) return '공공기관';
-    if (/재단법인|사단법인|재단|협회|연구원|연구소/.test(name)) return '공공기관';
-    return null;
-  }
-
-  private async fetchAllSources(
-    companyName: string,
-    companyKey: string,
-    { force = false, signal }: { force?: boolean; signal?: AbortSignal } = {},
-  ): Promise<{ source: string; result: Partial<EnrichResult> }[]> {
-    const searchName = this.cleanSearchName(companyName);
-    const dartApiKey = await this.getDartApiKey();
-    const collected: { source: string; result: Partial<EnrichResult> }[] = [];
-
-    // 0순위: 기업명 자체에서 타입 추론 (즉시)
-    const nameType = this.inferTypeFromName(companyName);
-    if (nameType) {
-      collected.push({ source: 'name-inference', result: { companyType: nameType } });
-    }
-
-    // 1~6순위: 모든 외부 소스 병렬 실행
-    const abort = <T>(p: Promise<T>): Promise<T> => {
-      if (!signal) return p;
-      if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
-      return new Promise<T>((resolve, reject) => {
-        const onAbort = () => reject(new DOMException('Aborted', 'AbortError'));
-        signal.addEventListener('abort', onAbort, { once: true });
-        p.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
-      });
-    };
-
-    const [dartR, wikiR, jkR, jasR, jpInfoR, jpCacheR] = await Promise.allSettled([
-      // DART
-      abort(dartApiKey
-        ? this.dartFinancial.fetchCompanyData(searchName, dartApiKey)
-        : Promise.resolve(null)),
-      // 나무위키
-      abort(this.namuWiki.fetchCompanyInfo(searchName, { force })),
-      // 잡코리아
-      abort(this.jobkorea.fetchCompanyInfo(searchName, { force })),
-      // 자소설닷컴
-      abort(this.jasoseol.fetchCompanyInfo(searchName, { force })),
-      // 잡플래닛 (공개 기업정보)
-      abort(this.jobplanetInfo.fetchCompanyInfo(searchName, { force })),
-      // 잡플래닛 캐시 (기존 리뷰 데이터)
-      abort(this.inferFromJobplanetCache(companyKey)),
+    const [analysis, financial] = await Promise.all([
+      this.analysisRepo.findOne({
+        where: [
+          { companyId: company.id },
+          { companyKey: company.normalizedName },
+        ],
+        order: { updatedAt: 'DESC' },
+      }),
+      this.financialRepo.findOne({
+        where: { companyId: company.id },
+      }),
     ]);
-
-    if (dartR.status === 'fulfilled' && dartR.value) {
-      const dartData = dartR.value;
-      const companyType = this.inferCompanyType(dartData.corpClass, dartData.stockCode, dartData.employees);
-      collected.push({
-        source: 'dart',
-        result: {
-          companyType,
-          employees: dartData.employees,
-          homeUrl: dartData.homeUrl,
-          address: dartData.address,
-          ceoName: dartData.ceoName,
-          foundedDate: dartData.foundedDate,
-          corpCode: dartData.corpCode,
-          dartUrl: dartData.dartUrl,
-        },
-      });
-    } else if (dartR.status === 'rejected') {
-      this.logger.warn(`[Company] DART 실패 — "${companyName}": ${dartR.reason}`);
-    }
-
-    if (wikiR.status === 'fulfilled' && wikiR.value) {
-      const wiki = wikiR.value;
-      collected.push({
-        source: 'namu-wiki',
-        result: { companyType: wiki.companyType, employees: wiki.employees, foundedDate: wiki.foundedDate },
-      });
-    }
-
-    if (jkR.status === 'fulfilled' && jkR.value) {
-      const jk = jkR.value;
-      collected.push({
-        source: 'jobkorea',
-        result: {
-          companyType: jk.companyType,
-          employees: jk.employees,
-          foundedDate: jk.foundedDate,
-          address: jk.address,
-          homeUrl: jk.homeUrl,
-          industry: jk.industry,
-        },
-      });
-    }
-
-    if (jasR.status === 'fulfilled' && jasR.value) {
-      const jas = jasR.value;
-      collected.push({
-        source: 'jasoseol',
-        result: {
-          companyType: jas.companyType,
-          employees: jas.employees,
-          foundedDate: jas.foundedDate,
-          address: jas.address,
-          industry: jas.industry,
-        },
-      });
-    }
-
-    if (jpInfoR.status === 'fulfilled' && jpInfoR.value) {
-      const jp = jpInfoR.value;
-      collected.push({
-        source: 'jobplanet-info',
-        result: { companyType: jp.companyType, employees: jp.employees, industry: jp.industry },
-      });
-    }
-
-    if (jpCacheR.status === 'fulfilled' && jpCacheR.value) {
-      collected.push({ source: 'jobplanet', result: { companyType: jpCacheR.value } });
-    }
-
-    if (collected.length > 0) {
-      const summary = collected
-        .map(({ source, result }) => {
-          const parts: string[] = [];
-          if (result.companyType) parts.push(`type=${result.companyType}`);
-          if (result.employees) parts.push(`emp=${result.employees}`);
-          if (result.industry) parts.push(`ind=${result.industry}`);
-          return `${source}(${parts.join(',') || '일부'})`;
-        })
-        .join(' | ');
-      this.logger.log(`[Company] 조회 결과 — "${companyName}": ${summary}`);
-    } else {
-      this.logger.warn(`[Company] 모든 소스 실패 — "${companyName}"`);
-    }
-
-    return collected;
-  }
-
-  // ── 소스별 결과를 우선순위에 따라 병합 ────────────────────────────────
-
-  private mergeSources(
-    results: { source: string; result: Partial<EnrichResult> }[],
-    knownType: string | null,
-    knownEmployees: string | null = null,
-  ): CompanyEntity & { sources: string } {
-    const hasJobSiteData = !!(knownType || knownEmployees);
-    const merged: Partial<CompanyEntity> & { source: string; sources: string } = {
-      companyType: knownType,
-      employees: knownEmployees,
-      homeUrl: null,
-      address: null,
-      ceoName: null,
-      foundedDate: null,
-      corpCode: null,
-      industry: null,
-      dartUrl: null,
-      source: hasJobSiteData ? 'jobSite' : 'manual',
-      sources: hasJobSiteData ? JSON.stringify(['jobSite']) : JSON.stringify([]),
-    };
-
-    const usedSources: string[] = hasJobSiteData ? ['jobSite'] : [];
-
-    // 높은 우선순위 순으로 정렬
-    const sorted = [...results].sort(
-      (a, b) => (SOURCE_PRIORITY[b.source] ?? 0) - (SOURCE_PRIORITY[a.source] ?? 0),
+    return this.toListItem(
+      company,
+      analysis ?? null,
+      financial?.stockCode ?? null,
     );
-
-    for (const { source, result } of sorted) {
-      usedSources.push(source);
-      const priority = SOURCE_PRIORITY[source] ?? 0;
-      const currentPriority = SOURCE_PRIORITY[merged.source] ?? 0;
-
-      // companyType: 더 신뢰도 높은 소스 우선
-      if (result.companyType && (!merged.companyType || priority > currentPriority)) {
-        merged.companyType = result.companyType;
-        merged.source = source;
-      }
-      // 나머지 필드: 비어 있으면 채움
-      if (!merged.employees && result.employees) merged.employees = result.employees;
-      if (!merged.homeUrl && result.homeUrl) merged.homeUrl = result.homeUrl;
-      if (!merged.address && result.address) merged.address = result.address;
-      if (!merged.ceoName && result.ceoName) merged.ceoName = result.ceoName;
-      if (!merged.foundedDate && result.foundedDate) merged.foundedDate = result.foundedDate;
-      if (!merged.corpCode && result.corpCode) merged.corpCode = result.corpCode;
-      if (!merged.industry && result.industry) merged.industry = result.industry;
-      if (!merged.dartUrl && result.dartUrl) merged.dartUrl = result.dartUrl;
-    }
-
-    merged.sources = JSON.stringify([...new Set(usedSources)]);
-    return merged as CompanyEntity & { sources: string };
   }
 
-  // ── 잡플래닛 캐시 파싱 ───────────────────────────────────────────────
-
-  private async inferFromJobplanetCache(companyKey: string): Promise<string | null> {
-    try {
-      const rate = await this.rateRepo.findOne({ where: { companyKey } });
-      if (!rate?.summary) return null;
-      return this.parseJobplanetCompanyType(rate.summary);
-    } catch {
-      return null;
-    }
-  }
-
-  private parseJobplanetCompanyType(summary: string): string | null {
-    const patterns: { re: RegExp; type: string }[] = [
-      { re: /기업\s*규모\s*[:\n\s]*(대기업)/,            type: '대기업' },
-      { re: /기업\s*규모\s*[:\n\s]*(중견기업)/,           type: '중견기업' },
-      { re: /기업\s*규모\s*[:\n\s]*(중소기업)/,           type: '중소기업' },
-      { re: /기업\s*규모\s*[:\n\s]*(외국계)/,             type: '외국계기업' },
-      { re: /기업\s*규모\s*[:\n\s]*(공공기관|공기업)/,    type: '공공기관' },
-    ];
-    for (const { re, type } of patterns) {
-      if (re.test(summary)) return type;
-    }
-    const empM = summary.match(/직원\s*수?\s*[:\n\s]*(?:약\s*)?(\d[\d,]+)\s*명/);
-    if (empM) {
-      const count = parseInt(empM[1].replace(/,/g, ''), 10);
-      if (count >= 5000) return '대기업';
-      if (count >= 1000) return '중견기업';
-      if (count >= 100) return '중소기업';
-    }
-    return null;
-  }
-
-  // ── 유틸 ──────────────────────────────────────────────────────────────
-
-  private addSource(entity: CompanyEntity, source: string): void {
-    const list = this.parseSources(entity.sources);
-    if (!list.includes(source)) {
-      entity.sources = JSON.stringify([...list, source]);
-    }
-    if (!entity.source) entity.source = source;
-  }
-
-  private parseSources(raw: string | null): string[] {
-    if (!raw) return [];
-    try { return JSON.parse(raw) as string[]; } catch { return [raw]; }
-  }
-
-  private async getDartApiKey(): Promise<string | null> {
-    try {
-      const rows = await this.dataSource.query(
-        `SELECT dart_api_key FROM users WHERE dart_api_key IS NOT NULL AND dart_api_key != '' LIMIT 1`,
-      ) as { dart_api_key: string }[];
-      return rows[0]?.dart_api_key ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  private inferCompanyType(
-    corpClass: string | null,
-    stockCode: string | null,
-    employeesStr: string | null,
-  ): string | null {
-    if (!corpClass) return null;
-    const employees = this.parseEmployeeCount(employeesStr);
-
-    if (corpClass === 'Y') {
-      if (employees !== null) return employees >= 1000 ? '대기업' : '중견기업';
-      return stockCode ? '대기업' : '중견기업';
-    }
-    if (corpClass === 'K' || corpClass === 'N') {
-      if (employees !== null && employees >= 1000) return '중견기업';
-      return '중소기업';
-    }
-    if (corpClass === 'E') {
-      if (employees !== null) {
-        if (employees >= 5000) return '대기업';
-        if (employees >= 1000) return '중견기업';
-        if (employees >= 100) return '중소기업';
-      }
-      return null;
-    }
-    return null;
-  }
-
-  private parseEmployeeCount(str: string | null): number | null {
-    if (!str) return null;
-    const num = parseInt(str.replace(/[^0-9]/g, ''), 10);
-    return isNaN(num) ? null : num;
-  }
-
-  async getMissingStats(): Promise<{ total: number; missingCompanyType: number; missingEmployees: number }> {
+  async getMissingStats(): Promise<{
+    total: number;
+    missingCompanyType: number;
+    missingEmployees: number;
+  }> {
     const [total, missingCompanyType, missingEmployees] = await Promise.all([
       this.repo.count(),
       this.repo.count({ where: { companyType: IsNull() } }),
@@ -728,12 +472,25 @@ export class CompanyService {
 
   async patchFromAnalysis(
     companyId: string,
-    fields: Partial<Pick<CompanyEntity, 'homeUrl' | 'address' | 'dartUrl' | 'ceoName' | 'foundedDate' | 'industry'>>,
+    fields: Partial<
+      Pick<
+        CompanyEntity,
+        | 'homeUrl'
+        | 'address'
+        | 'dartUrl'
+        | 'ceoName'
+        | 'foundedDate'
+        | 'industry'
+      >
+    >,
   ): Promise<void> {
     const entity = await this.repo.findOne({ where: { id: companyId } });
     if (!entity) return;
     let changed = false;
-    for (const [k, v] of Object.entries(fields) as [keyof typeof fields, string | null][]) {
+    for (const [k, v] of Object.entries(fields) as [
+      keyof typeof fields,
+      string | null,
+    ][]) {
       if (v && !entity[k]) {
         (entity as unknown as Record<string, unknown>)[k] = v;
         changed = true;
@@ -767,7 +524,11 @@ export class CompanyService {
     });
   }
 
-  private toListItem(company: CompanyEntity, analysis: CompanyAnalysisEntity | null): CompanyListItem {
+  toListItem(
+    company: CompanyEntity,
+    analysis: CompanyAnalysisEntity | null,
+    stockCode: string | null = null,
+  ): CompanyListItem {
     return {
       id: company.id,
       normalizedName: company.normalizedName,
@@ -779,7 +540,7 @@ export class CompanyService {
       homeUrl: company.homeUrl,
       ceoName: company.ceoName,
       corpCode: company.corpCode,
-      stockCode: null,
+      stockCode: stockCode ?? null,
       industry: company.industry ?? null,
       source: company.source,
       sources: this.parseSources(company.sources),
@@ -789,149 +550,6 @@ export class CompanyService {
       analysisSummary: analysis?.summary ?? null,
       createdAt: company.createdAt,
       updatedAt: company.updatedAt,
-    };
-  }
-
-  private stockSymbolCandidates(stockCode: string): string[] {
-    const code = stockCode.trim();
-    if (!code) return [];
-    if (/[.]/.test(code) || /[A-Za-z]/.test(code)) return [code.toUpperCase()];
-    const sixDigit = code.padStart(6, '0');
-    return [`${sixDigit}.KS`, `${sixDigit}.KQ`, sixDigit];
-  }
-
-  private intervalConfig(interval: string): { yahooInterval: string; range: string; aggregate: number } {
-    switch (interval) {
-      case '15m': return { yahooInterval: '15m', range: '5d', aggregate: 1 };
-      case '1h':  return { yahooInterval: '60m', range: '1mo', aggregate: 1 };
-      case '4h':  return { yahooInterval: '60m', range: '1mo', aggregate: 4 };
-      case '1w':  return { yahooInterval: '1wk', range: '1y', aggregate: 1 };
-      default:    return { yahooInterval: '1d', range: '3mo', aggregate: 1 };
-    }
-  }
-
-  private formatCandleDate(timestamp: number, intraday: boolean): string {
-    const d = new Date(timestamp * 1000);
-    if (!intraday) return d.toISOString().slice(0, 10);
-    // KST = UTC+9
-    const kst = new Date(d.getTime() + 9 * 3600 * 1000);
-    return kst.toISOString().slice(0, 16).replace('T', ' ');
-  }
-
-  private async fetchYahooChart(
-    symbol: string,
-    companyName: string,
-    stockCode: string,
-    fetchedAt: string,
-    interval: string = '1d',
-  ): Promise<CompanyStockQuote> {
-    const { yahooInterval, range, aggregate } = this.intervalConfig(interval);
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=${yahooInterval}`;
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 ResearchAI/1.0', Accept: 'application/json' },
-    });
-    if (!response.ok) throw new Error(`Yahoo Finance 응답 오류: ${response.status}`);
-
-    const payload = await response.json() as {
-      chart?: {
-        result?: Array<{
-          meta?: {
-            currency?: string;
-            exchangeName?: string;
-            regularMarketPrice?: number;
-            previousClose?: number;
-            chartPreviousClose?: number;
-          };
-          timestamp?: number[];
-          indicators?: {
-            quote?: Array<{
-              open?: Array<number | null>;
-              high?: Array<number | null>;
-              low?: Array<number | null>;
-              close?: Array<number | null>;
-              volume?: Array<number | null>;
-            }>;
-          };
-        }>;
-      };
-    };
-
-    const result = payload.chart?.result?.[0];
-    if (!result) throw new Error('Yahoo Finance 데이터 없음');
-
-    const meta = result.meta ?? {};
-    const previousClose = meta.previousClose ?? meta.chartPreviousClose ?? null;
-    const regularMarketPrice = typeof meta.regularMarketPrice === 'number' ? meta.regularMarketPrice : null;
-    const change = regularMarketPrice != null && previousClose != null ? regularMarketPrice - previousClose : null;
-    const changePercent = change != null && previousClose ? (change / previousClose) * 100 : null;
-
-    const q        = result.indicators?.quote?.[0] ?? {};
-    const opens    = q.open   ?? [];
-    const highs    = q.high   ?? [];
-    const lows     = q.low    ?? [];
-    const closes   = q.close  ?? [];
-    const volumes  = q.volume ?? [];
-    const timestamps = result.timestamp ?? [];
-    const intraday = ['15m', '1h', '4h'].includes(interval);
-
-    const num = (arr: Array<number | null | undefined>, i: number): number | null => {
-      const v = arr[i];
-      return typeof v === 'number' ? v : null;
-    };
-
-    type Candle = { date: string; open: number | null; high: number | null; low: number | null; close: number; volume: number | null };
-
-    const raw: Candle[] = timestamps
-      .map((ts, i) => {
-        const close = closes[i];
-        if (typeof close !== 'number') return null;
-        return {
-          date:   this.formatCandleDate(ts, intraday),
-          open:   num(opens,   i),
-          high:   num(highs,   i),
-          low:    num(lows,    i),
-          close,
-          volume: num(volumes, i),
-        };
-      })
-      .filter((c): c is Candle => c !== null);
-
-    // 4h 집계: 1h 캔들 4개씩 묶기
-    const chart: Candle[] =
-      aggregate > 1
-        ? raw.reduce<Candle[]>((acc, candle, i) => {
-            if (i % aggregate === 0) {
-              const group = raw.slice(i, i + aggregate);
-              const vol = group.reduce<number | null>((s, g) => (g.volume != null ? (s ?? 0) + g.volume : s), null);
-              const highs2 = group.map((g) => g.high).filter((v): v is number => v != null);
-              const lows2  = group.map((g) => g.low).filter((v): v is number => v != null);
-              acc.push({
-                date:   candle.date,
-                open:   candle.open,
-                high:   highs2.length ? Math.max(...highs2) : null,
-                low:    lows2.length  ? Math.min(...lows2)  : null,
-                close:  group[group.length - 1].close,
-                volume: vol,
-              });
-            }
-            return acc;
-          }, [])
-        : raw;
-
-    return {
-      symbol,
-      stockCode,
-      companyName,
-      currency: meta.currency ?? null,
-      exchangeName: meta.exchangeName ?? null,
-      regularMarketPrice,
-      previousClose,
-      change,
-      changePercent,
-      chart,
-      interval,
-      source: 'Yahoo Finance',
-      fetchedAt,
     };
   }
 }

@@ -1,7 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { load } from 'cheerio';
-import { PuppeteerService } from '../../browse/infrastructure/puppeteer.service';
-import { SessionGateway } from '../../sessions/presentation/session.gateway';
+import { PuppeteerService } from 'src/browse/infrastructure/puppeteer.service';
+import { SessionGateway } from 'src/sessions/presentation/session.gateway';
 
 export interface JasoseolCompanyInfo {
   companyType: string | null;
@@ -12,21 +12,24 @@ export interface JasoseolCompanyInfo {
 }
 
 const TYPE_MAP: Record<string, string> = {
-  '대기업': '대기업',
-  '중견기업': '중견기업',
-  '중소기업': '중소기업',
-  '공공기관': '공공기관',
-  '공기업': '공공기관',
-  '외국계': '외국계기업',
-  '금융': '금융기관',
-  '스타트업': '중소기업',
-  '벤처': '중소기업',
+  대기업: '대기업',
+  중견기업: '중견기업',
+  중소기업: '중소기업',
+  공공기관: '공공기관',
+  공기업: '공공기관',
+  외국계: '외국계기업',
+  금융: '금융기관',
+  스타트업: '중소기업',
+  벤처: '중소기업',
 };
 
 const MIN_INTERVAL_MS = 3000;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-interface CacheEntry { result: JasoseolCompanyInfo | null; cachedAt: number }
+interface CacheEntry {
+  result: JasoseolCompanyInfo | null;
+  cachedAt: number;
+}
 
 @Injectable()
 export class JasoseolCompanyService {
@@ -51,11 +54,15 @@ export class JasoseolCompanyService {
     };
   }
 
-  async fetchCompanyInfo(companyName: string, { force = false } = {}): Promise<JasoseolCompanyInfo | null> {
+  async fetchCompanyInfo(
+    companyName: string,
+    { force = false } = {},
+  ): Promise<JasoseolCompanyInfo | null> {
     const key = companyName.trim().toLowerCase();
     if (!force) {
       const cached = this.cache.get(key);
-      if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) return cached.result;
+      if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS)
+        return cached.result;
     }
 
     this.pendingCount++;
@@ -77,20 +84,31 @@ export class JasoseolCompanyService {
         this.gateway?.updateDataSourceStatus(this.getStatus());
       }
     });
-    this.queue = next.then(() => undefined, () => undefined);
+    this.queue = next.then(
+      () => undefined,
+      () => undefined,
+    );
     return next;
   }
 
-  private async fetchWithDelay(companyName: string): Promise<JasoseolCompanyInfo | null> {
+  private async fetchWithDelay(
+    companyName: string,
+  ): Promise<JasoseolCompanyInfo | null> {
     const elapsed = Date.now() - this.lastRequestAt;
-    if (elapsed < MIN_INTERVAL_MS) await new Promise((r) => setTimeout(r, MIN_INTERVAL_MS - elapsed));
+    if (elapsed < MIN_INTERVAL_MS)
+      await new Promise((r) => setTimeout(r, MIN_INTERVAL_MS - elapsed));
     this.lastRequestAt = Date.now();
     return this.doFetch(companyName);
   }
 
-  private async doFetch(companyName: string): Promise<JasoseolCompanyInfo | null> {
+  private async doFetch(
+    companyName: string,
+  ): Promise<JasoseolCompanyInfo | null> {
     const url = `https://jasoseol.com/companies?keyword=${encodeURIComponent(companyName)}`;
-    const html = await this.puppeteer.fetchRenderedHtml(url, '[class*="company"], [class*="Corp"]');
+    const html = await this.puppeteer.fetchRenderedHtml(
+      url,
+      '[class*="company"], [class*="Corp"]',
+    );
     if (!html) {
       this.logger.warn(`[Jasoseol] 렌더링 실패 — "${companyName}"`);
       return null;
@@ -100,12 +118,17 @@ export class JasoseolCompanyService {
 
   private parse(html: string, companyName: string): JasoseolCompanyInfo | null {
     const $ = load(html);
-    const norm = (s: string) => s.replace(/[\s(주)㈜주식회사]/g, '').toLowerCase();
+    const norm = (s: string) =>
+      s.replace(/[\s(주)㈜주식회사]/g, '').toLowerCase();
     const target = norm(companyName);
 
     let matched: ReturnType<typeof $> | null = null;
     $('[class*="company"], [class*="Corp"], li').each((_, el) => {
-      const name = $(el).find('h2, h3, [class*="name"], [class*="title"]').first().text().trim();
+      const name = $(el)
+        .find('h2, h3, [class*="name"], [class*="title"]')
+        .first()
+        .text()
+        .trim();
       if (!name) return;
       if (norm(name).includes(target) || target.includes(norm(name))) {
         matched = $(el);
@@ -114,7 +137,9 @@ export class JasoseolCompanyService {
     });
 
     if (!matched) {
-      const first = $('[class*="company"]:has(h2), [class*="company"]:has(h3)').first();
+      const first = $(
+        '[class*="company"]:has(h2), [class*="company"]:has(h3)',
+      ).first();
       if (first.length) matched = first;
     }
 
@@ -123,7 +148,7 @@ export class JasoseolCompanyService {
       return null;
     }
 
-    const text = (matched as ReturnType<typeof $>).text();
+    const text = matched.text();
     const info: JasoseolCompanyInfo = {
       companyType: null,
       employees: null,
@@ -145,7 +170,7 @@ export class JasoseolCompanyService {
     const foundedM = text.match(/설립\s*[:\s]*(\d{4})/);
     if (foundedM) info.foundedDate = foundedM[1];
 
-    const industryEl = (matched as ReturnType<typeof $>).find('[class*="industry"], [class*="category"]');
+    const industryEl = matched.find('[class*="industry"], [class*="category"]');
     if (industryEl.length) info.industry = industryEl.text().trim() || null;
 
     if (!info.companyType && !info.employees) {

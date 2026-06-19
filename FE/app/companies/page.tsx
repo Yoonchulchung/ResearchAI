@@ -26,6 +26,166 @@ function metadata(company: CompanyListItem) {
     .join(" · ") || "기업 정보";
 }
 
+function getRepresentativeCategory(industry: string | null | undefined): string {
+  if (!industry) return "기타";
+  const ind = industry.toLowerCase().replace(/\s/g, "");
+  
+  if (
+    ind.includes("소프트웨어") ||
+    ind.includes("컴퓨터") ||
+    ind.includes("정보") ||
+    ind.includes("통신") ||
+    ind.includes("포털") ||
+    ind.includes("it") ||
+    ind.includes("프로그래밍") ||
+    ind.includes("네트워크") ||
+    ind.includes("게임") ||
+    ind.includes("인터넷") ||
+    ind.includes("플랫폼")
+  ) {
+    return "IT / 정보통신";
+  }
+  
+  if (
+    ind.includes("제조") ||
+    ind.includes("화학") ||
+    ind.includes("철강") ||
+    ind.includes("조선") ||
+    ind.includes("반도체") ||
+    ind.includes("자동차") ||
+    ind.includes("부품") ||
+    ind.includes("기계") ||
+    ind.includes("금속") ||
+    ind.includes("장비") ||
+    ind.includes("전자제품") ||
+    ind.includes("전기") ||
+    ind.includes("의류") ||
+    ind.includes("식품") ||
+    ind.includes("제과") ||
+    ind.includes("화장품") ||
+    ind.includes("패션")
+  ) {
+    return "제조 / 생산";
+  }
+  
+  if (
+    ind.includes("금융") ||
+    ind.includes("은행") ||
+    ind.includes("증권") ||
+    ind.includes("보험") ||
+    ind.includes("투자") ||
+    ind.includes("자산") ||
+    ind.includes("카드") ||
+    ind.includes("캐피탈")
+  ) {
+    return "금융 / 보험";
+  }
+  
+  if (
+    ind.includes("바이오") ||
+    ind.includes("제약") ||
+    ind.includes("의약") ||
+    ind.includes("의료") ||
+    ind.includes("헬스케어") ||
+    ind.includes("병원") ||
+    ind.includes("생명공학")
+  ) {
+    return "바이오 / 제약";
+  }
+  
+  if (
+    ind.includes("유통") ||
+    ind.includes("물류") ||
+    ind.includes("무역") ||
+    ind.includes("도매") ||
+    ind.includes("소매") ||
+    ind.includes("판매") ||
+    ind.includes("상사") ||
+    ind.includes("커머스") ||
+    ind.includes("쇼핑") ||
+    ind.includes("백화점") ||
+    ind.includes("마트") ||
+    ind.includes("편의점")
+  ) {
+    return "유통 / 물류 / 무역";
+  }
+  
+  if (
+    ind.includes("건설") ||
+    ind.includes("부동산") ||
+    ind.includes("토목") ||
+    ind.includes("건축") ||
+    ind.includes("시공") ||
+    ind.includes("개발") && (ind.includes("시행") || ind.includes("공급"))
+  ) {
+    return "건설 / 부동산";
+  }
+  
+  if (
+    ind.includes("엔터") ||
+    ind.includes("미디어") ||
+    ind.includes("콘텐츠") ||
+    ind.includes("영화") ||
+    ind.includes("방송") ||
+    ind.includes("출판") ||
+    ind.includes("인쇄") ||
+    ind.includes("문화") ||
+    ind.includes("예술") ||
+    ind.includes("여행") ||
+    ind.includes("관광") ||
+    ind.includes("레저") ||
+    ind.includes("호텔")
+  ) {
+    return "미디어 / 엔터 / 관광";
+  }
+  
+  if (
+    ind.includes("교육") ||
+    ind.includes("학원") ||
+    ind.includes("학교") ||
+    ind.includes("대학")
+  ) {
+    return "교육 / 학술";
+  }
+  
+  if (
+    ind.includes("에너지") ||
+    ind.includes("환경") ||
+    ind.includes("발전") ||
+    ind.includes("가스") ||
+    ind.includes("전력") ||
+    ind.includes("자원") ||
+    ind.includes("정유") ||
+    ind.includes("유전")
+  ) {
+    return "에너지 / 환경";
+  }
+  
+  if (
+    ind.includes("경영") ||
+    ind.includes("컨설팅") ||
+    ind.includes("광고") ||
+    ind.includes("디자인") ||
+    ind.includes("법률") ||
+    ind.includes("회계") ||
+    ind.includes("세무") ||
+    ind.includes("번역") ||
+    ind.includes("서비스") ||
+    ind.includes("인력") ||
+    ind.includes("헤드헌팅") ||
+    ind.includes("시설") ||
+    ind.includes("연구") ||
+    ind.includes("공공") ||
+    ind.includes("단체")
+  ) {
+    return "경영 / 서비스";
+  }
+
+  return "기타";
+}
+
+
+
 function CompaniesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -44,6 +204,33 @@ function CompaniesContent() {
   const [collectEnabled, setCollectEnabled] = useState(true);
   const [collectToggling, setCollectToggling] = useState(false);
 
+  const [selectedIndustries, setSelectedIndustries] = useState<string[]>([]);
+  const [unfilteredCompanies, setUnfilteredCompanies] = useState<CompanyListItem[]>([]);
+
+  const industries = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of unfilteredCompanies) {
+      const category = getRepresentativeCategory(c.industry);
+      set.add(category);
+    }
+    const list = Array.from(set).sort();
+    // '기타'를 맨 뒤로 이동
+    const otherIndex = list.indexOf("기타");
+    if (otherIndex > -1) {
+      list.splice(otherIndex, 1);
+      list.push("기타");
+    }
+    return list;
+  }, [unfilteredCompanies]);
+
+  const filteredAnalyzedCount = useMemo(() => {
+    return companies.filter((company) => company.hasAnalysis).length;
+  }, [companies]);
+
+  const unfilteredAnalyzedCount = useMemo(() => {
+    return unfilteredCompanies.filter((company) => company.hasAnalysis).length;
+  }, [unfilteredCompanies]);
+
   const pageClass = isGlass
     ? "bg-transparent"
     : isDark
@@ -56,7 +243,7 @@ function CompaniesContent() {
       : "border-slate-200 bg-white";
   const subtleText = isDark ? "text-white/55" : "text-slate-500";
 
-  const loadCompanies = async (q = query) => {
+  const loadCompanies = async (q = query, inds = selectedIndustries) => {
     setLoading(true);
     setError("");
     try {
@@ -64,8 +251,12 @@ function CompaniesContent() {
         q,
         hasAnalysis: onlyAnalyzed ? true : undefined,
         limit: 500,
+        industry: inds.length > 0 ? inds.join(",") : undefined,
       });
       setCompanies(items);
+      if (inds.length === 0) {
+        setUnfilteredCompanies(items);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "기업 목록을 불러오지 못했습니다.");
       setCompanies([]);
@@ -75,8 +266,8 @@ function CompaniesContent() {
   };
 
   useEffect(() => {
-    loadCompanies(query);
-  }, [onlyAnalyzed]);
+    loadCompanies(query, selectedIndustries);
+  }, [onlyAnalyzed, selectedIndustries]);
 
   useEffect(() => {
     getMissingStats().then(setMissingStats).catch(() => {});
@@ -112,11 +303,13 @@ function CompaniesContent() {
     }
   };
 
-  const analyzedCount = useMemo(() => companies.filter((company) => company.hasAnalysis).length, [companies]);
-
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    loadCompanies(query.trim());
+    if (selectedIndustries.length > 0) {
+      setSelectedIndustries([]);
+    } else {
+      loadCompanies(query.trim(), []);
+    }
   };
 
   const openAnalysis = (company: CompanyListItem) => {
@@ -128,9 +321,9 @@ function CompaniesContent() {
   };
 
   return (
-    <main className={`h-full overflow-y-auto ${pageClass}`}>
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
-        <section className={`rounded-md border p-5 ${panelClass}`}>
+    <main className={`h-full lg:overflow-hidden flex flex-col ${pageClass}`}>
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8 min-h-full lg:h-full lg:flex-1 lg:min-h-0">
+        <section className={`rounded-md border p-5 shrink-0 ${panelClass}`}>
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className={`text-sm font-semibold ${subtleText}`}>Companies</p>
@@ -184,19 +377,70 @@ function CompaniesContent() {
               </button>
             </div>
           </form>
+
+          <div className="mt-5 border-t border-slate-200/60 dark:border-white/10 pt-4">
+            <p className={`text-xs font-bold uppercase tracking-widest mb-3 ${subtleText}`}>직종 분류</p>
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+              <button
+                type="button"
+                onClick={() => setSelectedIndustries([])}
+                className={`flex items-center gap-2 shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold border transition-all duration-200 ${
+                  selectedIndustries.length === 0
+                    ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/20"
+                    : isDark
+                      ? "border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <span>전체 직종</span>
+              </button>
+
+              {industries.map((ind) => {
+                const active = selectedIndustries.includes(ind);
+                return (
+                  <button
+                    key={ind}
+                    type="button"
+                    onClick={() => {
+                      setSelectedIndustries((prev) =>
+                        prev.includes(ind) ? prev.filter((x) => x !== ind) : [...prev, ind]
+                      );
+                    }}
+                    className={`flex items-center gap-2 shrink-0 rounded-lg px-3.5 py-2 text-xs font-bold border transition-all duration-200 ${
+                      active
+                        ? "bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/20"
+                        : isDark
+                          ? "border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <span>{ind}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[15rem_1fr]">
-          <aside className={`flex flex-col gap-4 rounded-md border p-5 ${panelClass}`}>
+        <section className="grid gap-4 lg:grid-cols-[15rem_1fr] lg:flex-1 lg:min-h-0 lg:overflow-hidden">
+          <aside className={`flex flex-col gap-4 rounded-md border p-5 lg:overflow-y-auto lg:h-full shrink-0 ${panelClass}`}>
             <div>
               <p className={`text-xs font-bold uppercase tracking-widest ${subtleText}`}>Summary</p>
               <div className="mt-5 space-y-4">
                 <div>
-                  <p className="text-3xl font-black">{companies.length.toLocaleString()}</p>
+                  <p className="text-3xl font-black">
+                    {selectedIndustries.length > 0 
+                      ? `${companies.length.toLocaleString()} / ${unfilteredCompanies.length.toLocaleString()}`
+                      : companies.length.toLocaleString()}
+                  </p>
                   <p className={`text-sm ${subtleText}`}>조회 기업</p>
                 </div>
                 <div>
-                  <p className="text-3xl font-black">{analyzedCount.toLocaleString()}</p>
+                  <p className="text-3xl font-black">
+                    {selectedIndustries.length > 0
+                      ? `${filteredAnalyzedCount.toLocaleString()} / ${unfilteredAnalyzedCount.toLocaleString()}`
+                      : filteredAnalyzedCount.toLocaleString()}
+                  </p>
                   <p className={`text-sm ${subtleText}`}>분석 보유</p>
                 </div>
               </div>
@@ -281,20 +525,29 @@ function CompaniesContent() {
             <EnrichQueueWidget />
           </aside>
 
-          <div className={`min-h-112 rounded-md border p-4 ${panelClass}`}>
+          <div className={`min-h-112 rounded-md border p-4 lg:overflow-y-auto lg:h-full ${panelClass}`}>
             {loading ? (
               <div className={`flex h-64 items-center justify-center text-sm ${subtleText}`}>기업 목록을 불러오는 중...</div>
             ) : error ? (
               <div className="flex h-64 items-center justify-center text-sm text-red-500">{error}</div>
             ) : companies.length === 0 ? (
               <div className={`flex h-64 flex-col items-center justify-center gap-3 text-sm ${subtleText}`}>
-                <p>조회된 기업이 없습니다.</p>
-                <button
-                  onClick={() => router.push(query.trim() ? `/companies/analysis?company=${encodeURIComponent(query.trim())}` : "/companies/analysis")}
-                  className="rounded-md bg-indigo-600 px-4 py-2 font-bold text-white"
-                >
-                  새 기업 분석
-                </button>
+                <p>해당 직종의 기업이 없습니다.</p>
+                {unfilteredCompanies.length > 0 ? (
+                  <button
+                    onClick={() => setSelectedIndustries([])}
+                    className="rounded-md bg-indigo-600 px-4 py-2 font-bold text-white text-xs"
+                  >
+                    필터 초기화
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => router.push(query.trim() ? `/companies/analysis?company=${encodeURIComponent(query.trim())}` : "/companies/analysis")}
+                    className="rounded-md bg-indigo-600 px-4 py-2 font-bold text-white"
+                  >
+                    새 기업 분석
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

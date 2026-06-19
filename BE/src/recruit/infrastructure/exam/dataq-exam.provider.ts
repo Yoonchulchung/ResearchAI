@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
-import type { ExamEvent } from '../../domain/exam/exam-event.types';
+import type { ExamEvent } from 'src/recruit/domain/exam/exam-event.types';
 
 interface DataqEventResponse {
   pgsggb?: string;
@@ -35,7 +35,8 @@ export class DataqExamProvider {
         },
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`DATAQ 일정 요청 실패: HTTP ${response.status}`);
+      if (!response.ok)
+        throw new Error(`DATAQ 일정 요청 실패: HTTP ${response.status}`);
 
       const data = (await response.json()) as DataqEventResponse[];
       const collectedAt = new Date().toISOString();
@@ -47,7 +48,10 @@ export class DataqExamProvider {
     }
   }
 
-  private toExamEvent(event: DataqEventResponse, collectedAt: string): ExamEvent {
+  private toExamEvent(
+    event: DataqEventResponse,
+    collectedAt: string,
+  ): ExamEvent {
     const groupId = event.groupId || 'unknown';
     const phase = event.pgsggb || '';
     const title = event.title || event.title2 || '';
@@ -64,7 +68,8 @@ export class DataqExamProvider {
       shortTitle,
       start: event.start || '',
       end: event.end || '',
-      examOperationSeq: typeof event.examoprSeq === 'number' ? event.examoprSeq : null,
+      examOperationSeq:
+        typeof event.examoprSeq === 'number' ? event.examoprSeq : null,
       description,
       sourceUrl: DATAQ_EVENTS_URL,
       collectedAt,

@@ -1,8 +1,13 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import { SessionGateway } from '../../sessions/presentation/session.gateway';
-import { CompanyService } from '../../company/application/company.service';
+import { SessionGateway } from 'src/sessions/presentation/session.gateway';
+import { CompanyService } from 'src/company/application/company.service';
+import { CompanyEnrichService } from 'src/company/application/company-enrich.service';
 
-export type CompanyMissingRefreshPhase = 'idle' | 'running' | 'done' | 'stopped';
+export type CompanyMissingRefreshPhase =
+  | 'idle'
+  | 'running'
+  | 'done'
+  | 'stopped';
 
 export interface CompanyMissingRefreshStatus {
   phase: CompanyMissingRefreshPhase;
@@ -20,6 +25,7 @@ export class CompanyMissingRefreshService {
 
   constructor(
     private readonly companyService: CompanyService,
+    private readonly companyEnrich: CompanyEnrichService,
     @Optional() private readonly gateway?: SessionGateway,
   ) {}
 
@@ -70,7 +76,7 @@ export class CompanyMissingRefreshService {
       for (const id of ids) {
         if (signal.aborted) break;
         try {
-          await this.companyService.refreshMissing(id, { force: true });
+          await this.companyEnrich.refreshMissing(id, { force: true });
         } catch (e) {
           this.logger.warn(`[CompanyMissingRefresh] 실패 — id=${id}: ${e}`);
         }
@@ -80,7 +86,9 @@ export class CompanyMissingRefreshService {
     } finally {
       this.phase = signal.aborted ? 'stopped' : 'done';
       this.emitStatus();
-      this.logger.log(`[CompanyMissingRefresh] 완료 — ${this.processed}/${this.total}개 처리`);
+      this.logger.log(
+        `[CompanyMissingRefresh] 완료 — ${this.processed}/${this.total}개 처리`,
+      );
     }
   }
 }

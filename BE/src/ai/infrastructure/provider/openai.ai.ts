@@ -1,13 +1,18 @@
 import OpenAI from 'openai';
-import { AiCallResult } from './anthropic.ai';
-import { VlmMessage, ImageContentBlock } from './vlm.types';
+import { AiCallResult } from 'src/ai/infrastructure/provider/anthropic.ai';
+import { VlmMessage, ImageContentBlock } from 'src/ai/infrastructure/provider/vlm.types';
 
-function toOpenAIContent(content: VlmMessage['content']): OpenAI.ChatCompletionContentPart[] {
+function toOpenAIContent(
+  content: VlmMessage['content'],
+): OpenAI.ChatCompletionContentPart[] {
   if (typeof content === 'string') return [{ type: 'text', text: content }];
   return content.map((c): OpenAI.ChatCompletionContentPart => {
     if (typeof c === 'string') return { type: 'text', text: c };
-    const img = c as ImageContentBlock;
-    return { type: 'image_url', image_url: { url: `data:${img.mediaType};base64,${img.data}` } };
+    const img = c;
+    return {
+      type: 'image_url',
+      image_url: { url: `data:${img.mediaType};base64,${img.data}` },
+    };
   });
 }
 
@@ -20,12 +25,15 @@ export async function callOpenAI(
   signal?: AbortSignal,
   maxOutputTokens = 4000,
 ): Promise<AiCallResult> {
-  const response = await client.chat.completions.create({
-    model,
-    max_tokens: maxOutputTokens,
-    messages: [{ role: 'system', content: system }, ...messages],
-    ...(tools ? { tools } : {}),
-  }, { signal });
+  const response = await client.chat.completions.create(
+    {
+      model,
+      max_tokens: maxOutputTokens,
+      messages: [{ role: 'system', content: system }, ...messages],
+      ...(tools ? { tools } : {}),
+    },
+    { signal },
+  );
 
   const choice = response.choices[0];
   const toolCalls = choice.message.tool_calls
@@ -57,7 +65,13 @@ export async function* streamOpenAI(
     max_tokens: maxOutputTokens,
     messages: [
       { role: 'system', content: system },
-      ...messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: toOpenAIContent(m.content) } as OpenAI.ChatCompletionMessageParam)),
+      ...messages.map(
+        (m) =>
+          ({
+            role: m.role,
+            content: toOpenAIContent(m.content),
+          }) as OpenAI.ChatCompletionMessageParam,
+      ),
     ],
     stream: true,
   });

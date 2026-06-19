@@ -36,7 +36,10 @@ export class DdgSearchService {
   }
 
   /** 여러 쿼리를 순차 실행 (요청 간 간격 포함) */
-  async searchMultiple(queries: string[], maxPerQuery = 10): Promise<DdgResult[]> {
+  async searchMultiple(
+    queries: string[],
+    maxPerQuery = 10,
+  ): Promise<DdgResult[]> {
     const seen = new Set<string>();
     const all: DdgResult[] = [];
 
@@ -67,7 +70,7 @@ export class DdgSearchService {
         method: 'GET',
         headers: {
           'User-Agent': USER_AGENT,
-          'Accept': 'text/html,application/xhtml+xml',
+          Accept: 'text/html,application/xhtml+xml',
           'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
           'Accept-Encoding': 'identity',
           'Cache-Control': 'no-cache',
@@ -86,10 +89,16 @@ export class DdgSearchService {
           clearTimeout(timer);
           resolve(Buffer.concat(chunks).toString('utf-8'));
         });
-        res.on('error', (e) => { clearTimeout(timer); reject(e); });
+        res.on('error', (e) => {
+          clearTimeout(timer);
+          reject(e);
+        });
       });
 
-      req.on('error', (e) => { clearTimeout(timer); reject(e); });
+      req.on('error', (e) => {
+        clearTimeout(timer);
+        reject(e);
+      });
       req.end();
     });
   }
@@ -98,14 +107,17 @@ export class DdgSearchService {
     const results: DdgResult[] = [];
 
     // DDG HTML 결과 블록: <div class="result ...">...</div>
-    const blockRegex = /<div[^>]+class="[^"]*result[^"]*"[^>]*>([\s\S]*?)(?=<div[^>]+class="[^"]*result[^"]*"|<\/div>\s*<\/body>|$)/g;
+    const blockRegex =
+      /<div[^>]+class="[^"]*result[^"]*"[^>]*>([\s\S]*?)(?=<div[^>]+class="[^"]*result[^"]*"|<\/div>\s*<\/body>|$)/g;
     let blockMatch: RegExpExecArray | null;
 
     while ((blockMatch = blockRegex.exec(html)) !== null) {
       const block = blockMatch[1];
 
       // 제목/URL: <a class="result__a" href="...">Title</a>
-      const anchorMatch = block.match(/<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/);
+      const anchorMatch = block.match(
+        /<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/,
+      );
       if (!anchorMatch) continue;
 
       const rawHref = anchorMatch[1];
@@ -117,8 +129,12 @@ export class DdgSearchService {
       if (!url || url.includes('duckduckgo.com')) continue;
 
       // 스니펫: <a class="result__snippet">...</a>
-      const snippetMatch = block.match(/<a[^>]+class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/);
-      const snippet = snippetMatch ? this.stripHtml(snippetMatch[1]).replace(/\s+/g, ' ').trim() : '';
+      const snippetMatch = block.match(
+        /<a[^>]+class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/,
+      );
+      const snippet = snippetMatch
+        ? this.stripHtml(snippetMatch[1]).replace(/\s+/g, ' ').trim()
+        : '';
 
       results.push({ title, url, snippet });
     }
@@ -131,7 +147,11 @@ export class DdgSearchService {
     if (raw.includes('uddg=')) {
       const match = raw.match(/uddg=([^&]+)/);
       if (match) {
-        try { return decodeURIComponent(match[1]); } catch { /* ignore */ }
+        try {
+          return decodeURIComponent(match[1]);
+        } catch {
+          /* ignore */
+        }
       }
     }
     if (raw.startsWith('http')) return raw;
@@ -154,9 +174,14 @@ export class DdgSearchService {
   normalizeUrl(url: string): string {
     try {
       const u = new URL(url);
-      ['utm_source', 'utm_medium', 'utm_campaign', 'ref', 'source', 'from'].forEach(
-        (p) => u.searchParams.delete(p),
-      );
+      [
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'ref',
+        'source',
+        'from',
+      ].forEach((p) => u.searchParams.delete(p));
       u.hash = '';
       return u.toString().toLowerCase().replace(/\/$/, '');
     } catch {

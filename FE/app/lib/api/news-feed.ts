@@ -42,8 +42,13 @@ export interface HuggingFaceTrendingItem {
   lastModified?: string;
 }
 
-export function getNewsFeed(category: NewsCategory = "it"): Promise<NewsItem[]> {
+export function getNewsFeed(
+  category: NewsCategory = "it",
+  options?: { limit?: number; offset?: number },
+): Promise<NewsItem[]> {
+  const offset = options?.offset ?? 0;
   if (category === "github") {
+    if (offset > 0) return Promise.resolve([]);
     return getGithubTrending("daily").then((items) =>
       items.map((item) => ({
         title: item.full_name,
@@ -55,6 +60,7 @@ export function getNewsFeed(category: NewsCategory = "it"): Promise<NewsItem[]> 
     );
   }
   if (category === "huggingface") {
+    if (offset > 0) return Promise.resolve([]);
     return getHuggingFaceTrending("models").then((items) =>
       items.map((item) => {
         const name = item.id ?? item.modelId ?? "";
@@ -68,7 +74,12 @@ export function getNewsFeed(category: NewsCategory = "it"): Promise<NewsItem[]> 
       }),
     );
   }
-  return apiFetch<NewsItem[]>(`/news/google?category=${category}`);
+  const qs = new URLSearchParams({
+    category,
+    limit: String(options?.limit ?? 20),
+    offset: String(offset),
+  });
+  return apiFetch<NewsItem[]>(`/news/naver?${qs.toString()}`);
 }
 
 export function getGithubTrending(since: "daily" | "weekly" | "monthly" = "daily"): Promise<GithubTrendingRepo[]> {

@@ -56,7 +56,9 @@ export class CareerPageUrlService {
     if (!trimmed) return null;
 
     try {
-      const parsed = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+      const parsed = new URL(
+        trimmed.startsWith('http') ? trimmed : `https://${trimmed}`,
+      );
       parsed.hash = '';
       return parsed.toString();
     } catch {
@@ -69,7 +71,11 @@ export class CareerPageUrlService {
     return CAREER_URL_PATTERNS.some((pattern) => lower.includes(pattern));
   }
 
-  private scoreCareerUrl(url: string, companyName: string, officialWebsiteUrl?: string | null): number {
+  private scoreCareerUrl(
+    url: string,
+    companyName: string,
+    officialWebsiteUrl?: string | null,
+  ): number {
     const parsed = new URL(url);
     const host = parsed.hostname.replace(/^www\./, '').toLowerCase();
     const path = parsed.pathname.toLowerCase();
@@ -79,8 +85,12 @@ export class CareerPageUrlService {
     const companyTokens = this.extractCompanyTokens(companyName);
 
     let score = 0;
-    if (officialRootDomain && candidateRootDomain === officialRootDomain) score += 80;
-    if (companyTokens.some((token) => token.length >= 3 && host.includes(token))) score += 40;
+    if (officialRootDomain && candidateRootDomain === officialRootDomain)
+      score += 80;
+    if (
+      companyTokens.some((token) => token.length >= 3 && host.includes(token))
+    )
+      score += 40;
     if (host.startsWith('career.') || host.startsWith('careers.')) score += 35;
     if (host.includes('career')) score += 25;
     if (host.startsWith('job.') || host.startsWith('jobs.')) score += 25;
@@ -88,14 +98,17 @@ export class CareerPageUrlService {
     if (path.includes('recruit') || path.includes('recruitment')) score += 15;
     if (host.includes('recruit')) score += 10;
     if (lowerUrl.includes('apply') || lowerUrl.includes('opening')) score += 8;
-    if (GENERIC_JOB_BOARD_HOSTS.some((pattern) => host.includes(pattern))) score -= 80;
+    if (GENERIC_JOB_BOARD_HOSTS.some((pattern) => host.includes(pattern)))
+      score -= 80;
 
     return score;
   }
 
   private getHost(url: string): string | null {
     try {
-      return new URL(url.startsWith('http') ? url : `https://${url}`).hostname.replace(/^www\./, '').toLowerCase();
+      return new URL(url.startsWith('http') ? url : `https://${url}`).hostname
+        .replace(/^www\./, '')
+        .toLowerCase();
     } catch {
       return null;
     }

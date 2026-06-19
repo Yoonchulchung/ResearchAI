@@ -1,16 +1,23 @@
 import { load } from 'cheerio';
-import type { JobPosting } from '../../domain/job-posting.model';
-import { normalizeJobType } from './job-type.util';
+import type { JobPosting } from 'src/recruit/domain/job-posting.model';
+import { normalizeJobType } from 'src/recruit/infrastructure/job-posting/job-type.util';
 
 const BASE_URL = 'https://www.jobkorea.co.kr';
 
-export type JobkoreaCompanyType = '대기업' | '중견기업' | '외국계기업' | '공공기관';
+export type JobkoreaCompanyType =
+  | '대기업'
+  | '중견기업'
+  | '외국계기업'
+  | '공공기관';
 
-const COMPANY_TYPE_CONFIGS: Record<JobkoreaCompanyType, { menucode: string; cotype: string }> = {
-  '대기업':    { menucode: 'cotype1', cotype: '1,2,3' },
-  '중견기업':  { menucode: 'cotype2', cotype: '4,5' },
-  '외국계기업': { menucode: 'cotype3', cotype: '6' },
-  '공공기관':  { menucode: 'cotype4', cotype: '8' },
+const COMPANY_TYPE_CONFIGS: Record<
+  JobkoreaCompanyType,
+  { menucode: string; cotype: string }
+> = {
+  대기업: { menucode: 'cotype1', cotype: '1,2,3' },
+  중견기업: { menucode: 'cotype2', cotype: '4,5' },
+  외국계기업: { menucode: 'cotype3', cotype: '6' },
+  공공기관: { menucode: 'cotype4', cotype: '8' },
 };
 
 const COMMON_HEADERS = {
@@ -49,7 +56,10 @@ export class JobkoreaJobCrawler {
     }
   }
 
-  async getPostingsFromPage(page: number, companyType?: JobkoreaCompanyType): Promise<JobPosting[]> {
+  async getPostingsFromPage(
+    page: number,
+    companyType?: JobkoreaCompanyType,
+  ): Promise<JobPosting[]> {
     const config = companyType ? COMPANY_TYPE_CONFIGS[companyType] : null;
     const body = new URLSearchParams({
       page: String(page),
@@ -87,10 +97,18 @@ export class JobkoreaJobCrawler {
       const location = cells[2] ?? '';
       const salary = cells[4] ?? '';
 
-      const jobCategory = $(row).find('td.tplTit p.dsc').text().replace(/\s+/g, ' ').trim();
+      const jobCategory = $(row)
+        .find('td.tplTit p.dsc')
+        .text()
+        .replace(/\s+/g, ' ')
+        .trim();
 
       // span.date: "~05/31(일)" 형태
-      const deadline = $(row).find('td.odd span.date').text().replace(/\s+/g, '').trim();
+      const deadline = $(row)
+        .find('td.odd span.date')
+        .text()
+        .replace(/\s+/g, '')
+        .trim();
 
       const type = normalizeJobType(career);
 

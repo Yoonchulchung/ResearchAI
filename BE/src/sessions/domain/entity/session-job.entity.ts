@@ -1,5 +1,12 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
-import { SessionEntity } from './session.entity';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryColumn,
+} from 'typeorm';
+import { SessionEntity } from 'src/sessions/domain/entity/session.entity';
 
 @Entity('session_job')
 export class SessionJobEntity {

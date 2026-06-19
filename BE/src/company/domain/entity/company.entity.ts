@@ -1,6 +1,13 @@
-import { Column, CreateDateColumn, Entity, OneToOne, PrimaryColumn, UpdateDateColumn } from 'typeorm';
-import { CompanyAnalysisEntity } from './company-analysis.entity';
-import { CompanyFinancialEntity } from './company-financial.entity';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  OneToOne,
+  PrimaryColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { CompanyAnalysisEntity } from 'src/company/domain/entity/company-analysis.entity';
+import { CompanyFinancialEntity } from 'src/company/domain/entity/company-financial.entity';
 
 @Entity('companies')
 export class CompanyEntity {

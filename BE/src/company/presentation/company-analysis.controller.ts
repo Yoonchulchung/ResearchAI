@@ -10,11 +10,13 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { CompanyAnalysisService } from '../application/company-analysis.service';
+import { CompanyAnalysisService } from 'src/company/application/analysis/company-analysis.service';
 
 @Controller('company-analysis')
 export class CompanyAnalysisController {
-  constructor(private readonly companyAnalysisService: CompanyAnalysisService) {}
+  constructor(
+    private readonly companyAnalysisService: CompanyAnalysisService,
+  ) {}
 
   @Get()
   listCompanyAnalyses() {
@@ -61,7 +63,9 @@ export class CompanyAnalysisController {
     } catch (e) {
       if (!res.writableEnded) {
         const msg = e instanceof Error ? e.message : '오류 발생';
-        res.write(`data: ${JSON.stringify({ type: 'error', message: msg })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ type: 'error', message: msg })}\n\n`,
+        );
       }
     } finally {
       req.off('close', cleanup);

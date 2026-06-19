@@ -1,4 +1,4 @@
-import type { TechBlogPost, TechBlogSource } from '../domain/tech-blog.types';
+import type { TechBlogPost, TechBlogSource } from 'src/news/tech-blog/domain/tech-blog.types';
 import {
   absoluteUrl,
   cleanText,
@@ -7,11 +7,13 @@ import {
   dedupePosts,
   parseFeed,
   REQUEST_TIMEOUT_MS,
-} from './tech-blog-crawler.util';
+} from 'src/news/tech-blog/infrastructure/tech-blog-crawler.util';
 
 const MEDIUM_GRAPHQL_URL = 'https://medium.com/_/graphql';
 
-export async function fetchNaverPlacePosts(source: TechBlogSource): Promise<TechBlogPost[]> {
+export async function fetchNaverPlacePosts(
+  source: TechBlogSource,
+): Promise<TechBlogPost[]> {
   const body = process.env.MEDIUM_NAVER_PLACE_GRAPHQL_BODY;
   if (body) {
     try {
@@ -27,7 +29,9 @@ export async function fetchNaverPlacePosts(source: TechBlogSource): Promise<Tech
   return fetchMediumFeedPosts(source);
 }
 
-async function fetchMediumFeedPosts(source: TechBlogSource): Promise<TechBlogPost[]> {
+async function fetchMediumFeedPosts(
+  source: TechBlogSource,
+): Promise<TechBlogPost[]> {
   if (!source.feedUrl) return [];
   const xml = await fetchMediumFeedText(source.feedUrl);
   return parseFeed(xml, source);
@@ -41,8 +45,9 @@ async function fetchMediumFeedText(url: string): Promise<string> {
     const res = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
-        'Accept': 'application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8',
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
+        Accept: 'application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
       },
     });
@@ -62,17 +67,23 @@ async function fetchMediumGraphql(body: string): Promise<unknown> {
       method: 'POST',
       signal: controller.signal,
       headers: {
-        'accept': '*/*',
+        accept: '*/*',
         'content-type': 'application/json',
         'apollographql-client-name': 'lite',
-        'apollographql-client-version': process.env.MEDIUM_GRAPHQL_CLIENT_VERSION ?? 'main-20260511-233840-21f94d57d2',
+        'apollographql-client-version':
+          process.env.MEDIUM_GRAPHQL_CLIENT_VERSION ??
+          'main-20260511-233840-21f94d57d2',
         'graphql-operation': 'PublicationSectionPostsQuery',
-        'medium-frontend-app': process.env.MEDIUM_FRONTEND_APP ?? 'lite/main-20260511-233840-21f94d57d2',
+        'medium-frontend-app':
+          process.env.MEDIUM_FRONTEND_APP ??
+          'lite/main-20260511-233840-21f94d57d2',
         'medium-frontend-path': '/naver-place-dev',
         'medium-frontend-route': 'collection-homepage',
-        'origin': 'https://medium.com',
-        'referer': 'https://medium.com/naver-place-dev',
-        ...(process.env.MEDIUM_GRAPHQL_COOKIE ? { 'cookie': process.env.MEDIUM_GRAPHQL_COOKIE } : {}),
+        origin: 'https://medium.com',
+        referer: 'https://medium.com/naver-place-dev',
+        ...(process.env.MEDIUM_GRAPHQL_COOKIE
+          ? { cookie: process.env.MEDIUM_GRAPHQL_COOKIE }
+          : {}),
       },
       body,
     });
@@ -83,7 +94,10 @@ async function fetchMediumGraphql(body: string): Promise<unknown> {
   }
 }
 
-function extractMediumPosts(value: unknown, source: TechBlogSource): TechBlogPost[] {
+function extractMediumPosts(
+  value: unknown,
+  source: TechBlogSource,
+): TechBlogPost[] {
   const posts: TechBlogPost[] = [];
   const seenObjects = new WeakSet<object>();
 
@@ -105,10 +119,15 @@ function extractMediumPosts(value: unknown, source: TechBlogSource): TechBlogPos
   };
 
   visit(value);
-  return dedupePosts(posts).sort((a, b) => dateValue(b.publishedAt) - dateValue(a.publishedAt));
+  return dedupePosts(posts).sort(
+    (a, b) => dateValue(b.publishedAt) - dateValue(a.publishedAt),
+  );
 }
 
-function mediumRecordToPost(record: Record<string, unknown>, source: TechBlogSource): TechBlogPost | null {
+function mediumRecordToPost(
+  record: Record<string, unknown>,
+  source: TechBlogSource,
+): TechBlogPost | null {
   const title = cleanText(stringValue(record.title));
   if (!title) return null;
 
@@ -118,17 +137,25 @@ function mediumRecordToPost(record: Record<string, unknown>, source: TechBlogSou
   const publishedAt = mediumPublishedAt(record);
   const summary = cleanText(
     stringValue(record.subtitle) ||
-    stringValue(record.description) ||
-    stringValue(objectValue(record.previewContent).subtitle) ||
-    stringValue(objectValue(record.extendedPreviewContent).subtitle),
+      stringValue(record.description) ||
+      stringValue(objectValue(record.previewContent).subtitle) ||
+      stringValue(objectValue(record.extendedPreviewContent).subtitle),
   );
   const thumbnail = mediumImageUrl(record);
   const tags = mediumTags(record);
 
-  return createPost(source, title, url, { summary, publishedAt, thumbnail, tags });
+  return createPost(source, title, url, {
+    summary,
+    publishedAt,
+    thumbnail,
+    tags,
+  });
 }
 
-function mediumPostUrl(record: Record<string, unknown>, source: TechBlogSource): string {
+function mediumPostUrl(
+  record: Record<string, unknown>,
+  source: TechBlogSource,
+): string {
   const directUrl =
     stringValue(record.mediumUrl) ||
     stringValue(record.canonicalUrl) ||
@@ -145,7 +172,9 @@ function mediumPostUrl(record: Record<string, unknown>, source: TechBlogSource):
   return '';
 }
 
-function mediumPublishedAt(record: Record<string, unknown>): string | undefined {
+function mediumPublishedAt(
+  record: Record<string, unknown>,
+): string | undefined {
   const raw =
     record.firstPublishedAt ??
     record.latestPublishedAt ??
@@ -163,7 +192,9 @@ function mediumPublishedAt(record: Record<string, unknown>): string | undefined 
 function mediumImageUrl(record: Record<string, unknown>): string | undefined {
   const imageId =
     stringValue(objectValue(record.previewImage).id) ||
-    stringValue(objectValue(objectValue(record.virtuals).previewImage).imageId) ||
+    stringValue(
+      objectValue(objectValue(record.virtuals).previewImage).imageId,
+    ) ||
     stringValue(objectValue(objectValue(record.virtuals).previewImage).id) ||
     stringValue(record.imageId);
   if (imageId) return `https://miro.medium.com/v2/resize:fit:720/${imageId}`;
@@ -178,7 +209,11 @@ function mediumTags(record: Record<string, unknown>): string[] {
       if (typeof tag === 'string') return tag;
       if (!tag || typeof tag !== 'object') return '';
       const item = tag as Record<string, unknown>;
-      return stringValue(item.displayTitle) || stringValue(item.name) || stringValue(item.slug);
+      return (
+        stringValue(item.displayTitle) ||
+        stringValue(item.name) ||
+        stringValue(item.slug)
+      );
     })
     .map((tag) => cleanText(tag))
     .filter(Boolean);
@@ -194,6 +229,6 @@ function stringValue(value: unknown): string {
 
 function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : {};
 }

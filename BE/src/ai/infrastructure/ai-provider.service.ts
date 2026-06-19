@@ -2,24 +2,46 @@ import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { GoogleGenAI } from '@google/genai';
-import type { ToolCallResult } from './provider/anthropic.ai';
-import { callAnthropic, streamAnthropic } from './provider/anthropic.ai';
-import { callOpenAI, streamOpenAI } from './provider/openai.ai';
-import { callGoogle, streamGoogle } from './provider/google.ai';
-import { callOllama, streamOllama, getOllamaLocalModels, getOllamaRunningModels, unloadOllamaModel, OllamaTool, OllamaInsufficientMemoryError } from './provider/ollama.ai';
-import { getLlamaCppClient, getLlamaCppModels } from './provider/llama-cpp.ai';
-import { callGroq, streamGroq } from './provider/groq.ai';
-export type { VlmMessage, ImageContentBlock, VlmContent } from './provider/vlm.types';
-import { MODELS, AI_MODEL_PREFIX, getProvider, AIProvider } from '../domain/models';
-import { InvalidAiTypeException } from '../../shared/exceptions/invalid-ai-type.exception';
-import { TokenHistoryRepository } from '../../overview/domain/repository/token-history.repository';
-import { AiCallLogRepository } from '../domain/repository/ai-call-log.repository';
-import { requestContext, DEFAULT_AI_MODEL, DEFAULT_GOOGLE_API_KEY, DEFAULT_GROQ_API_KEY, DEFAULT_GROQ_MODEL } from '../../shared/request-context';
+import type { ToolCallResult } from 'src/ai/infrastructure/provider/anthropic.ai';
+import { callAnthropic, streamAnthropic } from 'src/ai/infrastructure/provider/anthropic.ai';
+import { callOpenAI, streamOpenAI } from 'src/ai/infrastructure/provider/openai.ai';
+import { callGoogle, streamGoogle } from 'src/ai/infrastructure/provider/google.ai';
+import {
+  callOllama,
+  streamOllama,
+  getOllamaLocalModels,
+  getOllamaRunningModels,
+  unloadOllamaModel,
+  OllamaTool,
+  OllamaInsufficientMemoryError,
+} from 'src/ai/infrastructure/provider/ollama.ai';
+import { getLlamaCppClient, getLlamaCppModels } from 'src/ai/infrastructure/provider/llama-cpp.ai';
+import { callGroq, streamGroq } from 'src/ai/infrastructure/provider/groq.ai';
+export type {
+  VlmMessage,
+  ImageContentBlock,
+  VlmContent,
+} from 'src/ai/infrastructure/provider/vlm.types';
+import {
+  MODELS,
+  AI_MODEL_PREFIX,
+  getProvider,
+  AIProvider,
+} from 'src/ai/domain/models';
+import { InvalidAiTypeException } from 'src/shared/exceptions/invalid-ai-type.exception';
+import { TokenHistoryRepository } from 'src/overview/domain/repository/token-history.repository';
+import { AiCallLogRepository } from 'src/ai/domain/repository/ai-call-log.repository';
+import {
+  requestContext,
+  DEFAULT_AI_MODEL,
+  DEFAULT_GOOGLE_API_KEY,
+  DEFAULT_GROQ_API_KEY,
+  DEFAULT_GROQ_MODEL,
+} from 'src/shared/request-context';
 import { randomUUID } from 'crypto';
-import { UndefinedAiAPIException } from '../../shared/exceptions/undefined-ai-api.exception';
+import { UndefinedAiAPIException } from 'src/shared/exceptions/undefined-ai-api.exception';
 
 const MAX_AI_PROVIDER_INPUT_TOKENS = 1_000_000;
-
 
 /** Default Google 키(free tier) 전용 RPM throttle — 분당 12회(5초 간격) */
 class DefaultGoogleRateLimiter {
@@ -40,9 +62,15 @@ class DefaultGoogleRateLimiter {
   }
 
   private flush() {
-    if (this.queue.length === 0) { this.processing = false; return; }
+    if (this.queue.length === 0) {
+      this.processing = false;
+      return;
+    }
     this.processing = true;
-    const delay = Math.max(0, this.lastCallMs + this.minIntervalMs - Date.now());
+    const delay = Math.max(
+      0,
+      this.lastCallMs + this.minIntervalMs - Date.now(),
+    );
     setTimeout(() => {
       this.lastCallMs = Date.now();
       const next = this.queue.shift();
@@ -56,12 +84,18 @@ class DefaultGoogleRateLimiter {
 export class AiProviderService {
   private readonly logger = new Logger(AiProviderService.name);
 
-  private readonly defaultGoogle = new GoogleGenAI({ apiKey: DEFAULT_GOOGLE_API_KEY() });
+  private readonly defaultGoogle = new GoogleGenAI({
+    apiKey: DEFAULT_GOOGLE_API_KEY(),
+  });
   private readonly defaultGoogleLimiter = new DefaultGoogleRateLimiter(12);
 
   private isGoogleQuotaError(err: unknown): boolean {
     const msg = (err as Error)?.message ?? '';
-    return msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota');
+    return (
+      msg.includes('429') ||
+      msg.includes('RESOURCE_EXHAUSTED') ||
+      msg.includes('quota')
+    );
   }
 
   /**
@@ -71,7 +105,6 @@ export class AiProviderService {
    * - 명시적 클라우드 모델: 해당 프로바이더 키가 없으면 **명확한 오류** (조용한 폴백 제거)
    */
   resolveEffectiveModel(requestedModel: string): string {
-
     // 모델이 없으면 기본값 반환
     if (!requestedModel) {
       const store = requestContext.getStore();
@@ -95,7 +128,7 @@ export class AiProviderService {
         if (!keys?.anthropicApiKey) {
           throw new UndefinedAiAPIException(
             `Anthropic API 키가 설정되지 않아 "${requestedModel}" 모델을 사용할 수 없습니다. ` +
-            `[설정 → Overview]에서 본인의 Anthropic 키를 입력하거나, 무료 Gemini 모델을 선택하세요.`
+              `[설정 → Overview]에서 본인의 Anthropic 키를 입력하거나, 무료 Gemini 모델을 선택하세요.`,
           );
         }
         break;
@@ -104,14 +137,16 @@ export class AiProviderService {
         if (!keys?.openaiApiKey) {
           throw new UndefinedAiAPIException(
             `OpenAI API 키가 설정되지 않아 "${requestedModel}" 모델을 사용할 수 없습니다. ` +
-            `[설정 → Overview]에서 본인의 OpenAI 키를 입력하거나, 무료 Gemini 모델을 선택하세요.`
+              `[설정 → Overview]에서 본인의 OpenAI 키를 입력하거나, 무료 Gemini 모델을 선택하세요.`,
           );
         }
         break;
 
       case AIProvider.GOOGLE:
         if (!keys?.googleApiKey && !DEFAULT_GOOGLE_API_KEY()) {
-          throw new UndefinedAiAPIException('Google API 키가 설정되지 않았습니다. [설정 → Overview]에서 키를 입력해주세요.');
+          throw new UndefinedAiAPIException(
+            'Google API 키가 설정되지 않았습니다. [설정 → Overview]에서 키를 입력해주세요.',
+          );
         }
         break;
 
@@ -119,7 +154,7 @@ export class AiProviderService {
         if (!keys?.groqApiKey && !DEFAULT_GROQ_API_KEY()) {
           throw new UndefinedAiAPIException(
             `Groq API 키가 설정되지 않아 "${requestedModel}" 모델을 사용할 수 없습니다. ` +
-            `[설정 → Overview]에서 본인의 Groq 키를 입력해주세요.`
+              `[설정 → Overview]에서 본인의 Groq 키를 입력해주세요.`,
           );
         }
         break;
@@ -132,13 +167,17 @@ export class AiProviderService {
     const key = requestContext.getStore()?.apiKeys.anthropicApiKey;
     if (key) return new Anthropic({ apiKey: key });
     // 사용자 키 없음 — resolveEffectiveModel 이 이미 Gemini 로 전환했어야 하지만 안전망
-    throw new UndefinedAiAPIException('Anthropic API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.');
+    throw new UndefinedAiAPIException(
+      'Anthropic API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.',
+    );
   }
 
   private getOpenAIClient(): OpenAI {
     const key = requestContext.getStore()?.apiKeys.openaiApiKey;
     if (key) return new OpenAI({ apiKey: key });
-    throw new UndefinedAiAPIException('OpenAI API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.');
+    throw new UndefinedAiAPIException(
+      'OpenAI API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.',
+    );
   }
 
   private isUsingDefaultGoogleKey(): boolean {
@@ -152,47 +191,80 @@ export class AiProviderService {
   }
 
   private getGroqApiKey(): string {
-    const key = requestContext.getStore()?.apiKeys.groqApiKey?.trim() || DEFAULT_GROQ_API_KEY();
+    const key =
+      requestContext.getStore()?.apiKeys.groqApiKey?.trim() ||
+      DEFAULT_GROQ_API_KEY();
     if (key) return key;
-    throw new UndefinedAiAPIException('Groq API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.');
+    throw new UndefinedAiAPIException(
+      'Groq API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.',
+    );
   }
 
   private normalizeGroqModel(model: string): string {
-    return model.startsWith(AI_MODEL_PREFIX.GROQ) ? model.slice(AI_MODEL_PREFIX.GROQ.length) : model;
+    return model.startsWith(AI_MODEL_PREFIX.GROQ)
+      ? model.slice(AI_MODEL_PREFIX.GROQ.length)
+      : model;
   }
 
   constructor(
     private readonly tokenHistoryRepository: TokenHistoryRepository,
     private readonly aiCallLogRepository: AiCallLogRepository,
-  ) { }
+  ) {}
 
   async call(
     aiModel: string,
     system: string,
     prompt: string | any[],
-    opts?: { useBuiltinSearch?: boolean; tools?: any[]; signal?: AbortSignal; caller?: string },
-  ): Promise<{ text: string; inputTokens: number; outputTokens: number; estimatedFees: number; toolCalls?: ToolCallResult[]; stopReason?: string; searchLog?: { query: string; result: string }[] }> {
-
+    opts?: {
+      useBuiltinSearch?: boolean;
+      tools?: any[];
+      signal?: AbortSignal;
+      caller?: string;
+    },
+  ): Promise<{
+    text: string;
+    inputTokens: number;
+    outputTokens: number;
+    estimatedFees: number;
+    toolCalls?: ToolCallResult[];
+    stopReason?: string;
+    searchLog?: { query: string; result: string }[];
+  }> {
     aiModel = this.resolveEffectiveModel(aiModel);
-    const promptPreview = typeof prompt === 'string'
-      ? prompt
-      : prompt.map((m: any) => {
-        const content = typeof m.content === 'string'
-          ? m.content
-          : JSON.stringify(m.content);
-        return `[${m.role}] ${content}`;
-      }).join('\n');
+    const promptPreview =
+      typeof prompt === 'string'
+        ? prompt
+        : prompt
+            .map((m: any) => {
+              const content =
+                typeof m.content === 'string'
+                  ? m.content
+                  : JSON.stringify(m.content);
+              return `[${m.role}] ${content}`;
+            })
+            .join('\n');
     this.logger.log(
       `model=${aiModel}\n` +
-      `[system]\n${system}\n[/system]\n` +
-      `[prompt]\n${promptPreview}\n[/prompt]`,
+        `[system]\n${system}\n[/system]\n` +
+        `[prompt]\n${promptPreview}\n[/prompt]`,
     );
     const useSearch = opts?.useBuiltinSearch ?? false;
-    const promptText = typeof prompt === 'string'
-      ? prompt
-      : prompt.map((m: any) => (typeof m.content === 'string' ? m.content : '')).filter(Boolean).join('\n');
-    const messages = typeof prompt === 'string' ? [{ role: 'user' as const, content: prompt }] : prompt;
-    this.assertInputTokenBudget(system, promptText, opts?.caller ?? 'AiProvider/call');
+    const promptText =
+      typeof prompt === 'string'
+        ? prompt
+        : prompt
+            .map((m: any) => (typeof m.content === 'string' ? m.content : ''))
+            .filter(Boolean)
+            .join('\n');
+    const messages =
+      typeof prompt === 'string'
+        ? [{ role: 'user' as const, content: prompt }]
+        : prompt;
+    this.assertInputTokenBudget(
+      system,
+      promptText,
+      opts?.caller ?? 'AiProvider/call',
+    );
 
     const signal = opts?.signal;
     const caller = opts?.caller ?? null;
@@ -214,7 +286,16 @@ export class AiProviderService {
         const ollamaModel = aiModel.slice(AI_MODEL_PREFIX.OLLAMA.length);
         try {
           if (opts?.tools?.length) {
-            const result = await callOllama(ollamaModel, system, messages, undefined, undefined, opts.tools as OllamaTool[], undefined, signal);
+            const result = await callOllama(
+              ollamaModel,
+              system,
+              messages,
+              undefined,
+              undefined,
+              opts.tools as OllamaTool[],
+              undefined,
+              signal,
+            );
             toolCalls = result.toolCalls.map((tc) => ({
               id: randomUUID(),
               name: tc.function.name,
@@ -223,94 +304,190 @@ export class AiProviderService {
             text = result.content;
             stopReason = toolCalls.length ? 'tool_use' : 'end_turn';
           } else {
-            text = await callOllama(ollamaModel, system, promptText, undefined, undefined, undefined, undefined, signal) as string;
+            text = await callOllama(
+              ollamaModel,
+              system,
+              promptText,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              signal,
+            );
           }
         } catch (err) {
           if (err instanceof OllamaInsufficientMemoryError) {
-            this.logger.error(`[메모리 부족] model=${ollamaModel} | ${err.message}`);
+            this.logger.error(
+              `[메모리 부족] model=${ollamaModel} | ${err.message}`,
+            );
           } else {
-            this.logger.error(`[Ollama 호출 오류] model=${ollamaModel} | ${(err as Error).message}`);
+            this.logger.error(
+              `[Ollama 호출 오류] model=${ollamaModel} | ${(err as Error).message}`,
+            );
           }
           throw err;
         }
-        return { text, inputTokens: 0, outputTokens: 0, estimatedFees: 0, toolCalls, stopReason };
+        return {
+          text,
+          inputTokens: 0,
+          outputTokens: 0,
+          estimatedFees: 0,
+          toolCalls,
+          stopReason,
+        };
       }
 
       // Cloud + llama.cpp providers
       const provider = getProvider(aiModel);
       if (provider === AIProvider.ANTHROPIC) {
-        const result = await callAnthropic(this.getAnthropicClient(), aiModel, system, messages as Anthropic.MessageParam[], useSearch, opts?.tools as Anthropic.Tool[] | undefined, signal);
-        ({ text, inputTokens, outputTokens, toolCalls, stopReason, searchLog } = result);
+        const result = await callAnthropic(
+          this.getAnthropicClient(),
+          aiModel,
+          system,
+          messages as Anthropic.MessageParam[],
+          useSearch,
+          opts?.tools as Anthropic.Tool[] | undefined,
+          signal,
+        );
+        ({ text, inputTokens, outputTokens, toolCalls, stopReason, searchLog } =
+          result);
       } else if (provider === AIProvider.GOOGLE) {
-        if (this.isUsingDefaultGoogleKey()) await this.defaultGoogleLimiter.wait();
+        if (this.isUsingDefaultGoogleKey())
+          await this.defaultGoogleLimiter.wait();
         try {
-          const result = await callGoogle(this.getGoogleClient(), aiModel, system + '\n\n' + promptText, useSearch);
+          const result = await callGoogle(
+            this.getGoogleClient(),
+            aiModel,
+            system + '\n\n' + promptText,
+            useSearch,
+          );
           ({ text, inputTokens, outputTokens } = result);
         } catch (googleErr) {
-          if (this.isUsingDefaultGoogleKey() && this.isGoogleQuotaError(googleErr) && DEFAULT_GROQ_API_KEY()) {
-            this.logger.warn(`[Gemini quota] Groq 폴백 model=${DEFAULT_GROQ_MODEL()}`);
-            const result = await callGroq(DEFAULT_GROQ_API_KEY(), DEFAULT_GROQ_MODEL(), system, messages as OpenAI.ChatCompletionMessageParam[], undefined, signal);
-            ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
+          if (
+            this.isUsingDefaultGoogleKey() &&
+            this.isGoogleQuotaError(googleErr) &&
+            DEFAULT_GROQ_API_KEY()
+          ) {
+            this.logger.warn(
+              `[Gemini quota] Groq 폴백 model=${DEFAULT_GROQ_MODEL()}`,
+            );
+            const result = await callGroq(
+              DEFAULT_GROQ_API_KEY(),
+              DEFAULT_GROQ_MODEL(),
+              system,
+              messages as OpenAI.ChatCompletionMessageParam[],
+              undefined,
+              signal,
+            );
+            ({ text, inputTokens, outputTokens, toolCalls, stopReason } =
+              result);
           } else {
             throw googleErr;
           }
         }
       } else if (provider === AIProvider.GROQ) {
-        const result = await callGroq(this.getGroqApiKey(), this.normalizeGroqModel(aiModel), system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
+        const result = await callGroq(
+          this.getGroqApiKey(),
+          this.normalizeGroqModel(aiModel),
+          system,
+          messages as OpenAI.ChatCompletionMessageParam[],
+          opts?.tools as OpenAI.ChatCompletionTool[] | undefined,
+          signal,
+        );
         ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
       } else if (provider === AIProvider.LLAMA_CPP) {
         const llamaModel = aiModel.slice(AI_MODEL_PREFIX.LLAMA_CPP.length);
-        const result = await callOpenAI(getLlamaCppClient(), llamaModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
+        const result = await callOpenAI(
+          getLlamaCppClient(),
+          llamaModel,
+          system,
+          messages as OpenAI.ChatCompletionMessageParam[],
+          opts?.tools as OpenAI.ChatCompletionTool[] | undefined,
+          signal,
+        );
         ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
       } else {
-        const result = await callOpenAI(this.getOpenAIClient(), aiModel, system, messages as OpenAI.ChatCompletionMessageParam[], opts?.tools as OpenAI.ChatCompletionTool[] | undefined, signal);
+        const result = await callOpenAI(
+          this.getOpenAIClient(),
+          aiModel,
+          system,
+          messages as OpenAI.ChatCompletionMessageParam[],
+          opts?.tools as OpenAI.ChatCompletionTool[] | undefined,
+          signal,
+        );
         ({ text, inputTokens, outputTokens, toolCalls, stopReason } = result);
       }
 
       const modelInfo = MODELS.find((m) => aiModel.startsWith(m.id));
       estimatedFees = modelInfo
         ? (inputTokens / 1_000_000) * modelInfo.inputPricePer1M +
-        (outputTokens / 1_000_000) * modelInfo.outputPricePer1M
+          (outputTokens / 1_000_000) * modelInfo.outputPricePer1M
         : 0;
 
       this.tokenHistoryRepository
-        .save({ id: randomUUID(), aiModel, usedTokens: `input:${inputTokens}/output:${outputTokens}`, estimatedFees })
-        .catch(() => { });
+        .save({
+          id: randomUUID(),
+          aiModel,
+          usedTokens: `input:${inputTokens}/output:${outputTokens}`,
+          estimatedFees,
+        })
+        .catch(() => {});
 
-      return { text, inputTokens, outputTokens, estimatedFees, toolCalls, stopReason, searchLog };
+      return {
+        text,
+        inputTokens,
+        outputTokens,
+        estimatedFees,
+        toolCalls,
+        stopReason,
+        searchLog,
+      };
     } catch (err) {
       errorMsg = (err as Error).message;
       this.logger.error(`model=${aiModel} | ERROR ${errorMsg}`);
       throw err;
     } finally {
-      this.aiCallLogRepository.save({
-        id: logId, aiModel, caller,
-        userId: requestContext.getStore()?.id ?? null,
-        systemPrompt: system.slice(0, 2000),
-        userPrompt: promptText.slice(0, 2000),
-        response: text ? text.slice(0, 2000) : null,
-        error: errorMsg ?? null,
-        inputTokens, outputTokens, estimatedFees,
-        durationMs: Date.now() - startMs,
-      }).catch(() => { });
+      this.aiCallLogRepository
+        .save({
+          id: logId,
+          aiModel,
+          caller,
+          userId: requestContext.getStore()?.id ?? null,
+          systemPrompt: system.slice(0, 2000),
+          userPrompt: promptText.slice(0, 2000),
+          response: text ? text.slice(0, 2000) : null,
+          error: errorMsg ?? null,
+          inputTokens,
+          outputTokens,
+          estimatedFees,
+          durationMs: Date.now() - startMs,
+        })
+        .catch(() => {});
     }
   }
 
   async *stream(
     aiModel: string,
     system: string,
-    messages: import('./provider/vlm.types').VlmMessage[],
+    messages: import('src/ai/infrastructure/provider/vlm.types').VlmMessage[],
   ): AsyncGenerator<string> {
     aiModel = this.resolveEffectiveModel(aiModel);
 
-    const streamPreview = messages.map((m) => {
-      const text = typeof m.content === 'string'
-        ? m.content
-        : m.content.filter((c): c is string => typeof c === 'string').join(' ');
-      return `[${m.role}] ${text}`;
-    }).join('\n');
+    const streamPreview = messages
+      .map((m) => {
+        const text =
+          typeof m.content === 'string'
+            ? m.content
+            : m.content
+                .filter((c): c is string => typeof c === 'string')
+                .join(' ');
+        return `[${m.role}] ${text}`;
+      })
+      .join('\n');
     this.assertInputTokenBudget(system, streamPreview, 'AiProvider/stream');
-    this.logger.log(`model=${aiModel} | system=\n${system}\n[/system]\nstream=\n${streamPreview}\n[/stream]`);
+    this.logger.log(
+      `model=${aiModel} | system=\n${system}\n[/system]\nstream=\n${streamPreview}\n[/stream]`,
+    );
 
     // **** 로컬 **** //
     if (aiModel.startsWith(AI_MODEL_PREFIX.OLLAMA)) {
@@ -319,9 +496,13 @@ export class AiProviderService {
         yield* streamOllama(ollamaModel, system, messages);
       } catch (err) {
         if (err instanceof OllamaInsufficientMemoryError) {
-          this.logger.error(`[메모리 부족] model=${ollamaModel} | ${err.message}`);
+          this.logger.error(
+            `[메모리 부족] model=${ollamaModel} | ${err.message}`,
+          );
         } else {
-          this.logger.error(`[Ollama 스트림 오류] model=${ollamaModel} | ${(err as Error).message}`);
+          this.logger.error(
+            `[Ollama 스트림 오류] model=${ollamaModel} | ${(err as Error).message}`,
+          );
         }
         throw err;
       }
@@ -333,45 +514,79 @@ export class AiProviderService {
     // **** 클라우드 **** //
     try {
       if (provider === AIProvider.ANTHROPIC) {
-        yield* streamAnthropic(this.getAnthropicClient(), aiModel, system, messages);
-
+        yield* streamAnthropic(
+          this.getAnthropicClient(),
+          aiModel,
+          system,
+          messages,
+        );
       } else if (provider === AIProvider.GOOGLE) {
-        if (this.isUsingDefaultGoogleKey()) await this.defaultGoogleLimiter.wait();
+        if (this.isUsingDefaultGoogleKey())
+          await this.defaultGoogleLimiter.wait();
         try {
-          yield* streamGoogle(this.getGoogleClient(), aiModel, system, messages);
-        } catch (googleErr) {
-          const hasImages = messages.some(m =>
-            Array.isArray(m.content) && m.content.some(c => typeof c === 'object' && c !== null && (c as { type?: string }).type === 'image')
+          yield* streamGoogle(
+            this.getGoogleClient(),
+            aiModel,
+            system,
+            messages,
           );
-          if (!hasImages && this.isUsingDefaultGoogleKey() && this.isGoogleQuotaError(googleErr) && DEFAULT_GROQ_API_KEY()) {
-            this.logger.warn(`[Gemini quota] Groq 스트림 폴백 model=${DEFAULT_GROQ_MODEL()}`);
-            yield* streamGroq(DEFAULT_GROQ_API_KEY(), DEFAULT_GROQ_MODEL(), system, messages);
+        } catch (googleErr) {
+          const hasImages = messages.some(
+            (m) =>
+              Array.isArray(m.content) &&
+              m.content.some(
+                (c) =>
+                  typeof c === 'object' &&
+                  c !== null &&
+                  (c as { type?: string }).type === 'image',
+              ),
+          );
+          if (
+            !hasImages &&
+            this.isUsingDefaultGoogleKey() &&
+            this.isGoogleQuotaError(googleErr) &&
+            DEFAULT_GROQ_API_KEY()
+          ) {
+            this.logger.warn(
+              `[Gemini quota] Groq 스트림 폴백 model=${DEFAULT_GROQ_MODEL()}`,
+            );
+            yield* streamGroq(
+              DEFAULT_GROQ_API_KEY(),
+              DEFAULT_GROQ_MODEL(),
+              system,
+              messages,
+            );
           } else {
             throw googleErr;
           }
         }
-
       } else if (provider === AIProvider.LLAMA_CPP) {
         const llamaModel = aiModel.slice(AI_MODEL_PREFIX.LLAMA_CPP.length);
         yield* streamOpenAI(getLlamaCppClient(), llamaModel, system, messages);
-
       } else if (provider === AIProvider.GROQ) {
-        yield* streamGroq(this.getGroqApiKey(), this.normalizeGroqModel(aiModel), system, messages);
-
+        yield* streamGroq(
+          this.getGroqApiKey(),
+          this.normalizeGroqModel(aiModel),
+          system,
+          messages,
+        );
       } else if (provider === AIProvider.OPENAI) {
         yield* streamOpenAI(this.getOpenAIClient(), aiModel, system, messages);
-
       } else {
         throw new InvalidAiTypeException(aiModel);
       }
     } catch (err) {
-      this.logger.error(`model=${aiModel} | STREAM ERROR ${(err as Error).message}`);
+      this.logger.error(
+        `model=${aiModel} | STREAM ERROR ${(err as Error).message}`,
+      );
       throw err;
     }
   }
 
   async getLocalAiModels() {
-    const models: (typeof MODELS[number] & { provider: string })[] = [...MODELS];
+    const models: ((typeof MODELS)[number] & { provider: string })[] = [
+      ...MODELS,
+    ];
     for (const m of await getOllamaLocalModels()) {
       models.push({
         id: `ollama:${m.name}`,
@@ -403,7 +618,9 @@ export class AiProviderService {
     return getLlamaCppModels();
   }
 
-  async getRunningOllamaModels(): Promise<{ name: string; size: number; size_vram: number }[]> {
+  async getRunningOllamaModels(): Promise<
+    { name: string; size: number; size_vram: number }[]
+  > {
     return getOllamaRunningModels();
   }
 
@@ -418,13 +635,19 @@ export class AiProviderService {
     return found?.inputPricePer1M ?? null;
   }
 
-  private assertInputTokenBudget(system: string, promptText: string, caller: string): void {
-    const estimatedTokens = this.estimateInputTokens(`${system}\n${promptText}`);
+  private assertInputTokenBudget(
+    system: string,
+    promptText: string,
+    caller: string,
+  ): void {
+    const estimatedTokens = this.estimateInputTokens(
+      `${system}\n${promptText}`,
+    );
     if (estimatedTokens < MAX_AI_PROVIDER_INPUT_TOKENS) return;
 
     throw new Error(
       `AI 입력이 너무 큽니다. caller=${caller}, estimatedInputTokens=${estimatedTokens.toLocaleString()}, ` +
-      `limit=${MAX_AI_PROVIDER_INPUT_TOKENS.toLocaleString()}. 요청 데이터를 줄여주세요.`,
+        `limit=${MAX_AI_PROVIDER_INPUT_TOKENS.toLocaleString()}. 요청 데이터를 줄여주세요.`,
     );
   }
 
@@ -435,7 +658,8 @@ export class AiProviderService {
 
     for (const char of text) {
       if (/\s/.test(char)) continue;
-      if (/[\u3131-\u318E\uAC00-\uD7A3\u3040-\u30FF\u3400-\u9FFF]/.test(char)) cjk++;
+      if (/[\u3131-\u318E\uAC00-\uD7A3\u3040-\u30FF\u3400-\u9FFF]/.test(char))
+        cjk++;
       else if (char.charCodeAt(0) < 128) ascii++;
       else other++;
     }

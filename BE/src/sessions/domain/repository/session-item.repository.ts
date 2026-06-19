@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { SessionItemEntity } from '../entity/session-item.entity';
-import { ResearchState } from '../entity/session.entity';
+import { SessionItemEntity } from 'src/sessions/domain/entity/session-item.entity';
+import { ResearchState } from 'src/sessions/domain/entity/session.entity';
 
 @Injectable()
 export class SessionItemRepository {
@@ -41,17 +41,33 @@ export class SessionItemRepository {
     webResult: string,
     state?: ResearchState,
     confidence?: { score: number; reason: string },
-    tokenUsage?: { inputTokens: number; outputTokens: number; estimatedFees: number },
-    extra?: { usedWebModel?: string; searchLog?: { query: string; result: string }[] },
+    tokenUsage?: {
+      inputTokens: number;
+      outputTokens: number;
+      estimatedFees: number;
+    },
+    extra?: {
+      usedWebModel?: string;
+      searchLog?: { query: string; result: string }[];
+    },
   ): Promise<void> {
     await this.repo.update(id, {
       aiResult,
       webResult,
       ...(state && { researchState: state as any }),
-      ...(confidence && { confidenceScore: confidence.score, confidenceReason: confidence.reason }),
-      ...(tokenUsage && { inputTokens: tokenUsage.inputTokens, outputTokens: tokenUsage.outputTokens, estimatedFees: tokenUsage.estimatedFees }),
+      ...(confidence && {
+        confidenceScore: confidence.score,
+        confidenceReason: confidence.reason,
+      }),
+      ...(tokenUsage && {
+        inputTokens: tokenUsage.inputTokens,
+        outputTokens: tokenUsage.outputTokens,
+        estimatedFees: tokenUsage.estimatedFees,
+      }),
       ...(extra?.usedWebModel != null && { usedWebModel: extra.usedWebModel }),
-      ...(extra?.searchLog != null && { searchLog: JSON.stringify(extra.searchLog) }),
+      ...(extra?.searchLog != null && {
+        searchLog: JSON.stringify(extra.searchLog),
+      }),
     });
   }
 
@@ -59,8 +75,15 @@ export class SessionItemRepository {
     await this.repo.update(id, { researchState: state as any });
   }
 
-  async updateConfidence(id: string, score: number, reason: string): Promise<void> {
-    await this.repo.update(id, { confidenceScore: score, confidenceReason: reason });
+  async updateConfidence(
+    id: string,
+    score: number,
+    reason: string,
+  ): Promise<void> {
+    await this.repo.update(id, {
+      confidenceScore: score,
+      confidenceReason: reason,
+    });
   }
 
   async delete(id: string): Promise<void> {

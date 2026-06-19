@@ -1,5 +1,9 @@
-import { QueueJobStatus, QueueJobPhase, QueueJob } from '../../../domain/queue-job.model';
-import { SearchSources } from '../../../../research/domain/model/search-sources.model';
+import {
+  QueueJobStatus,
+  QueueJobPhase,
+  QueueJob,
+} from 'src/queue/domain/queue-job.model';
+import { SearchSources } from 'src/research/domain/model/search-sources.model';
 
 export class QueueJobSummaryDto {
   jobId: string;

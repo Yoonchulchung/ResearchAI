@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
 import {
   buildPortfolioEvaluationPrompt,
   PORTFOLIO_EVALUATION_SYSTEM_PROMPT,
-} from '../../../recruit/domain/documents/doc-parse.prompts';
+} from 'src/recruit/domain/documents/doc-parse.prompts';
 
 @Injectable()
 export class DocParseExecutorService {
@@ -22,7 +22,9 @@ export class DocParseExecutorService {
     const prompt = `=== 문서 내용 ===\n${docText.slice(0, 30000)}\n\n=== 질문 ===\n${question}`;
 
     let full = '';
-    for await (const chunk of this.aiProvider.stream(model, system, [{ role: 'user', content: prompt }])) {
+    for await (const chunk of this.aiProvider.stream(model, system, [
+      { role: 'user', content: prompt },
+    ])) {
       if (signal?.aborted) break;
       full += chunk;
       onChunk(chunk);
@@ -40,7 +42,9 @@ export class DocParseExecutorService {
   ): Promise<string> {
     const { system, prompt } = this.buildPrompt(action, docText, pages);
     let full = '';
-    for await (const chunk of this.aiProvider.stream(model, system, [{ role: 'user', content: prompt }])) {
+    for await (const chunk of this.aiProvider.stream(model, system, [
+      { role: 'user', content: prompt },
+    ])) {
       if (signal?.aborted) break;
       full += chunk;
       onChunk(chunk);
@@ -57,7 +61,8 @@ export class DocParseExecutorService {
 
     if (action === 'translate') {
       return {
-        system: '당신은 번역 전문가입니다. 원문의 구조와 형식을 최대한 유지하세요.',
+        system:
+          '당신은 번역 전문가입니다. 원문의 구조와 형식을 최대한 유지하세요.',
         prompt: `이 문서의 내용을 한국어로 번역해주세요:\n\n${text}`,
       };
     }
@@ -79,7 +84,8 @@ export class DocParseExecutorService {
         .map((p, i) => `### 페이지 ${i + 1}\n${p.trim() || '(텍스트 없음)'}`)
         .join('\n\n---\n\n');
       return {
-        system: '당신은 문서 요약 전문가입니다. 각 페이지의 핵심 내용을 간결하고 명확하게 요약합니다.',
+        system:
+          '당신은 문서 요약 전문가입니다. 각 페이지의 핵심 내용을 간결하고 명확하게 요약합니다.',
         prompt: `다음은 문서의 페이지별 텍스트입니다. 각 페이지의 핵심 내용을 2~4개의 불릿으로 요약해주세요.
 
 ## 출력 형식

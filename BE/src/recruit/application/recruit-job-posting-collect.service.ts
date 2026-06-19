@@ -1,13 +1,22 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
 import { load } from 'cheerio';
-import { RecruitJobPostingEntity } from '../domain/job-posting/entity/recruit-job-posting.entity';
-import { RecruitJobRecommendEntity } from '../domain/job-posting/entity/recruit-job-recommend.entity';
-import { JobPostingScraperService } from './job-posting-scraper.service';
-import { AiProviderService, VlmMessage } from '../../ai/infrastructure/ai-provider.service';
+import { RecruitJobPostingEntity } from 'src/recruit/domain/job-posting/entity/recruit-job-posting.entity';
+import { RecruitJobRecommendEntity } from 'src/recruit/domain/job-posting/entity/recruit-job-recommend.entity';
+import { JobPostingScraperService } from 'src/recruit/application/job-posting-scraper.service';
+import { deduplicatePostingsByDeadlineAndTitle } from 'src/recruit/application/job-posting/job-posting-dedup.utils';
+import {
+  AiProviderService,
+  VlmMessage,
+} from 'src/ai/infrastructure/ai-provider.service';
 
 export interface JobRecommendResult {
   id: number;
@@ -56,7 +65,9 @@ export interface CollectDetailStatus {
 }
 
 @Injectable()
-export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDestroy {
+export class RecruitJobPostingCollectService
+  implements OnModuleInit, OnModuleDestroy
+{
   private readonly logger = new Logger(RecruitJobPostingCollectService.name);
   private weeklyTimer: NodeJS.Timeout | null = null;
   private currentConfig: Required<CollectDetailConfig> = {
@@ -69,9 +80,14 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
     jobs: [],
   };
   private status: CollectDetailStatus = {
-    running: false, total: 0, processed: 0,
-    startedAt: null, lastActivity: null, lastRunAt: null,
-    model: DEFAULT_COLLECT_MODEL, enableVlm: true,
+    running: false,
+    total: 0,
+    processed: 0,
+    startedAt: null,
+    lastActivity: null,
+    lastRunAt: null,
+    model: DEFAULT_COLLECT_MODEL,
+    enableVlm: true,
   };
 
   constructor(
@@ -86,7 +102,9 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
 
   onModuleInit() {
     this.weeklyTimer = setInterval(() => {
-      void this.collect().catch((err) => this.logger.error('주간 자동 수집 오류', err));
+      void this.collect().catch((err) =>
+        this.logger.error('주간 자동 수집 오류', err),
+      );
     }, WEEKLY_MS);
   }
 
@@ -116,9 +134,14 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
       jobs: config?.jobs ?? [],
     };
     this.status = {
-      running: true, total: 0, processed: 0,
-      startedAt: new Date().toISOString(), lastActivity: new Date().toISOString(), lastRunAt: null,
-      model: this.currentConfig.model, enableVlm: this.currentConfig.enableVlm,
+      running: true,
+      total: 0,
+      processed: 0,
+      startedAt: new Date().toISOString(),
+      lastActivity: new Date().toISOString(),
+      lastRunAt: null,
+      model: this.currentConfig.model,
+      enableVlm: this.currentConfig.enableVlm,
     };
     void this.runCollect().catch((err) => {
       this.logger.error('수집 오류', err);
@@ -134,16 +157,21 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
   private async runCollect(): Promise<void> {
     try {
       let postings = await this.getFilteredPostings();
-      if (this.currentConfig.maxItems > 0) postings = postings.slice(0, this.currentConfig.maxItems);
+      if (this.currentConfig.maxItems > 0)
+        postings = postings.slice(0, this.currentConfig.maxItems);
       this.status.total = postings.length;
-      this.logger.log(`[DetailCollect] 모델=${this.currentConfig.model} VLM=${this.currentConfig.enableVlm} 스킵=${this.currentConfig.skipExisting} 공고 ${postings.length}개`);
+      this.logger.log(
+        `[DetailCollect] 모델=${this.currentConfig.model} VLM=${this.currentConfig.enableVlm} 스킵=${this.currentConfig.skipExisting} 공고 ${postings.length}개`,
+      );
 
       for (const posting of postings) {
         if (!this.status.running) break;
         this.status.lastActivity = new Date().toISOString();
 
         if (this.currentConfig.skipExisting) {
-          const existing = await this.repo.findOne({ where: { id: posting.id } });
+          const existing = await this.repo.findOne({
+            where: { id: posting.id },
+          });
           if (existing?.detailContent) {
             this.status.processed++;
             continue;
@@ -158,7 +186,9 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
         this.status.processed++;
       }
       this.status.lastRunAt = new Date().toISOString();
-      this.logger.log(`[DetailCollect] 완료 ${this.status.processed}/${this.status.total}`);
+      this.logger.log(
+        `[DetailCollect] 완료 ${this.status.processed}/${this.status.total}`,
+      );
       // 수집 완료 후 AI 추천 생성
       await this.generateRecommendations().catch((err) =>
         this.logger.warn('[DetailCollect] 추천 생성 오류', err),
@@ -168,13 +198,31 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
     }
   }
 
-  private async getFilteredPostings(): Promise<Array<{
-    id: string; title: string; company: string; url: string;
-    deadline: string | null; end_date: string | null;
-    type: string | null; company_type: string | null;
-  }>> {
+  private async getFilteredPostings(): Promise<
+    Array<{
+      id: string;
+      title: string;
+      company: string;
+      url: string;
+      deadline: string | null;
+      end_date: string | null;
+      type: string | null;
+      company_type: string | null;
+    }>
+  > {
     const rows = await this.repo.find({
-      select: ['id', 'title', 'company', 'url', 'deadline', 'endDate', 'type', 'companyType', 'jobs', 'collectedAt'],
+      select: [
+        'id',
+        'title',
+        'company',
+        'url',
+        'deadline',
+        'endDate',
+        'type',
+        'companyType',
+        'jobs',
+        'collectedAt',
+      ],
     });
 
     const now = Date.now();
@@ -183,17 +231,26 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
     // recruit_job_posting.company_type은 null일 수 있으므로 companies 테이블에서 fallback 조회
     let companyTypeMap = new Map<string, string>();
     if (companyTypes.length > 0) {
-      const normalize = (n: string) => n.replace(/[\s(주)㈜()（）㈔주식회사유한회사합자회사]/g, '').toLowerCase();
+      const normalize = (n: string) =>
+        n
+          .replace(/[\s(주)㈜()（）㈔주식회사유한회사합자회사]/g, '')
+          .toLowerCase();
       const companyRows = await this.dataSource.query(
         `SELECT normalized_name, company_type FROM companies WHERE company_type IS NOT NULL`,
-      ) as { normalized_name: string; company_type: string }[];
-      companyTypeMap = new Map(companyRows.map((c) => [c.normalized_name, c.company_type]));
+      );
+      companyTypeMap = new Map(
+        companyRows.map((c) => [c.normalized_name, c.company_type]),
+      );
 
       for (const r of rows) {
-        if (r.companyType) companyTypeMap.set(normalize(r.company), r.companyType);
+        if (r.companyType)
+          companyTypeMap.set(normalize(r.company), r.companyType);
       }
     }
-    const normalize = (n: string) => n.replace(/[\s(주)㈜()（）㈔주식회사유한회사합자회사]/g, '').toLowerCase();
+    const normalize = (n: string) =>
+      n
+        .replace(/[\s(주)㈜()（）㈔주식회사유한회사합자회사]/g, '')
+        .toLowerCase();
 
     const filtered = rows.filter((r) => {
       const raw = r.endDate || r.deadline;
@@ -202,18 +259,24 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
         if (ts !== null && ts < now) return false;
       }
       if (companyTypes.length > 0) {
-        const resolved = r.companyType ?? companyTypeMap.get(normalize(r.company)) ?? '';
+        const resolved =
+          r.companyType ?? companyTypeMap.get(normalize(r.company)) ?? '';
         if (!companyTypes.includes(resolved)) return false;
       }
       if (jobTypes.length > 0 && !jobTypes.includes(r.type ?? '')) return false;
       if (jobs.length > 0) {
         const p = { title: r.title, jobs: r.jobs };
-        if (!jobs.some((cat) => this.jobScraperService.matchesCategoryFilter(p, cat))) return false;
+        if (
+          !jobs.some((cat) =>
+            this.jobScraperService.matchesCategoryFilter(p, cat),
+          )
+        )
+          return false;
       }
       return true;
     });
 
-    const deduped = await this.deduplicateByEmbedding(filtered);
+    const deduped = deduplicatePostingsByDeadlineAndTitle(filtered);
 
     return deduped.map((r) => ({
       id: r.id,
@@ -242,23 +305,34 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
     this.currentConfig = saved;
 
     let total = postings.length;
-    if (config.maxItems && config.maxItems > 0) total = Math.min(total, config.maxItems);
+    if (config.maxItems && config.maxItems > 0)
+      total = Math.min(total, config.maxItems);
 
     if (config.skipExisting ?? true) {
       const ids = postings.map((p) => p.id).slice(0, total);
       const existing = await this.repo.find({ where: { id: In(ids) } });
-      const skippable = new Set(existing.filter((e) => e.detailContent).map((e) => e.id));
+      const skippable = new Set(
+        existing.filter((e) => e.detailContent).map((e) => e.id),
+      );
       total = ids.filter((id) => !skippable.has(id)).length;
     }
     return { total };
   }
 
   private async processPosting(posting: {
-    id: string; title: string; company: string; url: string;
-    deadline: string | null; end_date: string | null;
+    id: string;
+    title: string;
+    company: string;
+    url: string;
+    deadline: string | null;
+    end_date: string | null;
   }): Promise<void> {
     const linkareerUrl = `https://linkareer.com/activity/${posting.id}`;
-    const detail = await this.jobScraperService.fetchDetailContent(posting.id, linkareerUrl, 'linkareer');
+    const detail = await this.jobScraperService.fetchDetailContent(
+      posting.id,
+      linkareerUrl,
+      'linkareer',
+    );
 
     // HTML → plain text
     let textContent = '';
@@ -273,14 +347,19 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
     // VLM: extract text from cached images
     let imageTexts = '';
     if (this.currentConfig.enableVlm && detail.detailHtml) {
-      const imageFiles = this.jobScraperService.getPostingImageFiles(detail.detailHtml);
+      const imageFiles = this.jobScraperService.getPostingImageFiles(
+        detail.detailHtml,
+      );
       for (const filename of imageFiles.slice(0, 5)) {
-        const imgText = await this.extractImageTextVlm(filename).catch(() => '');
+        const imgText = await this.extractImageTextVlm(filename).catch(
+          () => '',
+        );
         if (imgText) imageTexts += `\n[이미지]\n${imgText}`;
       }
     }
 
-    const detailContent = [textContent, imageTexts].filter(Boolean).join('\n\n').trim() || null;
+    const detailContent =
+      [textContent, imageTexts].filter(Boolean).join('\n\n').trim() || null;
 
     await this.repo.save({
       id: posting.id,
@@ -301,22 +380,34 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
 
     const buffer = fs.readFileSync(filePath);
     const ext = path.extname(filename).toLowerCase();
-    const mediaTypeMap: Record<string, 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'> = {
-      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-      '.gif': 'image/gif', '.webp': 'image/webp',
+    const mediaTypeMap: Record<
+      string,
+      'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+    > = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
     };
     const mediaType = mediaTypeMap[ext] ?? 'image/png';
 
-    const messages: VlmMessage[] = [{
-      role: 'user',
-      content: [
-        { type: 'image', mediaType, data: buffer.toString('base64') },
-        '이 이미지에서 텍스트를 모두 추출해줘. 텍스트만 반환하고 설명은 필요 없어.',
-      ],
-    }];
+    const messages: VlmMessage[] = [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', mediaType, data: buffer.toString('base64') },
+          '이 이미지에서 텍스트를 모두 추출해줘. 텍스트만 반환하고 설명은 필요 없어.',
+        ],
+      },
+    ];
 
     let text = '';
-    for await (const chunk of this.aiProvider.stream(this.currentConfig.model, '', messages)) {
+    for await (const chunk of this.aiProvider.stream(
+      this.currentConfig.model,
+      '',
+      messages,
+    )) {
       text += chunk;
     }
     return text.trim();
@@ -324,16 +415,34 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
 
   private parseDate(raw: string): number | null {
     const iso = raw.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])).getTime();
+    if (iso)
+      return new Date(
+        Number(iso[1]),
+        Number(iso[2]) - 1,
+        Number(iso[3]),
+      ).getTime();
     const full = raw.match(/(\d{4})[./](\d{1,2})[./](\d{1,2})/);
-    if (full) return new Date(Number(full[1]), Number(full[2]) - 1, Number(full[3])).getTime();
+    if (full)
+      return new Date(
+        Number(full[1]),
+        Number(full[2]) - 1,
+        Number(full[3]),
+      ).getTime();
     const md = raw.match(/(\d{1,2})[./](\d{1,2})/);
     if (md) {
       const today = new Date();
       const d = new Date(today.getFullYear(), Number(md[1]) - 1, Number(md[2]));
-      const todayMs = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+      const todayMs = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+      ).getTime();
       if (d.getTime() >= todayMs) return d.getTime();
-      return new Date(today.getFullYear() + 1, Number(md[1]) - 1, Number(md[2])).getTime();
+      return new Date(
+        today.getFullYear() + 1,
+        Number(md[1]) - 1,
+        Number(md[2]),
+      ).getTime();
     }
     return null;
   }
@@ -341,14 +450,22 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
   // ── AI 추천 생성 ────────────────────────────────────────────────────────────
 
   async generateRecommendations(): Promise<void> {
-    const postings = await this.repo.find({ order: { collectedAt: 'DESC' }, take: 50 });
+    const postings = await this.repo.find({
+      order: { collectedAt: 'DESC' },
+      take: 50,
+    });
     const candidates = postings.filter((p) => p.detailContent);
     if (candidates.length === 0) return;
 
     this.logger.log(`[Recommend] ${candidates.length}개 공고 추천 분석 시작`);
 
     const BATCH = 10;
-    const allResults: Array<{ id: string; score: number; reason: string; match_points: string[] }> = [];
+    const allResults: Array<{
+      id: string;
+      score: number;
+      reason: string;
+      match_points: string[];
+    }> = [];
 
     for (let i = 0; i < candidates.length; i += BATCH) {
       const batch = candidates.slice(i, i + BATCH);
@@ -371,7 +488,12 @@ export class RecruitJobPostingCollectService implements OnModuleInit, OnModuleDe
 ${JSON.stringify(rows)}`;
 
       try {
-        const { text } = await this.aiProvider.call(this.currentConfig.model, '', prompt, { caller: 'job-recommend' });
+        const { text } = await this.aiProvider.call(
+          this.currentConfig.model,
+          '',
+          prompt,
+          { caller: 'job-recommend' },
+        );
         const parsed = this.parseRecommendJson(text);
         allResults.push(...parsed);
       } catch (err) {
@@ -382,7 +504,9 @@ ${JSON.stringify(rows)}`;
     if (allResults.length === 0) return;
 
     const now = new Date().toISOString();
-    const existing = await this.recommendRepo.find({ select: ['jobPostingId'] });
+    const existing = await this.recommendRepo.find({
+      select: ['jobPostingId'],
+    });
     const existingIds = new Set(existing.map((e) => e.jobPostingId));
 
     const entities = allResults
@@ -394,7 +518,9 @@ ${JSON.stringify(rows)}`;
           jobPostingId: r.id,
           score: r.score,
           reason: r.reason || null,
-          matchPoints: r.match_points?.length ? JSON.stringify(r.match_points) : null,
+          matchPoints: r.match_points?.length
+            ? JSON.stringify(r.match_points)
+            : null,
           recommendedAt: now,
         }),
       );
@@ -403,7 +529,9 @@ ${JSON.stringify(rows)}`;
       return;
     }
     await this.recommendRepo.save(entities);
-    this.logger.log(`[Recommend] ${entities.length}개 추천 저장 완료 (기존 유지)`);
+    this.logger.log(
+      `[Recommend] ${entities.length}개 추천 저장 완료 (기존 유지)`,
+    );
   }
 
   async deleteRecommendation(id: number): Promise<void> {
@@ -427,7 +555,11 @@ ${JSON.stringify(rows)}`;
         const p = postingMap.get(rec.jobPostingId);
         if (!p) return null;
         let matchPoints: string[] = [];
-        try { matchPoints = JSON.parse(rec.matchPoints || '[]'); } catch { /* ignore */ }
+        try {
+          matchPoints = JSON.parse(rec.matchPoints || '[]');
+        } catch {
+          /* ignore */
+        }
         return {
           id: rec.id,
           jobPostingId: rec.jobPostingId,
@@ -452,113 +584,22 @@ ${JSON.stringify(rows)}`;
       .filter((r): r is JobRecommendResult => r !== null);
   }
 
-  private parseRecommendJson(raw: string): Array<{ id: string; score: number; reason: string; match_points: string[] }> {
+  private parseRecommendJson(raw: string): Array<{
+    id: string;
+    score: number;
+    reason: string;
+    match_points: string[];
+  }> {
     try {
       const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
       const json = fenced?.[1]?.trim() ?? raw.trim();
       const parsed = JSON.parse(json);
       const items = Array.isArray(parsed) ? parsed : (parsed.items ?? []);
-      return items.filter((i: unknown) => i && typeof (i as { id?: string }).id === 'string');
+      return items.filter(
+        (i: unknown) => i && typeof (i as { id?: string }).id === 'string',
+      );
     } catch {
       return [];
     }
-  }
-
-  // ── 임베딩 기반 중복 공고 제거 ───────────────────────────────────────────────
-
-  private async embedText(text: string): Promise<number[] | null> {
-    try {
-      const ollamaUrl = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
-      const embedModel = process.env.OLLAMA_EMBED_MODEL ?? 'nomic-embed-text';
-      const res = await fetch(`${ollamaUrl}/api/embed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: embedModel, input: text }),
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) return null;
-      const data = await res.json() as { embeddings?: number[][] };
-      return data.embeddings?.[0] ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  private cosineSimilarity(a: number[], b: number[]): number {
-    let dot = 0, magA = 0, magB = 0;
-    for (let i = 0; i < a.length; i++) {
-      dot += a[i] * b[i];
-      magA += a[i] * a[i];
-      magB += b[i] * b[i];
-    }
-    const denom = Math.sqrt(magA) * Math.sqrt(magB);
-    return denom > 0 ? dot / denom : 0;
-  }
-
-  private async deduplicateByEmbedding<T extends { id: string; company: string; title: string; collectedAt: string }>(
-    postings: T[],
-    threshold = 0.85,
-  ): Promise<T[]> {
-    if (postings.length <= 1) return postings;
-
-    const norm = (n: string) => n.replace(/[\s(주)㈜()（）㈔주식회사유한회사합자회사]/g, '').toLowerCase();
-
-    // 회사별 그룹화
-    const groups = new Map<string, T[]>();
-    for (const p of postings) {
-      const key = norm(p.company);
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(p);
-    }
-
-    const result: T[] = [];
-
-    for (const group of groups.values()) {
-      if (group.length === 1) {
-        result.push(group[0]);
-        continue;
-      }
-
-      // 같은 회사 내 임베딩 병렬 생성
-      const embeddings = await Promise.all(
-        group.map((p) => this.embedText(`${p.company} ${p.title}`)),
-      );
-
-      // Ollama 미실행 시 중복 제거 스킵
-      if (embeddings.every((e) => e === null)) {
-        result.push(...group);
-        continue;
-      }
-
-      // Union-Find 클러스터링
-      const parent = group.map((_, i) => i);
-      const find = (i: number): number => parent[i] === i ? i : (parent[i] = find(parent[i]));
-      const union = (i: number, j: number) => { parent[find(i)] = find(j); };
-
-      for (let i = 0; i < group.length; i++) {
-        for (let j = i + 1; j < group.length; j++) {
-          const a = embeddings[i], b = embeddings[j];
-          if (!a || !b) continue;
-          if (this.cosineSimilarity(a, b) >= threshold) union(i, j);
-        }
-      }
-
-      // 클러스터당 가장 최근 공고 1개 유지
-      const clusters = new Map<number, T[]>();
-      for (let i = 0; i < group.length; i++) {
-        const root = find(i);
-        if (!clusters.has(root)) clusters.set(root, []);
-        clusters.get(root)!.push(group[i]);
-      }
-
-      for (const cluster of clusters.values()) {
-        const best = cluster.sort((a, b) => b.collectedAt.localeCompare(a.collectedAt))[0];
-        result.push(best);
-      }
-    }
-
-    const removed = postings.length - result.length;
-    if (removed > 0) this.logger.log(`[Dedup] ${postings.length}개 → ${result.length}개 (중복 ${removed}개 제거)`);
-    return result;
   }
 }

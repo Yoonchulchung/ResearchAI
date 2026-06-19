@@ -30,31 +30,31 @@ const NEONET_BASE_URL = 'https://www.neonet.co.kr/novo-rebank';
 const MAX_PAGES_PER_TRADE = 15;
 
 const SEOUL_REGION_CODES: Record<string, string> = {
-  '종로구': '1111000000',
-  '중구': '1114000000',
-  '용산구': '1117000000',
-  '성동구': '1120000000',
-  '광진구': '1121500000',
-  '동대문구': '1123000000',
-  '중랑구': '1126000000',
-  '성북구': '1129000000',
-  '강북구': '1130500000',
-  '도봉구': '1132000000',
-  '노원구': '1135000000',
-  '은평구': '1138000000',
-  '서대문구': '1141000000',
-  '마포구': '1144000000',
-  '양천구': '1147000000',
-  '강서구': '1150000000',
-  '구로구': '1153000000',
-  '금천구': '1154500000',
-  '영등포구': '1156000000',
-  '동작구': '1159000000',
-  '관악구': '1162000000',
-  '서초구': '1165000000',
-  '강남구': '1168000000',
-  '송파구': '1171000000',
-  '강동구': '1174000000',
+  종로구: '1111000000',
+  중구: '1114000000',
+  용산구: '1117000000',
+  성동구: '1120000000',
+  광진구: '1121500000',
+  동대문구: '1123000000',
+  중랑구: '1126000000',
+  성북구: '1129000000',
+  강북구: '1130500000',
+  도봉구: '1132000000',
+  노원구: '1135000000',
+  은평구: '1138000000',
+  서대문구: '1141000000',
+  마포구: '1144000000',
+  양천구: '1147000000',
+  강서구: '1150000000',
+  구로구: '1153000000',
+  금천구: '1154500000',
+  영등포구: '1156000000',
+  동작구: '1159000000',
+  관악구: '1162000000',
+  서초구: '1165000000',
+  강남구: '1168000000',
+  송파구: '1171000000',
+  강동구: '1174000000',
 };
 
 const REGION_CODES: Record<string, string> = {
@@ -70,7 +70,8 @@ const REGION_LABEL_BY_CODE = Object.fromEntries(
 );
 
 const NEONET_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'User-Agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'Accept-Language': 'ko-KR,ko;q=0.9',
   Referer: `${NEONET_BASE_URL}/view/offerings/OfferingsIndex.neo`,
@@ -84,10 +85,16 @@ export class NeonetRealEstatePriceService {
     if (!address) return null;
 
     const normalizedAddress = address.replace('충첨남도', '충청남도');
-    const cityMatch = normalizedAddress.match(/([가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도))/);
+    const cityMatch = normalizedAddress.match(
+      /([가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도))/,
+    );
     const city = cityMatch?.[1] ?? null;
-    const addressAfterCity = city && cityMatch ? normalizedAddress.slice((cityMatch.index ?? 0) + city.length) : normalizedAddress;
-    const local = addressAfterCity.match(/([가-힣]{2,8}(?:구|시|군))/)?.[1] ?? null;
+    const addressAfterCity =
+      city && cityMatch
+        ? normalizedAddress.slice((cityMatch.index ?? 0) + city.length)
+        : normalizedAddress;
+    const local =
+      addressAfterCity.match(/([가-힣]{2,8}(?:구|시|군))/)?.[1] ?? null;
 
     if (!local) return null;
     if (city) return `${city} ${local}`;
@@ -104,7 +111,9 @@ export class NeonetRealEstatePriceService {
     return `${NEONET_BASE_URL}/view/offerings/ScodeList.neo?${params}`;
   }
 
-  async fetchDistrictPrices(addressOrDistrict: string): Promise<NeonetApartmentPriceSummary | null> {
+  async fetchDistrictPrices(
+    addressOrDistrict: string,
+  ): Promise<NeonetApartmentPriceSummary | null> {
     const region = this.resolveRegion(addressOrDistrict);
     if (!region?.regionCd) {
       this.logger.debug(`[Neonet] 지역 코드 없음: ${addressOrDistrict}`);
@@ -120,7 +129,9 @@ export class NeonetRealEstatePriceService {
     return this.buildSummary(region, dealListings, leaseListings);
   }
 
-  private resolveRegion(addressOrDistrict: string | null | undefined): RegionInfo | null {
+  private resolveRegion(
+    addressOrDistrict: string | null | undefined,
+  ): RegionInfo | null {
     const regionCdFromUrl = this.extractRegionCd(addressOrDistrict);
     if (regionCdFromUrl) {
       return {
@@ -129,11 +140,17 @@ export class NeonetRealEstatePriceService {
       };
     }
 
-    const district = this.extractDistrict(addressOrDistrict) ?? addressOrDistrict?.trim();
+    const district =
+      this.extractDistrict(addressOrDistrict) ?? addressOrDistrict?.trim();
     if (!district) return null;
 
-    const local = district.match(/([가-힣]{2,8}(?:구|시|군))$/)?.[1] ?? district;
-    const label = REGION_CODES[district] ? district : SEOUL_REGION_CODES[local] ? `${SEOUL_CITY_NAME} ${local}` : district;
+    const local =
+      district.match(/([가-힣]{2,8}(?:구|시|군))$/)?.[1] ?? district;
+    const label = REGION_CODES[district]
+      ? district
+      : SEOUL_REGION_CODES[local]
+        ? `${SEOUL_CITY_NAME} ${local}`
+        : district;
 
     return {
       label,
@@ -160,13 +177,18 @@ export class NeonetRealEstatePriceService {
     const seen = new Set<string>();
     let maxPage = 1;
 
-    for (let page = 1; page <= Math.min(maxPage, MAX_PAGES_PER_TRADE); page += 1) {
+    for (
+      let page = 1;
+      page <= Math.min(maxPage, MAX_PAGES_PER_TRADE);
+      page += 1
+    ) {
       const html = await this.fetchOfferingsPage(regionCd, offerGbn, page);
       if (page === 1) maxPage = Math.max(1, this.extractMaxPage(html));
 
       const pageListings = this.parseOfferingsPage(html, tradeType);
       for (const listing of pageListings) {
-        const key = listing.id || `${listing.tradeType}:${listing.name}:${listing.price}`;
+        const key =
+          listing.id || `${listing.tradeType}:${listing.name}:${listing.price}`;
         if (seen.has(key)) continue;
         seen.add(key);
         listings.push(listing);
@@ -178,7 +200,11 @@ export class NeonetRealEstatePriceService {
     return listings;
   }
 
-  private async fetchOfferingsPage(regionCd: string, offerGbn: 'P' | 'L', page: number): Promise<string> {
+  private async fetchOfferingsPage(
+    regionCd: string,
+    offerGbn: 'P' | 'L',
+    page: number,
+  ): Promise<string> {
     const params = new URLSearchParams({
       offerings_gbn: 'AT',
       sub_offerings_gbn: '',
@@ -210,22 +236,36 @@ export class NeonetRealEstatePriceService {
     return this.decodeKoreanHtml(await res.arrayBuffer());
   }
 
-  private parseOfferingsPage(html: string, tradeType: 'deal' | 'lease'): NeonetApartmentListing[] {
+  private parseOfferingsPage(
+    html: string,
+    tradeType: 'deal' | 'lease',
+  ): NeonetApartmentListing[] {
     const $ = load(html);
     const listings: NeonetApartmentListing[] = [];
     const tradeLabel = tradeType === 'deal' ? '매매' : '전세';
 
     $('tr').each((_, row) => {
-      const cells = $(row).find('td').map((__, cell) => $(cell).text().replace(/\s+/g, ' ').trim()).get();
+      const cells = $(row)
+        .find('td')
+        .map((__, cell) => $(cell).text().replace(/\s+/g, ' ').trim())
+        .get();
       if (cells.length < 8 || cells[0] !== tradeLabel) return;
 
-      const priceText = [...cells].reverse().find((cell) => /^\d{1,3}(?:,\d{3})+$/.test(cell));
+      const priceText = [...cells]
+        .reverse()
+        .find((cell) => /^\d{1,3}(?:,\d{3})+$/.test(cell));
       const price = this.parseManwonPrice(priceText);
       if (!price) return;
 
       const detailLink = $(row).find('a[href*="onClickDetail"]').first();
       const id = detailLink.attr('href')?.match(/'(\d+)'/)?.[1] ?? '';
-      const name = detailLink.text().replace(/\s+/g, ' ').trim() || cells.find((cell) => /[가-힣]/.test(cell) && cell !== tradeLabel && cell !== '아파트') || '아파트';
+      const name =
+        detailLink.text().replace(/\s+/g, ' ').trim() ||
+        cells.find(
+          (cell) =>
+            /[가-힣]/.test(cell) && cell !== tradeLabel && cell !== '아파트',
+        ) ||
+        '아파트';
 
       listings.push({ id, name, tradeType, price });
     });
@@ -267,9 +307,17 @@ export class NeonetRealEstatePriceService {
     dealListings: NeonetApartmentListing[],
     leaseListings: NeonetApartmentListing[],
   ): NeonetApartmentPriceSummary {
-    const dealPrices = dealListings.map((listing) => listing.price).filter((price) => price > 0);
-    const leasePrices = leaseListings.map((listing) => listing.price).filter((price) => price > 0);
-    const uniqueComplexes = new Set([...dealListings, ...leaseListings].map((listing) => listing.name).filter(Boolean));
+    const dealPrices = dealListings
+      .map((listing) => listing.price)
+      .filter((price) => price > 0);
+    const leasePrices = leaseListings
+      .map((listing) => listing.price)
+      .filter((price) => price > 0);
+    const uniqueComplexes = new Set(
+      [...dealListings, ...leaseListings]
+        .map((listing) => listing.name)
+        .filter(Boolean),
+    );
 
     return {
       district: region.label,
@@ -279,13 +327,19 @@ export class NeonetRealEstatePriceService {
       maxDealPrice: this.max(dealPrices),
       minLeasePrice: this.min(leasePrices),
       maxLeasePrice: this.max(leasePrices),
-      complexCount: uniqueComplexes.size || Math.max(dealListings.length, leaseListings.length),
+      complexCount:
+        uniqueComplexes.size ||
+        Math.max(dealListings.length, leaseListings.length),
       naverLandUrl: this.buildScodeListUrl(region.label),
     };
   }
 
   private avg(values: number[]): number | null {
-    return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
+    return values.length
+      ? Math.round(
+          values.reduce((sum, value) => sum + value, 0) / values.length,
+        )
+      : null;
   }
 
   private min(values: number[]): number | null {

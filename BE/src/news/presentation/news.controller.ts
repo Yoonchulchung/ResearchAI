@@ -8,11 +8,15 @@ import {
   ConflictZone,
   GithubNewsItem,
   HuggingFaceNewsItem,
-} from '../application/service/news.service';
-import { MarketService, MarketItem, ChartPoint } from '../application/service/market.service';
-import { NewsSummaryService } from '../application/service/news-summary.service';
-import { PuppeteerService } from '../../browse/infrastructure/puppeteer.service';
-import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
+} from 'src/news/application/service/news.service';
+import {
+  MarketService,
+  MarketItem,
+  ChartPoint,
+} from 'src/news/application/service/market.service';
+import { NewsSummaryService } from 'src/news/application/service/news-summary.service';
+import { PuppeteerService } from 'src/browse/infrastructure/puppeteer.service';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
 
 @Controller('news')
 export class NewsController {
@@ -24,18 +28,43 @@ export class NewsController {
     private readonly aiProvider: AiProviderService,
   ) {}
 
+  @Get('naver')
+  async getNaverNews(
+    @Query('category') category = 'it',
+    @Query('limit') limitStr = '20',
+    @Query('offset') offsetStr = '0',
+  ): Promise<NewsItem[]> {
+    return this.newsService.getNaverNews(
+      category,
+      Number(limitStr) || 20,
+      Number(offsetStr) || 0,
+    );
+  }
+
   @Get('google')
-  async getGoogleNews(@Query('category') category = 'it'): Promise<NewsItem[]> {
-    return this.newsService.getGoogleNews(category);
+  async getGoogleNews(
+    @Query('category') category = 'it',
+    @Query('limit') limitStr = '20',
+    @Query('offset') offsetStr = '0',
+  ): Promise<NewsItem[]> {
+    return this.newsService.getNaverNews(
+      category,
+      Number(limitStr) || 20,
+      Number(offsetStr) || 0,
+    );
   }
 
   @Get('github')
-  async getGithubTrending(@Query('since') since = 'daily'): Promise<GithubNewsItem[]> {
+  async getGithubTrending(
+    @Query('since') since = 'daily',
+  ): Promise<GithubNewsItem[]> {
     return this.newsService.getGithubTrending(since);
   }
 
   @Get('huggingface')
-  async getHuggingFaceTrending(@Query('category') category = 'models'): Promise<HuggingFaceNewsItem[]> {
+  async getHuggingFaceTrending(
+    @Query('category') category = 'models',
+  ): Promise<HuggingFaceNewsItem[]> {
     return this.newsService.getHuggingFaceTrending(category);
   }
 
@@ -55,7 +84,11 @@ export class NewsController {
   }
 
   @Get('summary')
-  async getNewsSummary(): Promise<{ summary: string; generatedAt: string; cached: boolean }> {
+  async getNewsSummary(): Promise<{
+    summary: string;
+    generatedAt: string;
+    cached: boolean;
+  }> {
     return this.newsSummaryService.getNewsSummary();
   }
 
@@ -101,16 +134,17 @@ export class NewsController {
   }
 
   @Get('article')
-  async getArticleContent(
-    @Query('url') url = '',
-  ): Promise<{ title: string; content: string; image?: string; finalUrl?: string }> {
+  async getArticleContent(@Query('url') url = ''): Promise<{
+    title: string;
+    content: string;
+    image?: string;
+    finalUrl?: string;
+  }> {
     return this.newsService.getArticleContent(url);
   }
 
   @Get('article-summary')
-  async getArticleSummary(
-    @Query('url') url = '',
-  ) {
+  async getArticleSummary(@Query('url') url = '') {
     return this.newsService.getArticleSummary(url);
   }
 
@@ -120,7 +154,10 @@ export class NewsController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
-    if (!q.trim()) { res.status(400).json({ error: '검색어를 입력하세요' }); return; }
+    if (!q.trim()) {
+      res.status(400).json({ error: '검색어를 입력하세요' });
+      return;
+    }
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -132,9 +169,15 @@ export class NewsController {
 
     try {
       // 웹 검색 결과를 컨텍스트로 사용
-      const webResults = await this.puppeteerService.searchGoogle(q, 5).catch(() => []);
+      const webResults = await this.puppeteerService
+        .searchGoogle(q, 5)
+        .catch(() => []);
       const context = webResults.length
-        ? webResults.map((r, i) => `[${i + 1}] ${r.title}\n${r.snippet}\n출처: ${r.url}`).join('\n\n')
+        ? webResults
+            .map(
+              (r, i) => `[${i + 1}] ${r.title}\n${r.snippet}\n출처: ${r.url}`,
+            )
+            .join('\n\n')
         : '(웹 검색 결과 없음)';
 
       const system = `당신은 정확하고 유용한 AI 검색 어시스턴트입니다.
@@ -146,14 +189,23 @@ export class NewsController {
       const prompt = `질문: ${q}\n\n웹 검색 결과:\n${context}`;
 
       const aiModel = this.aiProvider.resolveEffectiveModel('');
-      for await (const chunk of this.aiProvider.stream('', system, [{ role: 'user', content: prompt }])) {
+      for await (const chunk of this.aiProvider.stream('', system, [
+        { role: 'user', content: prompt },
+      ])) {
         if (res.writableEnded) break;
-        res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`,
+        );
       }
-      if (!res.writableEnded) res.write(`data: ${JSON.stringify({ type: 'done', model: aiModel })}\n\n`);
+      if (!res.writableEnded)
+        res.write(
+          `data: ${JSON.stringify({ type: 'done', model: aiModel })}\n\n`,
+        );
     } catch (e) {
       if (!res.writableEnded) {
-        res.write(`data: ${JSON.stringify({ type: 'error', message: (e as Error).message })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ type: 'error', message: (e as Error).message })}\n\n`,
+        );
       }
     } finally {
       req.off('close', cleanup);
@@ -174,6 +226,8 @@ export class NewsController {
   @Get('refresh')
   async refreshCache(): Promise<{ message: string }> {
     await this.newsService.refreshTodayCache();
-    return { message: '오늘 캐시가 초기화되었습니다. 다음 요청 시 새로 조회합니다.' };
+    return {
+      message: '오늘 캐시가 초기화되었습니다. 다음 요청 시 새로 조회합니다.',
+    };
   }
 }

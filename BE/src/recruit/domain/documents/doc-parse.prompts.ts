@@ -7,7 +7,9 @@ export const PORTFOLIO_EVALUATION_SYSTEM_PROMPT = `당신은 포트폴리오 디
 function buildPagesBlock(pages: string[]): string {
   return pages
     .map((page, index) => {
-      const content = page.trim() || '(텍스트 없음 - 이미지 위주 페이지이거나 OCR 추출이 제한된 페이지일 수 있음)';
+      const content =
+        page.trim() ||
+        '(텍스트 없음 - 이미지 위주 페이지이거나 OCR 추출이 제한된 페이지일 수 있음)';
       return `### 페이지 ${index + 1}\n${content.slice(0, PORTFOLIO_PAGE_TEXT_LIMIT)}`;
     })
     .join('\n\n---\n\n');

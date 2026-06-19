@@ -1,5 +1,12 @@
-import { Column, CreateDateColumn, Entity, ManyToOne, PrimaryColumn, JoinColumn } from 'typeorm';
-import { SessionEntity } from './session.entity';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  ManyToOne,
+  PrimaryColumn,
+  JoinColumn,
+} from 'typeorm';
+import { SessionEntity } from 'src/sessions/domain/entity/session.entity';
 
 export enum ResearchState {
   IDLE = 'idle',
@@ -27,7 +34,7 @@ export class SessionItemEntity {
   topic: string;
 
   // Web 서칭 프롬프트 -> 웹 결과 -> aiPrompt 순으로 작성되어야 함.
-  @Column({ name: 'web_prompt'})
+  @Column({ name: 'web_prompt' })
   webPrompt: string;
 
   @Column({ name: 'web_result', nullable: true })
@@ -60,7 +67,12 @@ export class SessionItemEntity {
   @Column({ name: 'search_log', type: 'text', nullable: true })
   searchLog: string | null; // JSON string: { query, result }[]
 
-  @Column({ name: 'research_state', type: 'simple-enum', enum: ResearchState, default: ResearchState.IDLE })
+  @Column({
+    name: 'research_state',
+    type: 'simple-enum',
+    enum: ResearchState,
+    default: ResearchState.IDLE,
+  })
   researchState: ResearchState;
 
   @CreateDateColumn()

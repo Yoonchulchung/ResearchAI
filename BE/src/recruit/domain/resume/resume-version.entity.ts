@@ -7,7 +7,7 @@ import {
   ManyToOne,
   PrimaryColumn,
 } from 'typeorm';
-import { ResumeEntity } from './resume.entity';
+import { ResumeEntity } from 'src/recruit/domain/resume/resume.entity';
 
 @Entity('recruit_resume_versions')
 @Index(['resumeId', 'createdAt'])

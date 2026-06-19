@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { LightResearchEntity } from '../entity/lightsearch.entity';
+import { LightResearchEntity } from 'src/research/domain/entity/lightsearch.entity';
 
 @Injectable()
 export class LightResearchRepository {
@@ -24,7 +24,9 @@ export class LightResearchRepository {
     });
   }
 
-  async save(entity: Partial<LightResearchEntity>): Promise<LightResearchEntity> {
+  async save(
+    entity: Partial<LightResearchEntity>,
+  ): Promise<LightResearchEntity> {
     return this.repo.save(entity);
   }
 

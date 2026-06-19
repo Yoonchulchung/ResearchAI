@@ -1,4 +1,4 @@
-import { SearchSources } from '../../research/domain/model/search-sources.model';
+import { SearchSources } from 'src/research/domain/model/search-sources.model';
 import { SearchEngine } from 'src/research/domain/model/search-planner.model';
 
 export enum QueueJobStatus {
@@ -15,34 +15,34 @@ export enum QueueJobPhase {
 }
 
 export enum SseEventType {
-  LOG   = 'log',
+  LOG = 'log',
   CHUNK = 'chunk',
-  DONE  = 'done',
+  DONE = 'done',
   ERROR = 'error',
 }
 
 export namespace QueueJob {
   export enum TaskType {
-    LIGHTRESEARCH          = 'lightresearch',
-    DEEPRESEARCH           = 'deepresearch',
-    SUMMARY                = 'summary',
-    WRITEASSIST            = 'writeassist',           // 커스텀 자유 입력
-    WRITEASSIST_EVALUATE   = 'writeassist_evaluate',
+    LIGHTRESEARCH = 'lightresearch',
+    DEEPRESEARCH = 'deepresearch',
+    SUMMARY = 'summary',
+    WRITEASSIST = 'writeassist', // 커스텀 자유 입력
+    WRITEASSIST_EVALUATE = 'writeassist_evaluate',
     WRITEASSIST_PLAGIARISM = 'writeassist_plagiarism',
-    WRITEASSIST_CONTINUE   = 'writeassist_continue',
-    WRITEASSIST_SECTION    = 'writeassist_section',
-    WRITEASSIST_IMPROVE    = 'writeassist_improve',
+    WRITEASSIST_CONTINUE = 'writeassist_continue',
+    WRITEASSIST_SECTION = 'writeassist_section',
+    WRITEASSIST_IMPROVE = 'writeassist_improve',
     WRITEASSIST_SPELLCHECK = 'writeassist_spellcheck',
-    WRITEASSIST_SUMMARIZE  = 'writeassist_summarize',
-    WRITEASSIST_EXAMPLE    = 'writeassist_example',
-    COMPANYPROFILE         = 'companyprofile',
-    COMPANYANALYSIS        = 'companyanalysis',
-    DOCPARSE_ASK           = 'docparse_ask',
-    DOCPARSE_ACTION        = 'docparse_action',
-    SPEC_ANALYSIS          = 'spec_analysis',
-    TECH_BLOG_TREND        = 'tech_blog_trend',
-    PAPER_SUMMARY      = 'hot_paper_summary',
-    PAPER_TREND        = 'hot_paper_trend',
+    WRITEASSIST_SUMMARIZE = 'writeassist_summarize',
+    WRITEASSIST_EXAMPLE = 'writeassist_example',
+    COMPANYPROFILE = 'companyprofile',
+    COMPANYANALYSIS = 'companyanalysis',
+    DOCPARSE_ASK = 'docparse_ask',
+    DOCPARSE_ACTION = 'docparse_action',
+    SPEC_ANALYSIS = 'spec_analysis',
+    TECH_BLOG_TREND = 'tech_blog_trend',
+    PAPER_SUMMARY = 'hot_paper_summary',
+    PAPER_TREND = 'hot_paper_trend',
     NEWS_ARTICLE_SUMMARY = 'news_article_summary',
     RESUME_COVER_LETTER_CATEGORY = 'resume_cover_letter_category',
     RESUME_COVER_LETTER_REFINED_TITLE = 'resume_cover_letter_refined_title',

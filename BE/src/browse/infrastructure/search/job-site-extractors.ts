@@ -17,7 +17,10 @@ function settle(ms = SETTLE_MS): Promise<void> {
 
 // ── 링커리어 ─────────────────────────────────────────────────────────────────
 
-export async function scrapeLinkareer(page: Page, keyword: string): Promise<ExtractedJob[]> {
+export async function scrapeLinkareer(
+  page: Page,
+  keyword: string,
+): Promise<ExtractedJob[]> {
   // tab=activity 포함 → 마감된 공고도 수집
   const url = `https://linkareer.com/search?q=${encodeURIComponent(keyword)}&sort=RELEVANCE&tab=activity&page=1`;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
@@ -27,36 +30,68 @@ export async function scrapeLinkareer(page: Page, keyword: string): Promise<Extr
     const results: ExtractedJob[] = [];
     const seen = new Set<string>();
 
-    const cards = Array.from(document.querySelectorAll<HTMLElement>('li, article'));
+    const cards = Array.from(
+      document.querySelectorAll<HTMLElement>('li, article'),
+    );
     for (const card of cards) {
-      const link = card.querySelector<HTMLAnchorElement>('a[href*="/activity/"]');
+      const link = card.querySelector<HTMLAnchorElement>(
+        'a[href*="/activity/"]',
+      );
       if (!link) continue;
-      const href = link.href || ('https://linkareer.com' + (link.getAttribute('href') ?? ''));
+      const href =
+        link.href ||
+        'https://linkareer.com' + (link.getAttribute('href') ?? '');
       if (!href.includes('/activity/') || seen.has(href)) continue;
       seen.add(href);
 
-      const titleCandidates = Array.from(card.querySelectorAll<HTMLElement>(
-        '[class*="title"], [class*="Title"], h2, h3, strong',
-      )).map((el) => el.textContent?.replace(/\s+/g, ' ').trim() ?? '').filter((t) => t.length > 3);
-      const title = titleCandidates[0] ?? (link.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const titleCandidates = Array.from(
+        card.querySelectorAll<HTMLElement>(
+          '[class*="title"], [class*="Title"], h2, h3, strong',
+        ),
+      )
+        .map((el) => el.textContent?.replace(/\s+/g, ' ').trim() ?? '')
+        .filter((t) => t.length > 3);
+      const title =
+        titleCandidates[0] ??
+        (link.textContent ?? '').replace(/\s+/g, ' ').trim();
       if (!title) continue;
 
-      const allText = Array.from(card.querySelectorAll<HTMLElement>('p, span, div'))
+      const allText = Array.from(
+        card.querySelectorAll<HTMLElement>('p, span, div'),
+      )
         .map((el) => el.textContent?.replace(/\s+/g, ' ').trim() ?? '')
         .filter((t) => t && t !== title && t.length > 1 && t.length < 80);
-      const company = allText.find((t) => !t.match(/^\d/) && !t.includes('D-') && !t.includes('~')) ?? '';
+      const company =
+        allText.find(
+          (t) => !t.match(/^\d/) && !t.includes('D-') && !t.includes('~'),
+        ) ?? '';
 
       const cardText = card.textContent ?? '';
-      const dl = cardText.match(/~\s*\d+\.\d+|\d{4}[./]\d{2}[./]\d{2}|D-\d+|상시모집/)?.[0] ?? '';
+      const dl =
+        cardText.match(
+          /~\s*\d+\.\d+|\d{4}[./]\d{2}[./]\d{2}|D-\d+|상시모집/,
+        )?.[0] ?? '';
 
-      const typeMatch = cardText.match(/신입|경력|인턴|정규직|계약직|아르바이트/);
-      results.push({ title, company, deadline: dl, type: typeMatch?.[0] ?? '', url: href, source: 'linkareer' });
+      const typeMatch = cardText.match(
+        /신입|경력|인턴|정규직|계약직|아르바이트/,
+      );
+      results.push({
+        title,
+        company,
+        deadline: dl,
+        type: typeMatch?.[0] ?? '',
+        url: href,
+        source: 'linkareer',
+      });
     }
     return results;
-  }) as Promise<ExtractedJob[]>;
+  });
 }
 
-export async function extractLinkareerDetail(page: Page, url: string): Promise<ExtractedJob | null> {
+export async function extractLinkareerDetail(
+  page: Page,
+  url: string,
+): Promise<ExtractedJob | null> {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await settle(1_500);
   return page.evaluate((src: string) => {
@@ -76,22 +111,49 @@ export async function extractLinkareerDetail(page: Page, url: string): Promise<E
             type: '',
             url: src,
             source: 'linkareer',
-          } satisfies { title: string; company: string; deadline: string; type: string; url: string; source: string };
+          } satisfies {
+            title: string;
+            company: string;
+            deadline: string;
+            type: string;
+            url: string;
+            source: string;
+          };
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
     // DOM fallback
     const og = (sel: string) =>
-      document.querySelector<HTMLMetaElement>(sel)?.getAttribute('content')?.trim() ?? '';
+      document
+        .querySelector<HTMLMetaElement>(sel)
+        ?.getAttribute('content')
+        ?.trim() ?? '';
     const title = og('meta[property="og:title"]') || document.title;
-    const company = document.querySelector('[class*="organization"], [class*="company"]')?.textContent?.trim() ?? '';
-    return title ? { title, company, deadline: '', type: '', url: src, source: 'linkareer' } : null;
+    const company =
+      document
+        .querySelector('[class*="organization"], [class*="company"]')
+        ?.textContent?.trim() ?? '';
+    return title
+      ? {
+          title,
+          company,
+          deadline: '',
+          type: '',
+          url: src,
+          source: 'linkareer',
+        }
+      : null;
   }, url) as Promise<ExtractedJob | null>;
 }
 
 // ── 잡코리아 ─────────────────────────────────────────────────────────────────
 
-export async function scrapeJobkorea(page: Page, keyword: string): Promise<ExtractedJob[]> {
+export async function scrapeJobkorea(
+  page: Page,
+  keyword: string,
+): Promise<ExtractedJob[]> {
   const url = `https://www.jobkorea.co.kr/Search/?stext=${encodeURIComponent(keyword)}&tabType=recruit`;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await settle();
@@ -116,7 +178,9 @@ export async function scrapeJobkorea(page: Page, keyword: string): Promise<Extra
         'a.title, a[href*="GI_Read"], a[href*="/recruit/"]',
       );
       if (!link) continue;
-      const href = link.href || ('https://www.jobkorea.co.kr' + (link.getAttribute('href') ?? ''));
+      const href =
+        link.href ||
+        'https://www.jobkorea.co.kr' + (link.getAttribute('href') ?? '');
       if (seen.has(href)) continue;
       seen.add(href);
 
@@ -124,40 +188,79 @@ export async function scrapeJobkorea(page: Page, keyword: string): Promise<Extra
       if (!title || title.length < 3) continue;
 
       const company = (
-        item.querySelector('a.corp-name, .company-name, .cpname, [class*="corpName"]')?.textContent ?? ''
-      ).replace(/\s+/g, ' ').trim();
+        item.querySelector(
+          'a.corp-name, .company-name, .cpname, [class*="corpName"]',
+        )?.textContent ?? ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
 
-      const metas = Array.from(item.querySelectorAll('.chip, .etc, .info span, .post-list-info li'))
-        .map((el) => el.textContent?.trim() ?? '').filter(Boolean);
+      const metas = Array.from(
+        item.querySelectorAll('.chip, .etc, .info span, .post-list-info li'),
+      )
+        .map((el) => el.textContent?.trim() ?? '')
+        .filter(Boolean);
       const typeMatch = metas.find((m) => /신입|경력|인턴/.test(m));
-      const deadline = (item.querySelector('.date, .deadline, [class*="date"]')?.textContent ?? '').trim();
+      const deadline = (
+        item.querySelector('.date, .deadline, [class*="date"]')?.textContent ??
+        ''
+      ).trim();
 
-      results.push({ title, company, deadline, type: typeMatch ?? '', url: href, source: 'jobkorea' });
+      results.push({
+        title,
+        company,
+        deadline,
+        type: typeMatch ?? '',
+        url: href,
+        source: 'jobkorea',
+      });
     }
     return results;
-  }) as Promise<ExtractedJob[]>;
+  });
 }
 
-export async function extractJobkoreaDetail(page: Page, url: string): Promise<ExtractedJob | null> {
+export async function extractJobkoreaDetail(
+  page: Page,
+  url: string,
+): Promise<ExtractedJob | null> {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await settle(1_500);
   return page.evaluate((src: string) => {
     const title = (
-      document.querySelector<HTMLElement>('.titleArea .title, .jv-title h1, h1.title')?.textContent ??
-      document.querySelector<HTMLMetaElement>('meta[property="og:title"]')?.getAttribute('content') ??
+      document.querySelector<HTMLElement>(
+        '.titleArea .title, .jv-title h1, h1.title',
+      )?.textContent ??
+      document
+        .querySelector<HTMLMetaElement>('meta[property="og:title"]')
+        ?.getAttribute('content') ??
       document.title
-    ).replace(/\s+/g, ' ').trim();
+    )
+      .replace(/\s+/g, ' ')
+      .trim();
     const company = (
-      document.querySelector<HTMLElement>('a.corpName, .corp-name, [class*="companyName"]')?.textContent ?? ''
-    ).replace(/\s+/g, ' ').trim();
-    const deadline = (document.querySelector<HTMLElement>('[class*="deadLine"], .dday, .deadline')?.textContent ?? '').trim();
-    return title ? { title, company, deadline, type: '', url: src, source: 'jobkorea' } : null;
+      document.querySelector<HTMLElement>(
+        'a.corpName, .corp-name, [class*="companyName"]',
+      )?.textContent ?? ''
+    )
+      .replace(/\s+/g, ' ')
+      .trim();
+    const deadline = (
+      document.querySelector<HTMLElement>(
+        '[class*="deadLine"], .dday, .deadline',
+      )?.textContent ?? ''
+    ).trim();
+    return title
+      ? { title, company, deadline, type: '', url: src, source: 'jobkorea' }
+      : null;
   }, url) as Promise<ExtractedJob | null>;
 }
 
 // ── 사람인 ───────────────────────────────────────────────────────────────────
 
-export async function scrapeSaramin(page: Page, keyword: string): Promise<ExtractedJob[]> {
+export async function scrapeSaramin(
+  page: Page,
+  keyword: string,
+): Promise<ExtractedJob[]> {
   const url = `https://www.saramin.co.kr/zf_user/search?searchword=${encodeURIComponent(keyword)}&recruitPage=1&recruitPageCount=40`;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await settle(2_000);
@@ -166,26 +269,47 @@ export async function scrapeSaramin(page: Page, keyword: string): Promise<Extrac
     const results: ExtractedJob[] = [];
     const seen = new Set<string>();
 
-    const items = Array.from(document.querySelectorAll<HTMLElement>('.item_recruit, .list_item'));
+    const items = Array.from(
+      document.querySelectorAll<HTMLElement>('.item_recruit, .list_item'),
+    );
     for (const item of items) {
-      const titleEl = item.querySelector<HTMLAnchorElement>('.job_tit a, .tit a');
+      const titleEl =
+        item.querySelector<HTMLAnchorElement>('.job_tit a, .tit a');
       if (!titleEl) continue;
-      const href = titleEl.href || ('https://www.saramin.co.kr' + (titleEl.getAttribute('href') ?? ''));
+      const href =
+        titleEl.href ||
+        'https://www.saramin.co.kr' + (titleEl.getAttribute('href') ?? '');
       if (seen.has(href)) continue;
       seen.add(href);
 
       const title = (titleEl.textContent ?? '').replace(/\s+/g, ' ').trim();
       if (!title) continue;
 
-      const company = (item.querySelector('.corp_name a, .company a')?.textContent ?? '').replace(/\s+/g, ' ').trim();
-      const deadline = (item.querySelector('.job_date .date, .deadline')?.textContent ?? '').trim();
-      const cond = Array.from(item.querySelectorAll('.job_condition span, .condition span'))
-        .map((el) => el.textContent?.trim() ?? '').join(', ');
+      const company = (
+        item.querySelector('.corp_name a, .company a')?.textContent ?? ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+      const deadline = (
+        item.querySelector('.job_date .date, .deadline')?.textContent ?? ''
+      ).trim();
+      const cond = Array.from(
+        item.querySelectorAll('.job_condition span, .condition span'),
+      )
+        .map((el) => el.textContent?.trim() ?? '')
+        .join(', ');
 
-      results.push({ title, company, deadline, type: cond, url: href, source: 'saramin' });
+      results.push({
+        title,
+        company,
+        deadline,
+        type: cond,
+        url: href,
+        source: 'saramin',
+      });
     }
     return results;
-  }) as Promise<ExtractedJob[]>;
+  });
 }
 
 // ── 캐치 (JSON API) ──────────────────────────────────────────────────────────
@@ -214,7 +338,7 @@ export async function scrapeCatch(keyword: string): Promise<ExtractedJob[]> {
       },
     );
     if (!res.ok) return [];
-    const data = await res.json() as { recruitData?: unknown[] };
+    const data = (await res.json()) as { recruitData?: unknown[] };
     return (data.recruitData ?? []).map((item: unknown) => {
       const it = item as Record<string, unknown>;
       return {
@@ -233,7 +357,10 @@ export async function scrapeCatch(keyword: string): Promise<ExtractedJob[]> {
 
 // ── 잡플래닛 ─────────────────────────────────────────────────────────────────
 
-export async function scrapeJobplanet(page: Page, keyword: string): Promise<ExtractedJob[]> {
+export async function scrapeJobplanet(
+  page: Page,
+  keyword: string,
+): Promise<ExtractedJob[]> {
   const url = `https://www.jobplanet.co.kr/search/job?query=${encodeURIComponent(keyword)}`;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await settle();
@@ -251,8 +378,14 @@ export async function scrapeJobplanet(page: Page, keyword: string): Promise<Extr
       const findPostings = (obj: unknown): unknown[] => {
         if (!obj || typeof obj !== 'object') return [];
         if (Array.isArray(obj)) {
-          if (obj.length > 0 && typeof obj[0] === 'object' && obj[0] !== null &&
-              'title' in (obj[0] as object) && 'company' in (obj[0] as object)) return obj;
+          if (
+            obj.length > 0 &&
+            typeof obj[0] === 'object' &&
+            obj[0] !== null &&
+            'title' in (obj[0] as object) &&
+            'company' in (obj[0] as object)
+          )
+            return obj;
           for (const item of obj) {
             const found = findPostings(item);
             if (found.length > 0) return found;
@@ -274,7 +407,7 @@ export async function scrapeJobplanet(page: Page, keyword: string): Promise<Extr
         const title = (post.title as string | undefined)?.trim();
         if (!id || !title) continue;
 
-        const company = (post.company as Record<string, unknown> | undefined);
+        const company = post.company as Record<string, unknown> | undefined;
         const companyName = (company?.name as string | undefined) ?? '';
         const deadline = (post.deadline_message as string | undefined) ?? '';
         const jobType = (post.job_type as string | undefined) ?? '';
@@ -288,15 +421,20 @@ export async function scrapeJobplanet(page: Page, keyword: string): Promise<Extr
           source: 'jobplanet',
         });
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     return results;
-  }) as Promise<ExtractedJob[]>;
+  });
 }
 
 // ── 인크루트 ─────────────────────────────────────────────────────────────────
 
-export async function scrapeIncruit(page: Page, keyword: string): Promise<ExtractedJob[]> {
+export async function scrapeIncruit(
+  page: Page,
+  keyword: string,
+): Promise<ExtractedJob[]> {
   const url = `https://search.incruit.com/list/search.asp?col=job&kw=${encodeURIComponent(keyword)}`;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await settle(2_000);
@@ -307,7 +445,9 @@ export async function scrapeIncruit(page: Page, keyword: string): Promise<Extrac
 
     const rows = Array.from(document.querySelectorAll<HTMLElement>('ul.c_row'));
     for (const row of rows) {
-      const link = row.querySelector<HTMLAnchorElement>('a[href*="jobpost.asp"]');
+      const link = row.querySelector<HTMLAnchorElement>(
+        'a[href*="jobpost.asp"]',
+      );
       if (!link) continue;
       const href = link.href || link.getAttribute('href') || '';
       if (!href || seen.has(href)) continue;
@@ -316,19 +456,34 @@ export async function scrapeIncruit(page: Page, keyword: string): Promise<Extrac
       const title = (link.textContent ?? '').replace(/\s+/g, ' ').trim();
       if (!title || title.length < 3) continue;
 
-      const company = (row.querySelector('a.cpname')?.textContent ?? '').replace(/\s+/g, ' ').trim();
-      const metas = Array.from(row.querySelectorAll('.cl_md span')).map((el) => el.textContent?.trim() ?? '').filter(Boolean);
-      const deadline = row.querySelector('.cell_last .cl_btm span')?.textContent?.trim() ?? '';
+      const company = (row.querySelector('a.cpname')?.textContent ?? '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const metas = Array.from(row.querySelectorAll('.cl_md span'))
+        .map((el) => el.textContent?.trim() ?? '')
+        .filter(Boolean);
+      const deadline =
+        row.querySelector('.cell_last .cl_btm span')?.textContent?.trim() ?? '';
 
-      results.push({ title, company, deadline, type: metas.join(', '), url: href, source: 'incruit' });
+      results.push({
+        title,
+        company,
+        deadline,
+        type: metas.join(', '),
+        url: href,
+        source: 'incruit',
+      });
     }
     return results;
-  }) as Promise<ExtractedJob[]>;
+  });
 }
 
 // ── 점핏 ─────────────────────────────────────────────────────────────────────
 
-export async function scrapeJumpit(page: Page, keyword: string): Promise<ExtractedJob[]> {
+export async function scrapeJumpit(
+  page: Page,
+  keyword: string,
+): Promise<ExtractedJob[]> {
   const url = `https://jumpit.saramin.co.kr/search?q=${encodeURIComponent(keyword)}&sort=rsp_rate`;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await settle(3_000);
@@ -338,8 +493,15 @@ export async function scrapeJumpit(page: Page, keyword: string): Promise<Extract
 
     const findArray = (obj: unknown): unknown[] | null => {
       if (!obj || typeof obj !== 'object') return null;
-      if (Array.isArray(obj) && obj.length > 0 && typeof obj[0] === 'object' && obj[0] !== null &&
-          ('id' in (obj[0] as object)) && ('title' in (obj[0] as object))) return obj;
+      if (
+        Array.isArray(obj) &&
+        obj.length > 0 &&
+        typeof obj[0] === 'object' &&
+        obj[0] !== null &&
+        'id' in (obj[0] as object) &&
+        'title' in (obj[0] as object)
+      )
+        return obj;
       for (const val of Object.values(obj as Record<string, unknown>)) {
         const found = findArray(val);
         if (found) return found;
@@ -361,8 +523,14 @@ export async function scrapeJumpit(page: Page, keyword: string): Promise<Extract
             const co = pos.company as Record<string, unknown> | undefined;
             results.push({
               title,
-              company: (co?.name as string | undefined) ?? (pos.companyName as string | undefined) ?? '',
-              deadline: (pos.endAt as string | undefined) ?? (pos.closeAt as string | undefined) ?? '',
+              company:
+                (co?.name as string | undefined) ??
+                (pos.companyName as string | undefined) ??
+                '',
+              deadline:
+                (pos.endAt as string | undefined) ??
+                (pos.closeAt as string | undefined) ??
+                '',
               type: (pos.employmentType as string | undefined) ?? '',
               url: `https://jumpit.saramin.co.kr/position/${id}`,
               source: 'jumpit',
@@ -370,27 +538,58 @@ export async function scrapeJumpit(page: Page, keyword: string): Promise<Extract
           }
           return results;
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     // DOM fallback
-    const cards = Array.from(document.querySelectorAll<HTMLElement>('[class*="PositionCard"], article, section li'));
+    const cards = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[class*="PositionCard"], article, section li',
+      ),
+    );
     for (const card of cards) {
-      const link = card.querySelector<HTMLAnchorElement>('a[href*="/position/"]');
+      const link = card.querySelector<HTMLAnchorElement>(
+        'a[href*="/position/"]',
+      );
       if (!link) continue;
-      const href = link.href || ('https://jumpit.saramin.co.kr' + (link.getAttribute('href') ?? ''));
-      const title = (card.querySelector('[class*="title"]')?.textContent ?? link.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const href =
+        link.href ||
+        'https://jumpit.saramin.co.kr' + (link.getAttribute('href') ?? '');
+      const title = (
+        card.querySelector('[class*="title"]')?.textContent ??
+        link.textContent ??
+        ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
       if (!title) continue;
-      const company = (card.querySelector('[class*="company"], [class*="Company"]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
-      results.push({ title, company, deadline: '', type: '', url: href, source: 'jumpit' });
+      const company = (
+        card.querySelector('[class*="company"], [class*="Company"]')
+          ?.textContent ?? ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+      results.push({
+        title,
+        company,
+        deadline: '',
+        type: '',
+        url: href,
+        source: 'jumpit',
+      });
     }
     return results;
-  }) as Promise<ExtractedJob[]>;
+  });
 }
 
 // ── 랠릿 ─────────────────────────────────────────────────────────────────────
 
-export async function scrapeRallit(page: Page, keyword: string): Promise<ExtractedJob[]> {
+export async function scrapeRallit(
+  page: Page,
+  keyword: string,
+): Promise<ExtractedJob[]> {
   const url = `https://www.rallit.com/positions?keyword=${encodeURIComponent(keyword)}`;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await settle(3_000);
@@ -400,8 +599,14 @@ export async function scrapeRallit(page: Page, keyword: string): Promise<Extract
 
     const findPositions = (obj: unknown): unknown[] | null => {
       if (!obj || typeof obj !== 'object') return null;
-      if (Array.isArray(obj) && obj.length > 0 && typeof obj[0] === 'object' && obj[0] !== null &&
-          'title' in (obj[0] as object)) return obj;
+      if (
+        Array.isArray(obj) &&
+        obj.length > 0 &&
+        typeof obj[0] === 'object' &&
+        obj[0] !== null &&
+        'title' in (obj[0] as object)
+      )
+        return obj;
       for (const val of Object.values(obj as Record<string, unknown>)) {
         const found = findPositions(val);
         if (found) return found;
@@ -432,27 +637,56 @@ export async function scrapeRallit(page: Page, keyword: string): Promise<Extract
           }
           return results;
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     // DOM fallback
-    const cards = Array.from(document.querySelectorAll<HTMLElement>('[class*="position"], [class*="Position"], article'));
+    const cards = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[class*="position"], [class*="Position"], article',
+      ),
+    );
     for (const card of cards) {
-      const link = card.querySelector<HTMLAnchorElement>('a[href*="/job-postings/"]');
+      const link = card.querySelector<HTMLAnchorElement>(
+        'a[href*="/job-postings/"]',
+      );
       if (!link) continue;
-      const href = link.href || ('https://www.rallit.com' + (link.getAttribute('href') ?? ''));
-      const title = (card.querySelector('[class*="title"], h2, h3')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const href =
+        link.href ||
+        'https://www.rallit.com' + (link.getAttribute('href') ?? '');
+      const title = (
+        card.querySelector('[class*="title"], h2, h3')?.textContent ?? ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
       if (!title) continue;
-      const company = (card.querySelector('[class*="company"], [class*="Company"]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
-      results.push({ title, company, deadline: '', type: '', url: href, source: 'rallit' });
+      const company = (
+        card.querySelector('[class*="company"], [class*="Company"]')
+          ?.textContent ?? ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim();
+      results.push({
+        title,
+        company,
+        deadline: '',
+        type: '',
+        url: href,
+        source: 'rallit',
+      });
     }
     return results;
-  }) as Promise<ExtractedJob[]>;
+  });
 }
 
 // ── Generic 상세 추출 ─────────────────────────────────────────────────────────
 
-export async function extractGenericDetail(page: Page, url: string): Promise<ExtractedJob | null> {
+export async function extractGenericDetail(
+  page: Page,
+  url: string,
+): Promise<ExtractedJob | null> {
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 25_000 });
     await new Promise<void>((r) => setTimeout(r, 1_500));
@@ -461,10 +695,16 @@ export async function extractGenericDetail(page: Page, url: string): Promise<Ext
   }
 
   return page.evaluate((src: string) => {
-    const og = (sel: string) => document.querySelector<HTMLMetaElement>(sel)?.getAttribute('content')?.trim() ?? '';
+    const og = (sel: string) =>
+      document
+        .querySelector<HTMLMetaElement>(sel)
+        ?.getAttribute('content')
+        ?.trim() ?? '';
 
     // JSON-LD JobPosting 스키마
-    const ldScripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
+    const ldScripts = Array.from(
+      document.querySelectorAll('script[type="application/ld+json"]'),
+    );
     for (const s of ldScripts) {
       try {
         const ld = JSON.parse(s.textContent ?? '') as Record<string, unknown>;
@@ -472,14 +712,26 @@ export async function extractGenericDetail(page: Page, url: string): Promise<Ext
         if (type === 'jobposting') {
           return {
             title: String(ld.title ?? ''),
-            company: String((ld.hiringOrganization as Record<string, unknown> | undefined)?.name ?? ''),
+            company: String(
+              (ld.hiringOrganization as Record<string, unknown> | undefined)
+                ?.name ?? '',
+            ),
             deadline: String(ld.validThrough ?? ''),
             type: String(ld.employmentType ?? ''),
             url: src,
             source: new URL(src).hostname.replace(/^www\./, ''),
-          } satisfies { title: string; company: string; deadline: string; type: string; url: string; source: string };
+          } satisfies {
+            title: string;
+            company: string;
+            deadline: string;
+            type: string;
+            url: string;
+            source: string;
+          };
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     const title = og('meta[property="og:title"]') || document.title;

@@ -1,8 +1,7 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn } from "typeorm";
+import { Entity, Column, PrimaryColumn, CreateDateColumn } from 'typeorm';
 
 @Entity('api_key')
 export class ApiKeyEntity {
-
   @PrimaryColumn()
   id: string;
 
@@ -14,5 +13,4 @@ export class ApiKeyEntity {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
-
 }

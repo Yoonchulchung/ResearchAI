@@ -3,7 +3,7 @@ import {
   MARKET_TARGETS,
   YahooChartResponse,
   YahooChartQuote,
-} from '../../domain/market';
+} from 'src/news/domain/market';
 
 export interface MarketItem {
   symbol: string;
@@ -22,10 +22,16 @@ export interface ChartPoint {
   low: number;
 }
 
-const YAHOO_HEADERS = { 'User-Agent': 'Mozilla/5.0 (compatible; ResearchBot/1.0)' };
+const YAHOO_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (compatible; ResearchBot/1.0)',
+};
 const VALID_RANGES = ['5d', '1mo', '3mo', '1y'] as const;
 
-async function fetchYahooChart(symbol: string, interval: string, range: string): Promise<YahooChartResponse> {
+async function fetchYahooChart(
+  symbol: string,
+  interval: string,
+  range: string,
+): Promise<YahooChartResponse> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
   const res = await fetch(url, { headers: YAHOO_HEADERS });
   return res.json() as Promise<YahooChartResponse>;
@@ -34,7 +40,13 @@ async function fetchYahooChart(symbol: string, interval: string, range: string):
 @Injectable()
 export class MarketService {
   async getMarketData(): Promise<MarketItem[]> {
-    const fetchOne = async ({ symbol, name }: { symbol: string; name: string }): Promise<MarketItem | null> => {
+    const fetchOne = async ({
+      symbol,
+      name,
+    }: {
+      symbol: string;
+      name: string;
+    }): Promise<MarketItem | null> => {
       try {
         const data = await fetchYahooChart(symbol, '1d', '2d');
         const meta = data?.chart?.result?.[0]?.meta;
@@ -45,7 +57,14 @@ export class MarketService {
         const change = price - prev;
         const changePercent = prev !== 0 ? (change / prev) * 100 : 0;
 
-        return { symbol, name, price, change, changePercent, currency: meta.currency };
+        return {
+          symbol,
+          name,
+          price,
+          change,
+          changePercent,
+          currency: meta.currency,
+        };
       } catch {
         return null;
       }
@@ -73,9 +92,9 @@ export class MarketService {
         .map((ts, i) => ({
           date: new Date(ts * 1000).toISOString().split('T')[0],
           close: quote.close[i] ?? 0,
-          open:  quote.open[i]  ?? 0,
-          high:  quote.high[i]  ?? 0,
-          low:   quote.low[i]   ?? 0,
+          open: quote.open[i] ?? 0,
+          high: quote.high[i] ?? 0,
+          low: quote.low[i] ?? 0,
         }))
         .filter((p) => p.close > 0);
     } catch {

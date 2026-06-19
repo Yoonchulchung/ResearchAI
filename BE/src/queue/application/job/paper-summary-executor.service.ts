@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PapersService } from '../../../news/papers/application/papers.service';
+import { PapersService } from 'src/news/papers/application/papers.service';
 
 export interface PaperSummaryRequest {
   id: string;

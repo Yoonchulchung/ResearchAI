@@ -1,8 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Session, ItemWithResult } from '../session.model';
-import { ResearchState, SessionEntity, SummaryState } from '../entity/session.entity';
+import { Session, ItemWithResult } from 'src/sessions/domain/session.model';
+import {
+  ResearchState,
+  SessionEntity,
+  SummaryState,
+} from 'src/sessions/domain/entity/session.entity';
 
 @Injectable()
 export class SessionRepository {
@@ -12,14 +16,21 @@ export class SessionRepository {
   ) {}
 
   async findById(id: string): Promise<Session> {
-    const row = await this.repo.findOne({ where: { id }, relations: { items: true } });
+    const row = await this.repo.findOne({
+      where: { id },
+      relations: { items: true },
+    });
     if (!row) throw new NotFoundException('Session not found');
     return this.toModel(row, true);
   }
 
   async findAll(userId: string | null): Promise<Session[]> {
     if (!userId) return [];
-    const rows = await this.repo.find({ where: { userId }, order: { createdAt: 'DESC' }, relations: { items: true } });
+    const rows = await this.repo.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+      relations: { items: true },
+    });
     return rows.map((r) => this.toModel(r, false));
   }
 
@@ -54,7 +65,10 @@ export class SessionRepository {
   }
 
   async getAttachedFileIds(id: string): Promise<string[]> {
-    const row = await this.repo.findOne({ where: { id }, select: ['attachedFileIds'] });
+    const row = await this.repo.findOne({
+      where: { id },
+      select: ['attachedFileIds'],
+    });
     return row?.attachedFileIds ?? [];
   }
 
@@ -66,7 +80,10 @@ export class SessionRepository {
 
   private toModel(row: SessionEntity, withTasks: boolean): Session {
     const sortedItems = row.items
-      ? [...row.items].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      ? [...row.items].sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        )
       : [];
 
     const doneCount = sortedItems.filter((i) => i.aiResult).length;
@@ -81,7 +98,15 @@ export class SessionRepository {
       webResult: item.webResult || null,
       webModel: row.researchWebModel,
       usedWebModel: item.usedWebModel ?? null,
-      searchLog: item.searchLog ? (() => { try { return JSON.parse(item.searchLog); } catch { return null; } })() : null,
+      searchLog: item.searchLog
+        ? (() => {
+            try {
+              return JSON.parse(item.searchLog);
+            } catch {
+              return null;
+            }
+          })()
+        : null,
       result: item.aiResult || null,
       confidenceScore: item.confidenceScore ?? null,
       confidenceReason: item.confidenceReason ?? null,
@@ -99,7 +124,10 @@ export class SessionRepository {
       researchWebModel: row.researchWebModel,
       researchState: row.researchState,
       summaryState: row.summaryState ?? null,
-      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+      createdAt:
+        row.createdAt instanceof Date
+          ? row.createdAt.toISOString()
+          : String(row.createdAt),
       summary: row.summary,
       items: withTasks ? items : undefined,
       doneCount,

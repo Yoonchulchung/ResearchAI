@@ -1,5 +1,5 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
-import { ResumeEntity } from './resume.entity';
+import { ResumeEntity } from 'src/recruit/domain/resume/resume.entity';
 
 @Entity('resume_training')
 export class ResumeTrainingEntity {

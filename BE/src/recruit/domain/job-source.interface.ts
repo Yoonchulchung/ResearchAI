@@ -1,4 +1,4 @@
-import { JobPosting } from './job-posting.model';
+import { JobPosting } from 'src/recruit/domain/job-posting.model';
 
 export interface CollectQuery {
   keyword: string;

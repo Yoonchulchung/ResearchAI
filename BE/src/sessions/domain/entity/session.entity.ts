@@ -1,6 +1,14 @@
-import { Column, CreateDateColumn, Entity, ManyToOne, JoinColumn, OneToMany, PrimaryColumn } from 'typeorm';
-import { SessionItemEntity } from './session-item.entity';
-import { UserEntity } from '../../../auth/domain/entity/user.entity';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
+  PrimaryColumn,
+} from 'typeorm';
+import { SessionItemEntity } from 'src/sessions/domain/entity/session-item.entity';
+import { UserEntity } from 'src/auth/domain/entity/user.entity';
 
 export enum ResearchState {
   IDLE = 'idle',
@@ -48,13 +56,23 @@ export class SessionEntity {
   researchWebModel: string;
 
   // 최종 세션의 리서치 상태
-  @Column({ name: 'research_state', type: 'simple-enum', enum: ResearchState, default: ResearchState.IDLE })
+  @Column({
+    name: 'research_state',
+    type: 'simple-enum',
+    enum: ResearchState,
+    default: ResearchState.IDLE,
+  })
   researchState: ResearchState;
 
   @OneToMany(() => SessionItemEntity, (item) => item.session)
   items: SessionItemEntity[];
 
-  @Column({ name: 'attached_file_ids', type: 'simple-json', nullable: true, default: null })
+  @Column({
+    name: 'attached_file_ids',
+    type: 'simple-json',
+    nullable: true,
+    default: null,
+  })
   attachedFileIds: string[] | null;
 
   @Column({ name: 'summary', nullable: true })
@@ -63,7 +81,12 @@ export class SessionEntity {
   @Column({ name: 'summary_state', default: SummaryState.IDLE })
   summaryState: string;
 
-  @Column({ name: 'session_type', type: 'text', nullable: true, default: 'research' })
+  @Column({
+    name: 'session_type',
+    type: 'text',
+    nullable: true,
+    default: 'research',
+  })
   sessionType: string;
 
   @Column({ name: 'light_research_id', type: 'text', nullable: true })

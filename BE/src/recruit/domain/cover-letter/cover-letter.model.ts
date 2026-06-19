@@ -48,7 +48,16 @@ export interface CoverLetterQuestionSearchItem extends CoverLetterQuestion {
   coverLetter: Omit<CoverLetter, 'questions'>;
 }
 
-export type JobCategory = 'IT' | '전자' | '영업' | '경영/기획' | '마케팅' | '인사/총무' | '재무/회계' | '생산/제조' | '기타';
+export type JobCategory =
+  | 'IT'
+  | '전자'
+  | '영업'
+  | '경영/기획'
+  | '마케팅'
+  | '인사/총무'
+  | '재무/회계'
+  | '생산/제조'
+  | '기타';
 export type JobCategoryTarget = JobCategory | 'all' | 'IT+전자';
 
 export interface CoverLetterJobAnalysis {

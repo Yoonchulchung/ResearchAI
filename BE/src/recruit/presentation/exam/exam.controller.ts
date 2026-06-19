@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
-import { ExamService } from '../../application/exam/exam.service';
-import type { ExamEventListResult } from '../../domain/exam/exam-event.types';
+import { ExamService } from 'src/recruit/application/exam/exam.service';
+import type { ExamEventListResult } from 'src/recruit/domain/exam/exam-event.types';
 
 @Controller('exams')
 export class ExamController {
@@ -28,7 +28,10 @@ export class ExamController {
     @Query('start') start?: string,
     @Query('end') end?: string,
   ): Promise<{ errors: string[] }> {
-    const errors = await this.examService.refreshCache(from || start, to || end);
+    const errors = await this.examService.refreshCache(
+      from || start,
+      to || end,
+    );
     return { errors };
   }
 }

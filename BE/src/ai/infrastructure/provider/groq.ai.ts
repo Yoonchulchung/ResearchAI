@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
-import { callOpenAI, streamOpenAI } from './openai.ai';
-import type { AiCallResult } from './anthropic.ai';
-import type { VlmMessage } from './vlm.types';
-import { GROQ_FREE_MAX_INPUT_CHARS } from '../../domain/models';
+import { callOpenAI, streamOpenAI } from 'src/ai/infrastructure/provider/openai.ai';
+import type { AiCallResult } from 'src/ai/infrastructure/provider/anthropic.ai';
+import type { VlmMessage } from 'src/ai/infrastructure/provider/vlm.types';
+import { GROQ_FREE_MAX_INPUT_CHARS } from 'src/ai/domain/models';
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 // 무료 티어 TPM 12,000: 출력 2,000 토큰 예약 → 입력 최대 10,000 토큰
@@ -25,11 +25,14 @@ function truncateForGroqFree(
   const getContent = (m: OpenAI.ChatCompletionMessageParam): string =>
     typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
 
-  const totalChars = system.length + messages.reduce((s, m) => s + getContent(m).length, 0);
+  const totalChars =
+    system.length + messages.reduce((s, m) => s + getContent(m).length, 0);
   if (totalChars <= GROQ_FREE_MAX_INPUT_CHARS) return messages;
 
   // 마지막 user 메시지부터 역순으로 잘라낸다
-  const result = messages.map((m) => ({ ...m })) as OpenAI.ChatCompletionMessageParam[];
+  const result = messages.map((m) => ({
+    ...m,
+  })) as OpenAI.ChatCompletionMessageParam[];
   let remaining = totalChars - GROQ_FREE_MAX_INPUT_CHARS;
 
   for (let i = result.length - 1; i >= 0 && remaining > 0; i--) {
@@ -40,7 +43,9 @@ function truncateForGroqFree(
       result.splice(i, 1);
     } else {
       // 뒷부분만 잘라내고 생략 표시 추가
-      const trimmed = content.slice(0, content.length - remaining - 50) + '\n...(내용 일부 생략됨)';
+      const trimmed =
+        content.slice(0, content.length - remaining - 50) +
+        '\n...(내용 일부 생략됨)';
       (result[i] as any).content = trimmed;
       remaining = 0;
     }
@@ -50,11 +55,15 @@ function truncateForGroqFree(
 }
 
 /** VlmMessage 배열용 동일 처리 */
-function truncateVlmForGroqFree(system: string, messages: VlmMessage[]): VlmMessage[] {
+function truncateVlmForGroqFree(
+  system: string,
+  messages: VlmMessage[],
+): VlmMessage[] {
   const getContent = (m: VlmMessage): string =>
     typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
 
-  const totalChars = system.length + messages.reduce((s, m) => s + getContent(m).length, 0);
+  const totalChars =
+    system.length + messages.reduce((s, m) => s + getContent(m).length, 0);
   if (totalChars <= GROQ_FREE_MAX_INPUT_CHARS) return messages;
 
   const result = messages.map((m) => ({ ...m }));
@@ -66,7 +75,12 @@ function truncateVlmForGroqFree(system: string, messages: VlmMessage[]): VlmMess
       remaining -= content.length;
       result.splice(i, 1);
     } else {
-      result[i] = { ...result[i], content: content.slice(0, content.length - remaining - 50) + '\n...(내용 일부 생략됨)' };
+      result[i] = {
+        ...result[i],
+        content:
+          content.slice(0, content.length - remaining - 50) +
+          '\n...(내용 일부 생략됨)',
+      };
       remaining = 0;
     }
   }
@@ -83,7 +97,15 @@ export async function callGroq(
   signal?: AbortSignal,
 ): Promise<AiCallResult> {
   const truncated = truncateForGroqFree(system, messages);
-  return callOpenAI(getGroqClient(apiKey), model, system, truncated, tools, signal, GROQ_FREE_MAX_OUTPUT_TOKENS);
+  return callOpenAI(
+    getGroqClient(apiKey),
+    model,
+    system,
+    truncated,
+    tools,
+    signal,
+    GROQ_FREE_MAX_OUTPUT_TOKENS,
+  );
 }
 
 export async function* streamGroq(
@@ -93,5 +115,11 @@ export async function* streamGroq(
   messages: VlmMessage[],
 ): AsyncGenerator<string> {
   const truncated = truncateVlmForGroqFree(system, messages);
-  yield* streamOpenAI(getGroqClient(apiKey), model, system, truncated, GROQ_FREE_MAX_OUTPUT_TOKENS);
+  yield* streamOpenAI(
+    getGroqClient(apiKey),
+    model,
+    system,
+    truncated,
+    GROQ_FREE_MAX_OUTPUT_TOKENS,
+  );
 }

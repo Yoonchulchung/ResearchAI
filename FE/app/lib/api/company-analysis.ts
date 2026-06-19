@@ -129,26 +129,59 @@ export interface YearlyFinancial {
   // 손익계산서
   revenue: number | null;
   revenueFormatted: string | null;
+  grossProfit: number | null;
+  grossMargin: number | null;
   operatingProfit: number | null;
   operatingProfitFormatted: string | null;
   netIncome: number | null;
   netIncomeFormatted: string | null;
   operatingMargin: number | null;
   netIncomeMargin: number | null;
+  interestExpense: number | null;
+  interestCoverageRatio: number | null;
   // 재무상태표
   totalAssets: number | null;
+  nonCurrentAssets: number | null;
+  tangibleAssets: number | null;
+  intangibleAssets: number | null;
   totalLiabilities: number | null;
+  nonCurrentLiabilities: number | null;
   totalEquity: number | null;
   capitalAmount: number | null;
   currentAssets: number | null;
+  cashAndEquivalents: number | null;
+  inventories: number | null;
+  accountsReceivable: number | null;
   currentLiabilities: number | null;
+  shortTermBorrowings: number | null;
+  longTermBorrowings: number | null;
+  bonds: number | null;
+  totalBorrowings: number | null;
+  netDebt: number | null;
+  workingCapital: number | null;
   // 파생 비율
   debtRatio: number | null;
   currentRatio: number | null;
+  netDebtRatio: number | null;
   // 현금흐름
   operatingCashFlow: number | null;
   investingCashFlow: number | null;
   financingCashFlow: number | null;
+  // Naver Finance & 파생 지표
+  reserveRatio?: number | null;
+  roe?: number | null;
+  roa?: number | null;
+  eps?: number | null;
+  bps?: number | null;
+  sps?: number | null;
+  cps?: number | null;
+  per?: number | null;
+  pbr?: number | null;
+  psr?: number | null;
+  pcr?: number | null;
+  dividend?: number | null;
+  dividendYield?: number | null;
+  dividendPayoutRatio?: number | null;
 }
 
 export interface CompanyAnalysis {

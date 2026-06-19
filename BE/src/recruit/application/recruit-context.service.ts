@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { JobRepository } from '../infrastructure/repository/job-repository';
-import { SourceRegistry } from '../infrastructure/sources/source-registry';
-import { CollectQuery } from '../domain/job-source.interface';
+import { JobRepository } from 'src/recruit/infrastructure/repository/job-repository';
+import { SourceRegistry } from 'src/recruit/infrastructure/sources/source-registry';
+import { CollectQuery } from 'src/recruit/domain/job-source.interface';
 @Injectable()
 export class RecruitContextService {
   constructor(
@@ -21,18 +21,42 @@ export class RecruitContextService {
     limitPerSource = 15,
   ): AsyncGenerator<
     | { type: 'log'; message: string }
-    | { type: 'jobs'; jobs: { title: string; company: string; location?: string | null; description?: string | null; skills: string[]; url: string }[] }
+    | {
+        type: 'jobs';
+        jobs: {
+          title: string;
+          company: string;
+          location?: string | null;
+          description?: string | null;
+          skills: string[];
+          url: string;
+        }[];
+      }
     | { type: 'result'; result: string }
   > {
     const sources = this.registry.getAvailable();
-    const jobs: { title: string; company: string; source: string; location?: string | null; skills: string[]; description?: string | null; url: string }[] = [];
+    const jobs: {
+      title: string;
+      company: string;
+      source: string;
+      location?: string | null;
+      skills: string[];
+      description?: string | null;
+      url: string;
+    }[] = [];
 
     const filterDesc = [
-      query.companyTypes?.length ? `기업유형: ${query.companyTypes.join(', ')}` : '',
+      query.companyTypes?.length
+        ? `기업유형: ${query.companyTypes.join(', ')}`
+        : '',
       query.jobTypes?.length ? `경력: ${query.jobTypes.join(', ')}` : '',
-    ].filter(Boolean).join(' / ');
-    yield { type: 'log', message: `사용 가능한 소스: ${sources.length > 0 ? sources.map(s => s.name).join(', ') : '없음'}${filterDesc ? ` / ${filterDesc}` : ''}` };
-
+    ]
+      .filter(Boolean)
+      .join(' / ');
+    yield {
+      type: 'log',
+      message: `사용 가능한 소스: ${sources.length > 0 ? sources.map((s) => s.name).join(', ') : '없음'}${filterDesc ? ` / ${filterDesc}` : ''}`,
+    };
 
     // 데이터 수집 진행
     for (const source of sources) {
@@ -42,7 +66,10 @@ export class RecruitContextService {
       try {
         await Promise.race([
           (async () => {
-            for await (const job of source.collect({ ...query, limit: limitPerSource })) {
+            for await (const job of source.collect({
+              ...query,
+              limit: limitPerSource,
+            })) {
               this.jobRepository.upsert(job);
               jobs.push({
                 title: job.title,
@@ -72,11 +99,23 @@ export class RecruitContextService {
     if (jobs.length > 0) {
       yield {
         type: 'jobs',
-        jobs: jobs.map(({ title, company, location, description, skills, url }) => ({ title, company, location, description, skills, url })),
+        jobs: jobs.map(
+          ({ title, company, location, description, skills, url }) => ({
+            title,
+            company,
+            location,
+            description,
+            skills,
+            url,
+          }),
+        ),
       };
     }
 
-    yield { type: 'result', result: jobs.length > 0 ? this.format(query.keyword, jobs) : '' };
+    yield {
+      type: 'result',
+      result: jobs.length > 0 ? this.format(query.keyword, jobs) : '',
+    };
   }
 
   /**
@@ -85,7 +124,14 @@ export class RecruitContextService {
   dbSearch(keyword: string, limit = 20): string {
     const jobs = this.jobRepository.findAll({ keyword }).slice(0, limit);
     if (jobs.length === 0) return '';
-    return this.format(keyword, jobs.map((job) => ({ ...job, skills: job.skills ?? [], source: job.source ?? 'db' })));
+    return this.format(
+      keyword,
+      jobs.map((job) => ({
+        ...job,
+        skills: job.skills ?? [],
+        source: job.source ?? 'db',
+      })),
+    );
   }
 
   private cleanSkills(skills: string[]): string[] {
@@ -94,9 +140,9 @@ export class RecruitContextService {
       .filter(
         (s) =>
           s.length > 0 &&
-          !/^수정일/.test(s) &&                       // "수정일 26/03/05" 제거
-          !/^\d{2,4}[./]\d{2}[./]\d{2}$/.test(s) &&  // 날짜 패턴 제거
-          !/^\d+$/.test(s),                            // 숫자만 있는 항목 제거
+          !/^수정일/.test(s) && // "수정일 26/03/05" 제거
+          !/^\d{2,4}[./]\d{2}[./]\d{2}$/.test(s) && // 날짜 패턴 제거
+          !/^\d+$/.test(s), // 숫자만 있는 항목 제거
       );
   }
 
@@ -104,7 +150,18 @@ export class RecruitContextService {
     return (location ?? '').replace(/\s+/g, ' ').trim();
   }
 
-  private format(keyword: string, jobs: { title: string; company: string; source: string; location?: string | null; skills: string[]; description?: string | null; url: string }[]): string {
+  private format(
+    keyword: string,
+    jobs: {
+      title: string;
+      company: string;
+      source: string;
+      location?: string | null;
+      skills: string[];
+      description?: string | null;
+      url: string;
+    }[],
+  ): string {
     const lines = jobs.map((job, i) => {
       const location = this.cleanLocation(job.location);
       const skills = this.cleanSkills(job.skills);

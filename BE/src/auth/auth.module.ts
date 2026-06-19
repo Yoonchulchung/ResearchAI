@@ -1,14 +1,19 @@
-import { Module, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
+import {
+  Module,
+  NestModule,
+  MiddlewareConsumer,
+  RequestMethod,
+} from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UserEntity } from './domain/entity/user.entity';
-import { LoginHistoryEntity } from './domain/entity/login-history.entity';
-import { AuthService } from './application/auth.service';
-import { JwtStrategy } from './strategies/jwt.strategy';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { AuthController } from './presentation/auth.controller';
-import { AuthContextMiddleware } from '../shared/middleware/auth-context.middleware';
+import { UserEntity } from 'src/auth/domain/entity/user.entity';
+import { LoginHistoryEntity } from 'src/auth/domain/entity/login-history.entity';
+import { AuthService } from 'src/auth/application/auth.service';
+import { JwtStrategy } from 'src/auth/strategies/jwt.strategy';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { AuthController } from 'src/auth/presentation/auth.controller';
+import { AuthContextMiddleware } from 'src/shared/middleware/auth-context.middleware';
 
 @Module({
   imports: [
@@ -27,6 +32,8 @@ import { AuthContextMiddleware } from '../shared/middleware/auth-context.middlew
 })
 export class AuthModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(AuthContextMiddleware).forRoutes({ path: '*path', method: RequestMethod.ALL });
+    consumer
+      .apply(AuthContextMiddleware)
+      .forRoutes({ path: '*path', method: RequestMethod.ALL });
   }
 }

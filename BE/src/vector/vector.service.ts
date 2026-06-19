@@ -26,7 +26,8 @@ export interface DocumentChunkResult {
 @Injectable()
 export class VectorService implements OnModuleInit {
   private readonly logger = new Logger(VectorService.name);
-  private readonly qdrantUrl = process.env.QDRANT_URL ?? 'http://localhost:6333';
+  private readonly qdrantUrl =
+    process.env.QDRANT_URL ?? 'http://localhost:6333';
   private readonly collectionName = 'research_rag';
   private readonly experienceCollectionName = 'experience_rag';
   private readonly documentCollectionName = 'document_rag';
@@ -54,7 +55,9 @@ export class VectorService implements OnModuleInit {
       this.available = true;
       this.logger.log('✅ Qdrant 연결 성공 — 벡터 검색 활성화');
     } catch (e: any) {
-      this.logger.warn(`⚠️  Qdrant 연결 실패 — 벡터 검색 비활성화 (${e.message})`);
+      this.logger.warn(
+        `⚠️  Qdrant 연결 실패 — 벡터 검색 비활성화 (${e.message})`,
+      );
     }
   }
 
@@ -65,39 +68,60 @@ export class VectorService implements OnModuleInit {
   // ── 컬렉션 관리 ──────────────────────────────────────────────────────────────
 
   private async ensureCollection(): Promise<void> {
-    const res = await fetch(`${this.qdrantUrl}/collections/${this.collectionName}`);
+    const res = await fetch(
+      `${this.qdrantUrl}/collections/${this.collectionName}`,
+    );
     if (res.status === 404) {
-      const createRes = await fetch(`${this.qdrantUrl}/collections/${this.collectionName}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vectors: { size: this.vectorSize, distance: 'Cosine' } }),
-      });
+      const createRes = await fetch(
+        `${this.qdrantUrl}/collections/${this.collectionName}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vectors: { size: this.vectorSize, distance: 'Cosine' },
+          }),
+        },
+      );
       if (!createRes.ok) throw new Error('컬렉션 생성 실패');
       this.logger.log(`컬렉션 '${this.collectionName}' 생성됨`);
     }
   }
 
   private async ensureExperienceCollection(): Promise<void> {
-    const res = await fetch(`${this.qdrantUrl}/collections/${this.experienceCollectionName}`);
+    const res = await fetch(
+      `${this.qdrantUrl}/collections/${this.experienceCollectionName}`,
+    );
     if (res.status === 404) {
-      const createRes = await fetch(`${this.qdrantUrl}/collections/${this.experienceCollectionName}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vectors: { size: this.vectorSize, distance: 'Cosine' } }),
-      });
+      const createRes = await fetch(
+        `${this.qdrantUrl}/collections/${this.experienceCollectionName}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vectors: { size: this.vectorSize, distance: 'Cosine' },
+          }),
+        },
+      );
       if (!createRes.ok) throw new Error('경험 컬렉션 생성 실패');
       this.logger.log(`컬렉션 '${this.experienceCollectionName}' 생성됨`);
     }
   }
 
   private async ensureDocumentCollection(): Promise<void> {
-    const res = await fetch(`${this.qdrantUrl}/collections/${this.documentCollectionName}`);
+    const res = await fetch(
+      `${this.qdrantUrl}/collections/${this.documentCollectionName}`,
+    );
     if (res.status === 404) {
-      const createRes = await fetch(`${this.qdrantUrl}/collections/${this.documentCollectionName}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vectors: { size: this.vectorSize, distance: 'Cosine' } }),
-      });
+      const createRes = await fetch(
+        `${this.qdrantUrl}/collections/${this.documentCollectionName}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vectors: { size: this.vectorSize, distance: 'Cosine' },
+          }),
+        },
+      );
       if (!createRes.ok) throw new Error('문서 컬렉션 생성 실패');
       this.logger.log(`컬렉션 '${this.documentCollectionName}' 생성됨`);
     }
@@ -112,7 +136,7 @@ export class VectorService implements OnModuleInit {
       body: JSON.stringify({ model: this.embedModel, input: text }),
     });
     if (!res.ok) throw new Error(`임베딩 실패: ${res.status}`);
-    const data = (await res.json()) as any;
+    const data = await res.json();
     return data.embeddings[0];
   }
 
@@ -165,7 +189,14 @@ export class VectorService implements OnModuleInit {
         points.push({
           id: this.toUUID(`${sessionId}_${taskId}_${i}`),
           vector,
-          payload: { sessionId, taskId, taskTitle, chunkIndex: i, text: chunks[i], userId: userId ?? null },
+          payload: {
+            sessionId,
+            taskId,
+            taskTitle,
+            chunkIndex: i,
+            text: chunks[i],
+            userId: userId ?? null,
+          },
         });
       }
 
@@ -217,7 +248,7 @@ export class VectorService implements OnModuleInit {
         },
       );
       if (!res.ok) return [];
-      const data = (await res.json()) as any;
+      const data = await res.json();
       return (data.result ?? []).map((r: any) => ({
         text: r.payload.text,
         taskTitle: r.payload.taskTitle,
@@ -251,7 +282,13 @@ export class VectorService implements OnModuleInit {
         points.push({
           id: this.toUUID(`exp_${experienceId}_${i}`),
           vector,
-          payload: { experienceId, title, chunkIndex: i, text: chunks[i], userId: userId ?? null },
+          payload: {
+            experienceId,
+            title,
+            chunkIndex: i,
+            text: chunks[i],
+            userId: userId ?? null,
+          },
         });
       }
       if (points.length === 0) return;
@@ -295,15 +332,22 @@ export class VectorService implements OnModuleInit {
         },
       );
       if (!res.ok) return [];
-      const data = (await res.json()) as any;
+      const data = await res.json();
       const seen = new Map<string, ExperienceSearchResult>();
       for (const r of data.result ?? []) {
         const id = r.payload.experienceId;
         if (!seen.has(id) || seen.get(id)!.score < r.score) {
-          seen.set(id, { experienceId: id, title: r.payload.title, text: r.payload.text, score: r.score });
+          seen.set(id, {
+            experienceId: id,
+            title: r.payload.title,
+            text: r.payload.text,
+            score: r.score,
+          });
         }
       }
-      return Array.from(seen.values()).sort((a, b) => b.score - a.score).slice(0, topK);
+      return Array.from(seen.values())
+        .sort((a, b) => b.score - a.score)
+        .slice(0, topK);
     } catch {
       return [];
     }
@@ -328,7 +372,14 @@ export class VectorService implements OnModuleInit {
         points.push({
           id: this.toUUID(`doc_${fileId}_${i}`),
           vector,
-          payload: { fileId, filename, fileType, chunkIndex: i, text: chunks[i], userId: userId ?? null },
+          payload: {
+            fileId,
+            filename,
+            fileType,
+            chunkIndex: i,
+            text: chunks[i],
+            userId: userId ?? null,
+          },
         });
       }
       if (points.length === 0) return;
@@ -356,7 +407,8 @@ export class VectorService implements OnModuleInit {
     try {
       const queryVector = await this.embed(query);
       const must: any[] = [];
-      if (fileIds?.length) must.push({ key: 'fileId', match: { any: fileIds } });
+      if (fileIds?.length)
+        must.push({ key: 'fileId', match: { any: fileIds } });
       const userFilter = this.userIdFilter(userId);
       if (userFilter) must.push(userFilter);
 
@@ -375,7 +427,7 @@ export class VectorService implements OnModuleInit {
         },
       );
       if (!res.ok) return [];
-      const data = (await res.json()) as any;
+      const data = await res.json();
       return (data.result ?? []).map((r: any) => ({
         fileId: r.payload.fileId,
         filename: r.payload.filename,
@@ -401,7 +453,9 @@ export class VectorService implements OnModuleInit {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filter: { must: [{ key: 'fileId', match: { any: fileIds } }] } }),
+        body: JSON.stringify({
+          filter: { must: [{ key: 'fileId', match: { any: fileIds } }] },
+        }),
       },
     ).catch(() => {});
   }
@@ -417,7 +471,9 @@ export class VectorService implements OnModuleInit {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filter: { must: [{ key: 'fileId', match: { value: fileId } }] } }),
+        body: JSON.stringify({
+          filter: { must: [{ key: 'fileId', match: { value: fileId } }] },
+        }),
       },
     );
   }
@@ -428,13 +484,20 @@ export class VectorService implements OnModuleInit {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filter: { must: [{ key: 'experienceId', match: { value: experienceId } }] } }),
+        body: JSON.stringify({
+          filter: {
+            must: [{ key: 'experienceId', match: { value: experienceId } }],
+          },
+        }),
       },
     );
   }
 
   private async deleteByFilter(filter: Record<string, string>): Promise<void> {
-    const must = Object.entries(filter).map(([key, value]) => ({ key, match: { value } }));
+    const must = Object.entries(filter).map(([key, value]) => ({
+      key,
+      match: { value },
+    }));
     await fetch(
       `${this.qdrantUrl}/collections/${this.collectionName}/points/delete`,
       {

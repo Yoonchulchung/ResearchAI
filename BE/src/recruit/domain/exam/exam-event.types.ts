@@ -21,4 +21,3 @@ export interface ExamEventListResult {
   fetchedAt: string | null;
   errors: string[];
 }
-

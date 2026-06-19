@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import puppeteer, { Browser, Page } from 'puppeteer';
-import { DdgSearchService, DdgResult } from './ddg-search.service';
+import { DdgSearchService, DdgResult } from 'src/browse/infrastructure/search/ddg-search.service';
 import {
   ExtractedJob,
   classifyJobSiteUrl,
@@ -16,7 +16,7 @@ import {
   scrapeLinkareer,
   scrapeRallit,
   scrapeSaramin,
-} from './job-site-extractors';
+} from 'src/browse/infrastructure/search/job-site-extractors';
 
 export interface SearchJobResult {
   id: string;
@@ -38,7 +38,7 @@ const BROWSER_ARGS = [
   '--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
 ];
 
-const BIGRAM_THRESHOLD = 0.40; // 내부 필터 (CollectService가 0.5로 2차 필터)
+const BIGRAM_THRESHOLD = 0.4; // 내부 필터 (CollectService가 0.5로 2차 필터)
 const MAX_VARIANTS = 10;
 const MAX_DDG_QUERIES = 8;
 const MAX_DDG_RESULTS_PER_QUERY = 10;
@@ -66,7 +66,13 @@ function bigramOverlap(a: string, b: string): number {
 function isRelevant(keyword: string, job: ExtractedJob): boolean {
   if (!keyword.trim()) return true;
   const text = `${job.title} ${job.company}`;
-  if (text.toLowerCase().replace(/\s+/g, '').includes(keyword.toLowerCase().replace(/\s+/g, ''))) return true;
+  if (
+    text
+      .toLowerCase()
+      .replace(/\s+/g, '')
+      .includes(keyword.toLowerCase().replace(/\s+/g, ''))
+  )
+    return true;
   return bigramOverlap(keyword, text) >= BIGRAM_THRESHOLD;
 }
 
@@ -81,8 +87,19 @@ function relevanceScore(keyword: string, job: ExtractedJob): number {
 // ── 키워드 변형 생성 ─────────────────────────────────────────────────────────
 
 const COMPANY_SUFFIXES = [
-  '코리아', '(주)', '㈜', '㈔', '주식회사', '유한회사', '합자회사',
-  ' korea', ' inc', ' co', ' corp', ' ltd', ' llc',
+  '코리아',
+  '(주)',
+  '㈜',
+  '㈔',
+  '주식회사',
+  '유한회사',
+  '합자회사',
+  ' korea',
+  ' inc',
+  ' co',
+  ' corp',
+  ' ltd',
+  ' llc',
 ];
 
 function generateVariants(keyword: string): string[] {
@@ -128,12 +145,14 @@ function generateVariants(keyword: string): string[] {
 
   // 중복 제거 + 최대 개수 제한
   const seen = new Set<string>();
-  return variants.filter((v) => {
-    const key = v.toLowerCase().replace(/\s+/g, '');
-    if (seen.has(key) || !key) return false;
-    seen.add(key);
-    return true;
-  }).slice(0, MAX_VARIANTS);
+  return variants
+    .filter((v) => {
+      const key = v.toLowerCase().replace(/\s+/g, '');
+      if (seen.has(key) || !key) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, MAX_VARIANTS);
 }
 
 // ── DDG 쿼리 생성 ────────────────────────────────────────────────────────────
@@ -166,9 +185,14 @@ function buildDdgQueries(variants: string[]): string[] {
 function normalizeUrl(url: string): string {
   try {
     const u = new URL(url);
-    ['utm_source', 'utm_medium', 'utm_campaign', 'ref', 'source', 'from'].forEach(
-      (p) => u.searchParams.delete(p),
-    );
+    [
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'ref',
+      'source',
+      'from',
+    ].forEach((p) => u.searchParams.delete(p));
     u.hash = '';
     return u.toString().toLowerCase().replace(/\/$/, '');
   } catch {
@@ -211,7 +235,9 @@ async function setupPage(page: Page): Promise<void> {
   await page.setUserAgent(
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
   );
-  await page.setExtraHTTPHeaders({ 'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8' });
+  await page.setExtraHTTPHeaders({
+    'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+  });
   await page.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
   });
@@ -241,15 +267,24 @@ async function runDirectSearches(
 ): Promise<ExtractedJob[]> {
   // 브라우저 페이지 2개로 교차 실행
   const [page1, page2] = await Promise.all([
-    browser.newPage().then(async (p) => { await setupPage(p); return p; }),
-    browser.newPage().then(async (p) => { await setupPage(p); return p; }),
+    browser.newPage().then(async (p) => {
+      await setupPage(p);
+      return p;
+    }),
+    browser.newPage().then(async (p) => {
+      await setupPage(p);
+      return p;
+    }),
   ]);
 
   const topVariants = variants.slice(0, 3);
   const results: ExtractedJob[] = [];
 
   // Puppeteer가 필요한 사이트 (page 교차 사용)
-  const puppeteerSites: [string, (page: Page, kw: string) => Promise<ExtractedJob[]>][] = [
+  const puppeteerSites: [
+    string,
+    (page: Page, kw: string) => Promise<ExtractedJob[]>,
+  ][] = [
     ['링커리어', scrapeLinkareer],
     ['잡코리아', scrapeJobkorea],
     ['사람인', scrapeSaramin],
@@ -263,13 +298,19 @@ async function runDirectSearches(
     const [label, fn] = puppeteerSites[i];
     const page = i % 2 === 0 ? page1 : page2;
     for (const kw of topVariants) {
-      const jobs = await safeScrape(`${label}:${kw}`, () => fn(page, kw), logger);
+      const jobs = await safeScrape(
+        `${label}:${kw}`,
+        () => fn(page, kw),
+        logger,
+      );
       results.push(...jobs);
     }
   }
 
   // fetch 기반 사이트 (병렬 실행)
-  const catchResults = await Promise.allSettled(topVariants.map((kw) => scrapeCatch(kw)));
+  const catchResults = await Promise.allSettled(
+    topVariants.map((kw) => scrapeCatch(kw)),
+  );
   for (const r of catchResults) {
     if (r.status === 'fulfilled') results.push(...r.value);
   }
@@ -302,13 +343,15 @@ async function extractDdgOnlyUrls(
     if (site === 'linkareer') {
       job = await safeScrape(
         `detail:linkareer`,
-        () => extractLinkareerDetail(detailPage, url).then((j) => (j ? [j] : [])),
+        () =>
+          extractLinkareerDetail(detailPage, url).then((j) => (j ? [j] : [])),
         logger,
       ).then((arr) => arr[0] ?? null);
     } else if (site === 'jobkorea') {
       job = await safeScrape(
         `detail:jobkorea`,
-        () => extractJobkoreaDetail(detailPage, url).then((j) => (j ? [j] : [])),
+        () =>
+          extractJobkoreaDetail(detailPage, url).then((j) => (j ? [j] : [])),
         logger,
       ).then((arr) => arr[0] ?? null);
     } else {
@@ -352,7 +395,9 @@ export class IntelligentSearchService {
     try {
       // Phase 1: 키워드 변형 생성
       const variants = generateVariants(kw);
-      this.logger.log(`[Phase1] 변형 ${variants.length}개: ${variants.slice(0, 5).join(', ')}`);
+      this.logger.log(
+        `[Phase1] 변형 ${variants.length}개: ${variants.slice(0, 5).join(', ')}`,
+      );
 
       browser = await puppeteer.launch({ headless: true, args: BROWSER_ARGS });
 
@@ -368,7 +413,12 @@ export class IntelligentSearchService {
 
       // Phase 4: DDG에서만 발견된 URL 상세 추출
       const directUrlSet = new Set(directJobs.map((j) => normalizeUrl(j.url)));
-      const ddgOnlyJobs = await extractDdgOnlyUrls(ddgResults, directUrlSet, browser, this.logger);
+      const ddgOnlyJobs = await extractDdgOnlyUrls(
+        ddgResults,
+        directUrlSet,
+        browser,
+        this.logger,
+      );
       this.logger.log(`[Phase4] DDG 전용 상세 ${ddgOnlyJobs.length}개 추출`);
 
       // Phase 5: 관련성 필터 + 중복 제거 + 점수 정렬
@@ -378,7 +428,9 @@ export class IntelligentSearchService {
         if (!isRelevant(kw, j)) return false;
         if (options.jobTypes?.length) {
           const jobTypeText = `${j.type} ${j.title}`.toLowerCase();
-          const matched = options.jobTypes.some((t) => jobTypeText.includes(t.toLowerCase()));
+          const matched = options.jobTypes.some((t) =>
+            jobTypeText.includes(t.toLowerCase()),
+          );
           if (!matched) return false;
         }
         return true;
@@ -389,7 +441,9 @@ export class IntelligentSearchService {
         .map((j) => ({ ...j, score: relevanceScore(kw, j) }))
         .sort((a, b) => b.score - a.score);
 
-      this.logger.log(`[Phase5] ${combined.length} → ${relevant.length} 관련 → ${unique.length} 고유 → 점수 정렬 완료`);
+      this.logger.log(
+        `[Phase5] ${combined.length} → ${relevant.length} 관련 → ${unique.length} 고유 → 점수 정렬 완료`,
+      );
 
       const limit = options.limit ?? 200;
       return scored.slice(0, limit).map((j) => ({

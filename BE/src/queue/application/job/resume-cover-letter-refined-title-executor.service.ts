@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
-import { ResumeService } from '../../../recruit/application/resume/resume.service';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
+import { ResumeService } from 'src/recruit/application/resume/resume.service';
 
 export interface ResumeCoverLetterRefinedTitleRequest {
   resumeIds?: string[];
@@ -19,7 +19,9 @@ const DEFAULT_MODEL = 'gemini-2.0-flash';
 
 @Injectable()
 export class ResumeCoverLetterRefinedTitleExecutorService {
-  private readonly logger = new Logger(ResumeCoverLetterRefinedTitleExecutorService.name);
+  private readonly logger = new Logger(
+    ResumeCoverLetterRefinedTitleExecutorService.name,
+  );
 
   constructor(
     private readonly resumeService: ResumeService,
@@ -40,14 +42,21 @@ export class ResumeCoverLetterRefinedTitleExecutorService {
     });
 
     onLog(`자기소개서 문항 ${items.length}개의 제목 재작성을 시작합니다.`);
-    this.logger.log(`[RefinedTitle] ${items.length} cover letters, model=${model}`);
+    this.logger.log(
+      `[RefinedTitle] ${items.length} cover letters, model=${model}`,
+    );
 
     const updated: ResumeCoverLetterRefinedTitleResult['updated'] = [];
     for (const [index, item] of items.entries()) {
       if (signal?.aborted) break;
-      onLog(`${index + 1}/${items.length} 제목 생성 중: ${this.truncate(item.title || item.answer, 36)}`);
+      onLog(
+        `${index + 1}/${items.length} 제목 생성 중: ${this.truncate(item.title || item.answer, 36)}`,
+      );
       const refinedTitle = await this.generateRefinedTitle(model, item, signal);
-      await this.resumeService.updateCoverLetterRefinedTitle(item.id, refinedTitle);
+      await this.resumeService.updateCoverLetterRefinedTitle(
+        item.id,
+        refinedTitle,
+      );
       updated.push({ id: item.id, resumeId: item.resumeId, refinedTitle });
       onLog(`${index + 1}/${items.length} 완료: ${refinedTitle}`);
     }
@@ -57,7 +66,13 @@ export class ResumeCoverLetterRefinedTitleExecutorService {
 
   private async generateRefinedTitle(
     model: string,
-    item: { title: string; answer: string; companyName: string; jobTitle: string; jd: string | null },
+    item: {
+      title: string;
+      answer: string;
+      companyName: string;
+      jobTitle: string;
+      jd: string | null;
+    },
     signal?: AbortSignal,
   ): Promise<string> {
     const system = [
@@ -84,7 +99,11 @@ export class ResumeCoverLetterRefinedTitleExecutorService {
   }
 
   private parseTitle(text: string): string {
-    const trimmed = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+    const trimmed = text
+      .trim()
+      .replace(/^```(?:json)?/i, '')
+      .replace(/```$/i, '')
+      .trim();
     try {
       const parsed = JSON.parse(trimmed) as { title?: unknown };
       if (typeof parsed.title === 'string') return parsed.title.trim();
@@ -104,6 +123,8 @@ export class ResumeCoverLetterRefinedTitleExecutorService {
 
   private truncate(value: string, max: number): string {
     const normalized = value.replace(/\s+/g, ' ').trim();
-    return normalized.length > max ? `${normalized.slice(0, max)}...` : normalized;
+    return normalized.length > max
+      ? `${normalized.slice(0, max)}...`
+      : normalized;
   }
 }

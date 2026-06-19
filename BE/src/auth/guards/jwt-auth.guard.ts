@@ -1,7 +1,7 @@
 import { Injectable, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { AuthService } from '../application/auth.service';
-import { UserEntity } from '../domain/entity/user.entity';
+import { AuthService } from 'src/auth/application/auth.service';
+import { UserEntity } from 'src/auth/domain/entity/user.entity';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -17,7 +17,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     const res = context.switchToHttp().getResponse();
     const user = req.user as UserEntity & { exp: number };
 
-    const newToken = this.authService.tryRenewToken({ sub: user.id, exp: user.exp }, user);
+    const newToken = this.authService.tryRenewToken(
+      { sub: user.id, exp: user.exp },
+      user,
+    );
     if (newToken) res.setHeader('X-New-Token', newToken);
 
     return true;

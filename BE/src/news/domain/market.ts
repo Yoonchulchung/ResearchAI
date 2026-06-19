@@ -1,14 +1,14 @@
 export enum MarketSymbol {
-  KOSPI     = '^KS11',
-  KOSDAQ    = '^KQ11',
-  NASDAQ    = '^IXIC',
-  USD_KRW   = 'USDKRW=X',
+  KOSPI = '^KS11',
+  KOSDAQ = '^KQ11',
+  NASDAQ = '^IXIC',
+  USD_KRW = 'USDKRW=X',
 }
 
 export const MARKET_TARGETS: Array<{ symbol: MarketSymbol; name: string }> = [
-  { symbol: MarketSymbol.KOSPI,   name: 'KOSPI'   },
-  { symbol: MarketSymbol.KOSDAQ,  name: 'KOSDAQ'  },
-  { symbol: MarketSymbol.NASDAQ,  name: 'NASDAQ'  },
+  { symbol: MarketSymbol.KOSPI, name: 'KOSPI' },
+  { symbol: MarketSymbol.KOSDAQ, name: 'KOSDAQ' },
+  { symbol: MarketSymbol.NASDAQ, name: 'NASDAQ' },
   { symbol: MarketSymbol.USD_KRW, name: 'USD/KRW' },
 ];
 

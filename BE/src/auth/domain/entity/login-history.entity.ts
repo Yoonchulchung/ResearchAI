@@ -1,5 +1,12 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { UserEntity } from './user.entity';
+import {
+  Entity,
+  Column,
+  PrimaryColumn,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
+import { UserEntity } from 'src/auth/domain/entity/user.entity';
 
 @Entity('login_history')
 export class LoginHistoryEntity {

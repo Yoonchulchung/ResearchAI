@@ -1,5 +1,13 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { CompanyEntity } from './company.entity';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
+import { CompanyEntity } from 'src/company/domain/entity/company.entity';
 
 export interface CompetencyScores {
   성취지향: number;
@@ -103,7 +111,10 @@ export class CompanyAnalysisEntity {
   @Column({ name: 'company_id', type: 'text', nullable: true })
   companyId: string | null;
 
-  @ManyToOne(() => CompanyEntity, (c) => c.analysis, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => CompanyEntity, (c) => c.analysis, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'company_id' })
   company?: CompanyEntity;
 

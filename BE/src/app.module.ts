@@ -1,24 +1,24 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { DatabaseModule } from './database/database.module';
-import { AiModule } from './ai/ai.module';
-import { AuthModule } from './auth/auth.module';
-import { ResearchModule } from './research/research.module';
-import { SessionsModule } from './sessions/sessions.module';
-import { OverviewModule } from './overview/overview.module';
-import { QueueModule } from './queue/queue.module';
-import { ChatModule } from './chat/chat.module';
-import { RecruitModule } from './recruit/recruit.module';
-import { NewsModule } from './news/news.module';
-import { MediaModule } from './media/media.module';
-import { AppConfigModule } from './config/config.module';
-import { DocumentsModule } from './recruit/documents.module';
-import { CompanyModule } from './company/company.module';
-import { BackgroundsModule } from './backgrounds/backgrounds.module';
-import { CoverLetterModule } from './recruit/cover-letter.module';
-import { MetricsModule } from './metrics/metrics.module';
-import { ExamModule } from './recruit/exam.module';
-import { ResumeModule } from './recruit/resume.module';
+import { DatabaseModule } from 'src/database/database.module';
+import { AiModule } from 'src/ai/ai.module';
+import { AuthModule } from 'src/auth/auth.module';
+import { ResearchModule } from 'src/research/research.module';
+import { SessionsModule } from 'src/sessions/sessions.module';
+import { OverviewModule } from 'src/overview/overview.module';
+import { QueueModule } from 'src/queue/queue.module';
+import { ChatModule } from 'src/chat/chat.module';
+import { RecruitModule } from 'src/recruit/recruit.module';
+import { NewsModule } from 'src/news/news.module';
+import { MediaModule } from 'src/media/media.module';
+import { AppConfigModule } from 'src/config/config.module';
+import { DocumentsModule } from 'src/recruit/documents.module';
+import { CompanyModule } from 'src/company/company.module';
+import { BackgroundsModule } from 'src/backgrounds/backgrounds.module';
+import { CoverLetterModule } from 'src/recruit/cover-letter.module';
+import { MetricsModule } from 'src/metrics/metrics.module';
+import { ExamModule } from 'src/recruit/exam.module';
+import { ResumeModule } from 'src/recruit/resume.module';
 
 @Module({
   imports: [

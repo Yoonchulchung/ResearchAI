@@ -1,5 +1,5 @@
 import { Controller, Get, Patch, Param, Body } from '@nestjs/common';
-import { AppConfigService } from '../application/app-config.service';
+import { AppConfigService } from 'src/config/application/app-config.service';
 
 @Controller('config')
 export class AppConfigController {
@@ -12,6 +12,8 @@ export class AppConfigController {
 
   @Patch(':key')
   set(@Param('key') key: string, @Body() body: { value: string }) {
-    return this.appConfigService.set(key, body.value).then(() => ({ key, value: body.value }));
+    return this.appConfigService
+      .set(key, body.value)
+      .then(() => ({ key, value: body.value }));
   }
 }

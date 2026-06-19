@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AiCallLogEntity } from '../entity/ai-call-log.entity';
+import { AiCallLogEntity } from 'src/ai/domain/entity/ai-call-log.entity';
 
 export interface AiCallLogPage {
   data: AiCallLogEntity[];
@@ -19,8 +19,14 @@ export class AiCallLogRepository {
     await this.repo.save(entity);
   }
 
-  async findPaginated(page: number, limit: number, model?: string, userId?: string | null): Promise<AiCallLogPage> {
-    const qb = this.repo.createQueryBuilder('log')
+  async findPaginated(
+    page: number,
+    limit: number,
+    model?: string,
+    userId?: string | null,
+  ): Promise<AiCallLogPage> {
+    const qb = this.repo
+      .createQueryBuilder('log')
       .orderBy('log.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
@@ -28,8 +34,14 @@ export class AiCallLogRepository {
     const conditions: string[] = [];
     const params: Record<string, any> = {};
 
-    if (model) { conditions.push('log.aiModel = :model'); params.model = model; }
-    if (userId !== undefined) { conditions.push('log.userId = :userId'); params.userId = userId; }
+    if (model) {
+      conditions.push('log.aiModel = :model');
+      params.model = model;
+    }
+    if (userId !== undefined) {
+      conditions.push('log.userId = :userId');
+      params.userId = userId;
+    }
 
     if (conditions.length > 0) qb.where(conditions.join(' AND '), params);
 

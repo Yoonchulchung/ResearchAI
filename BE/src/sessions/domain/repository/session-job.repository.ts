@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { SessionJobEntity } from '../entity/session-job.entity';
+import { SessionJobEntity } from 'src/sessions/domain/entity/session-job.entity';
 
 @Injectable()
 export class SessionJobRepository {
@@ -11,7 +11,10 @@ export class SessionJobRepository {
   ) {}
 
   async findBySessionId(sessionId: string): Promise<SessionJobEntity[]> {
-    return this.repo.find({ where: { sessionId }, order: { createdAt: 'ASC' } });
+    return this.repo.find({
+      where: { sessionId },
+      order: { createdAt: 'ASC' },
+    });
   }
 
   async save(entity: Partial<SessionJobEntity>): Promise<SessionJobEntity> {

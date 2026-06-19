@@ -1,5 +1,5 @@
-import type { JobPosting } from '../../domain/job-posting.model';
-import { normalizeJobType } from './job-type.util';
+import type { JobPosting } from 'src/recruit/domain/job-posting.model';
+import { normalizeJobType } from 'src/recruit/infrastructure/job-posting/job-type.util';
 
 const BASE_URL = 'https://www.jobplanet.co.kr';
 const API_URL = `${BASE_URL}/api/v3/job/postings`;
@@ -10,7 +10,8 @@ const HEADERS = {
   Accept: 'application/json',
   'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
   Referer: `${BASE_URL}/job`,
-  'Sec-Ch-Ua': '"Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99"',
+  'Sec-Ch-Ua':
+    '"Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99"',
   'Sec-Ch-Ua-Mobile': '?0',
   'Sec-Ch-Ua-Platform': '"macOS"',
   'Sec-Fetch-Dest': 'empty',
@@ -35,8 +36,13 @@ export class JobplanetJobCrawler {
       page_size: String(pageSize),
     });
 
-    const res = await fetch(`${API_URL}?${params}`, { headers: this.getHeaders() });
-    if (!res.ok) throw new Error(`HTTP ${res.status} — ${await this.getErrorPreview(res)}`);
+    const res = await fetch(`${API_URL}?${params}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok)
+      throw new Error(
+        `HTTP ${res.status} — ${await this.getErrorPreview(res)}`,
+      );
 
     const json = await res.json();
     const items: any[] = json?.data?.recruits ?? [];
@@ -44,10 +50,15 @@ export class JobplanetJobCrawler {
     return items.map((item) => {
       const endAt = item.end_at ?? '';
       const deadline = endAt
-        ? new Date(endAt).toLocaleDateString('ko-KR', {
-            year: 'numeric', month: '2-digit', day: '2-digit',
-          }).replace(/\. /g, '.').replace(/\.$/, '')
-        : item.deadline_message ?? '';
+        ? new Date(endAt)
+            .toLocaleDateString('ko-KR', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+            })
+            .replace(/\. /g, '.')
+            .replace(/\.$/, '')
+        : (item.deadline_message ?? '');
 
       const occupations: string[] = [
         ...(item.occupation_names?.level1 ?? []),
@@ -95,7 +106,9 @@ export class JobplanetJobCrawler {
     const recruitmentText = Array.isArray(item.recruitment_text)
       ? item.recruitment_text.join(' ')
       : '';
-    const raw = [annualText, recruitmentText, item.title].filter(Boolean).join(' ');
+    const raw = [annualText, recruitmentText, item.title]
+      .filter(Boolean)
+      .join(' ');
 
     if (annualYears === 0 && maximumYears === 0) {
       if (/경력무관/.test(raw)) return '신입';

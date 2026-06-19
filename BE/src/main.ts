@@ -4,15 +4,20 @@ import { ValidationPipe } from '@nestjs/common';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
-import { AppModule } from './app.module';
+import { AppModule } from 'src/app.module';
 import { Reflector } from '@nestjs/core';
-import { GlobalExceptionFilter } from './shared/filters/global-exception.filter';
-import { ResponseInterceptor } from './shared/interceptors/response.interceptor';
+import { GlobalExceptionFilter } from 'src/shared/filters/global-exception.filter';
+import { ResponseInterceptor } from 'src/shared/interceptors/response.interceptor';
+
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    logger: ['error'],
+    logger: ['error', 'warn', 'log', 'debug'],
+    bodyParser: false,
   });
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ limit: '50mb', extended: true }));
   app.setGlobalPrefix('api');
   app.enableCors();
   app.useWebSocketAdapter(new WsAdapter(app));

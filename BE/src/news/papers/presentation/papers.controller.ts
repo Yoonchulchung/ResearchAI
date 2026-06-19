@@ -1,7 +1,19 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Res,
+} from '@nestjs/common';
 import type { Response } from 'express';
-import { PapersService } from '../application/papers.service';
-import type { PaperListResult } from '../application/papers.service';
+import { PapersService } from 'src/news/papers/application/papers.service';
+import type { PaperListResult } from 'src/news/papers/application/papers.service';
 
 @Controller('papers')
 export class PapersController {
@@ -39,30 +51,30 @@ export class PapersController {
     @Param('id') id: string,
     @Body() body: { bookmarked?: boolean } = {},
   ) {
-    return this.papersService.setBookmark(decodeURIComponent(id), body.bookmarked === true);
+    return this.papersService.setBookmark(
+      decodeURIComponent(id),
+      body.bookmarked === true,
+    );
   }
 
   @Patch(':id/read')
-  setRead(
-    @Param('id') id: string,
-    @Body() body: { read?: boolean } = {},
-  ) {
-    return this.papersService.setRead(decodeURIComponent(id), body.read !== false);
+  setRead(@Param('id') id: string, @Body() body: { read?: boolean } = {}) {
+    return this.papersService.setRead(
+      decodeURIComponent(id),
+      body.read !== false,
+    );
   }
 
   @Get('trends/latest')
-  getLatestTrendSummary(
-    @Query('model') model = '',
-  ) {
+  getLatestTrendSummary(@Query('model') model = '') {
     return this.papersService.getLatestStoredTrendSummary({ model });
   }
 
   @Get(':id/pdf-proxy')
-  async getPdfProxy(
-    @Param('id') id: string,
-    @Res() res: Response,
-  ) {
-    const result = await this.papersService.fetchPdfBuffer(decodeURIComponent(id));
+  async getPdfProxy(@Param('id') id: string, @Res() res: Response) {
+    const result = await this.papersService.fetchPdfBuffer(
+      decodeURIComponent(id),
+    );
     if (!result) throw new NotFoundException('PDF를 찾을 수 없습니다.');
     res.set({
       'Content-Type': 'application/pdf',
@@ -75,7 +87,9 @@ export class PapersController {
 
   @Get(':id/chat')
   async getChatMessages(@Param('id') id: string) {
-    const messages = await this.papersService.getChatMessages(decodeURIComponent(id));
+    const messages = await this.papersService.getChatMessages(
+      decodeURIComponent(id),
+    );
     return { messages };
   }
 
@@ -84,7 +98,10 @@ export class PapersController {
     @Param('id') id: string,
     @Body() body: { messages: { role: string; content: string }[] },
   ) {
-    await this.papersService.saveChatMessages(decodeURIComponent(id), body.messages ?? []);
+    await this.papersService.saveChatMessages(
+      decodeURIComponent(id),
+      body.messages ?? [],
+    );
     return { ok: true };
   }
 

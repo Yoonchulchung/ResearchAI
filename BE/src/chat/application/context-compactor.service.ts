@@ -1,6 +1,6 @@
 // import { Injectable } from '@nestjs/common';
-// import { SessionsService } from '../../sessions/application/sessions.service';
-// import { CompactedEntry } from '../domain/chat-message.model';
+// import { SessionsService } from 'src/sessions/application/sessions.service';
+// import { CompactedEntry } from 'src/chat/domain/chat-message.model';
 
 // @Injectable()
 // export class ContextCompactorService {
@@ -19,7 +19,6 @@
 //   getCached(sessionId: string): CompactedEntry | undefined {
 //     return this.compactedContexts.get(sessionId);
 //   }
-
 
 //   schedule(sessionId: string): void {
 //     if (this.compactionQueue.has(sessionId)) return;

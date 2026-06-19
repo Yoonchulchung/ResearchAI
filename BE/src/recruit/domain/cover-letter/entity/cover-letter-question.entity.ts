@@ -1,5 +1,12 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
-import { CoverLetterEntity } from './cover-letter.entity';
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryColumn,
+} from 'typeorm';
+import { CoverLetterEntity } from 'src/recruit/domain/cover-letter/entity/cover-letter.entity';
 
 @Entity('recruit_cover_letters_questions')
 @Index(['coverLetterId'])
@@ -29,9 +36,13 @@ export class CoverLetterQuestionEntity {
   @Column({ name: 'search_text', type: 'text', nullable: true })
   searchText: string | null;
 
-  @ManyToOne(() => CoverLetterEntity, (coverLetter) => coverLetter.questionItems, {
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(
+    () => CoverLetterEntity,
+    (coverLetter) => coverLetter.questionItems,
+    {
+      onDelete: 'CASCADE',
+    },
+  )
   @JoinColumn({ name: 'cover_letter_id' })
   coverLetter: CoverLetterEntity;
 }

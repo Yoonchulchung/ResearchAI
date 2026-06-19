@@ -1,4 +1,4 @@
-import { ChatMessage, ChatRole } from '../../../domain/chat-message.model';
+import { ChatMessage, ChatRole } from 'src/chat/domain/chat-message.model';
 
 export class ChatHistoryResponseDto {
   role: ChatRole;

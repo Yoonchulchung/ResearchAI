@@ -1,10 +1,18 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
-import { ContentRefreshStateEntity } from '../../../shared/entity/content-refresh-state.entity';
-import { ExamEventEntity } from '../../domain/exam/entity/exam-event.entity';
-import type { ExamEvent, ExamEventListResult } from '../../domain/exam/exam-event.types';
-import { DataqExamProvider } from '../../infrastructure/exam/dataq-exam.provider';
+import { ContentRefreshStateEntity } from 'src/shared/entity/content-refresh-state.entity';
+import { ExamEventEntity } from 'src/recruit/domain/exam/entity/exam-event.entity';
+import type {
+  ExamEvent,
+  ExamEventListResult,
+} from 'src/recruit/domain/exam/exam-event.types';
+import { DataqExamProvider } from 'src/recruit/infrastructure/exam/dataq-exam.provider';
 
 const MONTHLY_REFRESH_MS = 30 * 24 * 60 * 60 * 1000;
 const REFRESH_CHECK_MS = 6 * 60 * 60 * 1000;
@@ -27,13 +35,21 @@ export class ExamService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     setTimeout(() => {
       this.refreshCacheIfStale().catch((error) => {
-        this.logger.warn(error instanceof Error ? error.message : '시험 일정 자동 수집에 실패했습니다.');
+        this.logger.warn(
+          error instanceof Error
+            ? error.message
+            : '시험 일정 자동 수집에 실패했습니다.',
+        );
       });
     }, 5_000);
 
     this.refreshTimer = setInterval(() => {
       this.refreshCacheIfStale().catch((error) => {
-        this.logger.warn(error instanceof Error ? error.message : '시험 일정 자동 수집에 실패했습니다.');
+        this.logger.warn(
+          error instanceof Error
+            ? error.message
+            : '시험 일정 자동 수집에 실패했습니다.',
+        );
       });
     }, REFRESH_CHECK_MS);
     this.refreshTimer.unref?.();
@@ -43,7 +59,9 @@ export class ExamService implements OnModuleInit, OnModuleDestroy {
     if (this.refreshTimer) clearInterval(this.refreshTimer);
   }
 
-  async getEvents(options: { from?: string; to?: string; refresh?: boolean } = {}): Promise<ExamEventListResult> {
+  async getEvents(
+    options: { from?: string; to?: string; refresh?: boolean } = {},
+  ): Promise<ExamEventListResult> {
     const cachedCount = await this.eventRepo.count();
     let errors: string[] = [];
 
@@ -51,7 +69,11 @@ export class ExamService implements OnModuleInit, OnModuleDestroy {
       errors = await this.refreshCache(options.from, options.to);
     } else {
       this.refreshCacheIfStale().catch((error) => {
-        this.logger.warn(error instanceof Error ? error.message : '시험 일정 백그라운드 수집에 실패했습니다.');
+        this.logger.warn(
+          error instanceof Error
+            ? error.message
+            : '시험 일정 백그라운드 수집에 실패했습니다.',
+        );
       });
     }
 
@@ -67,21 +89,28 @@ export class ExamService implements OnModuleInit, OnModuleDestroy {
   async refreshCache(from?: string, to?: string): Promise<string[]> {
     if (this.refreshPromise) return this.refreshPromise;
 
-    this.refreshPromise = this.collectAndStoreEvents(from, to)
-      .finally(() => {
-        this.refreshPromise = null;
-      });
+    this.refreshPromise = this.collectAndStoreEvents(from, to).finally(() => {
+      this.refreshPromise = null;
+    });
     return this.refreshPromise;
   }
 
   private async refreshCacheIfStale(): Promise<void> {
     const lastRefreshAt = await this.getLastRefreshAt();
     const empty = (await this.eventRepo.count()) === 0;
-    if (!empty && lastRefreshAt && Date.now() - new Date(lastRefreshAt).getTime() < MONTHLY_REFRESH_MS) return;
+    if (
+      !empty &&
+      lastRefreshAt &&
+      Date.now() - new Date(lastRefreshAt).getTime() < MONTHLY_REFRESH_MS
+    )
+      return;
     await this.refreshCache();
   }
 
-  private async collectAndStoreEvents(from?: string, to?: string): Promise<string[]> {
+  private async collectAndStoreEvents(
+    from?: string,
+    to?: string,
+  ): Promise<string[]> {
     const { startMs, endMs } = this.resolveFetchWindow(from, to);
     try {
       const events = await this.dataqProvider.fetchEvents(startMs, endMs);
@@ -91,13 +120,19 @@ export class ExamService implements OnModuleInit, OnModuleDestroy {
       await this.setLastRefreshAt(new Date().toISOString());
       return [];
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'DATAQ 시험 일정 수집에 실패했습니다.';
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'DATAQ 시험 일정 수집에 실패했습니다.';
       this.logger.warn(message);
       return [message];
     }
   }
 
-  private async readCachedEvents(from?: string, to?: string): Promise<ExamEvent[]> {
+  private async readCachedEvents(
+    from?: string,
+    to?: string,
+  ): Promise<ExamEvent[]> {
     const where = this.resolveReadWindow(from, to);
     const entities = await this.eventRepo.find({
       where,
@@ -106,13 +141,26 @@ export class ExamService implements OnModuleInit, OnModuleDestroy {
     return entities.map((entity) => this.toEvent(entity));
   }
 
-  private resolveFetchWindow(from?: string, to?: string): { startMs: number; endMs: number } {
+  private resolveFetchWindow(
+    from?: string,
+    to?: string,
+  ): { startMs: number; endMs: number } {
     const now = new Date();
-    const start = from ? this.parseDateParam(from) : new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const end = to ? this.parseDateParam(to) : new Date(now.getFullYear(), now.getMonth() + 13, 1);
+    const start = from
+      ? this.parseDateParam(from)
+      : new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = to
+      ? this.parseDateParam(to)
+      : new Date(now.getFullYear(), now.getMonth() + 13, 1);
     return {
-      startMs: this.validDateOr(start, new Date(now.getFullYear(), now.getMonth() - 1, 1)).getTime(),
-      endMs: this.validDateOr(end, new Date(now.getFullYear(), now.getMonth() + 13, 1)).getTime(),
+      startMs: this.validDateOr(
+        start,
+        new Date(now.getFullYear(), now.getMonth() - 1, 1),
+      ).getTime(),
+      endMs: this.validDateOr(
+        end,
+        new Date(now.getFullYear(), now.getMonth() + 13, 1),
+      ).getTime(),
     };
   }
 
@@ -120,8 +168,12 @@ export class ExamService implements OnModuleInit, OnModuleDestroy {
     if (!from && !to) return {};
     const fallbackStart = new Date(0);
     const fallbackEnd = new Date(8640000000000000);
-    const start = from ? this.validDateOr(this.parseDateParam(from), fallbackStart) : fallbackStart;
-    const end = to ? this.validDateOr(this.parseDateParam(to), fallbackEnd) : fallbackEnd;
+    const start = from
+      ? this.validDateOr(this.parseDateParam(from), fallbackStart)
+      : fallbackStart;
+    const end = to
+      ? this.validDateOr(this.parseDateParam(to), fallbackEnd)
+      : fallbackEnd;
     return { start: Between(start.toISOString(), end.toISOString()) };
   }
 
@@ -170,7 +222,9 @@ export class ExamService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async getLastRefreshAt(): Promise<string | null> {
-    const state = await this.refreshStateRepo.findOne({ where: { key: REFRESH_STATE_KEY } });
+    const state = await this.refreshStateRepo.findOne({
+      where: { key: REFRESH_STATE_KEY },
+    });
     return state?.refreshedAt ?? null;
   }
 

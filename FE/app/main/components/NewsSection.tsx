@@ -217,7 +217,7 @@ function NewsModal({ item, onClose, onSummaryCreated }: { item: GoogleNewsItem; 
       setSummaryError(error instanceof Error ? error.message : "AI 요약에 실패했습니다.");
       setSummaryLoading(false);
     }
-  }, [articleUrl, content, item, summary, summaryLoading]);
+  }, [articleUrl, content, item, summary, summaryLoading, onSummaryCreated]);
 
   return (
     <div
@@ -389,7 +389,7 @@ function GoogleNewsPanel() {
     const ctrl = new AbortController();
     setLoading(true); setError(false); setItems([]);
 
-    fetch(`${API_BASE}/news/google?category=${category}`, { signal: ctrl.signal })
+    fetch(`${API_BASE}/news/naver?category=${category}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data) => {
         if (ctrl.signal.aborted) return;

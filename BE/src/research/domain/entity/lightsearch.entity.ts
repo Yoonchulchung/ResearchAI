@@ -1,10 +1,15 @@
-import { Column, CreateDateColumn, PrimaryColumn, Entity, OneToMany } from 'typeorm';
-import { SearchListEntity } from './searchlist.entity';
-import { ResearchRecruitEntity } from './researchrecruit.entity';
+import {
+  Column,
+  CreateDateColumn,
+  PrimaryColumn,
+  Entity,
+  OneToMany,
+} from 'typeorm';
+import { SearchListEntity } from 'src/research/domain/entity/searchlist.entity';
+import { ResearchRecruitEntity } from 'src/research/domain/entity/researchrecruit.entity';
 
 @Entity('light_research')
 export class LightResearchEntity {
-
   @PrimaryColumn()
   id: string;
 
@@ -28,5 +33,4 @@ export class LightResearchEntity {
 
   @OneToMany(() => ResearchRecruitEntity, (item) => item.lightResearch)
   recruits: ResearchRecruitEntity[];
-
 }

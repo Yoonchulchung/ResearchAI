@@ -1,8 +1,7 @@
-import { Entity, Column, CreateDateColumn, PrimaryColumn } from "typeorm";
+import { Entity, Column, CreateDateColumn, PrimaryColumn } from 'typeorm';
 
 @Entity('token_history')
 export class TokenHistoryEntity {
-
   @PrimaryColumn()
   id: string;
 
@@ -17,5 +16,4 @@ export class TokenHistoryEntity {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
-
 }

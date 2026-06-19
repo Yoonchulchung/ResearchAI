@@ -1,6 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import type { DartFinancialData } from './dart-financial.service';
-import type { SessionGateway } from '../../sessions/presentation/session.gateway';
+import type { DartFinancialData } from 'src/company/infrastructure/dart/dart-types';
+import type { SessionGateway } from 'src/sessions/presentation/session.gateway';
 
 // DART API: 여러 회사를 동시에 조회하면 각각 4개 이상 요청이 쌓여 오류 발생
 // → 회사 단위로 직렬화, 최소 1초 간격 유지
@@ -50,11 +50,14 @@ export class DartApiQueueService {
       this.gateway?.updateDataSourceStatus(this.getStatus());
       try {
         const fresh = this.cache.get(cacheKey);
-        if (fresh && Date.now() - fresh.cachedAt < CACHE_TTL_MS) return fresh.result;
+        if (fresh && Date.now() - fresh.cachedAt < CACHE_TTL_MS)
+          return fresh.result;
 
         const elapsed = Date.now() - this.lastRequestAt;
         if (elapsed < MIN_INTERVAL_MS) {
-          await new Promise<void>((r) => setTimeout(r, MIN_INTERVAL_MS - elapsed));
+          await new Promise<void>((r) =>
+            setTimeout(r, MIN_INTERVAL_MS - elapsed),
+          );
         }
         this.lastRequestAt = Date.now();
 
@@ -70,7 +73,10 @@ export class DartApiQueueService {
 
   private enqueue<T>(fn: () => Promise<T>): Promise<T> {
     const next = this.queue.then(() => fn());
-    this.queue = next.then(() => undefined, () => undefined);
+    this.queue = next.then(
+      () => undefined,
+      () => undefined,
+    );
     return next;
   }
 }

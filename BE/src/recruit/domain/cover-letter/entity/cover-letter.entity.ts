@@ -1,5 +1,13 @@
-import { Column, CreateDateColumn, Entity, Index, OneToMany, PrimaryColumn, UpdateDateColumn } from 'typeorm';
-import { CoverLetterQuestionEntity } from './cover-letter-question.entity';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  OneToMany,
+  PrimaryColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { CoverLetterQuestionEntity } from 'src/recruit/domain/cover-letter/entity/cover-letter-question.entity';
 
 @Entity('recruit_cover_letters')
 @Index(['source'])
@@ -49,9 +57,13 @@ export class CoverLetterEntity {
   @Column({ name: 'is_hidden', type: 'boolean', default: false })
   isHidden: boolean;
 
-  @OneToMany(() => CoverLetterQuestionEntity, (question) => question.coverLetter, {
-    cascade: true,
-  })
+  @OneToMany(
+    () => CoverLetterQuestionEntity,
+    (question) => question.coverLetter,
+    {
+      cascade: true,
+    },
+  )
   questionItems?: CoverLetterQuestionEntity[];
 
   @Column({ name: 'collected_at', type: 'datetime' })

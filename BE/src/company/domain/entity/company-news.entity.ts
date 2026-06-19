@@ -1,4 +1,10 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  PrimaryColumn,
+} from 'typeorm';
 
 @Entity('company_news')
 @Index(['companyId', 'url'], { unique: true }) // 동일 기업+URL 중복 방지
@@ -18,8 +24,14 @@ export class CompanyNewsEntity {
   @Column({ type: 'text', nullable: true })
   snippet!: string | null;
 
+  @Column({ name: 'image_url', type: 'text', nullable: true })
+  imageUrl!: string | null;
+
   @Column({ type: 'text', nullable: true })
   source!: string | null;
+
+  @Column({ name: 'published_at', type: 'text', nullable: true })
+  publishedAt!: string | null;
 
   @CreateDateColumn({ name: 'fetched_at' })
   fetchedAt!: Date;

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { WebSearchService } from '../../../research/application/web-search.service';
-import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
+import { WebSearchService } from 'src/research/application/web-search.service';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
 
 @Injectable()
 export class CompanyProfileExecutorService {
@@ -26,12 +26,16 @@ export class CompanyProfileExecutorService {
         const query = `${companyName} 인재상 핵심가치 인재 채용 공식`;
         const { context } = await this.webSearch.runSearch(query);
         searchContext = context;
-        this.logger.log(`[CompanyProfile] Search done, context length: ${context.length}`);
+        this.logger.log(
+          `[CompanyProfile] Search done, context length: ${context.length}`,
+        );
       } catch (e) {
         this.logger.warn(`[CompanyProfile] Search failed: ${e}`);
       }
     } else {
-      this.logger.warn('[CompanyProfile] No external search available, using AI knowledge only');
+      this.logger.warn(
+        '[CompanyProfile] No external search available, using AI knowledge only',
+      );
     }
 
     // 2. AI로 검색 결과 합성
@@ -68,7 +72,9 @@ ${searchContext}
 ⚠️ 웹 검색을 사용할 수 없어 AI 학습 데이터 기반으로 작성되었습니다. 실제 채용 공고를 반드시 확인하세요.`;
 
     let fullText = '';
-    for await (const chunk of this.aiProvider.stream(model, systemPrompt, [{ role: 'user', content: userPrompt }])) {
+    for await (const chunk of this.aiProvider.stream(model, systemPrompt, [
+      { role: 'user', content: userPrompt },
+    ])) {
       if (signal?.aborted) break;
       fullText += chunk;
       onChunk(chunk);

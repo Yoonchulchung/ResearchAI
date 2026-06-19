@@ -1,12 +1,21 @@
-import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
 import { In, Repository } from 'typeorm';
-import { PaperEntity } from '../domain/entity/paper.entity';
-import { PaperTrendSummaryEntity } from '../domain/entity/paper-trend-summary.entity';
-import { ContentRefreshStateEntity } from '../../../shared/entity/content-refresh-state.entity';
-import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
-import { AppConfigService, CONFIG_KEYS } from '../../../config/application/app-config.service';
+import { PaperEntity } from 'src/news/papers/domain/entity/paper.entity';
+import { PaperTrendSummaryEntity } from 'src/news/papers/domain/entity/paper-trend-summary.entity';
+import { ContentRefreshStateEntity } from 'src/shared/entity/content-refresh-state.entity';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
+import {
+  AppConfigService,
+  CONFIG_KEYS,
+} from 'src/config/application/app-config.service';
 
 export interface PaperSource {
   id: string;
@@ -59,49 +68,182 @@ export interface PaperTrendSummary {
 
 const TREND_CACHE_MS = 6 * 60 * 60 * 1000;
 const TREND_STOPWORDS = new Set([
-  'the', 'and', 'for', 'of', 'to', 'in', 'on', 'a', 'an', 'is', 'are', 'be', 'by', 'with',
-  'from', 'that', 'this', 'into', 'using', 'about', 'based', 'how', 'via', 'over', 'our',
-  'we', 'we', 'its', 'their', 'large', 'new', 'model', 'models', 'learning',
+  'the',
+  'and',
+  'for',
+  'of',
+  'to',
+  'in',
+  'on',
+  'a',
+  'an',
+  'is',
+  'are',
+  'be',
+  'by',
+  'with',
+  'from',
+  'that',
+  'this',
+  'into',
+  'using',
+  'about',
+  'based',
+  'how',
+  'via',
+  'over',
+  'our',
+  'we',
+  'we',
+  'its',
+  'their',
+  'large',
+  'new',
+  'model',
+  'models',
+  'learning',
 ]);
 
 const SOURCES: PaperSource[] = [
-  { id: 'huggingface-trending', name: 'Hugging Face Trending Papers', url: 'https://huggingface.co/papers' },
-  { id: 'openreview-iclr', name: 'ICLR (OpenReview)', url: 'https://openreview.net/group?id=ICLR.cc/2025/Conference' },
-  { id: 'openreview-icml', name: 'ICML (OpenReview)', url: 'https://openreview.net/group?id=ICML.cc/2025/Conference' },
-  { id: 'openreview-neurips', name: 'NeurIPS (OpenReview)', url: 'https://openreview.net/group?id=NeurIPS.cc/2025/Conference' },
-  { id: 'dblp-cvpr', name: 'CVPR (DBLP)', url: 'https://dblp.org/db/conf/cvpr/' },
+  {
+    id: 'huggingface-trending',
+    name: 'Hugging Face Trending Papers',
+    url: 'https://huggingface.co/papers',
+  },
+  {
+    id: 'openreview-iclr',
+    name: 'ICLR (OpenReview)',
+    url: 'https://openreview.net/group?id=ICLR.cc/2025/Conference',
+  },
+  {
+    id: 'openreview-icml',
+    name: 'ICML (OpenReview)',
+    url: 'https://openreview.net/group?id=ICML.cc/2025/Conference',
+  },
+  {
+    id: 'openreview-neurips',
+    name: 'NeurIPS (OpenReview)',
+    url: 'https://openreview.net/group?id=NeurIPS.cc/2025/Conference',
+  },
+  {
+    id: 'dblp-cvpr',
+    name: 'CVPR (DBLP)',
+    url: 'https://dblp.org/db/conf/cvpr/',
+  },
   { id: 'dblp-acl', name: 'ACL (DBLP)', url: 'https://dblp.org/db/conf/acl/' },
-  { id: 'dblp-emnlp', name: 'EMNLP (DBLP)', url: 'https://dblp.org/db/conf/emnlp/' },
-  { id: 'dblp-aaai', name: 'AAAI (DBLP)', url: 'https://dblp.org/db/conf/aaai/' },
+  {
+    id: 'dblp-emnlp',
+    name: 'EMNLP (DBLP)',
+    url: 'https://dblp.org/db/conf/emnlp/',
+  },
+  {
+    id: 'dblp-aaai',
+    name: 'AAAI (DBLP)',
+    url: 'https://dblp.org/db/conf/aaai/',
+  },
   { id: 'dblp-kdd', name: 'KDD (DBLP)', url: 'https://dblp.org/db/conf/kdd/' },
-  { id: 'dblp-isca', name: 'ISCA (DBLP)', url: 'https://dblp.org/db/conf/isca/' },
-  { id: 'dblp-micro', name: 'MICRO (DBLP)', url: 'https://dblp.org/db/conf/micro/' },
-  { id: 'dblp-asplos', name: 'ASPLOS (DBLP)', url: 'https://dblp.org/db/conf/asplos/' },
-  { id: 'dblp-hpca', name: 'HPCA (DBLP)', url: 'https://dblp.org/db/conf/hpca/' },
-  { id: 'dblp-fast', name: 'FAST (DBLP)', url: 'https://dblp.org/db/conf/fast/' },
-  { id: 'dblp-sigmod', name: 'SIGMOD (DBLP)', url: 'https://dblp.org/db/conf/sigmod/' },
-  { id: 'dblp-vldb', name: 'VLDB (DBLP)', url: 'https://dblp.org/db/conf/vldb/' },
+  {
+    id: 'dblp-isca',
+    name: 'ISCA (DBLP)',
+    url: 'https://dblp.org/db/conf/isca/',
+  },
+  {
+    id: 'dblp-micro',
+    name: 'MICRO (DBLP)',
+    url: 'https://dblp.org/db/conf/micro/',
+  },
+  {
+    id: 'dblp-asplos',
+    name: 'ASPLOS (DBLP)',
+    url: 'https://dblp.org/db/conf/asplos/',
+  },
+  {
+    id: 'dblp-hpca',
+    name: 'HPCA (DBLP)',
+    url: 'https://dblp.org/db/conf/hpca/',
+  },
+  {
+    id: 'dblp-fast',
+    name: 'FAST (DBLP)',
+    url: 'https://dblp.org/db/conf/fast/',
+  },
+  {
+    id: 'dblp-sigmod',
+    name: 'SIGMOD (DBLP)',
+    url: 'https://dblp.org/db/conf/sigmod/',
+  },
+  {
+    id: 'dblp-vldb',
+    name: 'VLDB (DBLP)',
+    url: 'https://dblp.org/db/conf/vldb/',
+  },
 ];
 
-const OPENREVIEW_CONFERENCES: Record<string, { shortName: string; venuePrefix: string }> = {
+const OPENREVIEW_CONFERENCES: Record<
+  string,
+  { shortName: string; venuePrefix: string }
+> = {
   'openreview-iclr': { shortName: 'ICLR', venuePrefix: 'ICLR.cc' },
   'openreview-icml': { shortName: 'ICML', venuePrefix: 'ICML.cc' },
   'openreview-neurips': { shortName: 'NeurIPS', venuePrefix: 'NeurIPS.cc' },
 };
 
-const DBLP_CONFERENCES: Record<string, { shortName: string; stream: string; tags: string[] }> = {
-  'dblp-cvpr': { shortName: 'CVPR', stream: 'conf/cvpr', tags: ['Computer Vision', 'AI'] },
+const DBLP_CONFERENCES: Record<
+  string,
+  { shortName: string; stream: string; tags: string[] }
+> = {
+  'dblp-cvpr': {
+    shortName: 'CVPR',
+    stream: 'conf/cvpr',
+    tags: ['Computer Vision', 'AI'],
+  },
   'dblp-acl': { shortName: 'ACL', stream: 'conf/acl', tags: ['NLP', 'AI'] },
-  'dblp-emnlp': { shortName: 'EMNLP', stream: 'conf/emnlp', tags: ['NLP', 'AI'] },
+  'dblp-emnlp': {
+    shortName: 'EMNLP',
+    stream: 'conf/emnlp',
+    tags: ['NLP', 'AI'],
+  },
   'dblp-aaai': { shortName: 'AAAI', stream: 'conf/aaai', tags: ['AI'] },
-  'dblp-kdd': { shortName: 'KDD', stream: 'conf/kdd', tags: ['Data Mining', 'AI'] },
-  'dblp-isca': { shortName: 'ISCA', stream: 'conf/isca', tags: ['Computer Architecture', 'Memory Systems'] },
-  'dblp-micro': { shortName: 'MICRO', stream: 'conf/micro', tags: ['Microarchitecture', 'Memory Systems'] },
-  'dblp-asplos': { shortName: 'ASPLOS', stream: 'conf/asplos', tags: ['Architecture', 'Operating Systems', 'Memory Systems'] },
-  'dblp-hpca': { shortName: 'HPCA', stream: 'conf/hpca', tags: ['Computer Architecture', 'Memory Systems'] },
-  'dblp-fast': { shortName: 'FAST', stream: 'conf/fast', tags: ['Storage Systems', 'Memory Systems'] },
-  'dblp-sigmod': { shortName: 'SIGMOD', stream: 'conf/sigmod', tags: ['Database', 'Data Systems'] },
-  'dblp-vldb': { shortName: 'VLDB', stream: 'conf/vldb', tags: ['Database', 'Data Systems'] },
+  'dblp-kdd': {
+    shortName: 'KDD',
+    stream: 'conf/kdd',
+    tags: ['Data Mining', 'AI'],
+  },
+  'dblp-isca': {
+    shortName: 'ISCA',
+    stream: 'conf/isca',
+    tags: ['Computer Architecture', 'Memory Systems'],
+  },
+  'dblp-micro': {
+    shortName: 'MICRO',
+    stream: 'conf/micro',
+    tags: ['Microarchitecture', 'Memory Systems'],
+  },
+  'dblp-asplos': {
+    shortName: 'ASPLOS',
+    stream: 'conf/asplos',
+    tags: ['Architecture', 'Operating Systems', 'Memory Systems'],
+  },
+  'dblp-hpca': {
+    shortName: 'HPCA',
+    stream: 'conf/hpca',
+    tags: ['Computer Architecture', 'Memory Systems'],
+  },
+  'dblp-fast': {
+    shortName: 'FAST',
+    stream: 'conf/fast',
+    tags: ['Storage Systems', 'Memory Systems'],
+  },
+  'dblp-sigmod': {
+    shortName: 'SIGMOD',
+    stream: 'conf/sigmod',
+    tags: ['Database', 'Data Systems'],
+  },
+  'dblp-vldb': {
+    shortName: 'VLDB',
+    stream: 'conf/vldb',
+    tags: ['Database', 'Data Systems'],
+  },
 };
 
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -134,8 +276,15 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PapersService.name);
   private refreshTimer: NodeJS.Timeout | null = null;
   private refreshPromise: Promise<PaperListResult['errors']> | null = null;
-  private sourceRefreshPromises = new Map<string, Promise<PaperListResult['errors']>>();
-  private trendCache: { key: string; expiresAt: number; value: PaperTrendSummary } | null = null;
+  private sourceRefreshPromises = new Map<
+    string,
+    Promise<PaperListResult['errors']>
+  >();
+  private trendCache: {
+    key: string;
+    expiresAt: number;
+    value: PaperTrendSummary;
+  } | null = null;
 
   constructor(
     @InjectRepository(PaperEntity)
@@ -151,14 +300,20 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     setTimeout(() => {
       this.refreshCacheIfStale().catch((error) => {
-        const message = error instanceof Error ? error.message : '핫 논문 자동 수집에 실패했습니다.';
+        const message =
+          error instanceof Error
+            ? error.message
+            : '핫 논문 자동 수집에 실패했습니다.';
         this.logger.warn(message);
       });
     }, 8_000);
 
     this.refreshTimer = setInterval(() => {
       this.refreshCacheIfStale().catch((error) => {
-        const message = error instanceof Error ? error.message : '핫 논문 자동 수집에 실패했습니다.';
+        const message =
+          error instanceof Error
+            ? error.message
+            : '핫 논문 자동 수집에 실패했습니다.';
         this.logger.warn(message);
       });
     }, REFRESH_CHECK_MS);
@@ -169,26 +324,43 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
     if (this.refreshTimer) clearInterval(this.refreshTimer);
   }
 
-  async getPapers(options: { source?: string; limit?: number; refresh?: boolean; bookmarked?: boolean } = {}): Promise<PaperListResult> {
+  async getPapers(
+    options: {
+      source?: string;
+      limit?: number;
+      refresh?: boolean;
+      bookmarked?: boolean;
+    } = {},
+  ): Promise<PaperListResult> {
     let errors: PaperListResult['errors'] = [];
     const cachedCount = await this.paperRepo.count();
-    const requestedSource = options.source && options.source !== 'all' ? options.source : undefined;
+    const requestedSource =
+      options.source && options.source !== 'all' ? options.source : undefined;
     const requestedSourceCount = requestedSource
       ? await this.paperRepo.count({ where: { sourceId: requestedSource } })
       : 0;
 
-    if (requestedSource && (options.refresh || requestedSourceCount < MIN_SOURCE_CACHE_COUNT)) {
+    if (
+      requestedSource &&
+      (options.refresh || requestedSourceCount < MIN_SOURCE_CACHE_COUNT)
+    ) {
       errors = await this.refreshSourceCache(requestedSource);
     } else if (!requestedSource && (options.refresh || cachedCount === 0)) {
       errors = await this.refreshCache();
     } else if (requestedSource) {
       this.refreshSourceCacheIfStale(requestedSource).catch((error) => {
-        const message = error instanceof Error ? error.message : '핫 논문 출처별 백그라운드 수집에 실패했습니다.';
+        const message =
+          error instanceof Error
+            ? error.message
+            : '핫 논문 출처별 백그라운드 수집에 실패했습니다.';
         this.logger.warn(message);
       });
     } else {
       this.refreshCacheIfStale().catch((error) => {
-        const message = error instanceof Error ? error.message : '핫 논문 백그라운드 수집에 실패했습니다.';
+        const message =
+          error instanceof Error
+            ? error.message
+            : '핫 논문 백그라운드 수집에 실패했습니다.';
         this.logger.warn(message);
       });
     }
@@ -200,18 +372,34 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
       fetchedAt: (await this.getLastRefreshAt()) ?? new Date(0).toISOString(),
     };
 
-    return this.filterResult(result, options.source, options.limit, options.bookmarked);
+    return this.filterResult(
+      result,
+      options.source,
+      options.limit,
+      options.bookmarked,
+    );
   }
 
   async summarizePaper(
     id: string,
     options: { model?: string; refresh?: boolean } = {},
-  ): Promise<{ id: string; aiSummary: string; aiSummaryModel: string; aiSummaryAt: string; cached: boolean }> {
+  ): Promise<{
+    id: string;
+    aiSummary: string;
+    aiSummaryModel: string;
+    aiSummaryAt: string;
+    cached: boolean;
+  }> {
     const paper = await this.paperRepo.findOne({ where: { id } });
     if (!paper) throw new Error('논문을 찾을 수 없습니다.');
 
     const model = options.model?.trim() || DEFAULT_AI_SUMMARY_MODEL;
-    if (!options.refresh && paper.aiSummary && paper.aiSummaryModel === model && paper.aiSummaryAt) {
+    if (
+      !options.refresh &&
+      paper.aiSummary &&
+      paper.aiSummaryModel === model &&
+      paper.aiSummaryAt
+    ) {
       return {
         id,
         aiSummary: paper.aiSummary,
@@ -225,7 +413,9 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
     const system = `당신은 AI/ML 최신 논문을 한국어로 읽기 쉽게 설명하는 연구 애널리스트입니다.
 제공된 논문 메타데이터와 초록에 없는 내용은 만들지 말고, 실무자와 연구자가 빠르게 판단할 수 있게 요약하세요.`;
     const prompt = this.buildAiSummaryPrompt(paperModel);
-    const { text } = await this.aiProvider.call(model, system, prompt, { caller: 'hot-paper-ai-summary' });
+    const { text } = await this.aiProvider.call(model, system, prompt, {
+      caller: 'hot-paper-ai-summary',
+    });
     const aiSummary = text.trim();
     const aiSummaryAt = new Date().toISOString();
 
@@ -256,13 +446,22 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
     return this.toPaper(await this.paperRepo.save(entity));
   }
 
-  async getChatMessages(id: string): Promise<{ role: string; content: string }[]> {
+  async getChatMessages(
+    id: string,
+  ): Promise<{ role: string; content: string }[]> {
     const entity = await this.paperRepo.findOne({ where: { id } });
     if (!entity) return [];
-    try { return JSON.parse(entity.chatMessagesJson ?? '[]'); } catch { return []; }
+    try {
+      return JSON.parse(entity.chatMessagesJson ?? '[]');
+    } catch {
+      return [];
+    }
   }
 
-  async saveChatMessages(id: string, messages: { role: string; content: string }[]): Promise<void> {
+  async saveChatMessages(
+    id: string,
+    messages: { role: string; content: string }[],
+  ): Promise<void> {
     const entity = await this.paperRepo.findOne({ where: { id } });
     if (!entity) return;
     entity.chatMessagesJson = JSON.stringify(messages);
@@ -276,7 +475,9 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
     await this.paperRepo.save(entity);
   }
 
-  async fetchPdfBuffer(id: string): Promise<{ buffer: Buffer; filename: string } | null> {
+  async fetchPdfBuffer(
+    id: string,
+  ): Promise<{ buffer: Buffer; filename: string } | null> {
     const entity = await this.paperRepo.findOne({ where: { id } });
     if (!entity?.pdfUrl) return null;
 
@@ -287,7 +488,7 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
         signal: controller.signal,
         headers: {
           'User-Agent': 'ResearchAI-PaperProxy/1.0',
-          'Accept': 'application/pdf,*/*',
+          Accept: 'application/pdf,*/*',
         },
       });
       if (!res.ok) throw new Error(`PDF proxy HTTP ${res.status}`);
@@ -299,28 +500,48 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async getTrendSummary(options: { model?: string; refresh?: boolean; onChunk?: (chunk: string) => void } = {}): Promise<PaperTrendSummary> {
-    const model = options.model || await this.appConfig.get(CONFIG_KEYS.DEFAULT_CLOUD_MODEL, 'claude-haiku-4-5-20251001');
+  async getTrendSummary(
+    options: {
+      model?: string;
+      refresh?: boolean;
+      onChunk?: (chunk: string) => void;
+    } = {},
+  ): Promise<PaperTrendSummary> {
+    const model =
+      options.model ||
+      (await this.appConfig.get(
+        CONFIG_KEYS.DEFAULT_CLOUD_MODEL,
+        'claude-haiku-4-5-20251001',
+      ));
     const papers = await this.readCachedPapers();
     const keywords = this.extractTrendKeywords(papers).slice(0, 20);
     const cacheKey = this.trendCacheKey({ model, papers });
     const now = Date.now();
 
-    if (!options.refresh && this.trendCache?.key === cacheKey && this.trendCache.expiresAt > now) {
+    if (
+      !options.refresh &&
+      this.trendCache?.key === cacheKey &&
+      this.trendCache.expiresAt > now
+    ) {
       return { ...this.trendCache.value, cached: true };
     }
 
     if (!options.refresh) {
       const stored = await this.readStoredTrendSummary(cacheKey, now);
       if (stored) {
-        this.trendCache = { key: cacheKey, expiresAt: stored.expiresAtMs, value: stored.value };
+        this.trendCache = {
+          key: cacheKey,
+          expiresAt: stored.expiresAtMs,
+          value: stored.value,
+        };
         return { ...stored.value, cached: true };
       }
     }
 
     if (papers.length === 0) {
       const value: PaperTrendSummary = {
-        summary: '분석할 논문이 없습니다. 먼저 새로고침으로 논문을 수집해 주세요.',
+        summary:
+          '분석할 논문이 없습니다. 먼저 새로고침으로 논문을 수집해 주세요.',
         keywords,
         paperCount: 0,
         sourceCount: 0,
@@ -334,18 +555,23 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
 
     const sourceCount = new Set(papers.map((p) => p.sourceId)).size;
     const prompt = this.buildTrendPrompt(papers, keywords);
-    const systemPrompt = '당신은 AI/ML 최신 논문을 분석하는 연구 트렌드 애널리스트입니다. 제공된 논문 목록에서 반복적으로 등장하는 연구 주제, 방법론, 키워드를 근거로 현재 학계의 흐름을 한국어로 요약합니다.';
+    const systemPrompt =
+      '당신은 AI/ML 최신 논문을 분석하는 연구 트렌드 애널리스트입니다. 제공된 논문 목록에서 반복적으로 등장하는 연구 주제, 방법론, 키워드를 근거로 현재 학계의 흐름을 한국어로 요약합니다.';
 
     let text: string;
     if (options.onChunk) {
       const onChunk = options.onChunk;
       text = '';
-      for await (const chunk of this.aiProvider.stream(model, systemPrompt, [{ role: 'user', content: prompt }])) {
+      for await (const chunk of this.aiProvider.stream(model, systemPrompt, [
+        { role: 'user', content: prompt },
+      ])) {
         text += chunk;
         onChunk(chunk);
       }
     } else {
-      ({ text } = await this.aiProvider.call(model, systemPrompt, prompt, { caller: 'hot-paper-trend-summary' }));
+      ({ text } = await this.aiProvider.call(model, systemPrompt, prompt, {
+        caller: 'hot-paper-trend-summary',
+      }));
     }
 
     const value: PaperTrendSummary = {
@@ -357,12 +583,18 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
       cached: false,
       model,
     };
-    this.trendCache = { key: cacheKey, expiresAt: Date.now() + TREND_CACHE_MS, value };
+    this.trendCache = {
+      key: cacheKey,
+      expiresAt: Date.now() + TREND_CACHE_MS,
+      value,
+    };
     await this.storeTrendSummary(cacheKey, value);
     return value;
   }
 
-  async getLatestStoredTrendSummary(options: { model?: string } = {}): Promise<PaperTrendSummary | null> {
+  async getLatestStoredTrendSummary(
+    options: { model?: string } = {},
+  ): Promise<PaperTrendSummary | null> {
     const candidates = await this.trendRepo.find({
       order: { generatedAt: 'DESC' },
       take: 20,
@@ -389,7 +621,12 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
   private async refreshCacheIfStale(): Promise<void> {
     const lastRefreshAt = await this.getLastRefreshAt();
     const empty = (await this.paperRepo.count()) === 0;
-    if (!empty && lastRefreshAt && Date.now() - new Date(lastRefreshAt).getTime() < DAILY_REFRESH_MS) return;
+    if (
+      !empty &&
+      lastRefreshAt &&
+      Date.now() - new Date(lastRefreshAt).getTime() < DAILY_REFRESH_MS
+    )
+      return;
     await this.refreshCache();
   }
 
@@ -399,7 +636,10 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
     const count = await this.paperRepo.count({ where: { sourceId: source } });
     if (count >= MIN_SOURCE_CACHE_COUNT) {
       const lastRefreshAt = await this.getLastSourceRefreshAt(source);
-      return !lastRefreshAt || Date.now() - new Date(lastRefreshAt).getTime() >= DAILY_REFRESH_MS;
+      return (
+        !lastRefreshAt ||
+        Date.now() - new Date(lastRefreshAt).getTime() >= DAILY_REFRESH_MS
+      );
     }
 
     const lastAttemptAt = await this.getLastSourceRefreshAt(source);
@@ -415,19 +655,27 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
   private async refreshCache(): Promise<PaperListResult['errors']> {
     if (this.refreshPromise) return this.refreshPromise;
 
-    this.refreshPromise = this.collectAndStorePapers()
-      .finally(() => {
-        this.refreshPromise = null;
-      });
+    this.refreshPromise = this.collectAndStorePapers().finally(() => {
+      this.refreshPromise = null;
+    });
     return this.refreshPromise;
   }
 
   private getSourceFetchers(): [string, () => Promise<Paper[]>][] {
     return [
       ['huggingface-trending', () => this.fetchHuggingFaceTrending()],
-      ['openreview-iclr', () => this.fetchOpenReviewConference('openreview-iclr')],
-      ['openreview-icml', () => this.fetchOpenReviewConference('openreview-icml')],
-      ['openreview-neurips', () => this.fetchOpenReviewConference('openreview-neurips')],
+      [
+        'openreview-iclr',
+        () => this.fetchOpenReviewConference('openreview-iclr'),
+      ],
+      [
+        'openreview-icml',
+        () => this.fetchOpenReviewConference('openreview-icml'),
+      ],
+      [
+        'openreview-neurips',
+        () => this.fetchOpenReviewConference('openreview-neurips'),
+      ],
       ['dblp-cvpr', () => this.fetchDblpConference('dblp-cvpr')],
       ['dblp-acl', () => this.fetchDblpConference('dblp-acl')],
       ['dblp-emnlp', () => this.fetchDblpConference('dblp-emnlp')],
@@ -443,13 +691,18 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
     ];
   }
 
-  private async refreshSourceCache(sourceId: string): Promise<PaperListResult['errors']> {
+  private async refreshSourceCache(
+    sourceId: string,
+  ): Promise<PaperListResult['errors']> {
     const running = this.sourceRefreshPromises.get(sourceId);
     if (running) return running;
 
     const source = SOURCES.find((s) => s.id === sourceId);
-    const fetcher = this.getSourceFetchers().find(([id]) => id === sourceId)?.[1];
-    if (!source || !fetcher) return [{ sourceId, message: '지원하지 않는 논문 출처입니다.' }];
+    const fetcher = this.getSourceFetchers().find(
+      ([id]) => id === sourceId,
+    )?.[1];
+    if (!source || !fetcher)
+      return [{ sourceId, message: '지원하지 않는 논문 출처입니다.' }];
 
     const promise = (async (): Promise<PaperListResult['errors']> => {
       try {
@@ -460,7 +713,8 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
         await this.setLastSourceRefreshAt(sourceId, now);
         return [];
       } catch (error) {
-        const message = error instanceof Error ? error.message : '논문 수집에 실패했습니다.';
+        const message =
+          error instanceof Error ? error.message : '논문 수집에 실패했습니다.';
         this.logger.warn(`${source.name} targeted crawl failed: ${message}`);
         await this.setLastSourceRefreshAt(sourceId, new Date().toISOString());
         return [{ sourceId, message }];
@@ -482,13 +736,20 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
 
     settled.forEach((result, index) => {
       const [sourceId] = fetchers[index];
-      const source = SOURCES.find((s) => s.id === sourceId) ?? { id: sourceId, name: sourceId, url: '' };
+      const source = SOURCES.find((s) => s.id === sourceId) ?? {
+        id: sourceId,
+        name: sourceId,
+        url: '',
+      };
       if (result.status === 'fulfilled') {
         papers.push(...result.value);
         refreshedSourceIds.push(sourceId);
         return;
       }
-      const message = result.reason instanceof Error ? result.reason.message : '논문 수집에 실패했습니다.';
+      const message =
+        result.reason instanceof Error
+          ? result.reason.message
+          : '논문 수집에 실패했습니다.';
       errors.push({ sourceId: source.id, message });
       this.logger.warn(`${source.name} crawl failed: ${message}`);
     });
@@ -496,7 +757,11 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
     await this.storePapers(papers);
     const now = new Date().toISOString();
     await this.setLastRefreshAt(now);
-    await Promise.all(refreshedSourceIds.map((sourceId) => this.setLastSourceRefreshAt(sourceId, now)));
+    await Promise.all(
+      refreshedSourceIds.map((sourceId) =>
+        this.setLastSourceRefreshAt(sourceId, now),
+      ),
+    );
     return errors;
   }
 
@@ -507,21 +772,25 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
         where: { id: In(deduped.map((paper) => paper.id)) },
       });
       const existingById = new Map(existing.map((paper) => [paper.id, paper]));
-      await this.paperRepo.save(deduped.map((paper) => {
-        const entity = this.toPaperEntity(paper);
-        const previous = existingById.get(paper.id);
-        if (previous?.aiSummary) {
-          entity.aiSummary = previous.aiSummary;
-          entity.aiSummaryModel = previous.aiSummaryModel;
-          entity.aiSummaryAt = previous.aiSummaryAt;
-        }
-        return entity;
-      }));
+      await this.paperRepo.save(
+        deduped.map((paper) => {
+          const entity = this.toPaperEntity(paper);
+          const previous = existingById.get(paper.id);
+          if (previous?.aiSummary) {
+            entity.aiSummary = previous.aiSummary;
+            entity.aiSummaryModel = previous.aiSummaryModel;
+            entity.aiSummaryAt = previous.aiSummaryAt;
+          }
+          return entity;
+        }),
+      );
     }
   }
 
   private async readCachedPapers(): Promise<Paper[]> {
-    const entities = await this.paperRepo.find({ order: { publishedAt: 'DESC', updatedAt: 'DESC' } });
+    const entities = await this.paperRepo.find({
+      order: { publishedAt: 'DESC', updatedAt: 'DESC' },
+    });
     return entities
       .map((entity) => this.toPaper(entity))
       .sort((a, b) => this.paperSortValue(b) - this.paperSortValue(a));
@@ -529,7 +798,9 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
 
   private async fetchHuggingFaceTrending(): Promise<Paper[]> {
     const source = SOURCES.find((s) => s.id === 'huggingface-trending')!;
-    const json = await this.fetchJson('https://huggingface.co/api/daily_papers') as Array<{
+    const json = (await this.fetchJson(
+      'https://huggingface.co/api/daily_papers',
+    )) as Array<{
       paper?: {
         id?: string;
         title?: string;
@@ -541,7 +812,8 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
       };
     }>;
 
-    if (!Array.isArray(json)) throw new Error('HuggingFace API 응답 형식이 올바르지 않습니다.');
+    if (!Array.isArray(json))
+      throw new Error('HuggingFace API 응답 형식이 올바르지 않습니다.');
 
     return json
       .map((entry): Paper | null => {
@@ -555,10 +827,13 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
           title: this.cleanText(paper.title),
           url,
           summary: this.cleanText(paper.summary ?? ''),
-          authors: (paper.authors ?? []).map((author) => this.cleanText(author.name ?? '')).filter(Boolean),
+          authors: (paper.authors ?? [])
+            .map((author) => this.cleanText(author.name ?? ''))
+            .filter(Boolean),
           publishedAt: this.toIsoDate(paper.publishedAt),
           venue: 'Trending',
-          upvotes: typeof paper.upvotes === 'number' ? paper.upvotes : undefined,
+          upvotes:
+            typeof paper.upvotes === 'number' ? paper.upvotes : undefined,
           pdfUrl: `https://arxiv.org/pdf/${paper.id}`,
           codeUrl: paper.githubRepo,
           tags: ['AI', 'Trending'],
@@ -570,10 +845,14 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
   private async fetchOpenReviewConference(sourceId: string): Promise<Paper[]> {
     const source = SOURCES.find((s) => s.id === sourceId)!;
     const config = OPENREVIEW_CONFERENCES[sourceId];
-    if (!config) throw new Error(`지원하지 않는 OpenReview source입니다: ${sourceId}`);
+    if (!config)
+      throw new Error(`지원하지 않는 OpenReview source입니다: ${sourceId}`);
 
     const currentYear = new Date().getFullYear();
-    const years = Array.from({ length: OPENREVIEW_YEAR_WINDOW }, (_, index) => currentYear - index);
+    const years = Array.from(
+      { length: OPENREVIEW_YEAR_WINDOW },
+      (_, index) => currentYear - index,
+    );
     // Use a Map to deduplicate across strategies (key = noteId)
     const noteMap = new Map<string, unknown>();
 
@@ -590,9 +869,16 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
       if (noteMap.size >= OPENREVIEW_MAX_PER_YEAR) break;
     }
 
-    if (noteMap.size === 0) throw new Error(`OpenReview에서 ${config.shortName} 논문을 가져오지 못했습니다.`);
+    if (noteMap.size === 0)
+      throw new Error(
+        `OpenReview에서 ${config.shortName} 논문을 가져오지 못했습니다.`,
+      );
 
-    return this.parseOpenReviewNotes(Array.from(noteMap.values()), source, config);
+    return this.parseOpenReviewNotes(
+      Array.from(noteMap.values()),
+      source,
+      config,
+    );
   }
 
   private async fetchOpenReviewByVenueid(
@@ -600,19 +886,28 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
     year: number,
     noteMap: Map<string, unknown>,
   ): Promise<void> {
-    const venueId = encodeURIComponent(`${config.venuePrefix}/${year}/Conference`);
-    for (let offset = 0; offset < OPENREVIEW_MAX_PER_YEAR; offset += OPENREVIEW_PAGE_SIZE) {
+    const venueId = encodeURIComponent(
+      `${config.venuePrefix}/${year}/Conference`,
+    );
+    for (
+      let offset = 0;
+      offset < OPENREVIEW_MAX_PER_YEAR;
+      offset += OPENREVIEW_PAGE_SIZE
+    ) {
       const url = `https://api2.openreview.net/notes?content.venueid=${venueId}&sort=cdate:desc&limit=${OPENREVIEW_PAGE_SIZE}&offset=${offset}`;
       try {
-        const json = await this.fetchJson(url) as { notes?: unknown[] };
+        const json = (await this.fetchJson(url)) as { notes?: unknown[] };
         const notes = Array.isArray(json?.notes) ? json.notes : [];
         for (const note of notes) {
-          const id = ((note as Record<string, unknown>).id ?? (note as Record<string, unknown>).forum) as string;
+          const id = ((note as Record<string, unknown>).id ??
+            (note as Record<string, unknown>).forum) as string;
           if (id) noteMap.set(id, note);
         }
         if (notes.length === 0 || notes.length < OPENREVIEW_PAGE_SIZE) break;
       } catch (e) {
-        this.logger.warn(`OpenReview ${config.shortName} ${year} venueid fetch failed: ${e instanceof Error ? e.message : e}`);
+        this.logger.warn(
+          `OpenReview ${config.shortName} ${year} venueid fetch failed: ${e instanceof Error ? e.message : e}`,
+        );
         break;
       }
     }
@@ -631,16 +926,22 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
 
     for (const invitation of invitationPatterns) {
       let added = 0;
-      for (let offset = 0; offset < OPENREVIEW_MAX_PER_YEAR; offset += OPENREVIEW_PAGE_SIZE) {
+      for (
+        let offset = 0;
+        offset < OPENREVIEW_MAX_PER_YEAR;
+        offset += OPENREVIEW_PAGE_SIZE
+      ) {
         const url = `https://api2.openreview.net/notes?invitation=${encodeURIComponent(invitation)}&sort=cdate:desc&limit=${OPENREVIEW_PAGE_SIZE}&offset=${offset}`;
         try {
-          const json = await this.fetchJson(url) as { notes?: unknown[] };
+          const json = (await this.fetchJson(url)) as { notes?: unknown[] };
           const notes = Array.isArray(json?.notes) ? json.notes : [];
           for (const note of notes) {
             const n = note as Record<string, unknown>;
             const c = (n.content ?? {}) as Record<string, { value?: unknown }>;
             // Only keep notes that look like actual paper submissions (have a title)
-            const hasTitle = typeof c.title?.value === 'string' && (c.title.value as string).trim().length > 0;
+            const hasTitle =
+              typeof c.title?.value === 'string' &&
+              c.title.value.trim().length > 0;
             if (!hasTitle) continue;
             const id = (n.id ?? n.forum) as string;
             if (id && !noteMap.has(id)) {
@@ -650,7 +951,9 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
           }
           if (notes.length === 0 || notes.length < OPENREVIEW_PAGE_SIZE) break;
         } catch (e) {
-          this.logger.warn(`OpenReview ${config.shortName} ${year} invitation=${invitation} failed: ${e instanceof Error ? e.message : e}`);
+          this.logger.warn(
+            `OpenReview ${config.shortName} ${year} invitation=${invitation} failed: ${e instanceof Error ? e.message : e}`,
+          );
           break;
         }
       }
@@ -667,17 +970,29 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
     return (notes as Array<Record<string, unknown>>)
       .map((note): Paper | null => {
         const c = (note.content ?? {}) as Record<string, { value?: unknown }>;
-        const title = typeof c.title?.value === 'string' ? c.title.value.trim() : '';
+        const title =
+          typeof c.title?.value === 'string' ? c.title.value.trim() : '';
         if (!title) return null;
         const noteId = (note.forum ?? note.id) as string;
         if (!noteId) return null;
         const paperUrl = `https://openreview.net/forum?id=${noteId}`;
-        const pdfPath = typeof c.pdf?.value === 'string' ? c.pdf.value : undefined;
+        const pdfPath =
+          typeof c.pdf?.value === 'string' ? c.pdf.value : undefined;
         const pdfUrl = pdfPath ? `https://openreview.net${pdfPath}` : undefined;
-        const authors = Array.isArray(c.authors?.value) ? (c.authors.value as string[]).map((a) => String(a).trim()).filter(Boolean) : [];
-        const keywords = Array.isArray(c.keywords?.value) ? (c.keywords.value as string[]).slice(0, 6) : [];
-        const venue = typeof c.venue?.value === 'string' ? c.venue.value.trim() : config.shortName;
-        const abstract = typeof c.abstract?.value === 'string' ? c.abstract.value : '';
+        const authors = Array.isArray(c.authors?.value)
+          ? (c.authors.value as string[])
+              .map((a) => String(a).trim())
+              .filter(Boolean)
+          : [];
+        const keywords = Array.isArray(c.keywords?.value)
+          ? (c.keywords.value as string[]).slice(0, 6)
+          : [];
+        const venue =
+          typeof c.venue?.value === 'string'
+            ? c.venue.value.trim()
+            : config.shortName;
+        const abstract =
+          typeof c.abstract?.value === 'string' ? c.abstract.value : '';
         const venueYear = venue.match(/\b20\d{2}\b/)?.[0];
         return {
           id: `${source.id}:${noteId}`,
@@ -687,10 +1002,19 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
           url: paperUrl,
           summary: this.cleanText(abstract),
           authors,
-          publishedAt: typeof note.cdate === 'number' ? new Date(note.cdate).toISOString() : undefined,
+          publishedAt:
+            typeof note.cdate === 'number'
+              ? new Date(note.cdate).toISOString()
+              : undefined,
           venue,
           pdfUrl,
-          tags: Array.from(new Set([config.shortName, venueYear, ...keywords].filter(Boolean) as string[])).slice(0, 8),
+          tags: Array.from(
+            new Set(
+              [config.shortName, venueYear, ...keywords].filter(
+                Boolean,
+              ) as string[],
+            ),
+          ).slice(0, 8),
         };
       })
       .filter((p): p is Paper => p !== null);
@@ -699,13 +1023,16 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
   private async fetchDblpConference(sourceId: string): Promise<Paper[]> {
     const source = SOURCES.find((s) => s.id === sourceId)!;
     const config = DBLP_CONFERENCES[sourceId];
-    if (!config) throw new Error(`지원하지 않는 DBLP source입니다: ${sourceId}`);
+    if (!config)
+      throw new Error(`지원하지 않는 DBLP source입니다: ${sourceId}`);
 
     const currentYear = new Date().getFullYear();
-    const allowedYears = new Set(Array.from({ length: 3 }, (_, index) => String(currentYear - index)));
+    const allowedYears = new Set(
+      Array.from({ length: 3 }, (_, index) => String(currentYear - index)),
+    );
     const query = `stream:${config.stream}:`;
     const url = `https://dblp.org/search/publ/api?q=${encodeURIComponent(query)}&format=json&h=${DBLP_RESULT_LIMIT}`;
-    const json = await this.fetchJson(url) as {
+    const json = (await this.fetchJson(url)) as {
       result?: {
         hits?: {
           hit?: DblpHit | DblpHit[];
@@ -714,7 +1041,11 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
     };
 
     const hitsValue = json?.result?.hits?.hit;
-    const hits = Array.isArray(hitsValue) ? hitsValue : hitsValue ? [hitsValue] : [];
+    const hits = Array.isArray(hitsValue)
+      ? hitsValue
+      : hitsValue
+        ? [hitsValue]
+        : [];
     const papers = hits
       .map((hit): Paper | null => {
         const info = hit.info;
@@ -724,7 +1055,9 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
 
         const year = info?.year;
         if (year && !allowedYears.has(String(year))) return null;
-        const venue = this.cleanText(info?.venue ?? `${config.shortName}${year ? ` ${year}` : ''}`);
+        const venue = this.cleanText(
+          info?.venue ?? `${config.shortName}${year ? ` ${year}` : ''}`,
+        );
         const authors = this.parseDblpAuthors(info?.authors?.author);
         const ee = this.firstString(info?.ee);
         const doi = info?.doi ? `https://doi.org/${info.doi}` : undefined;
@@ -737,18 +1070,31 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
           url,
           summary: undefined,
           authors,
-          publishedAt: year ? new Date(`${year}-01-01T00:00:00.000Z`).toISOString() : undefined,
+          publishedAt: year
+            ? new Date(`${year}-01-01T00:00:00.000Z`).toISOString()
+            : undefined,
           venue,
           pdfUrl: ee?.toLowerCase().endsWith('.pdf') ? ee : undefined,
           codeUrl: undefined,
-          tags: Array.from(new Set([config.shortName, year, ...config.tags].filter(Boolean) as string[])).slice(0, 8),
+          tags: Array.from(
+            new Set(
+              [config.shortName, year, ...config.tags].filter(
+                Boolean,
+              ) as string[],
+            ),
+          ).slice(0, 8),
           upvotes: undefined,
         };
       })
       .filter((paper): paper is Paper => paper !== null)
-      .filter((paper) => !paper.title.toLowerCase().startsWith('proceedings of'));
+      .filter(
+        (paper) => !paper.title.toLowerCase().startsWith('proceedings of'),
+      );
 
-    if (papers.length === 0) throw new Error(`DBLP에서 ${config.shortName} 논문을 가져오지 못했습니다.`);
+    if (papers.length === 0)
+      throw new Error(
+        `DBLP에서 ${config.shortName} 논문을 가져오지 못했습니다.`,
+      );
     return papers;
   }
 
@@ -761,7 +1107,7 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
         signal: controller.signal,
         headers: {
           'User-Agent': 'ResearchAI-HotPapersCrawler/1.0',
-          'Accept': 'application/json,*/*',
+          Accept: 'application/json,*/*',
         },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -771,13 +1117,19 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private filterResult(result: PaperListResult, source?: string, limit = 120, bookmarked = false): PaperListResult {
+  private filterResult(
+    result: PaperListResult,
+    source?: string,
+    limit = 120,
+    bookmarked = false,
+  ): PaperListResult {
     const filtered = bookmarked
       ? result.papers.filter((paper) => paper.bookmarked)
       : result.papers;
-    const papers = source && source !== 'all'
-      ? filtered.filter((paper) => paper.sourceId === source)
-      : filtered;
+    const papers =
+      source && source !== 'all'
+        ? filtered.filter((paper) => paper.sourceId === source)
+        : filtered;
 
     return {
       ...result,
@@ -808,14 +1160,21 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
   }
 
   private firstString(value?: string | string[]): string | undefined {
-    if (Array.isArray(value)) return value.find((item) => typeof item === 'string' && item.trim().length > 0);
-    return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+    if (Array.isArray(value))
+      return value.find(
+        (item) => typeof item === 'string' && item.trim().length > 0,
+      );
+    return typeof value === 'string' && value.trim().length > 0
+      ? value
+      : undefined;
   }
 
   private parseDblpAuthors(value?: DblpAuthor | DblpAuthor[]): string[] {
     const authors = Array.isArray(value) ? value : value ? [value] : [];
     return authors
-      .map((author) => typeof author === 'string' ? author : author.text ?? '')
+      .map((author) =>
+        typeof author === 'string' ? author : (author.text ?? ''),
+      )
       .map((author) => this.cleanText(author))
       .filter(Boolean);
   }
@@ -865,9 +1224,13 @@ export class PapersService implements OnModuleInit, OnModuleDestroy {
   }
 
   private buildAiSummaryPrompt(paper: Paper): string {
-    const authors = paper.authors.length ? paper.authors.slice(0, 12).join(', ') : '저자 정보 없음';
+    const authors = paper.authors.length
+      ? paper.authors.slice(0, 12).join(', ')
+      : '저자 정보 없음';
     const tags = paper.tags.length ? paper.tags.join(', ') : '태그 없음';
-    const summary = paper.summary?.trim() || '수집된 초록/요약이 없습니다. 제목과 메타데이터만 근거로 제한적으로 요약하세요.';
+    const summary =
+      paper.summary?.trim() ||
+      '수집된 초록/요약이 없습니다. 제목과 메타데이터만 근거로 제한적으로 요약하세요.';
 
     return `아래 논문을 한국어로 요약해줘.
 
@@ -908,32 +1271,50 @@ ${summary}
   }
 
   private async getLastRefreshAt(): Promise<string | null> {
-    const state = await this.refreshStateRepo.findOne({ where: { key: REFRESH_STATE_KEY } });
+    const state = await this.refreshStateRepo.findOne({
+      where: { key: REFRESH_STATE_KEY },
+    });
     return state?.refreshedAt || null;
   }
 
   private async setLastRefreshAt(value: string): Promise<void> {
-    await this.refreshStateRepo.save(this.refreshStateRepo.create({ key: REFRESH_STATE_KEY, refreshedAt: value }));
+    await this.refreshStateRepo.save(
+      this.refreshStateRepo.create({
+        key: REFRESH_STATE_KEY,
+        refreshedAt: value,
+      }),
+    );
   }
 
   private sourceRefreshStateKey(sourceId: string): string {
     return `${REFRESH_STATE_KEY}:${sourceId}`;
   }
 
-  private async getLastSourceRefreshAt(sourceId: string): Promise<string | null> {
-    const state = await this.refreshStateRepo.findOne({ where: { key: this.sourceRefreshStateKey(sourceId) } });
+  private async getLastSourceRefreshAt(
+    sourceId: string,
+  ): Promise<string | null> {
+    const state = await this.refreshStateRepo.findOne({
+      where: { key: this.sourceRefreshStateKey(sourceId) },
+    });
     return state?.refreshedAt || null;
   }
 
-  private async setLastSourceRefreshAt(sourceId: string, value: string): Promise<void> {
-    await this.refreshStateRepo.save(this.refreshStateRepo.create({
-      key: this.sourceRefreshStateKey(sourceId),
-      refreshedAt: value,
-    }));
+  private async setLastSourceRefreshAt(
+    sourceId: string,
+    value: string,
+  ): Promise<void> {
+    await this.refreshStateRepo.save(
+      this.refreshStateRepo.create({
+        key: this.sourceRefreshStateKey(sourceId),
+        refreshedAt: value,
+      }),
+    );
   }
 
   private paperSortValue(paper: Paper): number {
-    const dateValue = paper.publishedAt ? new Date(paper.publishedAt).getTime() : 0;
+    const dateValue = paper.publishedAt
+      ? new Date(paper.publishedAt).getTime()
+      : 0;
     const safeDateValue = Number.isNaN(dateValue) ? 0 : dateValue;
     return safeDateValue + (paper.upvotes ?? 0);
   }
@@ -941,7 +1322,9 @@ ${summary}
   private parseJsonArray(value: string): string[] {
     try {
       const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === 'string')
+        : [];
     } catch {
       return [];
     }
@@ -970,18 +1353,31 @@ ${summary}
       .filter((token) => token.length >= 3)
       .filter((token) => !/^\d+$/.test(token))
       .filter((token) => !TREND_STOPWORDS.has(token.toLowerCase()))
-      .map((token) => token.length > 30 ? token.slice(0, 30) : token);
+      .map((token) => (token.length > 30 ? token.slice(0, 30) : token));
   }
 
-  private buildTrendPrompt(papers: Paper[], keywords: PaperTrendKeyword[]): string {
-    const paperLines = papers.slice(0, 120).map((paper, index) => {
-      const authors = paper.authors.length ? ` / 저자: ${paper.authors.slice(0, 4).join(', ')}` : '';
-      const summary = paper.summary ? ` - ${paper.summary.slice(0, 120)}` : '';
-      const venue = paper.venue ? ` [${paper.venue}]` : '';
-      const upvotes = typeof paper.upvotes === 'number' ? ` ▲${paper.upvotes}` : '';
-      return `${index + 1}. ${paper.sourceName}${venue}${upvotes}: ${paper.title}${summary}${authors}`;
-    }).join('\n');
-    const keywordLines = keywords.map((item) => `${item.keyword}(${item.count})`).join(', ');
+  private buildTrendPrompt(
+    papers: Paper[],
+    keywords: PaperTrendKeyword[],
+  ): string {
+    const paperLines = papers
+      .slice(0, 120)
+      .map((paper, index) => {
+        const authors = paper.authors.length
+          ? ` / 저자: ${paper.authors.slice(0, 4).join(', ')}`
+          : '';
+        const summary = paper.summary
+          ? ` - ${paper.summary.slice(0, 120)}`
+          : '';
+        const venue = paper.venue ? ` [${paper.venue}]` : '';
+        const upvotes =
+          typeof paper.upvotes === 'number' ? ` ▲${paper.upvotes}` : '';
+        return `${index + 1}. ${paper.sourceName}${venue}${upvotes}: ${paper.title}${summary}${authors}`;
+      })
+      .join('\n');
+    const keywordLines = keywords
+      .map((item) => `${item.keyword}(${item.count})`)
+      .join(', ');
 
     return `다음은 현재 핫한 AI/ML 논문 목록이야.
 
@@ -1011,7 +1407,9 @@ ${paperLines}
 
   private trendCacheKey(options: { model: string; papers: Paper[] }): string {
     const hash = createHash('sha256')
-      .update(options.papers.map((p) => `${p.id}:${p.publishedAt ?? ''}`).join('|'))
+      .update(
+        options.papers.map((p) => `${p.id}:${p.publishedAt ?? ''}`).join('|'),
+      )
       .digest('hex')
       .slice(0, 16);
     return `${options.model}:${hash}`;
@@ -1040,29 +1438,36 @@ ${paperLines}
     };
   }
 
-  private async storeTrendSummary(cacheKey: string, value: PaperTrendSummary): Promise<void> {
+  private async storeTrendSummary(
+    cacheKey: string,
+    value: PaperTrendSummary,
+  ): Promise<void> {
     const expiresAt = new Date(Date.now() + TREND_CACHE_MS).toISOString();
-    await this.trendRepo.save(this.trendRepo.create({
-      cacheKey,
-      summary: value.summary,
-      keywordsJson: JSON.stringify(value.keywords ?? []),
-      paperCount: value.paperCount,
-      sourceCount: value.sourceCount,
-      generatedAt: value.generatedAt,
-      expiresAt,
-      model: value.model,
-    }));
+    await this.trendRepo.save(
+      this.trendRepo.create({
+        cacheKey,
+        summary: value.summary,
+        keywordsJson: JSON.stringify(value.keywords ?? []),
+        paperCount: value.paperCount,
+        sourceCount: value.sourceCount,
+        generatedAt: value.generatedAt,
+        expiresAt,
+        model: value.model,
+      }),
+    );
   }
 
   private parseTrendKeywords(value: string): PaperTrendKeyword[] {
     try {
       const parsed = JSON.parse(value);
       if (!Array.isArray(parsed)) return [];
-      return parsed.filter((item): item is PaperTrendKeyword => (
-        item && typeof item === 'object' &&
-        typeof item.keyword === 'string' &&
-        typeof item.count === 'number'
-      ));
+      return parsed.filter(
+        (item): item is PaperTrendKeyword =>
+          item &&
+          typeof item === 'object' &&
+          typeof item.keyword === 'string' &&
+          typeof item.count === 'number',
+      );
     } catch {
       return [];
     }

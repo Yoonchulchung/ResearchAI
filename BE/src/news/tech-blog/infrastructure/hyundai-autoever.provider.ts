@@ -1,5 +1,5 @@
 import { load } from 'cheerio';
-import type { TechBlogPost, TechBlogSource } from '../domain/tech-blog.types';
+import type { TechBlogPost, TechBlogSource } from 'src/news/tech-blog/domain/tech-blog.types';
 import {
   absoluteUrl,
   cleanText,
@@ -7,27 +7,36 @@ import {
   dateValue,
   dedupePosts,
   REQUEST_TIMEOUT_MS,
-} from './tech-blog-crawler.util';
+} from 'src/news/tech-blog/infrastructure/tech-blog-crawler.util';
 
-const HYUNDAI_AUTOEVER_AJAX_URL = 'https://www.hyundai-autoever.com/kor/about/pr/blog/list.ajax';
-const HYUNDAI_AUTOEVER_REFERER = 'https://www.hyundai-autoever.com/kor/about/pr/blog/list.do?';
+const HYUNDAI_AUTOEVER_AJAX_URL =
+  'https://www.hyundai-autoever.com/kor/about/pr/blog/list.ajax';
+const HYUNDAI_AUTOEVER_REFERER =
+  'https://www.hyundai-autoever.com/kor/about/pr/blog/list.do?';
 const MAX_PAGES = 5;
 
-export async function fetchHyundaiAutoeverPosts(source: TechBlogSource): Promise<TechBlogPost[]> {
+export async function fetchHyundaiAutoeverPosts(
+  source: TechBlogSource,
+): Promise<TechBlogPost[]> {
   const firstPageHtml = await fetchHyundaiAutoeverPage(1);
   const firstPagePosts = parseHyundaiAutoeverHtml(firstPageHtml, source);
   const totalPages = totalPageCount(firstPageHtml);
   const pageCount = Math.min(Math.max(totalPages, 1), MAX_PAGES);
 
   const rest = await Promise.allSettled(
-    Array.from({ length: pageCount - 1 }, (_, index) => fetchHyundaiAutoeverPage(index + 2)),
+    Array.from({ length: pageCount - 1 }, (_, index) =>
+      fetchHyundaiAutoeverPage(index + 2),
+    ),
   );
   const restPosts = rest.flatMap((result) =>
-    result.status === 'fulfilled' ? parseHyundaiAutoeverHtml(result.value, source) : [],
+    result.status === 'fulfilled'
+      ? parseHyundaiAutoeverHtml(result.value, source)
+      : [],
   );
 
-  return dedupePosts([...firstPagePosts, ...restPosts])
-    .sort((a, b) => dateValue(b.publishedAt) - dateValue(a.publishedAt));
+  return dedupePosts([...firstPagePosts, ...restPosts]).sort(
+    (a, b) => dateValue(b.publishedAt) - dateValue(a.publishedAt),
+  );
 }
 
 async function fetchHyundaiAutoeverPage(pageIndex: number): Promise<string> {
@@ -39,15 +48,20 @@ async function fetchHyundaiAutoeverPage(pageIndex: number): Promise<string> {
       method: 'POST',
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
-        'Accept': 'text/html, */*; q=0.01',
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
+        Accept: 'text/html, */*; q=0.01',
         'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'Origin': 'https://www.hyundai-autoever.com',
-        'Referer': HYUNDAI_AUTOEVER_REFERER,
+        Origin: 'https://www.hyundai-autoever.com',
+        Referer: HYUNDAI_AUTOEVER_REFERER,
         'X-Requested-With': 'XMLHttpRequest',
       },
-      body: new URLSearchParams({ pageIndex: String(pageIndex), q: '', f: '1' }).toString(),
+      body: new URLSearchParams({
+        pageIndex: String(pageIndex),
+        q: '',
+        f: '1',
+      }).toString(),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.text();
@@ -56,7 +70,10 @@ async function fetchHyundaiAutoeverPage(pageIndex: number): Promise<string> {
   }
 }
 
-function parseHyundaiAutoeverHtml(html: string, source: TechBlogSource): TechBlogPost[] {
+function parseHyundaiAutoeverHtml(
+  html: string,
+  source: TechBlogSource,
+): TechBlogPost[] {
   const $ = load(html);
   const posts: TechBlogPost[] = [];
 
@@ -68,13 +85,18 @@ function parseHyundaiAutoeverHtml(html: string, source: TechBlogSource): TechBlo
 
     const dateText = cleanText(item.find('.date').first().text());
     const publishedAt = toHyundaiAutoeverDate(dateText);
-    const thumbnail = absoluteUrl(item.find('img').first().attr('src') ?? '', source.url);
+    const thumbnail = absoluteUrl(
+      item.find('img').first().attr('src') ?? '',
+      source.url,
+    );
 
-    posts.push(createPost(source, title, url, {
-      publishedAt,
-      thumbnail,
-      tags: [],
-    }));
+    posts.push(
+      createPost(source, title, url, {
+        publishedAt,
+        thumbnail,
+        tags: [],
+      }),
+    );
   });
 
   return posts;

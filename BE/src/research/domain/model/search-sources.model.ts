@@ -10,5 +10,3 @@ export interface SearchSources {
 export type SearchStreamEvent =
   | { type: 'source'; key: keyof SearchSources; result: string }
   | { type: 'done'; sources: SearchSources; context: string };
-
-  

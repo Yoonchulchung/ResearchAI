@@ -1,9 +1,23 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
 import type { Response } from 'express';
-import { JobPostingScraperService } from '../application/job-posting-scraper.service';
-import { RecruitJobPostingCollectService } from '../application/recruit-job-posting-collect.service';
-import type { JobPostingListFilters, JobPostingScrapeOptions } from '../domain/job-posting.model';
-import type { CollectDetailConfig } from '../application/recruit-job-posting-collect.service';
+import { JobPostingScraperService } from 'src/recruit/application/job-posting-scraper.service';
+import { RecruitJobPostingCollectService } from 'src/recruit/application/recruit-job-posting-collect.service';
+import type {
+  JobPostingListFilters,
+  JobPostingScrapeOptions,
+} from 'src/recruit/domain/job-posting.model';
+import type { CollectDetailConfig } from 'src/recruit/application/recruit-job-posting-collect.service';
 
 type AiMode = 'analysis' | 'interview';
 
@@ -105,7 +119,10 @@ export class JobPostingScraperController {
   }
 
   @Patch('data/:id/applied')
-  setApplied(@Param('id') id: string, @Body() body: { appliedAt?: string | null }) {
+  setApplied(
+    @Param('id') id: string,
+    @Body() body: { appliedAt?: string | null },
+  ) {
     return this.service.setApplied(id, body.appliedAt ?? null);
   }
 
@@ -117,9 +134,17 @@ export class JobPostingScraperController {
   }
 
   @Get('data/:id/ai-analysis')
-  getAiAnalysis(@Param('id') id: string, @Query('mode') mode: AiMode = 'analysis') {
+  getAiAnalysis(
+    @Param('id') id: string,
+    @Query('mode') mode: AiMode = 'analysis',
+  ) {
     const result = this.service.getAiAnalysis(id, mode);
-    return { id, mode, text: result?.text ?? null, docId: result?.docId ?? null };
+    return {
+      id,
+      mode,
+      text: result?.text ?? null,
+      docId: result?.docId ?? null,
+    };
   }
 
   @Post('data/:id/ai-analysis')
@@ -127,7 +152,12 @@ export class JobPostingScraperController {
     @Param('id') id: string,
     @Body() body: { mode: AiMode; text: string; docId?: string | null },
   ) {
-    this.service.setAiAnalysis(id, body.mode ?? 'analysis', body.text, body.docId);
+    this.service.setAiAnalysis(
+      id,
+      body.mode ?? 'analysis',
+      body.text,
+      body.docId,
+    );
     return { ok: true };
   }
 

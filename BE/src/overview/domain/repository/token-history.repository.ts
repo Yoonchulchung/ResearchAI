@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { TokenHistoryEntity } from '../entity/token-history.entity';
+import { TokenHistoryEntity } from 'src/overview/domain/entity/token-history.entity';
 
 @Injectable()
 export class TokenHistoryRepository {
@@ -14,7 +14,10 @@ export class TokenHistoryRepository {
     return this.repo.find({ order: { createdAt: 'DESC' } });
   }
 
-  async findPaginated(page: number, limit: number): Promise<{ data: TokenHistoryEntity[]; total: number }> {
+  async findPaginated(
+    page: number,
+    limit: number,
+  ): Promise<{ data: TokenHistoryEntity[]; total: number }> {
     const [data, total] = await this.repo.findAndCount({
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,

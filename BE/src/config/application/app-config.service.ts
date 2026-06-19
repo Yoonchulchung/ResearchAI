@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AppConfigRepository } from '../domain/repository/app-config.repository';
+import { AppConfigRepository } from 'src/config/domain/repository/app-config.repository';
 
 export const CONFIG_KEYS = {
   DEFAULT_LOCAL_MODEL: 'default_local_model',

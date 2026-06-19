@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { SystemSettingEntity } from '../entity/system-setting.entity';
+import { SystemSettingEntity } from 'src/shared/entity/system-setting.entity';
 
 export const SETTING_KEYS = {
   COMPANY_COLLECT_ENABLED: 'company_collect_enabled',

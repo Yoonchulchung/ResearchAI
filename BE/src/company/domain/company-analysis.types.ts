@@ -1,12 +1,25 @@
-import { CompetencyScores } from './entity/company-analysis.entity';
-import { YearlyFinancial, EmployeeDetail } from '../infrastructure/dart-financial.service';
+import { CompetencyScores } from 'src/company/domain/entity/company-analysis.entity';
+import {
+  YearlyFinancial,
+  EmployeeDetail,
+} from 'src/company/infrastructure/dart/dart-types';
 
 export type { CompetencyScores };
 
 export const COMPETENCY_KEYS = [
-  '성취지향', '도전정신', '주도성', '문제해결', '의사소통',
-  '대인관계', '열정', '주인의식', '팀워크', '자원계획관리',
-  '치밀성', '분석적사고', '전문성',
+  '성취지향',
+  '도전정신',
+  '주도성',
+  '문제해결',
+  '의사소통',
+  '대인관계',
+  '열정',
+  '주인의식',
+  '팀워크',
+  '자원계획관리',
+  '치밀성',
+  '분석적사고',
+  '전문성',
 ] as const;
 
 export const ZERO_SCORES: CompetencyScores = COMPETENCY_KEYS.reduce(
@@ -14,7 +27,9 @@ export const ZERO_SCORES: CompetencyScores = COMPETENCY_KEYS.reduce(
   {} as CompetencyScores,
 );
 
-export type CompetencyReasons = Partial<Record<typeof COMPETENCY_KEYS[number], string>>;
+export type CompetencyReasons = Partial<
+  Record<(typeof COMPETENCY_KEYS)[number], string>
+>;
 
 export interface SwotAnalysis {
   S: string[];
@@ -152,11 +167,24 @@ export interface CompanyAnalysisDto {
   financialSummary: string | null;
   disclosures: { title: string; date: string; url: string }[] | null;
   // 웹 수집
-  recentNews: { title: string; url: string; date: string; category?: string; summary?: string }[] | null;
+  recentNews:
+    | {
+        title: string;
+        url: string;
+        date: string;
+        category?: string;
+        summary?: string;
+      }[]
+    | null;
   jobPostings: { title: string; url: string; date: string }[] | null;
   hrTechSources: { category: string; title: string; url: string }[] | null;
   jobplanetSummary: string | null;
-  missionVision: { mission: string | null; vision: string | null; coreValues: string[]; talentProfile: string | null } | null;
+  missionVision: {
+    mission: string | null;
+    vision: string | null;
+    coreValues: string[];
+    talentProfile: string | null;
+  } | null;
   // HR 분석
   hrAnalysis: HrAnalysis | null;
   // 인근 아파트 시세

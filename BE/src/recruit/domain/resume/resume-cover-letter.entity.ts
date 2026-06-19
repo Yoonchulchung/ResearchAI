@@ -1,5 +1,5 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
-import { ResumeEntity } from './resume.entity';
+import { ResumeEntity } from 'src/recruit/domain/resume/resume.entity';
 
 @Entity('resume_cover_letter')
 export class ResumeCoverLetterEntity {
@@ -18,7 +18,12 @@ export class ResumeCoverLetterEntity {
   @Column({ type: 'text', nullable: true, default: null })
   category: string | null;
 
-  @Column({ name: 'refined_title', type: 'text', nullable: true, default: null })
+  @Column({
+    name: 'refined_title',
+    type: 'text',
+    nullable: true,
+    default: null,
+  })
   refinedTitle: string | null;
 
   @Column({ name: 'order_index', type: 'integer', default: 0 })

@@ -1,7 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { load } from 'cheerio';
-import { PuppeteerService } from '../../browse/infrastructure/puppeteer.service';
-import { SessionGateway } from '../../sessions/presentation/session.gateway';
+import { PuppeteerService } from 'src/browse/infrastructure/puppeteer.service';
+import { SessionGateway } from 'src/sessions/presentation/session.gateway';
 
 export interface NamuWikiCompanyInfo {
   companyType: string | null;
@@ -10,16 +10,22 @@ export interface NamuWikiCompanyInfo {
 }
 
 const CATEGORY_MAP: { pattern: RegExp; type: string }[] = [
-  { pattern: /대기업/,                                                    type: '대기업' },
-  { pattern: /중견기업/,                                                   type: '중견기업' },
-  { pattern: /중소기업|스타트업|벤처/,                                     type: '중소기업' },
-  { pattern: /공기업|준정부기관|기타공공기관|지방공기업|공공기관|공공/,    type: '공공기관' },
-  { pattern: /금융기관|은행|증권|보험사|카드사|캐피탈|자산운용/,           type: '금융기관' },
-  { pattern: /외국계/,                                                     type: '외국계기업' },
+  { pattern: /대기업/, type: '대기업' },
+  { pattern: /중견기업/, type: '중견기업' },
+  { pattern: /중소기업|스타트업|벤처/, type: '중소기업' },
+  {
+    pattern: /공기업|준정부기관|기타공공기관|지방공기업|공공기관|공공/,
+    type: '공공기관',
+  },
+  {
+    pattern: /금융기관|은행|증권|보험사|카드사|캐피탈|자산운용/,
+    type: '금융기관',
+  },
+  { pattern: /외국계/, type: '외국계기업' },
 ];
 
 const MIN_INTERVAL_MS = 3000;
-const CACHE_TTL_MS   = 24 * 60 * 60 * 1000;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 interface CacheEntry {
   result: NamuWikiCompanyInfo | null;
@@ -49,11 +55,15 @@ export class NamuWikiService {
     };
   }
 
-  async fetchCompanyInfo(companyName: string, { force = false } = {}): Promise<NamuWikiCompanyInfo | null> {
+  async fetchCompanyInfo(
+    companyName: string,
+    { force = false } = {},
+  ): Promise<NamuWikiCompanyInfo | null> {
     const cacheKey = companyName.trim().toLowerCase();
     if (!force) {
       const cached = this.cache.get(cacheKey);
-      if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) return cached.result;
+      if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS)
+        return cached.result;
     }
 
     this.pendingCount++;
@@ -75,11 +85,16 @@ export class NamuWikiService {
         this.gateway?.updateDataSourceStatus(this.getStatus());
       }
     });
-    this.queue = next.then(() => undefined, () => undefined);
+    this.queue = next.then(
+      () => undefined,
+      () => undefined,
+    );
     return next;
   }
 
-  private async fetchWithDelay(companyName: string): Promise<NamuWikiCompanyInfo | null> {
+  private async fetchWithDelay(
+    companyName: string,
+  ): Promise<NamuWikiCompanyInfo | null> {
     const elapsed = Date.now() - this.lastRequestAt;
     if (elapsed < MIN_INTERVAL_MS) {
       await this.sleep(MIN_INTERVAL_MS - elapsed);
@@ -109,13 +124,19 @@ export class NamuWikiService {
   /** DuckDuckGo 검색으로 NamuWiki 페이지 제목 후보 반환 */
   private async searchNamuWikiTitle(name: string): Promise<string[]> {
     try {
-      const results = await this.puppeteer.searchGoogle(`${name} 나무위키 기업`, 5);
+      const results = await this.puppeteer.searchGoogle(
+        `${name} 나무위키 기업`,
+        5,
+      );
       return results
         .map((r) => {
           const m = r.url.match(/namu\.wiki\/w\/([^?#]+)/);
           return m ? decodeURIComponent(m[1]) : null;
         })
-        .filter((t): t is string => t !== null && !t.includes(':') && !t.startsWith('분류'));
+        .filter(
+          (t): t is string =>
+            t !== null && !t.includes(':') && !t.startsWith('분류'),
+        );
     } catch {
       return [];
     }
@@ -123,7 +144,10 @@ export class NamuWikiService {
 
   private buildCandidates(name: string): string[] {
     const cleaned = name
-      .replace(/\(주\)|㈜|주식회사|\(유\)|유한회사|유한책임회사|\(재\)|재단법인|\(사\)|사단법인|그룹|홀딩스|코리아|건축사사무소/gi, '')
+      .replace(
+        /\(주\)|㈜|주식회사|\(유\)|유한회사|유한책임회사|\(재\)|재단법인|\(사\)|사단법인|그룹|홀딩스|코리아|건축사사무소/gi,
+        '',
+      )
       .replace(/[()[\]\s]/g, '')
       .trim();
     return [...new Set([name, cleaned].filter(Boolean))];
@@ -143,7 +167,10 @@ export class NamuWikiService {
     }
 
     // Cloudflare 차단 감지
-    if (html.includes('window.__CF$cv$params') || html.includes('challenge-platform')) {
+    if (
+      html.includes('window.__CF$cv$params') ||
+      html.includes('challenge-platform')
+    ) {
       this.logger.warn(`[NamuWiki] Cloudflare 차단 — "${title}"`);
       return null;
     }
@@ -152,7 +179,9 @@ export class NamuWikiService {
     const bodyText = $('body').text();
 
     // 존재하지 않는 페이지 감지
-    if (/이 문서는 없는 문서|존재하지 않는 문서|문서가 없습니다/.test(bodyText)) {
+    if (
+      /이 문서는 없는 문서|존재하지 않는 문서|문서가 없습니다/.test(bodyText)
+    ) {
       this.logger.warn(`[NamuWiki] 페이지 없음 — "${title}"`);
       return null;
     }
@@ -169,14 +198,18 @@ export class NamuWikiService {
 
     if (!this.isCompanyPage(categories, bodyText)) {
       const catStr = categories.slice(0, 5).join(', ');
-      this.logger.warn(`[NamuWiki] 기업 페이지 아님 — "${title}" (분류: ${catStr || '없음'})`);
+      this.logger.warn(
+        `[NamuWiki] 기업 페이지 아님 — "${title}" (분류: ${catStr || '없음'})`,
+      );
       return null;
     }
 
     const result = this.parse(categories, bodyText);
     if (!result.companyType) {
       const catStr = categories.slice(0, 5).join(', ');
-      this.logger.warn(`[NamuWiki] companyType 파싱 실패 — "${title}" (분류: ${catStr || '없음'})`);
+      this.logger.warn(
+        `[NamuWiki] companyType 파싱 실패 — "${title}" (분류: ${catStr || '없음'})`,
+      );
     }
     return result;
   }
@@ -184,21 +217,28 @@ export class NamuWikiService {
   private isCompanyPage(categories: string[], pageText: string): boolean {
     const catJoined = categories.join(' ');
     return (
-      /(기업|기관|은행|증권|병원|학교|회사|공단|공사|재단|협회|건설|건축|금융)/.test(catJoined) ||
+      /(기업|기관|은행|증권|병원|학교|회사|공단|공사|재단|협회|건설|건축|금융)/.test(
+        catJoined,
+      ) ||
       /기업 개요|직원\s*수|설립일|본사\s*소재지/.test(pageText) ||
-      /지방공기업|공공기관|준정부기관|공기업|금융기관|대기업|중견기업|중소기업|스타트업/.test(pageText)
+      /지방공기업|공공기관|준정부기관|공기업|금융기관|대기업|중견기업|중소기업|스타트업/.test(
+        pageText,
+      )
     );
   }
 
   private parse(categories: string[], pageText: string): NamuWikiCompanyInfo {
     return {
       companyType: this.parseCompanyType(categories, pageText),
-      employees:   this.parseEmployees(pageText),
+      employees: this.parseEmployees(pageText),
       foundedDate: this.parseFoundedDate(pageText),
     };
   }
 
-  private parseCompanyType(categories: string[], pageText: string): string | null {
+  private parseCompanyType(
+    categories: string[],
+    pageText: string,
+  ): string | null {
     for (const cat of categories) {
       for (const { pattern, type } of CATEGORY_MAP) {
         if (pattern.test(cat)) return type;
@@ -211,7 +251,9 @@ export class NamuWikiService {
   }
 
   private parseEmployees(text: string): string | null {
-    const m = text.match(/(?:직원\s*수?|종업원|임직원)\s*(?:약\s*)?(\d[\d,]+)\s*명/);
+    const m = text.match(
+      /(?:직원\s*수?|종업원|임직원)\s*(?:약\s*)?(\d[\d,]+)\s*명/,
+    );
     if (m) return `${m[1].replace(/,/g, '')}명`;
     return null;
   }

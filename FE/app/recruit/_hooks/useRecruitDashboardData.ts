@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { listCompaniesSlim, type CompanySlimItem } from "@/lib/api/companies";
-import { getExperiences, type Experience } from "@/lib/api/experiences";
+import { getResume, type ResumeTarget } from "@/lib/api/resume";
 import { listCoverLetters, type CoverLetter } from "@/lib/api/recruit/cover-letter";
 import { deleteJobRecommendation, getJobRecommendations, type JobRecommendation } from "@/lib/api/recruit/job-posting";
 import type { InfoTab } from "../_lib/dashboard";
@@ -10,12 +10,12 @@ export function useRecruitDashboardData(activeTab: InfoTab, analysisSearch: stri
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [resumes, setResumes] = useState<ResumeTarget[]>([]);
+  const [resumeLoading, setResumeLoading] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
   const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
   const [coverLoading, setCoverLoading] = useState(false);
   const [coverError, setCoverError] = useState<string | null>(null);
-
-  const [experiences, setExperiences] = useState<Experience[]>([]);
-  const [expLoading, setExpLoading] = useState(true);
 
   const [companyAnalyses, setCompanyAnalyses] = useState<CompanySlimItem[]>([]);
   const [analysisLoading, setAnalysisLoading] = useState(true);
@@ -42,6 +42,28 @@ export function useRecruitDashboardData(activeTab: InfoTab, analysisSearch: stri
   }, []);
 
   useEffect(() => {
+    if (activeTab !== "letters" || coverLetters.length > 0) return;
+    let cancelled = false;
+    setCoverLoading(true);
+    setCoverError(null);
+    listCoverLetters(1, 6, { sort: "latest" })
+      .then((result) => {
+        if (!cancelled) setCoverLetters(result.items);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setCoverError(error instanceof Error ? error.message : "자소서를 불러오지 못했습니다");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCoverLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, coverLetters.length]);
+
+  useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setAnalysisLoading(true);
@@ -63,40 +85,26 @@ export function useRecruitDashboardData(activeTab: InfoTab, analysisSearch: stri
 
   useEffect(() => {
     let cancelled = false;
-    getExperiences()
-      .then((res) => {
+    setResumeLoading(true);
+    getResume()
+      .then((profile) => {
         if (!cancelled) {
-          setExperiences(res);
-          setExpLoading(false);
+          const items = [...(profile?.resumeTargets ?? [])].sort(
+            (a, b) => (b.appliedAt ?? b.updatedAt ?? "").localeCompare(a.appliedAt ?? a.updatedAt ?? ""),
+          );
+          setResumes(items);
         }
       })
       .catch(() => {
-        if (!cancelled) setExpLoading(false);
+        if (!cancelled) setResumeError("이력서를 불러오지 못했습니다");
+      })
+      .finally(() => {
+        if (!cancelled) setResumeLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (activeTab !== "letters" || coverLetters.length > 0) return;
-    let cancelled = false;
-    setCoverLoading(true);
-    setCoverError(null);
-    listCoverLetters(1, 6, { sort: "latest" })
-      .then((res) => {
-        if (!cancelled) setCoverLetters(res.items);
-      })
-      .catch((e) => {
-        if (!cancelled) setCoverError(e instanceof Error ? e.message : "자소서를 불러오지 못했습니다");
-      })
-      .finally(() => {
-        if (!cancelled) setCoverLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, coverLetters.length]);
 
   const filteredCompanyAnalyses = useMemo(() => {
     const query = analysisSearch.trim().toLowerCase();
@@ -125,11 +133,12 @@ export function useRecruitDashboardData(activeTab: InfoTab, analysisSearch: stri
     jobs,
     loading,
     error,
+    resumes,
+    resumeLoading,
+    resumeError,
     coverLetters,
     coverLoading,
     coverError,
-    experiences,
-    expLoading,
     companyAnalyses,
     analysisLoading,
     analysisError,

@@ -1,12 +1,21 @@
-import { Controller, Get, Post, Delete, Put, Param, Body, Res } from '@nestjs/common';
-import { SessionsService } from '../application/sessions.service';
-import { ResearchState } from '../domain/entity/session.entity';
-import { CreateSessionDto } from './dto/request/create-session.dto';
-import { UpdateTaskDto } from './dto/request/update-task.dto';
-import { requestContext } from '../../shared/request-context';
-import { RecruitContextService } from '../../recruit/application/recruit-context.service';
-import { SessionJobRepository } from '../domain/repository/session-job.repository';
-import { ResearchRecruitRepository } from '../../research/domain/repository/research-recruit.repository';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Put,
+  Param,
+  Body,
+  Res,
+} from '@nestjs/common';
+import { SessionsService } from 'src/sessions/application/sessions.service';
+import { ResearchState } from 'src/sessions/domain/entity/session.entity';
+import { CreateSessionDto } from 'src/sessions/presentation/dto/request/create-session.dto';
+import { UpdateTaskDto } from 'src/sessions/presentation/dto/request/update-task.dto';
+import { requestContext } from 'src/shared/request-context';
+import { RecruitContextService } from 'src/recruit/application/recruit-context.service';
+import { SessionJobRepository } from 'src/sessions/domain/repository/session-job.repository';
+import { ResearchRecruitRepository } from 'src/research/domain/repository/research-recruit.repository';
 import { randomUUID } from 'crypto';
 
 @Controller('sessions')
@@ -39,8 +48,14 @@ export class SessionsController {
   create(@Body() body: CreateSessionDto) {
     const userId = requestContext.getStore()?.id ?? null;
     return this.sessionsService.createSession(
-      body.topic, body.researchCloudAIModel, body.researchLocalAIModel, body.researchWebModel,
-      body.tasks, userId, body.sessionType, body.lightResearchId,
+      body.topic,
+      body.researchCloudAIModel,
+      body.researchLocalAIModel,
+      body.researchWebModel,
+      body.tasks,
+      userId,
+      body.sessionType,
+      body.lightResearchId,
     );
   }
 
@@ -60,7 +75,13 @@ export class SessionsController {
     @Param('itemId') itemId: string,
     @Body() body: UpdateTaskDto,
   ) {
-    await this.sessionsService.updateSessionItem(id, itemId, body.aiResult, body.webResult ?? '', body.status as ResearchState);
+    await this.sessionsService.updateSessionItem(
+      id,
+      itemId,
+      body.aiResult,
+      body.webResult ?? '',
+      body.status as ResearchState,
+    );
     return this.sessionsService.updateSession(id, body.status as ResearchState);
   }
 
@@ -68,7 +89,10 @@ export class SessionsController {
   // 첨부 파일 ID 관리    //
   // ***************** //
   @Put(':id/attached-files')
-  setAttachedFileIds(@Param('id') id: string, @Body() body: { fileIds: string[] }) {
+  setAttachedFileIds(
+    @Param('id') id: string,
+    @Body() body: { fileIds: string[] },
+  ) {
     return this.sessionsService.setAttachedFileIds(id, body.fileIds);
   }
 
@@ -98,7 +122,9 @@ export class SessionsController {
     if (jobs.length === 0) {
       const session = await this.sessionsService.findOne(id);
       if (session?.lightResearchId) {
-        const recruits = await this.recruitRepository.findByLightResearchId(session.lightResearchId);
+        const recruits = await this.recruitRepository.findByLightResearchId(
+          session.lightResearchId,
+        );
         if (recruits.length > 0) {
           await this.sessionJobRepository.saveMany(
             recruits.map((r) => ({
@@ -125,7 +151,12 @@ export class SessionsController {
       company: j.company,
       location: j.location,
       description: j.description,
-      skills: j.skills ? j.skills.split(',').map((s: string) => s.trim()).filter(Boolean) : [],
+      skills: j.skills
+        ? j.skills
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter(Boolean)
+        : [],
       url: j.url,
       postedAt: j.postedAt,
       source: j.source ?? (j.url ? this.detectSource(j.url) : 'unknown'),
@@ -144,11 +175,22 @@ export class SessionsController {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+    const send = (data: object) =>
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
 
-    const newJobs: { title: string; company: string; location?: string | null; description?: string | null; skills: string[]; url: string }[] = [];
+    const newJobs: {
+      title: string;
+      company: string;
+      location?: string | null;
+      description?: string | null;
+      skills: string[];
+      url: string;
+    }[] = [];
 
-    for await (const event of this.recruitContext.liveSearch({ keyword: body.keyword }, Number.MAX_SAFE_INTEGER)) {
+    for await (const event of this.recruitContext.liveSearch(
+      { keyword: body.keyword },
+      Number.MAX_SAFE_INTEGER,
+    )) {
       if (event.type === 'log') {
         send({ type: 'log', message: event.message });
       } else if (event.type === 'jobs') {

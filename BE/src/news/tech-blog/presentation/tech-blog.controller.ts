@@ -1,6 +1,10 @@
 import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
-import { TechBlogService } from '../application/tech-blog.service';
-import type { TechBlogListResult, TechBlogSource, TechBlogTrendSummary } from '../domain/tech-blog.types';
+import { TechBlogService } from 'src/news/tech-blog/application/tech-blog.service';
+import type {
+  TechBlogListResult,
+  TechBlogSource,
+  TechBlogTrendSummary,
+} from 'src/news/tech-blog/domain/tech-blog.types';
 
 @Controller('tech-blogs')
 export class TechBlogController {
@@ -32,15 +36,18 @@ export class TechBlogController {
     @Param('id') id: string,
     @Body() body: { bookmarked?: boolean } = {},
   ) {
-    return this.techBlogService.setBookmark(decodeURIComponent(id), body.bookmarked === true);
+    return this.techBlogService.setBookmark(
+      decodeURIComponent(id),
+      body.bookmarked === true,
+    );
   }
 
   @Patch('posts/:id/read')
-  setRead(
-    @Param('id') id: string,
-    @Body() body: { read?: boolean } = {},
-  ) {
-    return this.techBlogService.setRead(decodeURIComponent(id), body.read !== false);
+  setRead(@Param('id') id: string, @Body() body: { read?: boolean } = {}) {
+    return this.techBlogService.setRead(
+      decodeURIComponent(id),
+      body.read !== false,
+    );
   }
 
   @Get('trends')

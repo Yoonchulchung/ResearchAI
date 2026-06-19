@@ -1,4 +1,4 @@
-import { SearchModeInput } from '../../../application/search-planner.service';
+import { SearchModeInput } from 'src/research/application/search-planner.service';
 
 export class TestLightSearchDto {
   topic: string;

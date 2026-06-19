@@ -2,15 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
-import { DocumentEntity } from '../../domain/documents/entity/document.entity';
-import { ResumeCoverLetterEntity } from '../../domain/resume/resume-cover-letter.entity';
-import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
-import { VectorService } from '../../../vector/vector.service';
-import { QueueService } from '../../../queue/application/queue.service';
+import { DocumentEntity } from 'src/recruit/domain/documents/entity/document.entity';
+import { ResumeCoverLetterEntity } from 'src/recruit/domain/resume/resume-cover-letter.entity';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
+import { VectorService } from 'src/vector/vector.service';
+import { AiQueueService } from 'src/queue/application/queue/ai-queue.service';
 import {
   buildPortfolioEvaluationPrompt,
   PORTFOLIO_EVALUATION_SYSTEM_PROMPT,
-} from '../../domain/documents/doc-parse.prompts';
+} from 'src/recruit/domain/documents/doc-parse.prompts';
 import pdfParse from 'pdf-parse';
 
 export interface DocAskResult {
@@ -39,7 +39,6 @@ export interface ExperienceRecord {
   updatedAt: Date;
 }
 
-
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -49,7 +48,7 @@ export class DocumentsService {
     private readonly coverLetterRepo: Repository<ResumeCoverLetterEntity>,
     private readonly aiProvider: AiProviderService,
     private readonly vectorService: VectorService,
-    private readonly queueService: QueueService,
+    private readonly queueService: AiQueueService,
   ) {}
 
   // ── Documents ────────────────────────────────────────────────────────────
@@ -63,12 +62,28 @@ export class DocumentsService {
     return this.repo.findOne({ where: { id } });
   }
 
-  async create(title: string, content: string, userId: string | null, companyName?: string): Promise<DocumentEntity> {
-    const entity = this.repo.create({ id: randomUUID(), userId, title, content, companyName: companyName ?? null });
+  async create(
+    title: string,
+    content: string,
+    userId: string | null,
+    companyName?: string,
+  ): Promise<DocumentEntity> {
+    const entity = this.repo.create({
+      id: randomUUID(),
+      userId,
+      title,
+      content,
+      companyName: companyName ?? null,
+    });
     return this.repo.save(entity);
   }
 
-  async update(id: string, title?: string, content?: string, companyName?: string): Promise<DocumentEntity | null> {
+  async update(
+    id: string,
+    title?: string,
+    content?: string,
+    companyName?: string,
+  ): Promise<DocumentEntity | null> {
     const entity = await this.repo.findOne({ where: { id } });
     if (!entity) return null;
     if (title !== undefined) entity.title = title;
@@ -87,7 +102,10 @@ export class DocumentsService {
     buffer: Buffer,
     mimetype: string,
   ): Promise<{ text: string; pageCount: number; pages: string[] }> {
-    if (mimetype === 'application/pdf' || mimetype === 'application/octet-stream') {
+    if (
+      mimetype === 'application/pdf' ||
+      mimetype === 'application/octet-stream'
+    ) {
       const pages: string[] = [];
       const result = await pdfParse(buffer, {
         pagerender: (pageData: any) =>
@@ -140,7 +158,11 @@ export class DocumentsService {
     aiModel = 'claude-sonnet-4-6',
   ): Promise<DocAskResult> {
     const { system, prompt } = this.buildAskContext(docText, question);
-    const { text: answer } = await this.aiProvider.call(aiModel, system, prompt);
+    const { text: answer } = await this.aiProvider.call(
+      aiModel,
+      system,
+      prompt,
+    );
     return { answer };
   }
 
@@ -150,7 +172,9 @@ export class DocumentsService {
     aiModel = 'claude-sonnet-4-6',
   ): AsyncGenerator<string> {
     const { system, prompt } = this.buildAskContext(docText, question);
-    yield* this.aiProvider.stream(aiModel, system, [{ role: 'user', content: prompt }]);
+    yield* this.aiProvider.stream(aiModel, system, [
+      { role: 'user', content: prompt },
+    ]);
   }
 
   async quickAction(
@@ -159,9 +183,12 @@ export class DocumentsService {
     aiModel = 'claude-sonnet-4-6',
   ): Promise<DocAskResult> {
     const prompts: Record<string, string> = {
-      translate: '이 문서의 내용을 한국어로 번역해주세요. 원문의 구조와 형식을 최대한 유지하세요.',
-      explain: '이 문서의 내용을 쉬운 말로 설명해주세요. 전문 용어가 있다면 풀어서 설명하세요.',
-      keywords: '이 문서에서 핵심 키워드와 주요 개념을 추출하고 각각 간략히 설명해주세요.',
+      translate:
+        '이 문서의 내용을 한국어로 번역해주세요. 원문의 구조와 형식을 최대한 유지하세요.',
+      explain:
+        '이 문서의 내용을 쉬운 말로 설명해주세요. 전문 용어가 있다면 풀어서 설명하세요.',
+      keywords:
+        '이 문서에서 핵심 키워드와 주요 개념을 추출하고 각각 간략히 설명해주세요.',
     };
     return this.ask(docText, prompts[action], aiModel);
   }
@@ -171,7 +198,8 @@ export class DocumentsService {
     pages: string[],
     aiModel = 'claude-sonnet-4-6',
   ): Promise<DocAskResult> {
-    if (!pages || pages.length === 0) return { answer: '요약할 페이지가 없습니다.' };
+    if (!pages || pages.length === 0)
+      return { answer: '요약할 페이지가 없습니다.' };
 
     const system = `당신은 문서 요약 전문가입니다. 각 페이지의 핵심 내용을 간결하고 명확하게 요약합니다.`;
 
@@ -196,13 +224,19 @@ export class DocumentsService {
 
 ${pagesBlock}`;
 
-    const { text: answer } = await this.aiProvider.call(aiModel, system, prompt);
+    const { text: answer } = await this.aiProvider.call(
+      aiModel,
+      system,
+      prompt,
+    );
     return { answer };
   }
 
   // ── Experiences ──────────────────────────────────────────────────────────
 
-  async findAllExperiences(_userId: string | null): Promise<ExperienceRecord[]> {
+  async findAllExperiences(
+    _userId: string | null,
+  ): Promise<ExperienceRecord[]> {
     const coverLetters = await this.coverLetterRepo.find({
       relations: { resume: true },
       order: { orderIndex: 'ASC' },
@@ -236,7 +270,10 @@ ${pagesBlock}`;
     } catch {
       // fallback to comma-separated
     }
-    return value.split(',').map((s) => s.trim()).filter(Boolean);
+    return value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
 
   findOneExperience(_id: string): Promise<ExperienceRecord | null> {
@@ -264,7 +301,12 @@ ${pagesBlock}`;
       createdAt: now,
       updatedAt: now,
     };
-    await this.vectorService.indexExperience(record.id, record.title, record.content, userId);
+    await this.vectorService.indexExperience(
+      record.id,
+      record.title,
+      record.content,
+      userId,
+    );
     return record;
   }
 
@@ -282,7 +324,10 @@ ${pagesBlock}`;
     await this.vectorService.deleteExperience(id);
   }
 
-  async suggestCategories(_id: string, _model: string): Promise<{ categories: string[] }> {
+  async suggestCategories(
+    _id: string,
+    _model: string,
+  ): Promise<{ categories: string[] }> {
     return { categories: [] };
   }
 
@@ -318,8 +363,16 @@ ${content}
     }
   }
 
-  async searchExperiences(query: string, topK = 5, userId?: string | null): Promise<ExperienceSearchItem[]> {
-    const vectorResults = await this.vectorService.searchExperiences(query, topK, userId);
+  async searchExperiences(
+    query: string,
+    topK = 5,
+    userId?: string | null,
+  ): Promise<ExperienceSearchItem[]> {
+    const vectorResults = await this.vectorService.searchExperiences(
+      query,
+      topK,
+      userId,
+    );
     return vectorResults.map((r) => ({
       id: r.experienceId,
       title: r.title,
@@ -337,12 +390,22 @@ ${content}
     experiences?: { title: string; content: string }[],
     companyCtx?: string,
   ): Promise<{ jobId: string }> {
-    return this.queueService.enqueueDocWriteAssist(action, content, model, experiences, companyCtx);
+    return this.queueService.enqueueDocWriteAssist(
+      action,
+      content,
+      model,
+      experiences,
+      companyCtx,
+    );
   }
 
   // ── Doc Parse (queue) ────────────────────────────────────────────────────
 
-  enqueueDocParseAsk(docText: string, question: string, model?: string): Promise<{ jobId: string }> {
+  enqueueDocParseAsk(
+    docText: string,
+    question: string,
+    model?: string,
+  ): Promise<{ jobId: string }> {
     return this.queueService.enqueueDocParseAsk(docText, question, model ?? '');
   }
 
@@ -352,6 +415,11 @@ ${content}
     pages: string[] | undefined,
     model?: string,
   ): Promise<{ jobId: string }> {
-    return this.queueService.enqueueDocParseAction(action, docText, pages, model ?? '');
+    return this.queueService.enqueueDocParseAction(
+      action,
+      docText,
+      pages,
+      model ?? '',
+    );
   }
 }

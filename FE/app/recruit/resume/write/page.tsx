@@ -19,6 +19,7 @@ import ResumeEdit from "./components/ResumeEdit";
 import { useAuth } from "@/contexts/AuthContext";
 import { MODELS } from "@/recruit/_constants";
 import { VersionHistoryPanel } from "./_components/VersionHistoryPanel";
+import { ResumePdfPanel } from "./_components/ResumePdfPanel";
 import { useResumeDraftCache } from "./_hooks/useResumeDraftCache";
 import { useResumeVersionHistory } from "./_hooks/useResumeVersionHistory";
 import {
@@ -50,6 +51,7 @@ function WritePageClient() {
   const [, setDraftStatus] = useState("");
   const [categoryStatus, setCategoryStatus] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pdfPanelOpen, setPdfPanelOpen] = useState(false);
   const [model, setModel] = useState(MODELS[0].id);
   const modelInitRef = useRef(false);
 
@@ -434,6 +436,22 @@ function WritePageClient() {
                   </svg>
                   버전 기록
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    setPdfPanelOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+                >
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <rect x="2" y="1.5" width="9" height="12" rx="1" stroke="currentColor" strokeWidth="1.4" />
+                    <path d="M9 1.5l3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                    <rect x="9" y="1.5" width="3" height="3" rx="0.4" stroke="currentColor" strokeWidth="1.4" />
+                    <path d="M5 7h5M5 9.5h3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+                  </svg>
+                  PDF 첨부
+                </button>
               </div>
             )}
           </div>
@@ -472,6 +490,12 @@ function WritePageClient() {
           onInsertTraining={insertTraining}
         />
       </div>
+      {pdfPanelOpen && activeTargetId && (
+        <ResumePdfPanel
+          resumeId={activeTargetId}
+          onClose={() => setPdfPanelOpen(false)}
+        />
+      )}
       {versionPanelOpen && (
         <VersionHistoryPanel
           currentTarget={currentTarget}

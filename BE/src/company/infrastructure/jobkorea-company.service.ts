@@ -1,6 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { load } from 'cheerio';
-import { SessionGateway } from '../../sessions/presentation/session.gateway';
+import { SessionGateway } from 'src/sessions/presentation/session.gateway';
 
 export interface JobkoreaCompanyInfo {
   companyType: string | null;
@@ -12,27 +12,31 @@ export interface JobkoreaCompanyInfo {
 }
 
 const TYPE_MAP: Record<string, string> = {
-  '대기업': '대기업',
-  '중견기업': '중견기업',
-  '중소기업': '중소기업',
-  '공기업': '공공기관',
-  '공공기관': '공공기관',
-  '외국계기업': '외국계기업',
-  '외국계': '외국계기업',
-  '금융기관': '금융기관',
+  대기업: '대기업',
+  중견기업: '중견기업',
+  중소기업: '중소기업',
+  공기업: '공공기관',
+  공공기관: '공공기관',
+  외국계기업: '외국계기업',
+  외국계: '외국계기업',
+  금융기관: '금융기관',
   '1000대기업': '대기업',
 };
 
 const MIN_INTERVAL_MS = 2000;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const FETCH_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Accept': 'text/html,application/xhtml+xml',
+  'User-Agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  Accept: 'text/html,application/xhtml+xml',
   'Accept-Language': 'ko-KR,ko;q=0.9',
-  'Referer': 'https://www.jobkorea.co.kr/',
+  Referer: 'https://www.jobkorea.co.kr/',
 };
 
-interface CacheEntry { result: JobkoreaCompanyInfo | null; cachedAt: number }
+interface CacheEntry {
+  result: JobkoreaCompanyInfo | null;
+  cachedAt: number;
+}
 
 @Injectable()
 export class JobkoreaCompanyService {
@@ -54,11 +58,15 @@ export class JobkoreaCompanyService {
     };
   }
 
-  async fetchCompanyInfo(companyName: string, { force = false } = {}): Promise<JobkoreaCompanyInfo | null> {
+  async fetchCompanyInfo(
+    companyName: string,
+    { force = false } = {},
+  ): Promise<JobkoreaCompanyInfo | null> {
     const key = companyName.trim().toLowerCase();
     if (!force) {
       const cached = this.cache.get(key);
-      if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) return cached.result;
+      if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS)
+        return cached.result;
     }
 
     this.pendingCount++;
@@ -80,18 +88,26 @@ export class JobkoreaCompanyService {
         this.gateway?.updateDataSourceStatus(this.getStatus());
       }
     });
-    this.queue = next.then(() => undefined, () => undefined);
+    this.queue = next.then(
+      () => undefined,
+      () => undefined,
+    );
     return next;
   }
 
-  private async fetchWithDelay(companyName: string): Promise<JobkoreaCompanyInfo | null> {
+  private async fetchWithDelay(
+    companyName: string,
+  ): Promise<JobkoreaCompanyInfo | null> {
     const elapsed = Date.now() - this.lastRequestAt;
-    if (elapsed < MIN_INTERVAL_MS) await new Promise((r) => setTimeout(r, MIN_INTERVAL_MS - elapsed));
+    if (elapsed < MIN_INTERVAL_MS)
+      await new Promise((r) => setTimeout(r, MIN_INTERVAL_MS - elapsed));
     this.lastRequestAt = Date.now();
     return this.doFetch(companyName);
   }
 
-  private async doFetch(companyName: string): Promise<JobkoreaCompanyInfo | null> {
+  private async doFetch(
+    companyName: string,
+  ): Promise<JobkoreaCompanyInfo | null> {
     const pageUrl = await this.searchCompanyUrl(companyName);
     if (!pageUrl) {
       this.logger.warn(`[Jobkorea] 검색 결과 없음 — "${companyName}"`);
@@ -111,7 +127,9 @@ export class JobkoreaCompanyService {
       }
       return this.parse(await res.text(), companyName);
     } catch (e) {
-      this.logger.warn(`[Jobkorea] 요청 오류 — "${companyName}": ${(e as Error).message}`);
+      this.logger.warn(
+        `[Jobkorea] 요청 오류 — "${companyName}": ${(e as Error).message}`,
+      );
       return null;
     }
   }
@@ -123,8 +141,9 @@ export class JobkoreaCompanyService {
       const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=kr-kr`;
       const res = await fetch(searchUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept': 'text/html',
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          Accept: 'text/html',
           'Accept-Language': 'ko-KR,ko;q=0.9',
         },
         signal: AbortSignal.timeout(10000),
@@ -149,9 +168,13 @@ export class JobkoreaCompanyService {
           return;
         }
         // /recruit/co_read/c/{id} 형식 (구형)
-        const coReadM = decoded.match(/jobkorea\.co\.kr\/[Rr]ecruit\/[Cc]o_[Rr]ead(?:\/\w+)?\/[Cc]\/([^/?#]+)/i);
+        const coReadM = decoded.match(
+          /jobkorea\.co\.kr\/[Rr]ecruit\/[Cc]o_[Rr]ead(?:\/\w+)?\/[Cc]\/([^/?#]+)/i,
+        );
         if (coReadM) {
-          coReadUrls.push(`https://www.jobkorea.co.kr/recruit/co_read/c/${coReadM[1]}`);
+          coReadUrls.push(
+            `https://www.jobkorea.co.kr/recruit/co_read/c/${coReadM[1]}`,
+          );
         }
       });
 
@@ -164,10 +187,20 @@ export class JobkoreaCompanyService {
 
   private parse(html: string, companyName: string): JobkoreaCompanyInfo | null {
     const $ = load(html);
-    const norm = (s: string) => s.replace(/[\s(주)㈜주식회사(유)유한회사]/g, '').toLowerCase();
-    const pageTitle = $('title').text().replace(/\d{4}년.*$/, '').trim();
-    if (pageTitle && !norm(pageTitle).includes(norm(companyName)) && !norm(companyName).includes(norm(pageTitle))) {
-      this.logger.warn(`[Jobkorea] 회사명 불일치 — 검색: "${companyName}", 페이지: "${pageTitle}"`);
+    const norm = (s: string) =>
+      s.replace(/[\s(주)㈜주식회사(유)유한회사]/g, '').toLowerCase();
+    const pageTitle = $('title')
+      .text()
+      .replace(/\d{4}년.*$/, '')
+      .trim();
+    if (
+      pageTitle &&
+      !norm(pageTitle).includes(norm(companyName)) &&
+      !norm(companyName).includes(norm(pageTitle))
+    ) {
+      this.logger.warn(
+        `[Jobkorea] 회사명 불일치 — 검색: "${companyName}", 페이지: "${pageTitle}"`,
+      );
     }
 
     const info: JobkoreaCompanyInfo = {
@@ -188,11 +221,15 @@ export class JobkoreaCompanyService {
       switch (label) {
         case '기업구분':
           for (const [k, v] of Object.entries(TYPE_MAP)) {
-            if (value.includes(k)) { info.companyType = v; break; }
+            if (value.includes(k)) {
+              info.companyType = v;
+              break;
+            }
           }
           break;
         case '사원수':
-          info.employees = value.replace(/,/g, '').replace(/명.*/, '명') || null;
+          info.employees =
+            value.replace(/,/g, '').replace(/명.*/, '명') || null;
           break;
         case '설립일':
           info.foundedDate = value.match(/\d{4}/)?.[0] ?? null;
@@ -218,3 +255,4 @@ export class JobkoreaCompanyService {
     return info;
   }
 }
+

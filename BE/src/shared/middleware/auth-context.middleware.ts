@@ -1,8 +1,8 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { JwtService } from '@nestjs/jwt';
-import { AuthService } from '../../auth/application/auth.service';
-import { requestContext } from '../request-context';
+import { AuthService } from 'src/auth/application/auth.service';
+import { requestContext } from 'src/shared/request-context';
 
 @Injectable()
 export class AuthContextMiddleware implements NestMiddleware {
@@ -16,10 +16,9 @@ export class AuthContextMiddleware implements NestMiddleware {
 
     if (token) {
       try {
-        const payload = this.jwtService.verify<{ sub: string }>(
-          token,
-          { secret: process.env.JWT_SECRET ?? 'change-me-in-production' },
-        );
+        const payload = this.jwtService.verify<{ sub: string }>(token, {
+          secret: process.env.JWT_SECRET ?? 'change-me-in-production',
+        });
         const user = await this.authService.findById(payload.sub);
         if (user) {
           requestContext.run(
@@ -64,7 +63,15 @@ export class AuthContextMiddleware implements NestMiddleware {
     const anonId = req.headers['x-anon-id'];
     if (anonId && typeof anonId === 'string') {
       requestContext.run(
-        { id: anonId, username: 'anonymous', role: 'visitor', defaultCloudModel: null, defaultLocalModel: null, apiKeys: {}, serviceCredentials: {} },
+        {
+          id: anonId,
+          username: 'anonymous',
+          role: 'visitor',
+          defaultCloudModel: null,
+          defaultLocalModel: null,
+          apiKeys: {},
+          serviceCredentials: {},
+        },
         () => next(),
       );
       return;

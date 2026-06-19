@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { VectorService } from '../vector/vector.service';
-import { requestContext } from '../shared/request-context';
-import { AiProviderService } from '../ai/infrastructure/ai-provider.service';
-import type { ImageContentBlock } from '../ai/infrastructure/provider/vlm.types';
+import { VectorService } from 'src/vector/vector.service';
+import { requestContext } from 'src/shared/request-context';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
+import type { ImageContentBlock } from 'src/ai/infrastructure/provider/vlm.types';
 
 export enum MediaType {
   IMAGE = 'image',
@@ -49,16 +49,30 @@ export class MediaService {
     const { originalname, mimetype, buffer, size } = file;
     const fileId = randomUUID();
 
-    this.logger.log(`Parsing media: ${originalname} (${mimetype}, ${size}B) → fileId=${fileId}`);
+    this.logger.log(
+      `Parsing media: ${originalname} (${mimetype}, ${size}B) → fileId=${fileId}`,
+    );
 
     let result: ParsedMedia;
 
     if (mimetype.startsWith('image/')) {
       result = this.parseImage(fileId, originalname, mimetype, size, buffer);
     } else if (mimetype === MimeType.PDF) {
-      result = await this.parsePdf(fileId, originalname, mimetype, size, buffer);
+      result = await this.parsePdf(
+        fileId,
+        originalname,
+        mimetype,
+        size,
+        buffer,
+      );
     } else if (mimetype === MimeType.DOCX || mimetype === MimeType.DOC) {
-      result = await this.parseDocx(fileId, originalname, mimetype, size, buffer);
+      result = await this.parseDocx(
+        fileId,
+        originalname,
+        mimetype,
+        size,
+        buffer,
+      );
     } else {
       throw new Error(`Unsupported mimetype: ${mimetype}`);
     }
@@ -86,7 +100,10 @@ export class MediaService {
     return { fileId, filename, mimetype, size, type: MediaType.IMAGE, dataUrl };
   }
 
-  async extractImageText(file: Express.Multer.File, model = 'gemini-2.0-flash'): Promise<{ text: string; filename: string; model: string }> {
+  async extractImageText(
+    file: Express.Multer.File,
+    model = 'gemini-2.0-flash',
+  ): Promise<{ text: string; filename: string; model: string }> {
     if (!file.mimetype.startsWith('image/')) {
       throw new Error(`이미지 파일만 지원합니다: ${file.mimetype}`);
     }
@@ -103,7 +120,8 @@ export class MediaService {
       '추측, 요약, 설명은 하지 말고 텍스트만 출력한다.',
       '레이아웃이 있으면 제목, 섹션, 불릿의 줄바꿈을 최대한 유지한다.',
     ].join('\n');
-    const prompt = '이 이미지의 채용공고/JD 텍스트를 추출해줘. 텍스트만 출력해.';
+    const prompt =
+      '이 이미지의 채용공고/JD 텍스트를 추출해줘. 텍스트만 출력해.';
     let text = '';
     for await (const chunk of this.aiProvider.stream(model, system, [
       { role: 'user', content: [prompt, image] },

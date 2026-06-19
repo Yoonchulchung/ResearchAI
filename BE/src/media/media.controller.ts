@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { MediaService, MimeType, ParsedMedia } from './media.service';
+import { MediaService, MimeType, ParsedMedia } from 'src/media/media.service';
 
 const ALLOWED_MIMETYPES: MimeType[] = [
   MimeType.JPEG,
@@ -36,7 +36,12 @@ export class MediaController {
         if (ALLOWED_MIMETYPES.includes(file.mimetype as MimeType)) {
           cb(null, true);
         } else {
-          cb(new BadRequestException(`지원하지 않는 파일 형식입니다: ${file.mimetype}`), false);
+          cb(
+            new BadRequestException(
+              `지원하지 않는 파일 형식입니다: ${file.mimetype}`,
+            ),
+            false,
+          );
         }
       },
     }),
@@ -57,7 +62,12 @@ export class MediaController {
         if (file.mimetype.startsWith('image/')) {
           cb(null, true);
         } else {
-          cb(new BadRequestException(`이미지 파일만 지원합니다: ${file.mimetype}`), false);
+          cb(
+            new BadRequestException(
+              `이미지 파일만 지원합니다: ${file.mimetype}`,
+            ),
+            false,
+          );
         }
       },
     }),
@@ -67,6 +77,9 @@ export class MediaController {
     @Body('model') model?: string,
   ): Promise<{ text: string; filename: string; model: string }> {
     if (!file) throw new BadRequestException('파일이 없습니다.');
-    return this.mediaService.extractImageText(file, model || 'gemini-2.0-flash');
+    return this.mediaService.extractImageText(
+      file,
+      model || 'gemini-2.0-flash',
+    );
   }
 }

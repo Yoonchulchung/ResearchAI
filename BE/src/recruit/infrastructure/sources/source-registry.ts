@@ -1,16 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { IntelligentSearchService } from '../../../browse/infrastructure/search/intelligent-search.service';
-import { JobSource } from '../../domain/job-source.interface';
-import { IntelligentSearchEngine } from './intelligent-search.engine';
+import { IntelligentSearchService } from 'src/browse/infrastructure/search/intelligent-search.service';
+import { JobSource } from 'src/recruit/domain/job-source.interface';
+import { IntelligentSearchEngine } from 'src/recruit/infrastructure/sources/intelligent-search.engine';
 
 @Injectable()
 export class SourceRegistry {
   private readonly sources: JobSource[];
 
   constructor(private readonly intelligentSearch: IntelligentSearchService) {
-    this.sources = [
-      new IntelligentSearchEngine(intelligentSearch),
-    ];
+    this.sources = [new IntelligentSearchEngine(intelligentSearch)];
   }
 
   getAll(): { name: string; type: string; available: boolean }[] {

@@ -1,4 +1,10 @@
-import { Column, Entity, Index, PrimaryColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  Index,
+  PrimaryColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 @Entity('recruit_cover_letter_spec_analyses')
 @Index(['jobCategory'])

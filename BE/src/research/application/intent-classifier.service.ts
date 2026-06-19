@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AiProviderService } from '../../ai/infrastructure/ai-provider.service';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
 
 export type Intent = 'chat' | 'research' | 'clarify';
 
@@ -75,41 +75,63 @@ export class IntentClassifierService {
     // 로컬 모델이 있으면 우선 사용, 없으면 기본 AI (빈 문자열 → Gemini/Groq 폴백)
     const model = input.localAIModel?.trim() || '';
 
-    const { text } = await this.aiProvider.call(model, SYSTEM_PROMPT, userPrompt, {
-      caller: 'IntentClassifier',
-    });
+    const { text } = await this.aiProvider.call(
+      model,
+      SYSTEM_PROMPT,
+      userPrompt,
+      {
+        caller: 'IntentClassifier',
+      },
+    );
 
-    this.logger.log(`[IntentClassifier] 응답 원문: ${text.slice(0, 500).replace(/\n/g, ' ')}`);
+    this.logger.log(
+      `[IntentClassifier] 응답 원문: ${text.slice(0, 500).replace(/\n/g, ' ')}`,
+    );
 
     const parsed = this.tryParseJson(text);
-    if (parsed && (parsed.intent === 'chat' || parsed.intent === 'research' || parsed.intent === 'clarify')) {
-      const message = typeof parsed.message === 'string' && parsed.message.trim()
-        ? parsed.message.trim()
-        : this.defaultMessageFor(parsed.intent as Intent, input.topic);
+    if (
+      parsed &&
+      (parsed.intent === 'chat' ||
+        parsed.intent === 'research' ||
+        parsed.intent === 'clarify')
+    ) {
+      const message =
+        typeof parsed.message === 'string' && parsed.message.trim()
+          ? parsed.message.trim()
+          : this.defaultMessageFor(parsed.intent as Intent, input.topic);
       return {
         intent: parsed.intent as Intent,
         message,
-        refinedTopic: typeof parsed.refinedTopic === 'string' && parsed.refinedTopic.trim()
-          ? parsed.refinedTopic.trim()
-          : undefined,
+        refinedTopic:
+          typeof parsed.refinedTopic === 'string' && parsed.refinedTopic.trim()
+            ? parsed.refinedTopic.trim()
+            : undefined,
       };
     }
 
     // JSON 파싱 실패 시 — 응답 전체를 chat 메시지로 대접 (리서치 자동 실행은 위험)
-    this.logger.warn(`[IntentClassifier] JSON 파싱 실패, chat으로 폴백. 응답 일부: ${text.slice(0, 200)}`);
+    this.logger.warn(
+      `[IntentClassifier] JSON 파싱 실패, chat으로 폴백. 응답 일부: ${text.slice(0, 200)}`,
+    );
     return {
       intent: 'chat',
-      message: text.trim() || '죄송합니다. 요청을 이해하지 못했습니다. 다시 말씀해 주세요.',
+      message:
+        text.trim() ||
+        '죄송합니다. 요청을 이해하지 못했습니다. 다시 말씀해 주세요.',
     };
   }
 
   private defaultMessageFor(intent: Intent, topic: string): string {
-    if (intent === 'research') return `"${topic}" 주제로 리서치를 시작하겠습니다.`;
-    if (intent === 'clarify') return '조금 더 구체적으로 설명해주실 수 있을까요?';
+    if (intent === 'research')
+      return `"${topic}" 주제로 리서치를 시작하겠습니다.`;
+    if (intent === 'clarify')
+      return '조금 더 구체적으로 설명해주실 수 있을까요?';
     return '네, 무엇을 도와드릴까요?';
   }
 
-  private tryParseJson(text: string): { intent?: string; message?: string; refinedTopic?: string } | null {
+  private tryParseJson(
+    text: string,
+  ): { intent?: string; message?: string; refinedTopic?: string } | null {
     // 코드블록/앞뒤 텍스트 제거
     const cleaned = text
       .replace(/```json\s*/gi, '')

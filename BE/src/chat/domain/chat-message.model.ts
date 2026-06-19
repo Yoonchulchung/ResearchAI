@@ -1,13 +1,13 @@
 export enum ChatRole {
-  USER      = 'user',
+  USER = 'user',
   ASSISTANT = 'assistant',
-  SYSTEM    = 'system',
+  SYSTEM = 'system',
 }
 
 export const ChatRoleLabel: Record<ChatRole, string> = {
-  [ChatRole.USER]:      '사용자',
+  [ChatRole.USER]: '사용자',
   [ChatRole.ASSISTANT]: 'AI',
-  [ChatRole.SYSTEM]:    'System',
+  [ChatRole.SYSTEM]: 'System',
 };
 
 export interface ChatMessage {

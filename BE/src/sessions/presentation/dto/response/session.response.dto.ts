@@ -1,4 +1,4 @@
-import { Session, ItemWithResult } from '../../../domain/session.model';
+import { Session, ItemWithResult } from 'src/sessions/domain/session.model';
 
 export class ItemResponseDto {
   id: number;

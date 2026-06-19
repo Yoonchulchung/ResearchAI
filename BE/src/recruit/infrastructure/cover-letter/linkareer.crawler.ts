@@ -1,5 +1,8 @@
 import { load } from 'cheerio';
-import { CoverLetter, CoverLetterQuestion } from '../../domain/cover-letter/cover-letter.model';
+import {
+  CoverLetter,
+  CoverLetterQuestion,
+} from 'src/recruit/domain/cover-letter/cover-letter.model';
 
 const BASE_URL = 'https://linkareer.com';
 
@@ -16,7 +19,10 @@ export class LinkareerCrawler {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { headers: HEADERS, signal: controller.signal });
+      const res = await fetch(url, {
+        headers: HEADERS,
+        signal: controller.signal,
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
       return res.text();
     } finally {
@@ -147,13 +153,15 @@ export class LinkareerCrawler {
     for (const fn of candidates) {
       const cl = fn(data);
       if (!cl) continue;
-      const questions: CoverLetterQuestion[] = (cl.questions ?? cl.items ?? []).map(
-        (q: any, i: number) => ({
-          number: q.number ?? q.order ?? i + 1,
-          question: q.question ?? q.title ?? q.item ?? '',
-          answer: q.answer ?? q.content ?? '',
-        }),
-      );
+      const questions: CoverLetterQuestion[] = (
+        cl.questions ??
+        cl.items ??
+        []
+      ).map((q: any, i: number) => ({
+        number: q.number ?? q.order ?? i + 1,
+        question: q.question ?? q.title ?? q.item ?? '',
+        answer: q.answer ?? q.content ?? '',
+      }));
       if (questions.length === 0) continue;
       return {
         id,
@@ -179,7 +187,9 @@ export class LinkareerCrawler {
   private parseQuestions(articleHtml: string): CoverLetterQuestion[] {
     const $ = load(articleHtml, null, false);
     // selection-popover 같은 UI 요소 제거
-    $('#selection-popover, .SelectionPopover__StyledRoot-sc-5683a4c1-0').remove();
+    $(
+      '#selection-popover, .SelectionPopover__StyledRoot-sc-5683a4c1-0',
+    ).remove();
     const text = $.text();
 
     // "N. 질문\n 답변" 패턴으로 분할
@@ -194,13 +204,12 @@ export class LinkareerCrawler {
       if (!body) continue;
 
       const newlineIdx = body.indexOf('\n');
-      const question =
-        newlineIdx > 0 ? body.slice(0, newlineIdx).trim() : body;
+      const question = newlineIdx > 0 ? body.slice(0, newlineIdx).trim() : body;
       const answer =
         newlineIdx > 0
           ? body
               .slice(newlineIdx)
-              .replace(/^\s+/gm, '')  // 줄 앞 공백 제거
+              .replace(/^\s+/gm, '') // 줄 앞 공백 제거
               .trim()
           : '';
 

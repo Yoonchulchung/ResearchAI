@@ -1,5 +1,12 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { SessionEntity } from '../../../sessions/domain/entity/session.entity';
+import {
+  Entity,
+  Column,
+  PrimaryColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from 'typeorm';
+import { SessionEntity } from 'src/sessions/domain/entity/session.entity';
 
 @Entity('users')
 export class UserEntity {

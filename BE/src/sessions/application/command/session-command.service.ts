@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { VectorService } from '../../../vector/vector.service';
-import { Task, Session } from '../../domain/session.model';
-import { SessionRepository } from '../../domain/repository/session.repository';
-import { SessionItemRepository } from '../../domain/repository/session-item.repository';
-import { ResearchState } from '../../domain/entity/session.entity';
-import { SummaryState } from '../../domain/entity/session.entity';
-import { SessionResponseDto } from '../../presentation/dto/response/session.response.dto';
+import { VectorService } from 'src/vector/vector.service';
+import { Task, Session } from 'src/sessions/domain/session.model';
+import { SessionRepository } from 'src/sessions/domain/repository/session.repository';
+import { SessionItemRepository } from 'src/sessions/domain/repository/session-item.repository';
+import { ResearchState } from 'src/sessions/domain/entity/session.entity';
+import { SummaryState } from 'src/sessions/domain/entity/session.entity';
+import { SessionResponseDto } from 'src/sessions/presentation/dto/response/session.response.dto';
 
 @Injectable()
 export class SessionCommandService {
@@ -61,21 +61,48 @@ export class SessionCommandService {
     webResult: string,
     status: ResearchState,
     confidence?: { score: number; reason: string },
-    tokenUsage?: { inputTokens: number; outputTokens: number; estimatedFees: number },
-    extra?: { usedWebModel?: string; searchLog?: { query: string; result: string }[] },
+    tokenUsage?: {
+      inputTokens: number;
+      outputTokens: number;
+      estimatedFees: number;
+    },
+    extra?: {
+      usedWebModel?: string;
+      searchLog?: { query: string; result: string }[];
+    },
   ): Promise<void> {
-    await this.sessionItemRepository.updateResult(itemId, aiResult, webResult, status, confidence, tokenUsage, extra);
+    await this.sessionItemRepository.updateResult(
+      itemId,
+      aiResult,
+      webResult,
+      status,
+      confidence,
+      tokenUsage,
+      extra,
+    );
     if (status === ResearchState.DONE) {
       const item = await this.sessionItemRepository.findById(itemId);
-      const session = await this.sessionRepository.findById(sessionId).catch(() => null);
+      const session = await this.sessionRepository
+        .findById(sessionId)
+        .catch(() => null);
       this.vectorService
-        .indexTaskResult(sessionId, itemId, item.topic, aiResult, session?.userId ?? null)
+        .indexTaskResult(
+          sessionId,
+          itemId,
+          item.topic,
+          aiResult,
+          session?.userId ?? null,
+        )
         .catch(() => {});
     }
   }
 
-  async updateSession(sessionId: string, status: ResearchState): Promise<{ ok: boolean }> {
-    const allItems = await this.sessionItemRepository.findBySessionId(sessionId);
+  async updateSession(
+    sessionId: string,
+    status: ResearchState,
+  ): Promise<{ ok: boolean }> {
+    const allItems =
+      await this.sessionItemRepository.findBySessionId(sessionId);
     const allDone = allItems.every((i) => i.aiResult);
     if (allDone) {
       await this.sessionRepository.updateState(sessionId, ResearchState.DONE);
@@ -85,11 +112,17 @@ export class SessionCommandService {
     return { ok: true };
   }
 
-  async updateSessionState(sessionId: string, state: ResearchState): Promise<void> {
+  async updateSessionState(
+    sessionId: string,
+    state: ResearchState,
+  ): Promise<void> {
     await this.sessionRepository.updateState(sessionId, state);
   }
 
-  async updateSummaryState(sessionId: string, state: SummaryState): Promise<void> {
+  async updateSummaryState(
+    sessionId: string,
+    state: SummaryState,
+  ): Promise<void> {
     await this.sessionRepository.updateSummaryState(sessionId, state);
   }
 
@@ -100,7 +133,9 @@ export class SessionCommandService {
 
   async remove(id: string): Promise<{ ok: boolean }> {
     const items = await this.sessionItemRepository.findBySessionId(id);
-    await Promise.all(items.map((item) => this.sessionItemRepository.delete(item.id)));
+    await Promise.all(
+      items.map((item) => this.sessionItemRepository.delete(item.id)),
+    );
     await this.sessionRepository.delete(id);
     await this.vectorService.deleteSession(id).catch(() => {});
     return { ok: true };
@@ -110,8 +145,10 @@ export class SessionCommandService {
     await this.sessionRepository.updateSummary(id, summary);
   }
 
-  async setAttachedFileIds(sessionId: string, fileIds: string[]): Promise<void> {
+  async setAttachedFileIds(
+    sessionId: string,
+    fileIds: string[],
+  ): Promise<void> {
     await this.sessionRepository.updateAttachedFileIds(sessionId, fileIds);
   }
-
 }

@@ -26,9 +26,31 @@ const CITY_SLUG_LABELS: Record<string, string> = {
 };
 
 const SEOUL_DISTRICTS = new Set([
-  '종로구', '중구', '용산구', '성동구', '광진구', '동대문구', '중랑구', '성북구', '강북구',
-  '도봉구', '노원구', '은평구', '서대문구', '마포구', '양천구', '강서구', '구로구', '금천구',
-  '영등포구', '동작구', '관악구', '서초구', '강남구', '송파구', '강동구',
+  '종로구',
+  '중구',
+  '용산구',
+  '성동구',
+  '광진구',
+  '동대문구',
+  '중랑구',
+  '성북구',
+  '강북구',
+  '도봉구',
+  '노원구',
+  '은평구',
+  '서대문구',
+  '마포구',
+  '양천구',
+  '강서구',
+  '구로구',
+  '금천구',
+  '영등포구',
+  '동작구',
+  '관악구',
+  '서초구',
+  '강남구',
+  '송파구',
+  '강동구',
 ]);
 
 @Injectable()
@@ -37,10 +59,16 @@ export class ZippoomRealEstateUrlService {
     if (!address) return null;
 
     const normalizedAddress = address.replace('충첨남도', '충청남도');
-    const cityMatch = normalizedAddress.match(/([가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도))/);
+    const cityMatch = normalizedAddress.match(
+      /([가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도))/,
+    );
     const city = cityMatch?.[1] ?? null;
-    const addressAfterCity = city && cityMatch ? normalizedAddress.slice((cityMatch.index ?? 0) + city.length) : normalizedAddress;
-    const local = addressAfterCity.match(/([가-힣]{2,8}(?:구|시|군))/)?.[1] ?? null;
+    const addressAfterCity =
+      city && cityMatch
+        ? normalizedAddress.slice((cityMatch.index ?? 0) + city.length)
+        : normalizedAddress;
+    const local =
+      addressAfterCity.match(/([가-힣]{2,8}(?:구|시|군))/)?.[1] ?? null;
 
     if (!local) return null;
     if (city) return `${city} ${local}`;
@@ -49,14 +77,20 @@ export class ZippoomRealEstateUrlService {
   }
 
   buildApartmentUrl(addressOrDistrict: string | null | undefined): string {
-    const district = this.extractDistrict(addressOrDistrict) ?? addressOrDistrict?.trim();
+    const district =
+      this.extractDistrict(addressOrDistrict) ?? addressOrDistrict?.trim();
     if (!district) return `${ZIPPOOM_BASE_URL}/지역별-부동산`;
 
-    return encodeURI(`${ZIPPOOM_BASE_URL}/지역별-부동산/${this.toDistrictSlug(district)}/아파트`);
+    return encodeURI(
+      `${ZIPPOOM_BASE_URL}/지역별-부동산/${this.toDistrictSlug(district)}/아파트`,
+    );
   }
 
   private toDistrictSlug(district: string): string {
-    const city = district.match(/([가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도))/)?.[1] ?? null;
+    const city =
+      district.match(
+        /([가-힣]+(?:특별시|광역시|특별자치시|특별자치도|도))/,
+      )?.[1] ?? null;
     const local = district.match(/([가-힣]{2,8}(?:구|시|군))$/)?.[1] ?? null;
 
     if (city && local) return `${CITY_SLUG_LABELS[city] ?? city}-${local}`;

@@ -1,19 +1,30 @@
 import {
-  Body, Controller, Delete, Get, HttpCode, Param, Patch, Post,
-  UploadedFile, UseInterceptors, BadRequestException, Req, Res,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
+  Req,
+  Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import puppeteer, { Browser } from 'puppeteer';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { DocumentsService } from '../../application/documents/documents.service';
-import { JobplanetScraperService } from '../../../company/infrastructure/jobplanet-scraper.service';
-import { requestContext } from '../../../shared/request-context';
-import { CatchAuthService } from '../../../browse/infrastructure/auth/catch-auth.service';
+import { DocumentsService } from 'src/recruit/application/documents/documents.service';
+import { JobplanetScraperService } from 'src/company/infrastructure/jobplanet/jobplanet-scraper.service';
+import { requestContext } from 'src/shared/request-context';
+import { CatchAuthService } from 'src/browse/infrastructure/auth/catch-auth.service';
 import {
   BrowserAutomationUtil,
   BROWSER_LAUNCH_OPTIONS,
-} from '../../../browse/infrastructure/browser-automation.util';
+} from 'src/browse/infrastructure/browser-automation.util';
 
 // ── Experience DTOs ───────────────────────────────────────────────────────
 
@@ -48,8 +59,13 @@ export class DocumentsController {
   async debugJobplanetPage(
     @Body() body: { id: string; password: string; companyName?: string },
   ) {
-    if (!body.id || !body.password) throw new BadRequestException('id와 password가 필요합니다');
-    return this.jobplanetScraper.debugPage(body.id, body.password, body.companyName ?? '삼성전자');
+    if (!body.id || !body.password)
+      throw new BadRequestException('id와 password가 필요합니다');
+    return this.jobplanetScraper.debugPage(
+      body.id,
+      body.password,
+      body.companyName ?? '삼성전자',
+    );
   }
 
   /** 잡플래닛 리뷰 페이지 원문 + 추출 결과 — 셀렉터 튜닝용 */
@@ -60,7 +76,11 @@ export class DocumentsController {
     if (!body.id || !body.password || !body.companyName) {
       throw new BadRequestException('id, password, companyName 이 필요합니다');
     }
-    return this.jobplanetScraper.debugReviews(body.id, body.password, body.companyName);
+    return this.jobplanetScraper.debugReviews(
+      body.id,
+      body.password,
+      body.companyName,
+    );
   }
 
   @Post('jobplanet/test-login')
@@ -89,7 +109,9 @@ export class DocumentsController {
     res.flushHeaders();
 
     let closed = false;
-    req.on('close', () => { closed = true; });
+    req.on('close', () => {
+      closed = true;
+    });
 
     const send = (event: object) => {
       if (closed || res.writableEnded) return;
@@ -97,7 +119,9 @@ export class DocumentsController {
     };
 
     try {
-      const result = await this.runJobplanetTest(body, (message) => send({ type: 'log', message }));
+      const result = await this.runJobplanetTest(body, (message) =>
+        send({ type: 'log', message }),
+      );
       send({ type: 'done', result });
     } catch (e) {
       const msg = e instanceof Error ? e.message : '잡플래닛 테스트 오류';
@@ -120,7 +144,11 @@ export class DocumentsController {
 
     // 1단계: 로그인 테스트
     addLog('잡플래닛 로그인 테스트 시작');
-    const loginResult = await this.jobplanetScraper.testLogin(body.id, body.password, addLog);
+    const loginResult = await this.jobplanetScraper.testLogin(
+      body.id,
+      body.password,
+      addLog,
+    );
     if (!loginResult.success) {
       return {
         ok: false,
@@ -134,7 +162,12 @@ export class DocumentsController {
     // 2단계: 기업 데이터 수집 (companyName 있을 때만)
     if (!body.companyName?.trim()) {
       addLog('기업명이 없어 로그인 테스트만 완료');
-      return { ok: true, loginOnly: true, finalUrl: loginResult.finalUrl, logs };
+      return {
+        ok: true,
+        loginOnly: true,
+        finalUrl: loginResult.finalUrl,
+        logs,
+      };
     }
 
     try {
@@ -146,8 +179,15 @@ export class DocumentsController {
         addLog,
       );
       if (!result) {
-        addLog(`기업 데이터 수집 실패: "${body.companyName}" 검색 결과 없음 또는 수집 실패`);
-        return { ok: false, failedStep: '기업 데이터 수집', error: `"${body.companyName}" 검색 결과 없음 또는 수집 실패`, logs };
+        addLog(
+          `기업 데이터 수집 실패: "${body.companyName}" 검색 결과 없음 또는 수집 실패`,
+        );
+        return {
+          ok: false,
+          failedStep: '기업 데이터 수집',
+          error: `"${body.companyName}" 검색 결과 없음 또는 수집 실패`,
+          logs,
+        };
       }
       addLog(`기업 데이터 수집 성공: ${result.companyName}`);
       return {
@@ -161,16 +201,19 @@ export class DocumentsController {
       };
     } catch (err) {
       addLog(`기업 데이터 수집 예외: ${(err as Error).message}`);
-      return { ok: false, failedStep: '기업 데이터 수집', error: (err as Error).message, logs };
+      return {
+        ok: false,
+        failedStep: '기업 데이터 수집',
+        error: (err as Error).message,
+        logs,
+      };
     }
   }
 
   // ── Catch Test ──────────────────────────────────────────────────────────
 
   @Post('catch/test-login')
-  async testCatchLogin(
-    @Body() body: { id?: string; password?: string },
-  ) {
+  async testCatchLogin(@Body() body: { id?: string; password?: string }) {
     const credentials = this.resolveCatchCredentials(body);
     if (!credentials) {
       throw new BadRequestException('id와 password가 필요합니다');
@@ -195,7 +238,9 @@ export class DocumentsController {
     res.flushHeaders();
 
     let closed = false;
-    req.on('close', () => { closed = true; });
+    req.on('close', () => {
+      closed = true;
+    });
 
     const send = (event: object) => {
       if (closed || res.writableEnded) return;
@@ -203,7 +248,9 @@ export class DocumentsController {
     };
 
     try {
-      const result = await this.runCatchTest(credentials, (message) => send({ type: 'log', message }));
+      const result = await this.runCatchTest(credentials, (message) =>
+        send({ type: 'log', message }),
+      );
       send({ type: 'done', result });
     } catch (e) {
       const msg = e instanceof Error ? e.message : '캐치 테스트 오류';
@@ -242,9 +289,16 @@ export class DocumentsController {
       await BrowserAutomationUtil.setupPage(page);
       addLog('브라우저 페이지 설정 완료');
 
-      const result = await this.catchAuth.loginWithSession(page, body.id, body.password, addLog);
+      const result = await this.catchAuth.loginWithSession(
+        page,
+        body.id,
+        body.password,
+        addLog,
+      );
       if (!result.ok) {
-        addLog(`캐치 로그인 실패: ${result.failedStep ?? '로그인'}${result.error ? ` - ${result.error}` : ''}`);
+        addLog(
+          `캐치 로그인 실패: ${result.failedStep ?? '로그인'}${result.error ? ` - ${result.error}` : ''}`,
+        );
         return {
           ok: false,
           failedStep: result.failedStep,
@@ -254,7 +308,9 @@ export class DocumentsController {
         };
       }
 
-      addLog(`캐치 로그인 성공${result.reused ? ' (저장된 세션 사용)' : ''}: ${result.finalUrl ?? page.url()}`);
+      addLog(
+        `캐치 로그인 성공${result.reused ? ' (저장된 세션 사용)' : ''}: ${result.finalUrl ?? page.url()}`,
+      );
       return {
         ok: true,
         finalUrl: result.finalUrl ?? page.url(),
@@ -263,7 +319,12 @@ export class DocumentsController {
       };
     } catch (err) {
       addLog(`캐치 테스트 예외: ${(err as Error).message}`);
-      return { ok: false, failedStep: '테스트 실행', error: (err as Error).message, logs };
+      return {
+        ok: false,
+        failedStep: '테스트 실행',
+        error: (err as Error).message,
+        logs,
+      };
     } finally {
       await browser?.close();
       addLog('브라우저 종료');
@@ -284,13 +345,23 @@ export class DocumentsController {
   }
 
   @Post('documents')
-  create(@Body() body: { title: string; content: string; companyName?: string }) {
+  create(
+    @Body() body: { title: string; content: string; companyName?: string },
+  ) {
     const userId = requestContext.getStore()?.id ?? null;
-    return this.service.create(body.title, body.content, userId, body.companyName);
+    return this.service.create(
+      body.title,
+      body.content,
+      userId,
+      body.companyName,
+    );
   }
 
   @Patch('documents/:id')
-  update(@Param('id') id: string, @Body() body: { title?: string; content?: string; companyName?: string }) {
+  update(
+    @Param('id') id: string,
+    @Body() body: { title?: string; content?: string; companyName?: string },
+  ) {
     return this.service.update(id, body.title, body.content, body.companyName);
   }
 
@@ -305,31 +376,62 @@ export class DocumentsController {
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async upload(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('파일이 없습니다');
-    const { text, pageCount, pages } = await this.service.extractText(file.buffer, file.mimetype);
-    return { text, pageCount, pages, filename: file.originalname, size: file.size };
+    const { text, pageCount, pages } = await this.service.extractText(
+      file.buffer,
+      file.mimetype,
+    );
+    return {
+      text,
+      pageCount,
+      pages,
+      filename: file.originalname,
+      size: file.size,
+    };
   }
 
   @Post('doc-parse/ask')
   @HttpCode(202)
-  async enqueueAsk(@Body() body: { docText: string; question: string; aiModel?: string }) {
-    if (!body.docText || !body.question) throw new BadRequestException('docText와 question이 필요합니다');
-    return this.service.enqueueDocParseAsk(body.docText, body.question, body.aiModel);
+  async enqueueAsk(
+    @Body() body: { docText: string; question: string; aiModel?: string },
+  ) {
+    if (!body.docText || !body.question)
+      throw new BadRequestException('docText와 question이 필요합니다');
+    return this.service.enqueueDocParseAsk(
+      body.docText,
+      body.question,
+      body.aiModel,
+    );
   }
 
   @Post('doc-parse/quick-action')
   @HttpCode(202)
-  async enqueueQuickAction(@Body() body: { docText: string; action: string; aiModel?: string }) {
-    if (!body.docText || !body.action) throw new BadRequestException('docText와 action이 필요합니다');
-    return this.service.enqueueDocParseAction(body.action, body.docText, undefined, body.aiModel);
+  async enqueueQuickAction(
+    @Body() body: { docText: string; action: string; aiModel?: string },
+  ) {
+    if (!body.docText || !body.action)
+      throw new BadRequestException('docText와 action이 필요합니다');
+    return this.service.enqueueDocParseAction(
+      body.action,
+      body.docText,
+      undefined,
+      body.aiModel,
+    );
   }
 
   @Post('doc-parse/summarize-pages')
   @HttpCode(202)
-  async enqueueSummarizePages(@Body() body: { pages: string[]; aiModel?: string }) {
+  async enqueueSummarizePages(
+    @Body() body: { pages: string[]; aiModel?: string },
+  ) {
     if (!body.pages || !Array.isArray(body.pages) || body.pages.length === 0) {
       throw new BadRequestException('pages 배열이 필요합니다');
     }
-    return this.service.enqueueDocParseAction('summarize', undefined, body.pages, body.aiModel);
+    return this.service.enqueueDocParseAction(
+      'summarize',
+      undefined,
+      body.pages,
+      body.aiModel,
+    );
   }
 
   @Post('doc-parse/evaluate')
@@ -338,7 +440,12 @@ export class DocumentsController {
     if (!body.pages || !Array.isArray(body.pages) || body.pages.length === 0) {
       throw new BadRequestException('pages 배열이 필요합니다');
     }
-    return this.service.enqueueDocParseAction('evaluate', undefined, body.pages, body.aiModel);
+    return this.service.enqueueDocParseAction(
+      'evaluate',
+      undefined,
+      body.pages,
+      body.aiModel,
+    );
   }
 
   // ── Experiences ─────────────────────────────────────────────────────────
@@ -352,12 +459,24 @@ export class DocumentsController {
   @Post('experiences')
   createExperience(@Body() dto: CreateExperienceDto) {
     const userId = requestContext.getStore()?.id ?? null;
-    return this.service.createExperience(dto.title, dto.content, userId, dto.category, dto.sourceDocId);
+    return this.service.createExperience(
+      dto.title,
+      dto.content,
+      userId,
+      dto.category,
+      dto.sourceDocId,
+    );
   }
 
   @Patch('experiences/:id')
   updateExperience(@Param('id') id: string, @Body() dto: UpdateExperienceDto) {
-    return this.service.updateExperience(id, dto.title, dto.content, dto.category, dto.aiCategories);
+    return this.service.updateExperience(
+      id,
+      dto.title,
+      dto.content,
+      dto.category,
+      dto.aiCategories,
+    );
   }
 
   @Delete('experiences/:id')
@@ -385,7 +504,8 @@ export class DocumentsController {
 
   @Post('write-assist')
   enqueueWriteAssist(
-    @Body() body: {
+    @Body()
+    body: {
       action: string;
       content: string;
       model: string;
@@ -393,7 +513,14 @@ export class DocumentsController {
       companyCtx?: string;
     },
   ) {
-    if (!body.action || !body.content) throw new BadRequestException('action과 content가 필요합니다');
-    return this.service.enqueueWriteAssist(body.action, body.content, body.model, body.experiences, body.companyCtx);
+    if (!body.action || !body.content)
+      throw new BadRequestException('action과 content가 필요합니다');
+    return this.service.enqueueWriteAssist(
+      body.action,
+      body.content,
+      body.model,
+      body.experiences,
+      body.companyCtx,
+    );
   }
 }

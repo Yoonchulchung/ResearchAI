@@ -1,5 +1,12 @@
 import { SessionEntity } from 'src/sessions/domain/entity/session.entity';
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryColumn,
+} from 'typeorm';
 
 export enum WhoSent {
   AI = 'ai',
@@ -18,7 +25,7 @@ export class ChatEntity {
   @JoinColumn({ name: 'session_id' })
   session: SessionEntity;
 
-  @Column({name: 'who_sent'})
+  @Column({ name: 'who_sent' })
   whoSent: string;
 
   @Column()
@@ -30,5 +37,4 @@ export class ChatEntity {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
-
 }

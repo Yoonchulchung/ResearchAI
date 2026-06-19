@@ -1,6 +1,6 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import type { Request, Response, NextFunction } from 'express';
-import { MetricsService } from './metrics.service';
+import { MetricsService } from 'src/metrics/metrics.service';
 
 @Injectable()
 export class HttpMetricsMiddleware implements NestMiddleware {

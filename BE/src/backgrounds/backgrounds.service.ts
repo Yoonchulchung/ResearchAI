@@ -2,7 +2,12 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
 import { join, extname } from 'path';
 
-export const BACKGROUNDS_BASE_DIR = join(process.cwd(), 'media', 'data', 'backgrounds');
+export const BACKGROUNDS_BASE_DIR = join(
+  process.cwd(),
+  'media',
+  'data',
+  'backgrounds',
+);
 
 export interface BgImageInfo {
   id: string;
@@ -37,8 +42,11 @@ export class BackgroundsService {
 
   delete(id: string, userId: string): void {
     const dir = this.userDir(userId);
-    const files = readdirSync(dir).filter((f) => f.startsWith(id + '.') || f === id);
-    if (files.length === 0) throw new NotFoundException(`배경 이미지를 찾을 수 없습니다: ${id}`);
+    const files = readdirSync(dir).filter(
+      (f) => f.startsWith(id + '.') || f === id,
+    );
+    if (files.length === 0)
+      throw new NotFoundException(`배경 이미지를 찾을 수 없습니다: ${id}`);
     files.forEach((f) => unlinkSync(join(dir, f)));
   }
 

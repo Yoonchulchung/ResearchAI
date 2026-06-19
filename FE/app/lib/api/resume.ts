@@ -39,6 +39,7 @@ export interface ResumeTraining {
 export interface ResumeTarget {
   id: string;
   companyName: string;
+  companyId?: string | null;
   jobTitle: string;
   appliedAt?: string;
   updatedAt?: string;
@@ -55,18 +56,23 @@ export interface ResumeProfile {
   resumeTargets: ResumeTarget[];
 }
 
-export async function getResume(ids?: string | string[]): Promise<ResumeProfile | null> {
+export async function getResume(
+  ids?: string | string[],
+): Promise<ResumeProfile | null> {
   const idList = Array.isArray(ids) ? ids : ids ? [ids] : [];
-  const query = idList.length > 0
-    ? `?ids=${encodeURIComponent(idList.join(","))}`
-    : "";
-  const res = await apiFetch<{ resume: ResumeTarget[] } | null>(`/resume${query}`);
+  const query =
+    idList.length > 0 ? `?ids=${encodeURIComponent(idList.join(","))}` : "";
+  const res = await apiFetch<{ resume: ResumeTarget[] } | null>(
+    `/resume${query}`,
+  );
   if (!res) return null;
   return { resumeTargets: res.resume ?? [] };
 }
 
 export async function getDeletedResumes(): Promise<ResumeProfile | null> {
-  const res = await apiFetch<{ resume: ResumeTarget[] } | null>("/resume?deleted=true");
+  const res = await apiFetch<{ resume: ResumeTarget[] } | null>(
+    "/resume?deleted=true",
+  );
   if (!res) return null;
   return { resumeTargets: res.resume ?? [] };
 }
@@ -86,16 +92,40 @@ export async function saveResume(
   return { resumeTargets: res.resume ?? [] };
 }
 
+export async function patchResumeCompanyLink(
+  resumeId: string,
+  companyId: string | null,
+): Promise<{ companyId: string | null }> {
+  return apiFetch<{ companyId: string | null }>(
+    `/resume/${encodeURIComponent(resumeId)}/company-link`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId }),
+    },
+  );
+}
+
 export async function deleteResume(id: string): Promise<{ ok: boolean }> {
-  return apiFetch<{ ok: boolean }>(`/resume/${encodeURIComponent(id)}`, { method: "DELETE" });
+  return apiFetch<{ ok: boolean }>(`/resume/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
 }
 
 export async function restoreResume(id: string): Promise<{ ok: boolean }> {
-  return apiFetch<{ ok: boolean }>(`/resume/${encodeURIComponent(id)}/restore`, { method: "POST" });
+  return apiFetch<{ ok: boolean }>(
+    `/resume/${encodeURIComponent(id)}/restore`,
+    { method: "POST" },
+  );
 }
 
-export async function permanentlyDeleteResume(id: string): Promise<{ ok: boolean }> {
-  return apiFetch<{ ok: boolean }>(`/resume/${encodeURIComponent(id)}/permanent`, { method: "DELETE" });
+export async function permanentlyDeleteResume(
+  id: string,
+): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(
+    `/resume/${encodeURIComponent(id)}/permanent`,
+    { method: "DELETE" },
+  );
 }
 
 export async function fetchResumePdf(id: string): Promise<Blob> {
@@ -134,20 +164,28 @@ export interface ResumeVersionDetail {
   target: ResumeTarget;
 }
 
-export async function getResumeVersions(resumeId: string): Promise<ResumeVersionSummary[]> {
+export async function getResumeVersions(
+  resumeId: string,
+): Promise<ResumeVersionSummary[]> {
   const res = await apiFetch<{ items: ResumeVersionSummary[] }>(
     `/resume/${encodeURIComponent(resumeId)}/versions`,
   );
   return res.items ?? [];
 }
 
-export async function getResumeVersion(resumeId: string, versionId: string): Promise<ResumeVersionDetail> {
+export async function getResumeVersion(
+  resumeId: string,
+  versionId: string,
+): Promise<ResumeVersionDetail> {
   return apiFetch<ResumeVersionDetail>(
     `/resume/${encodeURIComponent(resumeId)}/versions/${encodeURIComponent(versionId)}`,
   );
 }
 
-export async function restoreResumeVersion(resumeId: string, versionId: string): Promise<ResumeProfile> {
+export async function restoreResumeVersion(
+  resumeId: string,
+  versionId: string,
+): Promise<ResumeProfile> {
   const res = await apiFetch<{ resume: ResumeTarget[] }>(
     `/resume/${encodeURIComponent(resumeId)}/versions/${encodeURIComponent(versionId)}/restore`,
     { method: "POST" },
@@ -155,7 +193,10 @@ export async function restoreResumeVersion(resumeId: string, versionId: string):
   return { resumeTargets: res.resume ?? [] };
 }
 
-export async function deleteResumeVersion(resumeId: string, versionId: string): Promise<{ ok: boolean }> {
+export async function deleteResumeVersion(
+  resumeId: string,
+  versionId: string,
+): Promise<{ ok: boolean }> {
   return apiFetch<{ ok: boolean }>(
     `/resume/${encodeURIComponent(resumeId)}/versions/${encodeURIComponent(versionId)}`,
     { method: "DELETE" },
@@ -170,6 +211,8 @@ export interface ResumeSearchCoverLetterItem {
   jobTitle: string;
   question: string;
   answer: string;
+  categories: string[];
+  refinedTitle: string | null;
 }
 
 export interface ResumeSearchExperienceItem {
@@ -212,16 +255,47 @@ export interface ResumeSearchTrainingItem {
   description: string | null;
 }
 
-export type ResumeSearchItem = ResumeSearchCoverLetterItem | ResumeSearchExperienceItem | ResumeSearchPrizeItem | ResumeSearchTrainingItem;
+export type ResumeSearchItem =
+  | ResumeSearchCoverLetterItem
+  | ResumeSearchExperienceItem
+  | ResumeSearchPrizeItem
+  | ResumeSearchTrainingItem;
 
-export async function searchResume(q: string): Promise<ResumeSearchItem[]> {
-  const res = await apiFetch<{ items: ResumeSearchItem[] }>(`/resume/search?q=${encodeURIComponent(q)}`);
+export async function searchResume(
+  q: string,
+  excludeResumeId?: string,
+): Promise<ResumeSearchItem[]> {
+  const params = new URLSearchParams({ q });
+  if (excludeResumeId) params.set("excludeResumeId", excludeResumeId);
+  const res = await apiFetch<{ items: ResumeSearchItem[] }>(
+    `/resume/search?${params.toString()}`,
+  );
   return res?.items ?? [];
+}
+
+export interface ResumeActivitiesResult {
+  experiences: ResumeSearchExperienceItem[];
+  prizes: ResumeSearchPrizeItem[];
+}
+
+export async function getResumeActivities(
+  excludeResumeId?: string,
+): Promise<ResumeActivitiesResult> {
+  const params = new URLSearchParams();
+  if (excludeResumeId) params.set("excludeResumeId", excludeResumeId);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch<ResumeActivitiesResult>(`/resume/activities${suffix}`);
 }
 
 export type ResumeCategoryEvent =
   | { type: "log"; message: string }
-  | { type: "done"; payload?: { total: number; updated: Array<{ id: string; resumeId: string; category: string[] }> } }
+  | {
+      type: "done";
+      payload?: {
+        total: number;
+        updated: Array<{ id: string; resumeId: string; category: string[] }>;
+      };
+    }
   | { type: "error"; message: string };
 
 export async function enqueueResumeCoverLetterCategories(request: {
@@ -242,11 +316,15 @@ export async function streamResumeCoverLetterCategories(
   onEvent: (event: ResumeCategoryEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/queue/resume/cover-letter-categories/${jobId}/stream`, {
-    headers: getAuthHeaders(),
-    signal,
-  });
-  if (!res.ok || !res.body) throw new Error("자기소개서 카테고리 분류 스트림 연결에 실패했습니다.");
+  const res = await fetch(
+    `${API_BASE}/queue/resume/cover-letter-categories/${jobId}/stream`,
+    {
+      headers: getAuthHeaders(),
+      signal,
+    },
+  );
+  if (!res.ok || !res.body)
+    throw new Error("자기소개서 카테고리 분류 스트림 연결에 실패했습니다.");
   await readSSE<ResumeCategoryEvent>(res, (event) => {
     onEvent(event);
     if (event.type === "done" || event.type === "error") return true;
@@ -255,7 +333,13 @@ export async function streamResumeCoverLetterCategories(
 
 export type ResumeRefinedTitleEvent =
   | { type: "log"; message: string }
-  | { type: "done"; payload?: { total: number; updated: Array<{ id: string; resumeId: string; refinedTitle: string }> } }
+  | {
+      type: "done";
+      payload?: {
+        total: number;
+        updated: Array<{ id: string; resumeId: string; refinedTitle: string }>;
+      };
+    }
   | { type: "error"; message: string };
 
 export async function enqueueResumeCoverLetterRefinedTitles(request: {
@@ -265,10 +349,13 @@ export async function enqueueResumeCoverLetterRefinedTitles(request: {
   limit?: number;
   model?: string;
 }): Promise<{ jobId: string }> {
-  return apiFetch<{ jobId: string }>("/queue/resume/cover-letter-refined-titles", {
-    method: "POST",
-    body: JSON.stringify(request),
-  });
+  return apiFetch<{ jobId: string }>(
+    "/queue/resume/cover-letter-refined-titles",
+    {
+      method: "POST",
+      body: JSON.stringify(request),
+    },
+  );
 }
 
 export async function streamResumeCoverLetterRefinedTitles(
@@ -276,11 +363,15 @@ export async function streamResumeCoverLetterRefinedTitles(
   onEvent: (event: ResumeRefinedTitleEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/queue/resume/cover-letter-refined-titles/${jobId}/stream`, {
-    headers: getAuthHeaders(),
-    signal,
-  });
-  if (!res.ok || !res.body) throw new Error("자기소개서 제목 재작성 스트림 연결에 실패했습니다.");
+  const res = await fetch(
+    `${API_BASE}/queue/resume/cover-letter-refined-titles/${jobId}/stream`,
+    {
+      headers: getAuthHeaders(),
+      signal,
+    },
+  );
+  if (!res.ok || !res.body)
+    throw new Error("자기소개서 제목 재작성 스트림 연결에 실패했습니다.");
   await readSSE<ResumeRefinedTitleEvent>(res, (event) => {
     onEvent(event);
     if (event.type === "done" || event.type === "error") return true;
@@ -313,4 +404,73 @@ export const upsertResumeAiEval = (
   });
 
 export const deleteResumeAiEval = (id: string) =>
-  apiFetch<{ ok: boolean }>(`/resume/ai-evals/${encodeURIComponent(id)}`, { method: "DELETE" });
+  apiFetch<{ ok: boolean }>(`/resume/ai-evals/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+
+// ── PDF 첨부파일 ──────────────────────────────────────────────────────────────
+
+export interface ResumeAttachment {
+  id: string;
+  resumeId: string;
+  filename: string;
+  mimeType: string;
+  fileSize: number;
+  parsedText: string | null;
+  pageCount: number | null;
+  createdAt: string;
+}
+
+export function getResumeAttachments(resumeId: string) {
+  return apiFetch<ResumeAttachment[]>(
+    `/resume/${encodeURIComponent(resumeId)}/attachments`,
+  );
+}
+
+export async function uploadResumeAttachment(
+  resumeId: string,
+  file: File,
+): Promise<ResumeAttachment> {
+  const headers = getAuthHeaders();
+  // multipart 전송 시 Content-Type은 브라우저가 설정
+  delete (headers as Record<string, string>)["Content-Type"];
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(
+    `${API_BASE}/resume/${encodeURIComponent(resumeId)}/attachments`,
+    {
+      method: "POST",
+      headers,
+      body: formData,
+    },
+  );
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(err.message ?? "PDF 업로드에 실패했습니다.");
+  }
+  return res.json() as Promise<ResumeAttachment>;
+}
+
+export function getResumeAttachmentFileUrl(resumeId: string, id: string) {
+  return `${API_BASE}/resume/${encodeURIComponent(resumeId)}/attachments/${encodeURIComponent(id)}/file`;
+}
+
+export async function fetchResumeAttachmentFile(
+  resumeId: string,
+  id: string,
+  filename: string,
+): Promise<File> {
+  const res = await fetch(getResumeAttachmentFileUrl(resumeId, id), {
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error("첨부파일을 가져오지 못했습니다.");
+  const blob = await res.blob();
+  return new File([blob], filename, { type: blob.type || "application/pdf" });
+}
+
+export function deleteResumeAttachment(resumeId: string, id: string) {
+  return apiFetch<{ ok: boolean }>(
+    `/resume/${encodeURIComponent(resumeId)}/attachments/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+}

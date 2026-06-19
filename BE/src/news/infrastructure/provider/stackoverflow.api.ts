@@ -13,7 +13,10 @@ export interface SOQuestion {
 
 @Injectable()
 export class StackOverflowApi {
-  async fetchHotQuestions(site = 'stackoverflow', limit = 20): Promise<SOQuestion[]> {
+  async fetchHotQuestions(
+    site = 'stackoverflow',
+    limit = 20,
+  ): Promise<SOQuestion[]> {
     const params = new URLSearchParams({
       order: 'desc',
       sort: 'hot',
@@ -21,10 +24,13 @@ export class StackOverflowApi {
       filter: 'default',
       pagesize: String(Math.min(limit, 50)),
     });
-    const res = await fetch(`https://api.stackexchange.com/2.3/questions?${params}`, {
-      headers: { Accept: 'application/json' },
-    });
-    const data = await res.json() as { items?: SOQuestion[] };
+    const res = await fetch(
+      `https://api.stackexchange.com/2.3/questions?${params}`,
+      {
+        headers: { Accept: 'application/json' },
+      },
+    );
+    const data = (await res.json()) as { items?: SOQuestion[] };
     return data.items ?? [];
   }
 }

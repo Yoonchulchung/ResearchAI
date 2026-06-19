@@ -1,32 +1,74 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { LIGHT_RESEARCH_PROMPTS as PROMPTS } from '../../domain/prompt/research.prompts';
-import { searchTavilyLight } from '../../infrastructure/search/tavily.search';
-import { searchSerper } from '../../infrastructure/search/serper.search';
-import { searchNaver } from '../../infrastructure/search/naver.search';
-import { searchBrave } from '../../infrastructure/search/brave.search';
-import { SearchPlannerService, SearchModeInput } from '../search-planner.service';
-import { SearchPlan, SearchMode, PlannerMode, SearchEngine, isBuiltinSearchEngine } from 'src/research/domain/model/search-planner.model';
-import { AIProvider, AI_MODEL_PREFIX, getProvider } from '../../../ai/domain/models';
-import { RecruitContextService } from '../../../recruit/application/recruit-context.service';
-import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
-import { VlmMessage, ImageContentBlock } from '../../../ai/infrastructure/ai-provider.service';
-import { SearchListRepository } from '../../domain/repository/search-list.repository';
-import { ResearchRecruitRepository } from '../../domain/repository/research-recruit.repository';
-import { LightResearchEventType } from '../../domain/model/light-research.model';
-import { AttachedFilePayload } from '../../../queue/presentation/dto/request/enqueue-light-research.dto';
+import { LIGHT_RESEARCH_PROMPTS as PROMPTS } from 'src/research/domain/prompt/research.prompts';
+import { searchTavilyLight } from 'src/research/infrastructure/search/tavily.search';
+import { searchSerper } from 'src/research/infrastructure/search/serper.search';
+import { searchNaver } from 'src/research/infrastructure/search/naver.search';
+import { searchBrave } from 'src/research/infrastructure/search/brave.search';
+import {
+  SearchPlannerService,
+  SearchModeInput,
+} from 'src/research/application/search-planner.service';
+import {
+  SearchPlan,
+  SearchMode,
+  PlannerMode,
+  SearchEngine,
+  isBuiltinSearchEngine,
+} from 'src/research/domain/model/search-planner.model';
+import {
+  AIProvider,
+  AI_MODEL_PREFIX,
+  getProvider,
+} from 'src/ai/domain/models';
+import { RecruitContextService } from 'src/recruit/application/recruit-context.service';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
+import {
+  VlmMessage,
+  ImageContentBlock,
+} from 'src/ai/infrastructure/ai-provider.service';
+import { SearchListRepository } from 'src/research/domain/repository/search-list.repository';
+import { ResearchRecruitRepository } from 'src/research/domain/repository/research-recruit.repository';
+import { LightResearchEventType } from 'src/research/domain/model/light-research.model';
+import { AttachedFilePayload } from 'src/queue/presentation/dto/request/enqueue-light-research.dto';
 
-export type JobItem = { title: string; company: string; location?: string | null; description?: string | null; skills: string[]; url: string };
+export type JobItem = {
+  title: string;
+  company: string;
+  location?: string | null;
+  description?: string | null;
+  skills: string[];
+  url: string;
+};
 
 export type LightResearchEvent =
   | { type: LightResearchEventType.START }
-  | { type: LightResearchEventType.PLAN; searchMode: SearchMode; reason: string }
+  | {
+      type: LightResearchEventType.PLAN;
+      searchMode: SearchMode;
+      reason: string;
+    }
   | { type: LightResearchEventType.LOG; message: string }
   | { type: LightResearchEventType.JOBS; jobs: JobItem[] }
   | { type: LightResearchEventType.GENERATING; model: string }
-  | { type: LightResearchEventType.DONE; tasks: any[]; searchPlan: SearchPlan; searchId?: string }
-  | { type: LightResearchEventType.SAVEDB; action: 'recruit'; searchId: string; jobs: JobItem[] }
-  | { type: LightResearchEventType.SAVEDB; action: 'searchList'; searchId: string; tasks: { title: string; prompt: string }[] };
+  | {
+      type: LightResearchEventType.DONE;
+      tasks: any[];
+      searchPlan: SearchPlan;
+      searchId?: string;
+    }
+  | {
+      type: LightResearchEventType.SAVEDB;
+      action: 'recruit';
+      searchId: string;
+      jobs: JobItem[];
+    }
+  | {
+      type: LightResearchEventType.SAVEDB;
+      action: 'searchList';
+      searchId: string;
+      tasks: { title: string; prompt: string }[];
+    };
 
 /**
  * LightResearch 파이프라인
@@ -59,29 +101,50 @@ export class LightResearchPipelineService {
   async testRun(
     topic: string,
     model: string,
-    opts?: { customPrompt?: string; customSystem?: string; searchMode?: SearchModeInput },
+    opts?: {
+      customPrompt?: string;
+      customSystem?: string;
+      searchMode?: SearchModeInput;
+    },
   ) {
     const searchMode = opts?.searchMode ?? PlannerMode.AUTO;
-    const searchPlan: SearchPlan = searchMode === PlannerMode.AUTO
-      ? await this.planner.plan(topic)
-      : { searchMode, reason: '수동 지정', keyword: topic };
+    const searchPlan: SearchPlan =
+      searchMode === PlannerMode.AUTO
+        ? await this.planner.plan(topic)
+        : { searchMode, reason: '수동 지정', keyword: topic };
 
     const { keyword } = searchPlan;
 
     let webContext: string | undefined;
-    if ((searchPlan.searchMode === SearchMode.WEB || searchPlan.searchMode === SearchMode.BOTH) && this.hasEngine(SearchEngine.TAVILY)) {
-      try { webContext = await searchTavilyLight(keyword); } catch { /* 무시 */ }
+    if (
+      (searchPlan.searchMode === SearchMode.WEB ||
+        searchPlan.searchMode === SearchMode.BOTH) &&
+      this.hasEngine(SearchEngine.TAVILY)
+    ) {
+      try {
+        webContext = await searchTavilyLight(keyword);
+      } catch {
+        /* 무시 */
+      }
     }
 
     let recruitCtx: string | undefined;
-    if (searchPlan.searchMode === SearchMode.RECRUIT || searchPlan.searchMode === SearchMode.BOTH) {
-      for await (const event of this.recruitContext.liveSearch({ keyword, companyTypes: searchPlan.companyTypes, jobTypes: searchPlan.jobTypes })) {
+    if (
+      searchPlan.searchMode === SearchMode.RECRUIT ||
+      searchPlan.searchMode === SearchMode.BOTH
+    ) {
+      for await (const event of this.recruitContext.liveSearch({
+        keyword,
+        companyTypes: searchPlan.companyTypes,
+        jobTypes: searchPlan.jobTypes,
+      })) {
         if (event.type === 'result' && event.result) recruitCtx = event.result;
       }
     }
 
     const parts = [webContext, recruitCtx].filter(Boolean) as string[];
-    const searchContext = parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
+    const searchContext =
+      parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
 
     const fullPrompt = opts?.customPrompt
       ? opts.customPrompt
@@ -93,11 +156,13 @@ export class LightResearchPipelineService {
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
     const rawTasks = JSON.parse(jsonMatch[0]);
-    const tasks = rawTasks.map((task: { prompt: string; [key: string]: any }) => ({
-      ...task,
-      webSearchPrompt: task.prompt,
-      prompt: undefined,
-    }));
+    const tasks = rawTasks.map(
+      (task: { prompt: string; [key: string]: any }) => ({
+        ...task,
+        webSearchPrompt: task.prompt,
+        prompt: undefined,
+      }),
+    );
 
     return { tasks, searchContext, fullPrompt, searchPlan };
   }
@@ -116,11 +181,17 @@ export class LightResearchPipelineService {
     onEvent?: (event: LightResearchEvent) => void,
     attachedFiles?: AttachedFilePayload[],
   ): Promise<{ tasks: any[]; searchPlan: SearchPlan }> {
-    for await (const event of this.runStream(topic, localAIModel, cloudAIModel, webModel, searchMode, searchId, attachedFiles)) {
-
+    for await (const event of this.runStream(
+      topic,
+      localAIModel,
+      cloudAIModel,
+      webModel,
+      searchMode,
+      searchId,
+      attachedFiles,
+    )) {
       if (event.type === LightResearchEventType.SAVEDB) {
         if (event.action === 'recruit') {
-          
           Promise.all(
             event.jobs.map((job) =>
               this.researchRecruitRepository.save({
@@ -136,9 +207,7 @@ export class LightResearchPipelineService {
               }),
             ),
           ).catch(() => {});
-
         } else if (event.action === 'searchList') {
-          
           Promise.all(
             event.tasks.map((task) =>
               this.searchListRepository.save({
@@ -179,16 +248,38 @@ export class LightResearchPipelineService {
     const useBuiltin = isBuiltinSearchEngine(webModel);
 
     let webContext: string | undefined;
-    if (!useBuiltin && (searchPlan.searchMode === SearchMode.WEB || searchPlan.searchMode === SearchMode.BOTH) && this.hasEngine(webModel)) {
+    if (
+      !useBuiltin &&
+      (searchPlan.searchMode === SearchMode.WEB ||
+        searchPlan.searchMode === SearchMode.BOTH) &&
+      this.hasEngine(webModel)
+    ) {
       webContext = yield* this.step1aWebSearch(searchPlan.keyword, webModel);
     }
 
     let recruitCtx: string | undefined;
-    if (searchPlan.searchMode === SearchMode.RECRUIT || searchPlan.searchMode === SearchMode.BOTH) {
-      recruitCtx = yield* this.step1bRecruitSearch(searchPlan.companyTypes, searchPlan.jobTypes, searchPlan.keyword, searchId);
+    if (
+      searchPlan.searchMode === SearchMode.RECRUIT ||
+      searchPlan.searchMode === SearchMode.BOTH
+    ) {
+      recruitCtx = yield* this.step1bRecruitSearch(
+        searchPlan.companyTypes,
+        searchPlan.jobTypes,
+        searchPlan.keyword,
+        searchId,
+      );
     }
 
-    yield* this.step2GenerateTasks(topic, model, searchPlan, webContext, recruitCtx, searchId, useBuiltin, attachedFiles);
+    yield* this.step2GenerateTasks(
+      topic,
+      model,
+      searchPlan,
+      webContext,
+      recruitCtx,
+      searchId,
+      useBuiltin,
+      attachedFiles,
+    );
   }
 
   // ── Step 0: 검색 소스 결정 ──
@@ -198,17 +289,20 @@ export class LightResearchPipelineService {
     searchMode: SearchModeInput = PlannerMode.AUTO,
   ): AsyncGenerator<LightResearchEvent, SearchPlan> {
     yield* this.printFront(`검색 소스 결정 중...`);
-    
-    const searchPlan: SearchPlan = searchMode === PlannerMode.AUTO
-      ? await this.planner.plan(topic, localAIModel)
-      : { searchMode, reason: '수동 지정', keyword: topic };
+
+    const searchPlan: SearchPlan =
+      searchMode === PlannerMode.AUTO
+        ? await this.planner.plan(topic, localAIModel)
+        : { searchMode, reason: '수동 지정', keyword: topic };
 
     if (searchPlan.model) {
       yield* this.printFront(`플래에 사용된 모델: ${searchPlan.model}`);
       yield* this.printFront(`플랜 결과: ${searchPlan.searchMode}`);
       yield* this.printFront(`서칭 키워드: ${searchPlan.keyword}`);
     } else {
-      this.logger.warn(`검색 계획 생성에 실패했습니다. searchPlan: ${JSON.stringify(searchPlan)}`);
+      this.logger.warn(
+        `검색 계획 생성에 실패했습니다. searchPlan: ${JSON.stringify(searchPlan)}`,
+      );
     }
 
     return searchPlan;
@@ -219,8 +313,9 @@ export class LightResearchPipelineService {
     searchKeyword: string,
     webModel: SearchEngine,
   ): AsyncGenerator<LightResearchEvent, string | undefined> {
-    
-    yield* this.printFront(`웹 검색을 시작하겠습니다. 잠시만 기다려주세요. (엔진: ${webModel || 'auto'})`);
+    yield* this.printFront(
+      `웹 검색을 시작하겠습니다. 잠시만 기다려주세요. (엔진: ${webModel || 'auto'})`,
+    );
     try {
       const webContext = await this.searchWithEngine(webModel, searchKeyword);
       const lines = webContext?.split('\n').length ?? 0;
@@ -240,24 +335,41 @@ export class LightResearchPipelineService {
     keyword: string,
     searchId?: string,
   ): AsyncGenerator<LightResearchEvent, string | undefined> {
-    
-    yield* this.printFront(`채용 공고 검색을 시작하겠습니다. 잠시만 기다려주세요.`);
+    yield* this.printFront(
+      `채용 공고 검색을 시작하겠습니다. 잠시만 기다려주세요.`,
+    );
     const filterDesc = [
-      searchCompanyTypes?.length ? `기업유형: ${searchCompanyTypes.join(', ')}` : '',
+      searchCompanyTypes?.length
+        ? `기업유형: ${searchCompanyTypes.join(', ')}`
+        : '',
       searchJobTypes?.length ? `경력: ${searchJobTypes.join(', ')}` : '',
-    ].filter(Boolean).join(' / ');
-    yield* this.printFront(`검색 키워드: ${keyword}${filterDesc ? ` / ${filterDesc}` : ''}`);
+    ]
+      .filter(Boolean)
+      .join(' / ');
+    yield* this.printFront(
+      `검색 키워드: ${keyword}${filterDesc ? ` / ${filterDesc}` : ''}`,
+    );
 
     let recruitCtx: string | undefined;
-    for await (const event of this.recruitContext.liveSearch({ keyword, companyTypes: searchCompanyTypes, jobTypes: searchJobTypes })) {
-      if (event.type === LightResearchEventType.LOG) yield* this.printFront(event.message);
+    for await (const event of this.recruitContext.liveSearch({
+      keyword,
+      companyTypes: searchCompanyTypes,
+      jobTypes: searchJobTypes,
+    })) {
+      if (event.type === LightResearchEventType.LOG)
+        yield* this.printFront(event.message);
       else if (event.type === LightResearchEventType.JOBS) {
         yield { type: LightResearchEventType.JOBS, jobs: event.jobs };
         if (searchId) {
-          yield { type: LightResearchEventType.SAVEDB, action: 'recruit' as const, searchId, jobs: event.jobs };
+          yield {
+            type: LightResearchEventType.SAVEDB,
+            action: 'recruit' as const,
+            searchId,
+            jobs: event.jobs,
+          };
         }
-      }
-      else if (event.type === 'result' && event.result) recruitCtx = event.result;
+      } else if (event.type === 'result' && event.result)
+        recruitCtx = event.result;
     }
     return recruitCtx;
   }
@@ -276,19 +388,34 @@ export class LightResearchPipelineService {
     // 채용 공고 모드: AI 호출 없이 단일 태스크 즉시 반환
     if (searchPlan.searchMode === SearchMode.RECRUIT) {
       yield* this.printFront(`채용 공고 모드 — 태스크 생성 완료`);
-      const mappedTasks = [{ id: 1, title: '채용 공고 검색', webSearchPrompt: searchPlan.keyword }];
+      const mappedTasks = [
+        { id: 1, title: '채용 공고 검색', webSearchPrompt: searchPlan.keyword },
+      ];
       if (searchId) {
-        yield { type: LightResearchEventType.SAVEDB, action: 'searchList' as const, searchId, tasks: [{ title: '채용 공고 검색', prompt: searchPlan.keyword }] };
+        yield {
+          type: LightResearchEventType.SAVEDB,
+          action: 'searchList' as const,
+          searchId,
+          tasks: [{ title: '채용 공고 검색', prompt: searchPlan.keyword }],
+        };
       }
-      yield { type: LightResearchEventType.DONE, tasks: mappedTasks, searchPlan: { ...searchPlan, source: searchPlan.searchMode } as any, searchId };
+      yield {
+        type: LightResearchEventType.DONE,
+        tasks: mappedTasks,
+        searchPlan: { ...searchPlan, source: searchPlan.searchMode } as any,
+        searchId,
+      };
       return;
     }
 
-    yield* this.printFront(`AI 검색 실행을 시작하겠습니다. 잠시만 기다려주세요.`);
+    yield* this.printFront(
+      `AI 검색 실행을 시작하겠습니다. 잠시만 기다려주세요.`,
+    );
     yield* this.printFront(`사용된 모델: ${model}`);
 
     const parts = [webContext, recruitCtx].filter(Boolean) as string[];
-    const searchContext = parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
+    const searchContext =
+      parts.length > 0 ? parts.join('\n\n---\n\n') : undefined;
 
     let fullPrompt = PROMPTS.taskList(topic, searchContext);
 
@@ -303,17 +430,28 @@ export class LightResearchPipelineService {
     const promptChars = fullPrompt.length;
     const approxTokens = Math.round(promptChars / 4);
     const inputCostPer1M = this.aiProvier.getInputCostPer1M(model);
-    const estimatedCost = inputCostPer1M != null
-      ? ` / 입력 비용 약 $${((approxTokens / 1_000_000) * inputCostPer1M).toFixed(5)}`
-      : '';
-    yield* this.printFront(`프롬프트 크기: ${promptChars.toLocaleString()}자 / 약 ${approxTokens.toLocaleString()} 토큰${estimatedCost}`);
+    const estimatedCost =
+      inputCostPer1M != null
+        ? ` / 입력 비용 약 $${((approxTokens / 1_000_000) * inputCostPer1M).toFixed(5)}`
+        : '';
+    yield* this.printFront(
+      `프롬프트 크기: ${promptChars.toLocaleString()}자 / 약 ${approxTokens.toLocaleString()} 토큰${estimatedCost}`,
+    );
 
-    const imageFiles = (attachedFiles ?? []).filter((f) => f.type === 'image' && f.dataUrl && f.mediaType);
+    const imageFiles = (attachedFiles ?? []).filter(
+      (f) => f.type === 'image' && f.dataUrl && f.mediaType,
+    );
     if (imageFiles.length > 0) {
       yield* this.printFront(`첨부 이미지 ${imageFiles.length}개 포함`);
     }
 
-    const raw = await this.callAI(model, fullPrompt, undefined, useBuiltinSearch, attachedFiles);
+    const raw = await this.callAI(
+      model,
+      fullPrompt,
+      undefined,
+      useBuiltinSearch,
+      attachedFiles,
+    );
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error('태스크 생성 실패: JSON 파싱 오류');
     const tasks = JSON.parse(jsonMatch[0]);
@@ -321,38 +459,72 @@ export class LightResearchPipelineService {
     yield* this.printFront(`AI 응답 — 태스크 ${tasks.length}개 파싱 완료`);
 
     if (searchId) {
-      yield { type: LightResearchEventType.SAVEDB, action: 'searchList' as const, searchId, tasks };
+      yield {
+        type: LightResearchEventType.SAVEDB,
+        action: 'searchList' as const,
+        searchId,
+        tasks,
+      };
     }
 
-    const mappedTasks = tasks.map((task: { title: string; prompt: string; [key: string]: any }) => ({
-      ...task,
-      webSearchPrompt: task.prompt,
-      prompt: undefined,
-    }));
+    const mappedTasks = tasks.map(
+      (task: { title: string; prompt: string; [key: string]: any }) => ({
+        ...task,
+        webSearchPrompt: task.prompt,
+        prompt: undefined,
+      }),
+    );
 
-    yield { type: LightResearchEventType.DONE, tasks: mappedTasks, searchPlan: { ...searchPlan, source: searchPlan.searchMode } as any, searchId };
+    yield {
+      type: LightResearchEventType.DONE,
+      tasks: mappedTasks,
+      searchPlan: { ...searchPlan, source: searchPlan.searchMode } as any,
+      searchId,
+    };
   }
 
-  
   private *printFront(message: string): Generator<LightResearchEvent> {
     yield { type: LightResearchEventType.LOG, message };
   }
 
   private hasEngine(engine: SearchEngine): boolean {
     switch (engine) {
-      case SearchEngine.SERPER: return !!process.env.SERPER_API_KEY && !process.env.SERPER_API_KEY.startsWith('your_');
-      case SearchEngine.NAVER:  return !!process.env.NAVER_CLIENT_ID && !process.env.NAVER_CLIENT_ID.startsWith('your_');
-      case SearchEngine.BRAVE:  return !!process.env.BRAVE_API_KEY && !process.env.BRAVE_API_KEY.startsWith('your_');
-      default:                  return !!process.env.TAVILY_API_KEY && !process.env.TAVILY_API_KEY.startsWith('your_');
+      case SearchEngine.SERPER:
+        return (
+          !!process.env.SERPER_API_KEY &&
+          !process.env.SERPER_API_KEY.startsWith('your_')
+        );
+      case SearchEngine.NAVER:
+        return (
+          !!process.env.NAVER_CLIENT_ID &&
+          !process.env.NAVER_CLIENT_ID.startsWith('your_')
+        );
+      case SearchEngine.BRAVE:
+        return (
+          !!process.env.BRAVE_API_KEY &&
+          !process.env.BRAVE_API_KEY.startsWith('your_')
+        );
+      default:
+        return (
+          !!process.env.TAVILY_API_KEY &&
+          !process.env.TAVILY_API_KEY.startsWith('your_')
+        );
     }
   }
 
-  private async searchWithEngine(engine: SearchEngine, keyword: string): Promise<string> {
+  private async searchWithEngine(
+    engine: SearchEngine,
+    keyword: string,
+  ): Promise<string> {
     switch (engine) {
-      case SearchEngine.SERPER: return searchSerper(keyword);
-      case SearchEngine.NAVER:  return searchNaver(keyword);
-      case SearchEngine.BRAVE:  return searchBrave(keyword);
-      default:                  return searchTavilyLight(keyword);
+      case SearchEngine.SERPER:
+        return searchSerper(keyword);
+      case SearchEngine.NAVER:
+        return searchNaver(keyword);
+      case SearchEngine.BRAVE:
+        return searchBrave(keyword);
+      default:
+        return searchTavilyLight(keyword);
     }
   }
 
@@ -365,15 +537,18 @@ export class LightResearchPipelineService {
   ): Promise<string> {
     const system = systemOverride ?? PROMPTS.system;
     const providerType = getProvider(model);
-    const provider = providerType === AIProvider.OLLAMA
-      ? `${AIProvider.OLLAMA} (${model.slice(AI_MODEL_PREFIX.OLLAMA.length)})`
-      : providerType;
+    const provider =
+      providerType === AIProvider.OLLAMA
+        ? `${AIProvider.OLLAMA} (${model.slice(AI_MODEL_PREFIX.OLLAMA.length)})`
+        : providerType;
     this.logger.log(`[태스크 생성] ${provider} — model=${model}`);
 
     const imageBlocks: ImageContentBlock[] = (attachedFiles ?? [])
       .filter((f) => f.type === 'image' && f.dataUrl && f.mediaType)
       .map((f) => {
-        const base64 = f.dataUrl!.includes(',') ? f.dataUrl!.split(',')[1] : f.dataUrl!;
+        const base64 = f.dataUrl!.includes(',')
+          ? f.dataUrl!.split(',')[1]
+          : f.dataUrl!;
         return {
           type: 'image' as const,
           mediaType: f.mediaType as ImageContentBlock['mediaType'],
@@ -382,14 +557,22 @@ export class LightResearchPipelineService {
       });
 
     if (imageBlocks.length > 0) {
-      const messages: VlmMessage[] = [{ role: 'user', content: [prompt, ...imageBlocks] }];
+      const messages: VlmMessage[] = [
+        { role: 'user', content: [prompt, ...imageBlocks] },
+      ];
       let result = '';
-      for await (const chunk of this.aiProvier.stream(model, system, messages)) {
+      for await (const chunk of this.aiProvier.stream(
+        model,
+        system,
+        messages,
+      )) {
         result += chunk;
       }
       return result;
     }
 
-    return (await this.aiProvier.call(model, system, prompt, { useBuiltinSearch })).text;
+    return (
+      await this.aiProvier.call(model, system, prompt, { useBuiltinSearch })
+    ).text;
   }
 }

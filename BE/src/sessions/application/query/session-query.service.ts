@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { SessionRepository } from '../../domain/repository/session.repository';
-import { SessionItemRepository } from '../../domain/repository/session-item.repository';
-import { SessionResponseDto } from '../../presentation/dto/response/session.response.dto';
+import { SessionRepository } from 'src/sessions/domain/repository/session.repository';
+import { SessionItemRepository } from 'src/sessions/domain/repository/session-item.repository';
+import { SessionResponseDto } from 'src/sessions/presentation/dto/response/session.response.dto';
 
 @Injectable()
 export class SessionQueryService {
@@ -20,19 +20,28 @@ export class SessionQueryService {
     return SessionResponseDto.from(session);
   }
 
-  async findItemsWithResults(sessionId: string): Promise<{ topic: string; aiResult: string }[]> {
+  async findItemsWithResults(
+    sessionId: string,
+  ): Promise<{ topic: string; aiResult: string }[]> {
     const items = await this.sessionItemRepository.findBySessionId(sessionId);
     return items
       .filter((item) => item.aiResult)
       .map((item) => ({ topic: item.topic, aiResult: item.aiResult }));
   }
 
-  async getSummary(id: string): Promise<{ summaryStatus: string | null; summary: string | null }> {
+  async getSummary(
+    id: string,
+  ): Promise<{ summaryStatus: string | null; summary: string | null }> {
     const session = await this.sessionRepository.findById(id);
-    return { summaryStatus: session.summaryState ?? null, summary: session.summary ?? null };
+    return {
+      summaryStatus: session.summaryState ?? null,
+      summary: session.summary ?? null,
+    };
   }
 
-  async buildSummaryContext(id: string): Promise<{ model: string; system: string; prompt: string } | null> {
+  async buildSummaryContext(
+    id: string,
+  ): Promise<{ model: string; system: string; prompt: string } | null> {
     const session = await this.sessionRepository.findById(id);
     const items = await this.sessionItemRepository.findBySessionId(id);
 
@@ -43,7 +52,11 @@ export class SessionQueryService {
       .map((item) => `## ${item.topic}\n${item.aiResult}`)
       .join('\n\n---\n\n');
 
-    const model = session.researchCloudAIModel || session.researchLocalAIModel || process.env.OLLAMA_MODEL || 'llama3.2';
+    const model =
+      session.researchCloudAIModel ||
+      session.researchLocalAIModel ||
+      process.env.OLLAMA_MODEL ||
+      'llama3.2';
     const system = `당신은 데이터와 인사이트를 하나의 완성된 이야기로 엮어내는 '전략 커뮤니케이션 전문가'입니다. 
 불필요한 불렛포인트(•, -)나 나열식 구성을 배제하고, 독자가 흐름을 따라 자연스럽게 정보를 습득할 수 있도록 논리적인 문장으로 기술합니다.`;
 

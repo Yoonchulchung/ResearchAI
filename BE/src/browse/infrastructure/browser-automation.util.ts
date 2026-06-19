@@ -36,18 +36,27 @@ export class BrowserAutomationUtil {
     page.setDefaultTimeout(INPUT_ACTION_TIMEOUT_MS);
     page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS);
     await page.setViewport({ width: 1280, height: 800 });
-    await page.setExtraHTTPHeaders({ 'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8' });
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+    });
     await page.evaluateOnNewDocument(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
     });
   }
 
-  static async findVisibleSelector(page: Page, selectors: string[], timeout = 2_000): Promise<string | null> {
+  static async findVisibleSelector(
+    page: Page,
+    selectors: string[],
+    timeout = 2_000,
+  ): Promise<string | null> {
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
       for (const selector of selectors) {
         try {
-          const el = await page.waitForSelector(selector, { visible: true, timeout: 250 });
+          const el = await page.waitForSelector(selector, {
+            visible: true,
+            timeout: 250,
+          });
           if (el) return selector;
         } catch {
           continue;
@@ -57,7 +66,11 @@ export class BrowserAutomationUtil {
     return null;
   }
 
-  static async withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  static async withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    message: string,
+  ): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
@@ -71,20 +84,27 @@ export class BrowserAutomationUtil {
     }
   }
 
-  static async setInputValue(page: Page, selector: string, value: string): Promise<boolean> {
+  static async setInputValue(
+    page: Page,
+    selector: string,
+    value: string,
+  ): Promise<boolean> {
     return this.withTimeout(
-      page.evaluate(({ sel, nextValue }) => {
-        const input = document.querySelector(sel) as HTMLInputElement | null;
-        if (!input) return false;
+      page.evaluate(
+        ({ sel, nextValue }) => {
+          const input = document.querySelector(sel) as HTMLInputElement | null;
+          if (!input) return false;
 
-        input.focus();
-        const proto = Object.getPrototypeOf(input) as HTMLInputElement;
-        const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
-        descriptor?.set?.call(input, nextValue);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        return input.value === nextValue;
-      }, { sel: selector, nextValue: value }),
+          input.focus();
+          const proto = Object.getPrototypeOf(input) as HTMLInputElement;
+          const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+          descriptor?.set?.call(input, nextValue);
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          return input.value === nextValue;
+        },
+        { sel: selector, nextValue: value },
+      ),
       INPUT_ACTION_TIMEOUT_MS,
       `${selector} 값 설정 시간 초과`,
     );
@@ -117,8 +137,16 @@ export class BrowserAutomationUtil {
     const el = await page.$(sel);
     if (!el) return false;
     try {
-      await this.withTimeout(el.click({ clickCount: 3 }), INPUT_ACTION_TIMEOUT_MS, `${sel} 클릭 시간 초과`);
-      await this.withTimeout(el.type(value, { delay: 20 }), INPUT_ACTION_TIMEOUT_MS, `${sel} 입력 시간 초과`);
+      await this.withTimeout(
+        el.click({ clickCount: 3 }),
+        INPUT_ACTION_TIMEOUT_MS,
+        `${sel} 클릭 시간 초과`,
+      );
+      await this.withTimeout(
+        el.type(value, { delay: 20 }),
+        INPUT_ACTION_TIMEOUT_MS,
+        `${sel} 입력 시간 초과`,
+      );
       logger?.debug(`[${logPrefix}] 입력 완료: ${sel}`);
       onLog?.(`입력 완료: ${sel}`);
       return true;
@@ -128,28 +156,47 @@ export class BrowserAutomationUtil {
     }
   }
 
-  static async hasVisibleSelector(page: Page, selectors: string[], timeout = 500): Promise<boolean> {
+  static async hasVisibleSelector(
+    page: Page,
+    selectors: string[],
+    timeout = 500,
+  ): Promise<boolean> {
     return Boolean(await this.findVisibleSelector(page, selectors, timeout));
   }
 
-  static async waitBrieflyForNavigation(page: Page, timeout = 1500): Promise<void> {
+  static async waitBrieflyForNavigation(
+    page: Page,
+    timeout = 1500,
+  ): Promise<void> {
     await Promise.race([
-      page.waitForNavigation({ waitUntil: 'networkidle2', timeout }).catch(() => undefined),
+      page
+        .waitForNavigation({ waitUntil: 'networkidle2', timeout })
+        .catch(() => undefined),
       new Promise<void>((resolve) => setTimeout(resolve, timeout)),
     ]);
   }
 
-  static async clickTextButton(page: Page, patterns: RegExp[]): Promise<boolean> {
-    const clicked = await page.evaluate((sources) => {
-      const regexes = sources.map((source) => new RegExp(source, 'i'));
-      const candidates = Array.from(document.querySelectorAll('button, a, [role="button"]')) as HTMLElement[];
-      const target = candidates.find((el) => {
-        const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-        return text && regexes.some((regex) => regex.test(text));
-      });
-      target?.click();
-      return Boolean(target);
-    }, patterns.map((pattern) => pattern.source));
+  static async clickTextButton(
+    page: Page,
+    patterns: RegExp[],
+  ): Promise<boolean> {
+    const clicked = await page.evaluate(
+      (sources) => {
+        const regexes = sources.map((source) => new RegExp(source, 'i'));
+        const candidates = Array.from(
+          document.querySelectorAll('button, a, [role="button"]'),
+        );
+        const target = candidates.find((el) => {
+          const text = ((el as HTMLElement).innerText || el.textContent || '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          return text && regexes.some((regex) => regex.test(text));
+        });
+        (target as HTMLElement | undefined)?.click();
+        return Boolean(target);
+      },
+      patterns.map((pattern) => pattern.source),
+    );
 
     if (clicked) await new Promise<void>((resolve) => setTimeout(resolve, 700));
     return clicked;
@@ -158,23 +205,35 @@ export class BrowserAutomationUtil {
   static async getPageDiagnostics(page: Page): Promise<PageDiagnostics> {
     const title = await page.title().catch(() => '');
     const url = page.url();
-    const { sample, inputs } = await page.evaluate(() => ({
-      sample: (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim().slice(0, 500),
-      inputs: Array.from(document.querySelectorAll('input')).map((input) => {
-        const el = input as HTMLInputElement;
-        return [
-          el.type ? `type=${el.type}` : '',
-          el.name ? `name=${el.name}` : '',
-          el.id ? `id=${el.id}` : '',
-          el.placeholder ? `placeholder=${el.placeholder}` : '',
-          el.autocomplete ? `autocomplete=${el.autocomplete}` : '',
-        ].filter(Boolean).join(' ');
-      }).slice(0, 10),
-    })).catch(() => ({ sample: '', inputs: [] }));
+    const { sample, inputs } = await page
+      .evaluate(() => ({
+        sample: (document.body?.innerText ?? '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 500),
+        inputs: Array.from(document.querySelectorAll('input'))
+          .map((input) => {
+            const el = input;
+            return [
+              el.type ? `type=${el.type}` : '',
+              el.name ? `name=${el.name}` : '',
+              el.id ? `id=${el.id}` : '',
+              el.placeholder ? `placeholder=${el.placeholder}` : '',
+              el.autocomplete ? `autocomplete=${el.autocomplete}` : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
+          })
+          .slice(0, 10),
+      }))
+      .catch(() => ({ sample: '', inputs: [] }));
     return { title, url, sample, inputs };
   }
 
-  static isBlockedPage(diagnostics: { title: string; sample: string }): boolean {
+  static isBlockedPage(diagnostics: {
+    title: string;
+    sample: string;
+  }): boolean {
     const text = `${diagnostics.title}\n${diagnostics.sample}`.toLowerCase();
     return (
       text.includes('cloudflare') ||
@@ -194,7 +253,11 @@ export class BrowserAutomationUtil {
       try {
         const el = await page.$(sel);
         if (!el) continue;
-        await this.withTimeout(el.click(), INPUT_ACTION_TIMEOUT_MS, `${sel} 클릭 시간 초과`);
+        await this.withTimeout(
+          el.click(),
+          INPUT_ACTION_TIMEOUT_MS,
+          `${sel} 클릭 시간 초과`,
+        );
         logger?.debug(`[${logPrefix}] 제출: ${sel}`);
         return true;
       } catch {

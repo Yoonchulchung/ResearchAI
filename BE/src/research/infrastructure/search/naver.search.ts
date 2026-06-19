@@ -1,4 +1,4 @@
-import { getCircuitBreaker } from '../../../shared/resilience/circuit-breaker';
+import { getCircuitBreaker } from 'src/shared/resilience/circuit-breaker';
 
 const policy = getCircuitBreaker('naver');
 
@@ -12,7 +12,7 @@ export async function searchNaver(query: string): Promise<string> {
       },
     });
     if (!res.ok) throw new Error(`Naver HTTP ${res.status}`);
-    const data = (await res.json()) as any;
+    const data = await res.json();
     return (
       data.items
         ?.map(

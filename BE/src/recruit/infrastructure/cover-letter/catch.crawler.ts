@@ -1,5 +1,8 @@
-import { CoverLetter, CoverLetterQuestion } from '../../domain/cover-letter/cover-letter.model';
-import { CatchAuthService } from '../../../browse/infrastructure/auth/catch-auth.service';
+import {
+  CoverLetter,
+  CoverLetterQuestion,
+} from 'src/recruit/domain/cover-letter/cover-letter.model';
+import { CatchAuthService } from 'src/browse/infrastructure/auth/catch-auth.service';
 
 const BASE_URL = 'https://www.catch.co.kr';
 const LIST_API_URL = `${BASE_URL}/api/v1.0/jobn/coverLetter/main/getCvletterList`;
@@ -78,7 +81,12 @@ export class CatchCoverLetterCrawler {
 
   async getIdsFromPage(
     page: number,
-    opts: { company?: string; role?: string; keyword?: string; auth?: CatchAuthCredentials } = {},
+    opts: {
+      company?: string;
+      role?: string;
+      keyword?: string;
+      auth?: CatchAuthCredentials;
+    } = {},
   ): Promise<string[]> {
     const params = new URLSearchParams({
       jobCode: '',
@@ -119,13 +127,19 @@ export class CatchCoverLetterCrawler {
       url: `${BASE_URL}/JobN/CoverLetter/Main`,
       source: 'catch',
       company: spec?.CompName ?? summary?.CompName ?? '',
-      companyType: this.inferCompanyType(spec?.CompName ?? summary?.CompName ?? ''),
+      companyType: this.inferCompanyType(
+        spec?.CompName ?? summary?.CompName ?? '',
+      ),
       position: [
         spec?.RecruitGubun,
         spec?.Depth1 ?? summary?.JobName,
         spec?.Depth2 ?? summary?.JobDetailName,
-      ].filter(Boolean).join(' / '),
-      season: [spec?.Year ?? summary?.Year, spec?.Term ?? summary?.Term].filter(Boolean).join(' '),
+      ]
+        .filter(Boolean)
+        .join(' / '),
+      season: [spec?.Year ?? summary?.Year, spec?.Term ?? summary?.Term]
+        .filter(Boolean)
+        .join(' '),
       spec: this.formatSpec(spec, summary),
       viewCount: summary?.ViewCnt,
       questions,
@@ -147,10 +161,9 @@ export class CatchCoverLetterCrawler {
         curPage: String(page),
         pageSize: String(pageSize),
       });
-      const data = await this.fetchJson<{ cvletterList?: CatchCoverLetterDetailItem[] }>(
-        `${DETAIL_API_URL}/${coverLetterId}?${params}`,
-        auth,
-      );
+      const data = await this.fetchJson<{
+        cvletterList?: CatchCoverLetterDetailItem[];
+      }>(`${DETAIL_API_URL}/${coverLetterId}?${params}`, auth);
       const list = data.cvletterList ?? [];
       if (list.length === 0) break;
 
@@ -172,7 +185,10 @@ export class CatchCoverLetterCrawler {
     coverLetterId: string,
     auth?: CatchAuthCredentials,
   ): Promise<CatchCoverLetterSpec | null> {
-    return this.fetchJson<CatchCoverLetterSpec>(`${SPEC_API_URL}/${coverLetterId}`, auth);
+    return this.fetchJson<CatchCoverLetterSpec>(
+      `${SPEC_API_URL}/${coverLetterId}`,
+      auth,
+    );
   }
 
   private formatSpec(
@@ -181,14 +197,18 @@ export class CatchCoverLetterCrawler {
   ): string {
     const parts = [
       [spec?.SchoolName, spec?.MajorName].filter(Boolean).join(' '),
-      spec?.Credit && spec?.MaxCredit ? `학점 ${spec.Credit}/${spec.MaxCredit}` : '',
+      spec?.Credit && spec?.MaxCredit
+        ? `학점 ${spec.Credit}/${spec.MaxCredit}`
+        : '',
       spec?.LangTest != null ? `어학 ${spec.LangTest}` : '',
       spec?.License != null ? `자격증 ${spec.License}` : '',
       spec?.Award != null ? `수상 ${spec.Award}` : '',
       spec?.Activity != null ? `활동 ${spec.Activity}` : '',
       spec?.Career != null ? `경력 ${spec.Career}` : '',
       spec?.CntPassFinal != null ? `최종합격 ${spec.CntPassFinal}` : '',
-      summary?.ViewCnt ? `조회 ${summary.ViewCnt.toLocaleString('ko-KR')}회` : '',
+      summary?.ViewCnt
+        ? `조회 ${summary.ViewCnt.toLocaleString('ko-KR')}회`
+        : '',
     ].filter(Boolean);
 
     return parts.join(' · ');
@@ -196,25 +216,44 @@ export class CatchCoverLetterCrawler {
 
   private inferCompanyType(company: string): CoverLetter['companyType'] {
     const normalized = company.toLowerCase();
-    if (/(금융|은행|뱅크|증권|보험|카드|캐피탈|자산운용|저축은행|신협|새마을금고|농협|수협|신한|국민|우리|하나|토스)/i.test(company)) {
+    if (
+      /(금융|은행|뱅크|증권|보험|카드|캐피탈|자산운용|저축은행|신협|새마을금고|농협|수협|신한|국민|우리|하나|토스)/i.test(
+        company,
+      )
+    ) {
       return '금융권';
     }
-    if (/(삼성|현대|sk|lg|롯데|한화|포스코|cj|gs|ls|hd현대|신세계|kt|네이버|naver|카카오|kakao|쿠팡|대한항공|아모레|셀트리온|두산|효성)/i.test(normalized)) {
+    if (
+      /(삼성|현대|sk|lg|롯데|한화|포스코|cj|gs|ls|hd현대|신세계|kt|네이버|naver|카카오|kakao|쿠팡|대한항공|아모레|셀트리온|두산|효성)/i.test(
+        normalized,
+      )
+    ) {
       return '대기업';
     }
-    if (/(코리아|테크놀로지|솔루션|시스템즈|바이오|제약|산업|공업|건설|엔지니어링|푸드|미디어|커머스)/i.test(company)) {
+    if (
+      /(코리아|테크놀로지|솔루션|시스템즈|바이오|제약|산업|공업|건설|엔지니어링|푸드|미디어|커머스)/i.test(
+        company,
+      )
+    ) {
       return '중견기업';
     }
     return '중소기업';
   }
 
-  private async fetchJson<T>(url: string, auth?: CatchAuthCredentials): Promise<T> {
+  private async fetchJson<T>(
+    url: string,
+    auth?: CatchAuthCredentials,
+  ): Promise<T> {
     const headers = {
       ...HEADERS,
       ...(await this.getAuthHeaders(auth)),
     };
     const res = await fetch(url, { headers });
-    if ((res.status === 401 || res.status === 403) && auth && this.authHeaders) {
+    if (
+      (res.status === 401 || res.status === 403) &&
+      auth &&
+      this.authHeaders
+    ) {
       this.authHeaders = null;
       const retryHeaders = {
         ...HEADERS,
@@ -232,11 +271,16 @@ export class CatchCoverLetterCrawler {
     return res.json() as Promise<T>;
   }
 
-  private async getAuthHeaders(auth?: CatchAuthCredentials): Promise<Record<string, string>> {
+  private async getAuthHeaders(
+    auth?: CatchAuthCredentials,
+  ): Promise<Record<string, string>> {
     if (!auth) return {};
     if (this.authHeaders) return this.authHeaders;
 
-    const result = await this.catchAuth.getAuthenticatedHeaders(auth.id, auth.password);
+    const result = await this.catchAuth.getAuthenticatedHeaders(
+      auth.id,
+      auth.password,
+    );
     this.authHeaders = result.headers;
     return this.authHeaders;
   }

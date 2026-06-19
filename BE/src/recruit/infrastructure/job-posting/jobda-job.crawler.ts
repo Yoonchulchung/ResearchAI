@@ -1,4 +1,4 @@
-import type { JobPosting } from '../../domain/job-posting.model';
+import type { JobPosting } from 'src/recruit/domain/job-posting.model';
 
 const BASE_URL = 'https://www.jobda.im';
 const API_URL = 'https://api.jobda.im/position';
@@ -13,7 +13,10 @@ const HEADERS = {
 };
 
 export class JobdaJobCrawler {
-  async getPostingsFromPage(page: number, pageSize = 60): Promise<JobPosting[]> {
+  async getPostingsFromPage(
+    page: number,
+    pageSize = 60,
+  ): Promise<JobPosting[]> {
     const params = new URLSearchParams({
       page: String(page),
       size: String(pageSize),
@@ -67,15 +70,21 @@ export class JobdaJobCrawler {
   }
 
   private getLocation(positionName?: string): string {
-    const parts = (positionName ?? '').split('·').map((part) => part.trim()).filter(Boolean);
+    const parts = (positionName ?? '')
+      .split('·')
+      .map((part) => part.trim())
+      .filter(Boolean);
     return parts.length >= 4 ? parts[parts.length - 1] : '';
   }
 
   private formatDate(value: string): string {
-    return new Date(value).toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).replace(/\. /g, '.').replace(/\.$/, '');
+    return new Date(value)
+      .toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      })
+      .replace(/\. /g, '.')
+      .replace(/\.$/, '');
   }
 }

@@ -1,6 +1,17 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
-import { CoverLetterScraperService } from '../../application/cover-letter/cover-letter-scraper.service';
-import type { CoverLetterJobAnalysisRequest, ScrapeOptions } from '../../domain/cover-letter/cover-letter.model';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { CoverLetterScraperService } from 'src/recruit/application/cover-letter/cover-letter-scraper.service';
+import type {
+  CoverLetterJobAnalysisRequest,
+  ScrapeOptions,
+} from 'src/recruit/domain/cover-letter/cover-letter.model';
 
 @Controller('cover-letter-scraper')
 export class CoverLetterScraperController {
@@ -82,10 +93,7 @@ export class CoverLetterScraperController {
   }
 
   @Get('questions')
-  searchQuestions(
-    @Query('q') q = '',
-    @Query('limit') limit = '20',
-  ) {
+  searchQuestions(@Query('q') q = '', @Query('limit') limit = '20') {
     return this.service.searchQuestions(q, Number(limit));
   }
 
@@ -97,7 +105,10 @@ export class CoverLetterScraperController {
   }
 
   @Post('data/:id/hidden')
-  async setHidden(@Param('id') id: string, @Body() body: { isHidden?: boolean }) {
+  async setHidden(
+    @Param('id') id: string,
+    @Body() body: { isHidden?: boolean },
+  ) {
     const item = await this.service.setHidden(id, body.isHidden === true);
     if (!item) throw new NotFoundException('자소서를 찾을 수 없습니다.');
     return item;
@@ -110,7 +121,10 @@ export class CoverLetterScraperController {
 
   @Get('spec-analyses')
   async specAnalyses(@Query('ids') ids: string) {
-    const idList = (ids ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    const idList = (ids ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     return this.service.getSpecAnalyses(idList);
   }
 }

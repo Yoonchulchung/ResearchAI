@@ -2,12 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { createHash } from 'crypto';
-import { AiProviderService } from '../../../ai/infrastructure/ai-provider.service';
-import { PuppeteerService } from '../../../browse/infrastructure/puppeteer.service';
-import { NewsBriefingEntity } from '../../domain/entity/news-briefing.entity';
-import { NewsArticleSummaryEntity } from '../../domain/entity/news-article-summary.entity';
-import { NewsProviderService } from '../../infrastructure/news-provider.service';
-import { AppConfigService, CONFIG_KEYS } from '../../../config/application/app-config.service';
+import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
+import { PuppeteerService } from 'src/browse/infrastructure/puppeteer.service';
+import { NewsBriefingEntity } from 'src/news/domain/entity/news-briefing.entity';
+import { NewsArticleSummaryEntity } from 'src/news/domain/entity/news-article-summary.entity';
+import { NewsProviderService } from 'src/news/infrastructure/news-provider.service';
+import {
+  AppConfigService,
+  CONFIG_KEYS,
+} from 'src/config/application/app-config.service';
+import { deduplicateNewsItems } from 'src/news/application/news-dedup.utils';
 
 export interface CountryNewsItem {
   title: string;
@@ -50,8 +54,8 @@ export interface KeywordItem {
 }
 
 export interface ConflictZone {
-  code: string;        // ISO numeric
-  score: number;       // 뉴스 언급 점수 (높을수록 분쟁 강도 ↑)
+  code: string; // ISO numeric
+  score: number; // 뉴스 언급 점수 (높을수록 분쟁 강도 ↑)
   headlines: string[]; // 근거 헤드라인
 }
 
@@ -68,34 +72,167 @@ export interface NewsArticleSummary {
 }
 
 const CATEGORY_QUERIES: Record<string, string> = {
-  it:       'IT 기술 AI',
-  economy:  '경제 금융',
-  society:  '사회 사건',
+  it: 'IT 기술 AI',
+  economy: '경제 금융',
+  society: '사회 사건',
   politics: '정치 국회',
-  world:    '국제 세계',
-  culture:  '문화 엔터테인먼트',
-  science:  '과학 우주',
+  world: '국제 세계',
+  culture: '문화 엔터테인먼트',
+  science: '과학 우주',
 };
 
 const KO_STOPWORDS = new Set([
-  '은', '는', '이', '가', '을', '를', '의', '에', '로', '와', '과', '도', '만', '에서',
-  '으로', '하다', '했다', '한다', '된다', '있다', '없다', '등', '및', '또', '더', '것',
-  '수', '그', '저', '우리', '하는', '하여', '하며', '하고', '라며', '라고', '이라고',
-  '것으로', '것이', '것을', '것은', '있는', '없는', '위해', '통해', '대한', '따른',
-  '관련', '경우', '이번', '지난', '오는', '전', '후', '때', '중', '간', '내', '외',
-  '년', '월', '일', '시', '분', '원', '달러', '위', '아래', '대해', '부터', '까지',
-  '한편', '또한', '다만', '오히려', '결국', '이미', '앞서', '이에', '이를', '이후',
-  '기자', '뉴스', '연합', '특파원', '코리아', '헤럴드', '매일', '조선', '동아', '한국',
-  'the', 'a', 'an', 'of', 'in', 'to', 'and', 'for', 'is', 'on', 'at', 'by', 'or',
+  '은',
+  '는',
+  '이',
+  '가',
+  '을',
+  '를',
+  '의',
+  '에',
+  '로',
+  '와',
+  '과',
+  '도',
+  '만',
+  '에서',
+  '으로',
+  '하다',
+  '했다',
+  '한다',
+  '된다',
+  '있다',
+  '없다',
+  '등',
+  '및',
+  '또',
+  '더',
+  '것',
+  '수',
+  '그',
+  '저',
+  '우리',
+  '하는',
+  '하여',
+  '하며',
+  '하고',
+  '라며',
+  '라고',
+  '이라고',
+  '것으로',
+  '것이',
+  '것을',
+  '것은',
+  '있는',
+  '없는',
+  '위해',
+  '통해',
+  '대한',
+  '따른',
+  '관련',
+  '경우',
+  '이번',
+  '지난',
+  '오는',
+  '전',
+  '후',
+  '때',
+  '중',
+  '간',
+  '내',
+  '외',
+  '년',
+  '월',
+  '일',
+  '시',
+  '분',
+  '원',
+  '달러',
+  '위',
+  '아래',
+  '대해',
+  '부터',
+  '까지',
+  '한편',
+  '또한',
+  '다만',
+  '오히려',
+  '결국',
+  '이미',
+  '앞서',
+  '이에',
+  '이를',
+  '이후',
+  '기자',
+  '뉴스',
+  '연합',
+  '특파원',
+  '코리아',
+  '헤럴드',
+  '매일',
+  '조선',
+  '동아',
+  '한국',
+  'the',
+  'a',
+  'an',
+  'of',
+  'in',
+  'to',
+  'and',
+  'for',
+  'is',
+  'on',
+  'at',
+  'by',
+  'or',
 ]);
 
 const CONFLICT_KEYWORDS = [
-  '전쟁', '교전', '공격', '폭격', '침공', '내전', '분쟁', '충돌', '사상자', '사망',
-  '포격', '미사일', '드론', '폭탄', '테러', '반군', '군사작전', '휴전', '민간인',
-  '탈출', '피난', '봉쇄', '점령', '저항', '전투', '전선', '공습',
-  'war', 'attack', 'conflict', 'invasion', 'bombing', 'airstrike', 'missile',
-  'ceasefire', 'casualties', 'troops', 'military', 'offensive', 'hostage',
-  'occupation', 'resistance', 'rebel', 'coup',
+  '전쟁',
+  '교전',
+  '공격',
+  '폭격',
+  '침공',
+  '내전',
+  '분쟁',
+  '충돌',
+  '사상자',
+  '사망',
+  '포격',
+  '미사일',
+  '드론',
+  '폭탄',
+  '테러',
+  '반군',
+  '군사작전',
+  '휴전',
+  '민간인',
+  '탈출',
+  '피난',
+  '봉쇄',
+  '점령',
+  '저항',
+  '전투',
+  '전선',
+  '공습',
+  'war',
+  'attack',
+  'conflict',
+  'invasion',
+  'bombing',
+  'airstrike',
+  'missile',
+  'ceasefire',
+  'casualties',
+  'troops',
+  'military',
+  'offensive',
+  'hostage',
+  'occupation',
+  'resistance',
+  'rebel',
+  'coup',
 ];
 
 const COUNTRY_NAME_MAP: Array<{ names: string[]; code: string }> = [
@@ -131,8 +268,6 @@ const COUNTRY_NAME_MAP: Array<{ names: string[]; code: string }> = [
   { names: ['모잠비크', 'mozambique'], code: '508' },
 ];
 
-
-
 function extractKeywords(texts: string[], limit: number): KeywordItem[] {
   const freq = new Map<string, number>();
 
@@ -163,15 +298,21 @@ function detectConflictCountries(titles: string[]): ConflictZone[] {
 
   for (const title of titles) {
     const lower = title.toLowerCase();
-    const hasConflict = CONFLICT_KEYWORDS.some((kw) => lower.includes(kw) || title.includes(kw));
+    const hasConflict = CONFLICT_KEYWORDS.some(
+      (kw) => lower.includes(kw) || title.includes(kw),
+    );
     if (!hasConflict) continue;
 
     for (const { names, code } of COUNTRY_NAME_MAP) {
-      const mentioned = names.some((n) => lower.includes(n.toLowerCase()) || title.includes(n));
+      const mentioned = names.some(
+        (n) => lower.includes(n.toLowerCase()) || title.includes(n),
+      );
       if (!mentioned) continue;
 
       const entry = scores.get(code) ?? { score: 0, headlines: [] };
-      const kwCount = CONFLICT_KEYWORDS.filter((kw) => lower.includes(kw) || title.includes(kw)).length;
+      const kwCount = CONFLICT_KEYWORDS.filter(
+        (kw) => lower.includes(kw) || title.includes(kw),
+      ).length;
       entry.score += 1 + (kwCount - 1) * 0.5;
       if (entry.headlines.length < 3) entry.headlines.push(title);
       scores.set(code, entry);
@@ -179,12 +320,18 @@ function detectConflictCountries(titles: string[]): ConflictZone[] {
   }
 
   return [...scores.entries()]
-    .map(([code, { score, headlines }]) => ({ code, score: Math.round(score * 10) / 10, headlines }))
+    .map(([code, { score, headlines }]) => ({
+      code,
+      score: Math.round(score * 10) / 10,
+      headlines,
+    }))
     .sort((a, b) => b.score - a.score);
 }
 
-export type { MarketItem, ChartPoint } from './market.service';
-
+export type {
+  MarketItem,
+  ChartPoint,
+} from 'src/news/application/service/market.service';
 
 @Injectable()
 export class NewsService {
@@ -200,9 +347,15 @@ export class NewsService {
   ) {}
 
   private getTodayKey(): string {
-    return new Date().toLocaleDateString('ko-KR', {
-      timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
-    }).replace(/\. /g, '-').replace('.', '');
+    return new Date()
+      .toLocaleDateString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      })
+      .replace(/\. /g, '-')
+      .replace('.', '');
   }
 
   // ─── Raw data cache helpers ────────────────────────────────────────────────
@@ -218,7 +371,10 @@ export class NewsService {
   private async setRawCache(cacheKey: string, data: unknown): Promise<void> {
     const existing = await this.briefingRepo.findOneBy({ date: cacheKey });
     if (existing) {
-      await this.briefingRepo.update({ date: cacheKey }, { rawData: JSON.stringify(data) });
+      await this.briefingRepo.update(
+        { date: cacheKey },
+        { rawData: JSON.stringify(data) },
+      );
     } else {
       await this.briefingRepo.save({
         date: cacheKey,
@@ -231,19 +387,31 @@ export class NewsService {
 
   // ─── Public methods ────────────────────────────────────────────────────────
 
-  async getGoogleNews(category: string): Promise<NewsItem[]> {
-    const cacheKey = `raw-google-${category}-${this.getTodayKey()}`;
+  async getNaverNews(
+    category: string,
+    limit = 20,
+    offset = 0,
+  ): Promise<NewsItem[]> {
+    const normalizedLimit = Math.min(Math.max(Math.floor(limit), 1), 100);
+    const normalizedOffset = Math.min(Math.max(Math.floor(offset), 0), 999);
+    const cacheKey = `raw-naver-${category}-${normalizedLimit}-${normalizedOffset}-${this.getTodayKey()}`;
     const cached = await this.getRawCache<NewsItem[]>(cacheKey);
-    if (cached) return cached;
+    if (cached) return deduplicateNewsItems(cached);
 
     const query = CATEGORY_QUERIES[category] ?? CATEGORY_QUERIES.it;
-    const items = await this.newsProvider.fetchNewsByQuery(query);
-    await this.setRawCache(cacheKey, items);
-    return items;
+    const items = await this.newsProvider.fetchNewsByQuery(
+      query,
+      normalizedLimit,
+      normalizedOffset,
+    );
+    const deduplicated = deduplicateNewsItems(items);
+    await this.setRawCache(cacheKey, deduplicated);
+    return deduplicated;
   }
 
   async getGithubTrending(since: string): Promise<GithubNewsItem[]> {
-    const normalized = since === 'weekly' || since === 'monthly' ? since : 'daily';
+    const normalized =
+      since === 'weekly' || since === 'monthly' ? since : 'daily';
     const cacheKey = `raw-github-${normalized}-${this.getTodayKey()}`;
     const cached = await this.getRawCache<GithubNewsItem[]>(cacheKey);
     if (cached) return cached;
@@ -253,8 +421,11 @@ export class NewsService {
     return items;
   }
 
-  async getHuggingFaceTrending(category: string): Promise<HuggingFaceNewsItem[]> {
-    const normalized = category === 'datasets' || category === 'spaces' ? category : 'models';
+  async getHuggingFaceTrending(
+    category: string,
+  ): Promise<HuggingFaceNewsItem[]> {
+    const normalized =
+      category === 'datasets' || category === 'spaces' ? category : 'models';
     const cacheKey = `raw-huggingface-${normalized}-${this.getTodayKey()}`;
     const cached = await this.getRawCache<HuggingFaceNewsItem[]>(cacheKey);
     if (cached) return cached;
@@ -279,12 +450,22 @@ export class NewsService {
     let allTitles = await this.getRawCache<string[]>(rawCacheKey);
 
     if (!allTitles) {
-      const queries = ['IT AI 기술', '경제 금융 증시', '사회 정치', '국제 세계', '과학 환경'];
-      const results = await Promise.allSettled(queries.map((q) => this.newsProvider.fetchNewsByQuery(q)));
+      const queries = [
+        'IT AI 기술',
+        '경제 금융 증시',
+        '사회 정치',
+        '국제 세계',
+        '과학 환경',
+      ];
+      const results = await Promise.allSettled(
+        queries.map((q) => this.newsProvider.fetchNewsByQuery(q)),
+      );
       allTitles = [];
       for (const r of results) {
         if (r.status === 'fulfilled') {
-          allTitles.push(...r.value.map((item) => item.title));
+          allTitles.push(
+            ...deduplicateNewsItems(r.value).map((item) => item.title),
+          );
         }
       }
       await this.setRawCache(rawCacheKey, allTitles);
@@ -305,12 +486,16 @@ export class NewsService {
       'ceasefire invasion troops casualties',
       '이스라엘 가자 우크라이나 러시아 이란',
     ];
-    const results = await Promise.allSettled(queries.map((q) => this.newsProvider.fetchNewsByQuery(q)));
+    const results = await Promise.allSettled(
+      queries.map((q) => this.newsProvider.fetchNewsByQuery(q)),
+    );
 
     const allTitles: string[] = [];
     for (const r of results) {
       if (r.status === 'fulfilled') {
-        allTitles.push(...r.value.map((item) => item.title));
+        allTitles.push(
+          ...deduplicateNewsItems(r.value).map((item) => item.title),
+        );
       }
     }
 
@@ -319,15 +504,28 @@ export class NewsService {
     return zones;
   }
 
-  async getCountryNews(name: string, limit: number): Promise<CountryNewsItem[]> {
+  async getCountryNews(
+    name: string,
+    limit: number,
+  ): Promise<CountryNewsItem[]> {
     if (!name.trim()) return [];
     const items = await this.newsProvider.fetchNewsByQuery(name);
-    return items.slice(0, limit).map(({ title, link, source, pubDate }) => ({
-      title, link, source, pubDate,
-    }));
+    return deduplicateNewsItems(items)
+      .slice(0, limit)
+      .map(({ title, link, source, pubDate }) => ({
+        title,
+        link,
+        source,
+        pubDate,
+      }));
   }
 
-  async getArticleContent(url: string): Promise<{ title: string; content: string; image?: string; finalUrl?: string }> {
+  async getArticleContent(url: string): Promise<{
+    title: string;
+    content: string;
+    image?: string;
+    finalUrl?: string;
+  }> {
     if (!url.trim()) return { title: '', content: '' };
     try {
       return await this.puppeteer.fetchArticle(url);
@@ -339,7 +537,9 @@ export class NewsService {
   async getArticleSummary(url: string): Promise<NewsArticleSummary | null> {
     const normalizedUrl = this.normalizeArticleUrl(url);
     if (!normalizedUrl) return null;
-    const entity = await this.articleSummaryRepo.findOneBy({ url: normalizedUrl });
+    const entity = await this.articleSummaryRepo.findOneBy({
+      url: normalizedUrl,
+    });
     return entity ? this.toArticleSummary(entity) : null;
   }
 
@@ -355,7 +555,9 @@ export class NewsService {
     const normalizedUrl = this.normalizeArticleUrl(input.url);
     if (!normalizedUrl) throw new Error('뉴스 요약 저장 URL이 비어 있습니다.');
 
-    const existing = await this.articleSummaryRepo.findOneBy({ url: normalizedUrl });
+    const existing = await this.articleSummaryRepo.findOneBy({
+      url: normalizedUrl,
+    });
     const entity = this.articleSummaryRepo.create({
       id: existing?.id ?? this.articleSummaryId(normalizedUrl),
       url: normalizedUrl,
@@ -367,7 +569,9 @@ export class NewsService {
       articleUrl: input.articleUrl ?? existing?.articleUrl ?? normalizedUrl,
     });
     await this.articleSummaryRepo.save(entity);
-    const saved = await this.articleSummaryRepo.findOneByOrFail({ id: entity.id });
+    const saved = await this.articleSummaryRepo.findOneByOrFail({
+      id: entity.id,
+    });
     return this.toArticleSummary(saved);
   }
 
@@ -379,7 +583,9 @@ export class NewsService {
     return createHash('sha1').update(url).digest('hex');
   }
 
-  private toArticleSummary(entity: NewsArticleSummaryEntity): NewsArticleSummary {
+  private toArticleSummary(
+    entity: NewsArticleSummaryEntity,
+  ): NewsArticleSummary {
     return {
       id: entity.id,
       url: entity.url,

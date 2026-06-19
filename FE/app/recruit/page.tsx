@@ -57,11 +57,12 @@ export default function RecruitPage() {
     jobs,
     loading,
     error,
+    resumes,
+    resumeLoading,
+    resumeError,
     coverLetters,
     coverLoading,
     coverError,
-    experiences,
-    expLoading,
     companyAnalyses,
     analysisLoading,
     analysisError,
@@ -132,13 +133,15 @@ export default function RecruitPage() {
         </div>
 
         <ExperienceLibrarySection
-          experiences={experiences}
-          loading={expLoading}
+          resumes={resumes}
+          loading={resumeLoading}
           isDark={isDark}
           boxClass={boxClass}
           textMain={textMain}
           textSub={textSub}
-          onOpenResume={() => router.push("/recruit/resume")}
+          onOpenResume={(resumeId) =>
+            router.push(resumeId ? `/recruit/resume/${encodeURIComponent(resumeId)}` : "/recruit/resume")
+          }
         />
 
         <PdfUploadCard

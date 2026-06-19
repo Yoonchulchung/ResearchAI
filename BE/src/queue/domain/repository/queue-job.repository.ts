@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { QueueJobEntity, QueueJobDbStatus } from '../entity/queue-job.entity';
+import { QueueJobEntity, QueueJobDbStatus } from 'src/queue/domain/entity/queue-job.entity';
 
 @Injectable()
 export class QueueJobRepository {
@@ -18,7 +18,9 @@ export class QueueJobRepository {
     await this.repo.update(jobId, { jobStatus: status });
   }
 
-  async findByStatuses(statuses: QueueJobDbStatus[]): Promise<QueueJobEntity[]> {
+  async findByStatuses(
+    statuses: QueueJobDbStatus[],
+  ): Promise<QueueJobEntity[]> {
     return this.repo
       .createQueryBuilder('j')
       .where('j.job_status IN (:...statuses)', { statuses })

@@ -1,8 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { SearchSources, SearchStreamEvent } from '../domain/model/search-sources.model';
-import { WebSearchProvider } from '../infrastructure/web-search.provider';
-import { SearchEngine, isBuiltinSearchEngine } from '../domain/model/search-planner.model';
-import { AiService } from '../../ai/application/ai.service';
+import {
+  SearchSources,
+  SearchStreamEvent,
+} from 'src/research/domain/model/search-sources.model';
+import { WebSearchProvider } from 'src/research/infrastructure/web-search.provider';
+import {
+  SearchEngine,
+  isBuiltinSearchEngine,
+} from 'src/research/domain/model/search-planner.model';
+import { AiService } from 'src/ai/application/ai.service';
 
 @Injectable()
 export class WebSearchService {
@@ -17,11 +23,14 @@ export class WebSearchService {
     return this.webSearchProvider.hasExternalSearch();
   }
 
-  async runSearch(prompt: string): Promise<{ sources: SearchSources; context: string }> {
+  async runSearch(
+    prompt: string,
+  ): Promise<{ sources: SearchSources; context: string }> {
     if (!this.hasExternalSearch()) {
       return { sources: {}, context: '' };
     }
-    const { combined, sources } = await this.webSearchProvider.searchAll(prompt);
+    const { combined, sources } =
+      await this.webSearchProvider.searchAll(prompt);
     return { sources, context: combined };
   }
 
@@ -35,22 +44,41 @@ export class WebSearchService {
 
   getAvailableEngines(): { id: string; name: string; builtin: boolean }[] {
     const engines: { id: string; name: string; builtin: boolean }[] = [
-      { id: SearchEngine.ANTHROPIC_BUILTIN, name: 'Anthropic 내장', builtin: true },
-      { id: SearchEngine.GOOGLE_BUILTIN,    name: 'Google 내장',    builtin: true },
-      { id: SearchEngine.DUCKDUCKGO,        name: 'DuckDuckGo',     builtin: false },
+      {
+        id: SearchEngine.ANTHROPIC_BUILTIN,
+        name: 'Anthropic 내장',
+        builtin: true,
+      },
+      { id: SearchEngine.GOOGLE_BUILTIN, name: 'Google 내장', builtin: true },
+      { id: SearchEngine.DUCKDUCKGO, name: 'DuckDuckGo', builtin: false },
     ];
-    if (process.env.TAVILY_API_KEY  && !process.env.TAVILY_API_KEY.startsWith('your_'))
+    if (
+      process.env.TAVILY_API_KEY &&
+      !process.env.TAVILY_API_KEY.startsWith('your_')
+    )
       engines.push({ id: SearchEngine.TAVILY, name: 'Tavily', builtin: false });
-    if (process.env.SERPER_API_KEY  && !process.env.SERPER_API_KEY.startsWith('your_'))
+    if (
+      process.env.SERPER_API_KEY &&
+      !process.env.SERPER_API_KEY.startsWith('your_')
+    )
       engines.push({ id: SearchEngine.SERPER, name: 'Serper', builtin: false });
-    if (process.env.NAVER_CLIENT_ID && !process.env.NAVER_CLIENT_ID.startsWith('your_'))
+    if (
+      process.env.NAVER_CLIENT_ID &&
+      !process.env.NAVER_CLIENT_ID.startsWith('your_')
+    )
       engines.push({ id: SearchEngine.NAVER, name: 'Naver', builtin: false });
-    if (process.env.BRAVE_API_KEY   && !process.env.BRAVE_API_KEY.startsWith('your_'))
+    if (
+      process.env.BRAVE_API_KEY &&
+      !process.env.BRAVE_API_KEY.startsWith('your_')
+    )
       engines.push({ id: SearchEngine.BRAVE, name: 'Brave', builtin: false });
     return engines;
   }
 
-  async testSearchEngine(engine: 'tavily' | 'serper' | 'naver' | 'brave', query: string) {
+  async testSearchEngine(
+    engine: 'tavily' | 'serper' | 'naver' | 'brave',
+    query: string,
+  ) {
     return { result: await this.webSearchProvider.searchSingle(engine, query) };
   }
 
@@ -60,7 +88,11 @@ export class WebSearchService {
     return this.webSearchProvider.searchSingle(engine, query);
   }
 
-  async searchByEngine(engine: SearchEngine, query: string, filterModel?: string): Promise<string> {
+  async searchByEngine(
+    engine: SearchEngine,
+    query: string,
+    filterModel?: string,
+  ): Promise<string> {
     if (isBuiltinSearchEngine(engine)) return '';
     const raw = await this.webSearchProvider.searchSingle(engine, query);
     if (!raw) return raw;
@@ -94,5 +126,4 @@ NEVER DELETE:
       return raw;
     }
   }
-
 }

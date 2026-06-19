@@ -1,5 +1,5 @@
-import { JobPosting } from '../../domain/job-posting.model';
-import { CollectQuery, JobSource } from '../../domain/job-source.interface';
+import { JobPosting } from 'src/recruit/domain/job-posting.model';
+import { CollectQuery, JobSource } from 'src/recruit/domain/job-source.interface';
 
 /**
  * 사람인 Open API
@@ -31,7 +31,9 @@ export class SaraminApi implements JobSource {
 
       let data: any;
       try {
-        const res = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+        const res = await fetch(url.toString(), {
+          headers: { Accept: 'application/json' },
+        });
         if (!res.ok) break;
         data = await res.json();
       } catch {
@@ -44,7 +46,10 @@ export class SaraminApi implements JobSource {
       for (const job of jobs) {
         if (collected >= limit) break;
 
-        const skills = (job.keyword ?? '').split(',').map((s: string) => s.trim()).filter(Boolean);
+        const skills = (job.keyword ?? '')
+          .split(',')
+          .map((s: string) => s.trim())
+          .filter(Boolean);
 
         yield {
           id: `saramin-api-${job.id}`,
