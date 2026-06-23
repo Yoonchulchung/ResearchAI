@@ -6,7 +6,10 @@ import {
   Param,
   Post,
   Query,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { CoverLetterScraperService } from 'src/recruit/application/cover-letter/cover-letter-scraper.service';
 import type {
   CoverLetterJobAnalysisRequest,
@@ -93,8 +96,14 @@ export class CoverLetterScraperController {
   }
 
   @Get('questions')
-  searchQuestions(@Query('q') q = '', @Query('limit') limit = '20') {
-    return this.service.searchQuestions(q, Number(limit));
+  searchQuestions(
+    @Query('q') q = '',
+    @Query('limit') limit = '20',
+    @Query('offset') offset = '0',
+    @Query('sortDir') sortDir = 'desc',
+  ) {
+    const dir = sortDir === 'asc' ? 'asc' : 'desc';
+    return this.service.searchQuestions(q, Number(limit), Number(offset), dir);
   }
 
   @Get('data/:id')
@@ -112,6 +121,50 @@ export class CoverLetterScraperController {
     const item = await this.service.setHidden(id, body.isHidden === true);
     if (!item) throw new NotFoundException('자소서를 찾을 수 없습니다.');
     return item;
+  }
+
+  /** 기업명으로 린커리어 즉시 수집 — SSE 실시간 진행상황 스트리밍
+   * GET /cover-letter-scraper/scrape-by-company/stream?company=현대모비스&maxPages=3
+   */
+  @Get('scrape-by-company/stream')
+  async scrapeByCompanyStream(
+    @Query('company') company = '',
+    @Query('maxPages') maxPagesStr = '3',
+    @Query('delayMs') delayMsStr = '600',
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const trimmed = company.trim();
+    if (!trimmed) {
+      res.status(400).json({ error: '기업명을 입력하세요.' });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const cleanup = () => res.end();
+    req.on('close', cleanup);
+
+    const send = (payload: object) => {
+      if (!res.writableEnded) res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    };
+
+    try {
+      await this.service.scrapeByCompanyWithProgress(
+        trimmed,
+        Number(maxPagesStr) || 3,
+        Number(delayMsStr) || 600,
+        send,
+      );
+    } catch (e) {
+      send({ type: 'error', message: (e as Error).message });
+    } finally {
+      req.off('close', cleanup);
+      res.end();
+    }
   }
 
   @Post('ai-job-analysis')

@@ -225,6 +225,8 @@ function RoadmapAnalysisPanel({
     } catch (e) {
       if (!ctrl.signal.aborted) {
         setError(e instanceof Error ? e.message : "로드맵 생성 중 오류가 발생했습니다.");
+        // 에러가 나도 타임라인이 실제로 생성됐을 수 있으므로 리로드
+        onDone();
       }
     } finally {
       if (!ctrl.signal.aborted) setRunning(false);

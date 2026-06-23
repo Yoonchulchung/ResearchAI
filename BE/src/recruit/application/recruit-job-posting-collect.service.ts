@@ -12,7 +12,7 @@ import { load } from 'cheerio';
 import { RecruitJobPostingEntity } from 'src/recruit/domain/job-posting/entity/recruit-job-posting.entity';
 import { RecruitJobRecommendEntity } from 'src/recruit/domain/job-posting/entity/recruit-job-recommend.entity';
 import { JobPostingScraperService } from 'src/recruit/application/job-posting-scraper.service';
-import { deduplicatePostingsByDeadlineAndTitle } from 'src/recruit/application/job-posting/job-posting-dedup.utils';
+import { filterDuplicatePostingsByDeadlineAndTitle } from 'src/recruit/application/job-posting/job-posting-duplicate-filter';
 import {
   AiProviderService,
   VlmMessage,
@@ -46,6 +46,7 @@ const WEEKLY_MS = 7 * 24 * 60 * 60 * 1000;
 export interface CollectDetailConfig {
   model?: string;
   enableVlm?: boolean;
+  skipAiSteps?: boolean;
   maxItems?: number;
   skipExisting?: boolean;
   companyTypes?: string[];
@@ -73,6 +74,7 @@ export class RecruitJobPostingCollectService
   private currentConfig: Required<CollectDetailConfig> = {
     model: DEFAULT_COLLECT_MODEL,
     enableVlm: true,
+    skipAiSteps: false,
     maxItems: 0,
     skipExisting: true,
     companyTypes: [],
@@ -127,6 +129,7 @@ export class RecruitJobPostingCollectService
     this.currentConfig = {
       model: config?.model || DEFAULT_COLLECT_MODEL,
       enableVlm: config?.enableVlm ?? true,
+      skipAiSteps: config?.skipAiSteps ?? false,
       maxItems: config?.maxItems ?? 0,
       skipExisting: config?.skipExisting ?? true,
       companyTypes: config?.companyTypes ?? [],
@@ -161,7 +164,7 @@ export class RecruitJobPostingCollectService
         postings = postings.slice(0, this.currentConfig.maxItems);
       this.status.total = postings.length;
       this.logger.log(
-        `[DetailCollect] 모델=${this.currentConfig.model} VLM=${this.currentConfig.enableVlm} 스킵=${this.currentConfig.skipExisting} 공고 ${postings.length}개`,
+        `[DetailCollect] 모델=${this.currentConfig.model} VLM=${this.currentConfig.enableVlm} AI건너뛰기=${this.currentConfig.skipAiSteps} 스킵=${this.currentConfig.skipExisting} 공고 ${postings.length}개`,
       );
 
       for (const posting of postings) {
@@ -189,10 +192,11 @@ export class RecruitJobPostingCollectService
       this.logger.log(
         `[DetailCollect] 완료 ${this.status.processed}/${this.status.total}`,
       );
-      // 수집 완료 후 AI 추천 생성
-      await this.generateRecommendations().catch((err) =>
-        this.logger.warn('[DetailCollect] 추천 생성 오류', err),
-      );
+      if (!this.currentConfig.skipAiSteps) {
+        await this.generateRecommendations().catch((err) =>
+          this.logger.warn('[DetailCollect] 추천 생성 오류', err),
+        );
+      }
     } finally {
       this.status.running = false;
     }
@@ -276,9 +280,9 @@ export class RecruitJobPostingCollectService
       return true;
     });
 
-    const deduped = deduplicatePostingsByDeadlineAndTitle(filtered);
+    const uniquePostings = filterDuplicatePostingsByDeadlineAndTitle(filtered);
 
-    return deduped.map((r) => ({
+    return uniquePostings.map((r) => ({
       id: r.id,
       title: r.title,
       company: r.company,
@@ -295,6 +299,7 @@ export class RecruitJobPostingCollectService
     this.currentConfig = {
       model: config.model || DEFAULT_COLLECT_MODEL,
       enableVlm: config.enableVlm ?? true,
+      skipAiSteps: config.skipAiSteps ?? false,
       maxItems: config.maxItems ?? 0,
       skipExisting: config.skipExisting ?? true,
       companyTypes: config.companyTypes ?? [],
@@ -346,7 +351,7 @@ export class RecruitJobPostingCollectService
 
     // VLM: extract text from cached images
     let imageTexts = '';
-    if (this.currentConfig.enableVlm && detail.detailHtml) {
+    if (!this.currentConfig.skipAiSteps && this.currentConfig.enableVlm && detail.detailHtml) {
       const imageFiles = this.jobScraperService.getPostingImageFiles(
         detail.detailHtml,
       );

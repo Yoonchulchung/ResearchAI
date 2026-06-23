@@ -465,6 +465,14 @@ export class CompanyService {
     return companies.map((c) => c.id);
   }
 
+  async findMissingTypeCompanies(): Promise<{ id: string; name: string }[]> {
+    const companies = await this.repo.find({
+      select: ['id', 'name'],
+      where: { companyType: IsNull(), refreshSkippedAt: IsNull() },
+    });
+    return companies.map((c) => ({ id: c.id, name: c.name }));
+  }
+
   async findByName(companyName: string): Promise<CompanyEntity | null> {
     const normalized = this.normalizeName(companyName);
     return this.repo.findOne({ where: { normalizedName: normalized } });

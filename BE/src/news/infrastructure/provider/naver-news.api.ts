@@ -7,6 +7,7 @@ export interface NaverNewsItem {
   source: string;
   pubDate: string;
   description: string;
+  imageUrl?: string | null;
 }
 
 interface NaverNewsResponse {

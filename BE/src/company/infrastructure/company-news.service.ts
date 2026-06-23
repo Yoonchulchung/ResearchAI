@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
-import { PuppeteerService } from 'src/browse/infrastructure/puppeteer.service';
+import { BrowserService } from 'src/browse/application/browser.service';
 import { CompanyNewsKeywordEntity } from 'src/company/domain/entity/company-news-keyword.entity';
 import { CompanyNewsEntity } from 'src/company/domain/entity/company-news.entity';
 import { requestContext } from 'src/shared/request-context';
@@ -135,7 +135,7 @@ export class CompanyNewsService {
   private readonly imageFetchConcurrency = 3;
 
   constructor(
-    private readonly puppeteer: PuppeteerService,
+    private readonly browser: BrowserService,
     private readonly aiProvider: AiProviderService,
     @InjectRepository(CompanyNewsEntity)
     private readonly newsRepo: Repository<CompanyNewsEntity>,
@@ -570,7 +570,7 @@ export class CompanyNewsService {
     offset: number,
   ): Promise<CompanyNewsItem[]> {
     const query = `"${companyName}" 뉴스 최신`;
-    const results = await this.puppeteer.searchGoogle(query, limit, offset);
+    const results = await this.browser.search(query, limit, offset);
     return results.map((r) => ({
       title: r.title,
       url: r.url,
@@ -730,7 +730,7 @@ export class CompanyNewsService {
       const chunkResults = await Promise.all(
         chunk.map(async (item) => {
           try {
-            const metadata = await this.puppeteer.fetchOpenGraphImage(item.url);
+            const metadata = await this.browser.fetchOpenGraph(item.url);
             return {
               ...item,
               imageUrl: metadata.image ?? null,

@@ -13,6 +13,7 @@ export interface ItemWithResult extends Task {
   usedWebModel: string | null;
   searchLog: { query: string; result: string }[] | null;
   result: string | null;
+  chartData?: unknown[] | null;
   confidenceScore: number | null;
   confidenceReason: string | null;
   inputTokens: number | null;

@@ -1,4 +1,4 @@
-import { apiFetch } from "./base";
+import { apiFetch, API_BASE } from "./base";
 import type { YearlyFinancial } from "./company-analysis";
 
 const readRequestCache = new Map<
@@ -517,25 +517,75 @@ export interface RoadmapJobEvent {
 }
 
 export async function enqueueRoadmapAnalysis(
-  id: string,
+  companyId: string,
   companyName: string,
   model: string,
+  incremental = false,
 ): Promise<{ jobId: string }> {
   return apiFetch<{ jobId: string }>(
-    `/companies/${encodeURIComponent(id)}/news/timeline/analyze-queue`,
-    { method: "POST", body: JSON.stringify({ companyName, model }) },
+    `/queue/roadmap-analysis`,
+    { method: "POST", body: JSON.stringify({ companyId, companyName, model, incremental }) },
   );
 }
 
+export interface BulkFetchJobEvent {
+  type: "log" | "done" | "error";
+  message?: string;
+  result?: BulkFetchResult;
+}
+
+export async function enqueueBulkFetchNews(
+  companyId: string,
+  companyName: string,
+  round = 0,
+): Promise<{ jobId: string }> {
+  return apiFetch<{ jobId: string }>(
+    `/queue/bulk-fetch-news`,
+    { method: "POST", body: JSON.stringify({ companyId, companyName, round }) },
+  );
+}
+
+export function subscribeBulkFetchNews(
+  jobId: string,
+  onEvent: (event: BulkFetchJobEvent) => void,
+  signal?: AbortSignal,
+): void {
+  const url = `${API_BASE}/queue/bulk-fetch-news/${encodeURIComponent(jobId)}/stream`;
+  const es = new EventSource(url);
+  let settled = false;
+
+  const cleanup = () => es.close();
+  signal?.addEventListener("abort", cleanup);
+
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data) as BulkFetchJobEvent;
+      onEvent(data);
+      if (data.type === "done" || data.type === "error") {
+        settled = true;
+        cleanup();
+      }
+    } catch {
+      // ignore parse errors
+    }
+  };
+
+  es.onerror = () => {
+    if (settled) return;
+    onEvent({ type: "error", message: "스트림 연결 오류" });
+    cleanup();
+  };
+}
+
 export function subscribeRoadmapAnalysis(
-  id: string,
+  _id: string,
   jobId: string,
   onEvent: (event: RoadmapJobEvent) => void,
   signal?: AbortSignal,
 ): void {
-  const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-  const url = `${BASE}/companies/${encodeURIComponent(id)}/news/timeline/queue/${encodeURIComponent(jobId)}/stream`;
+  const url = `${API_BASE}/queue/roadmap-analysis/${encodeURIComponent(jobId)}/stream`;
   const es = new EventSource(url);
+  let settled = false;
 
   const cleanup = () => es.close();
   signal?.addEventListener("abort", cleanup);
@@ -545,6 +595,7 @@ export function subscribeRoadmapAnalysis(
       const data = JSON.parse(e.data) as RoadmapJobEvent;
       onEvent(data);
       if (data.type === "done" || data.type === "error") {
+        settled = true;
         cleanup();
       }
     } catch {
@@ -553,6 +604,8 @@ export function subscribeRoadmapAnalysis(
   };
 
   es.onerror = () => {
+    // done/error 이미 수신한 뒤 서버가 연결을 닫으면 onerror가 발화되므로 무시
+    if (settled) return;
     onEvent({ type: "error", message: "스트림 연결 오류" });
     cleanup();
   };

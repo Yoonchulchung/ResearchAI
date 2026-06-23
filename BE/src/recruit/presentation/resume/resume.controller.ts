@@ -21,7 +21,7 @@ import { ResumeService } from 'src/recruit/application/resume/resume.service';
 import { DeepResearchPipelineService } from 'src/research/application/pipeline/deep-research-pipeline.service';
 import { SearchEngine } from 'src/research/domain/model/search-planner.model';
 import { NaverNewsApi } from 'src/news/infrastructure/provider/naver-news.api';
-import { PuppeteerService } from 'src/browse/infrastructure/puppeteer.service';
+import { BrowserService } from 'src/browse/application/browser.service';
 
 @Controller('resume')
 export class ResumeController {
@@ -29,7 +29,7 @@ export class ResumeController {
     private readonly resumeService: ResumeService,
     private readonly deepResearch: DeepResearchPipelineService,
     private readonly naverNews: NaverNewsApi,
-    private readonly puppeteer: PuppeteerService,
+    private readonly browser: BrowserService,
   ) {}
 
   @Get()
@@ -52,9 +52,7 @@ export class ResumeController {
   }
 
   @Get('activities')
-  async getAllActivities(
-    @Query('excludeResumeId') excludeResumeId?: string,
-  ) {
+  async getAllActivities(@Query('excludeResumeId') excludeResumeId?: string) {
     return this.resumeService.getAllActivities(excludeResumeId?.trim());
   }
 
@@ -355,66 +353,13 @@ export class ResumeController {
     };
   }
 
-  /** Puppeteer로 기사 본문 스크레이핑 */
+  /** 교체 가능한 브라우저 드라이버로 기사 본문 스크레이핑 */
   @Post('jd-news-search/article')
   async jdNewsArticle(@Body() body: { url: string }) {
     const { url } = body;
     if (!url?.trim()) throw new BadRequestException('url is required');
 
-    const result = await this.puppeteer.withPage(async (page) => {
-      await page.setUserAgent(
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      );
-      await page.goto(url.trim(), { waitUntil: 'domcontentloaded', timeout: 20_000 });
-
-      return page.evaluate(() => {
-        // 광고·네비게이션·댓글 등 제거
-        const REMOVE_SELECTORS = [
-          'script', 'style', 'noscript', 'iframe',
-          'nav', 'header', 'footer', '.ad', '.advertisement',
-          '.comment', '#comment', '.sns', '.share',
-          '[class*="aside"]', '[class*="related"]', '[class*="recommend"]',
-          '[id*="aside"]', '[id*="related"]',
-        ];
-        REMOVE_SELECTORS.forEach((sel) => {
-          document.querySelectorAll(sel).forEach((el) => el.remove());
-        });
-
-        // 본문 후보 선택자 (한국 언론사 공통)
-        const CONTENT_SELECTORS = [
-          'article', '#articleBodyContents', '#article-view-content-div',
-          '.article-view-content', '.news_view', '#newsViewArea',
-          '.content_view', '#cont_article', '.article_body',
-          '#articeBody', '.article__body', '[itemprop="articleBody"]',
-          '#newsEndContents', '#article_content', '.news-article-body',
-          'main',
-        ];
-
-        let best = '';
-        for (const sel of CONTENT_SELECTORS) {
-          const el = document.querySelector(sel);
-          if (el) {
-            const text = (el as HTMLElement).innerText?.trim() ?? '';
-            if (text.length > best.length) best = text;
-          }
-        }
-
-        if (!best) {
-          // fallback: 가장 긴 텍스트 블록
-          const blocks = Array.from(document.querySelectorAll('p, div'));
-          best = blocks
-            .map((el) => (el as HTMLElement).innerText?.trim() ?? '')
-            .filter((t) => t.length > 100)
-            .sort((a, b) => b.length - a.length)[0] ?? '';
-        }
-
-        return {
-          title: document.title,
-          text: best.slice(0, 6000),
-        };
-      });
-    });
-
-    return result;
+    const article = await this.browser.fetchArticle(url.trim());
+    return { title: article.title, text: article.content.slice(0, 6000) };
   }
 }

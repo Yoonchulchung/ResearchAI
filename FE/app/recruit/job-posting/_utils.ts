@@ -62,15 +62,24 @@ export const normalizeType = (t: string) => {
   return t;
 };
 
-const IT_KEYWORDS = ["it", "인터넷", "정보기술", "웹", "서버", "네트워크", "보안", "데이터", "ai", "인공지능", "개발", "소프트웨어", "sw", "클라우드", "플랫폼", "백엔드", "프론트엔드", "풀스택", "모바일", "앱", "ios", "android", "qa", "si개발", "erp", "솔루션"];
+const PLANNING_KEYWORDS = ["기획", "전략", "r&d", "rd전략", "서비스기획", "it기획", "사업기획", "상품기획", "신사업", "프로덕트", "pm", "po", "프로젝트매니저", "서비스전략", "사업전략", "경영전략", "r&d전략"];
+const IT_KEYWORDS = ["it", "인터넷", "정보기술", "웹", "서버", "네트워크", "보안", "데이터", "ai", "인공지능", "개발", "소프트웨어", "sw", "클라우드", "백엔드", "프론트엔드", "풀스택", "모바일", "앱", "ios", "android", "qa", "si개발", "erp", "솔루션"];
 const ELEC_STRONG_KEYWORDS = ["전자", "반도체", "디스플레이", "회로", "하드웨어", "임베디드", "펌웨어"];
 const ELEC_CONTEXT_KEYWORDS = ["전기", "제어", "통신"];
 const NON_ELEC_JOB_KEYWORDS = ["객실서비스", "벨데스크", "하우스키핑", "고객서비스", "고객관리", "식음", "조리", "요리", "플로리스트", "경영지원", "인사", "상담", "웨딩", "매장관리", "판매"];
 
-export const matchesPopularCategory = (p: JobPosting, cat: "" | "IT" | "전자"): boolean => {
+export type PopularCategory = "" | "IT" | "전자" | "기획";
+
+export const matchesPopularCategory = (p: JobPosting, cat: PopularCategory): boolean => {
   if (!cat) return true;
+  const haystack = [p.category, p.jobs, p.title].filter(Boolean).join(" ").toLowerCase();
+  if (cat === "기획") {
+    return PLANNING_KEYWORDS.some((k) => haystack.includes(k));
+  }
   if (cat === "IT") {
-    const haystack = [p.category, p.jobs, p.title].filter(Boolean).join(" ").toLowerCase();
+    // 기획 키워드가 주 목적인 공고는 IT에서 제외
+    const isPlanningPrimary = [p.jobs, p.title].filter(Boolean).join(" ").toLowerCase();
+    if (PLANNING_KEYWORDS.some((k) => isPlanningPrimary.includes(k))) return false;
     return IT_KEYWORDS.some((k) => haystack.includes(k));
   }
   const primaryText = [p.jobs, p.title].filter(Boolean).join(" ").toLowerCase();

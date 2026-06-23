@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -9,11 +14,11 @@ import type {
   JobPostingScrapeStatus,
 } from 'src/recruit/domain/job-posting.model';
 import { RecruitJobPostingEntity } from 'src/recruit/domain/job-posting/entity/recruit-job-posting.entity';
-import { LinkareerJobCrawler } from 'src/recruit/infrastructure/job-posting/linkareer-job.crawler';
-import { JobkoreaJobCrawler, type JobkoreaCompanyType } from 'src/recruit/infrastructure/job-posting/jobkorea-job.crawler';
-import { CatchJobCrawler } from 'src/recruit/infrastructure/job-posting/catch-job.crawler';
-import { JobplanetJobCrawler } from 'src/recruit/infrastructure/job-posting/jobplanet-job.crawler';
-import { JobdaJobCrawler } from 'src/recruit/infrastructure/job-posting/jobda-job.crawler';
+import type {
+  JobkoreaCompanyType,
+  JobPostingCrawlerSource,
+} from 'src/recruit/application/job-posting/job-posting-crawler.types';
+import { JobPostingCrawlerRegistryPort } from 'src/recruit/application/job-posting/ports/job-posting-crawler.port';
 import { RecruitDb } from 'src/recruit/infrastructure/database/recruit-db';
 import { CompanyEnrichQueueService } from 'src/queue/application/company-enrich-queue.service';
 import { JobPostingImageService } from './job-posting-image.service';
@@ -22,7 +27,6 @@ import { JobPostingQueryService } from './job-posting-query.service';
 import {
   cleanCompanyName,
   delay,
-  entityToJobPosting,
   extractEmployeesFromDetail,
   isIgnoredPosting,
   jobPostingToEntity,
@@ -47,20 +51,22 @@ interface CrawlCheckpointFile {
 }
 
 @Injectable()
-export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDestroy {
+export class JobPostingScrapeEngineService
+  implements OnModuleInit, OnModuleDestroy
+{
   private readonly logger = new Logger(JobPostingScrapeEngineService.name);
-  private readonly linkareerCrawler = new LinkareerJobCrawler();
-  private readonly jobkoreaCrawler = new JobkoreaJobCrawler();
-  private readonly catchCrawler = new CatchJobCrawler();
-  private readonly jobplanetCrawler = new JobplanetJobCrawler();
-  private readonly jobdaCrawler = new JobdaJobCrawler();
 
   private collectedIds = new Set<string>();
   private crawlCheckpoint: CrawlCheckpointFile = { date: '', sources: {} };
   private initialCatchSeedPromise: Promise<void> | null = null;
   private status: JobPostingScrapeStatus = {
-    running: false, currentPage: 0, totalCollected: 0, totalSkipped: 0,
-    errors: 0, startedAt: null, lastActivity: null,
+    running: false,
+    currentPage: 0,
+    totalCollected: 0,
+    totalSkipped: 0,
+    errors: 0,
+    startedAt: null,
+    lastActivity: null,
   };
 
   constructor(
@@ -69,6 +75,7 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
     private readonly companyProfileSvc: JobPostingCompanyProfileService,
     private readonly querySvc: JobPostingQueryService,
     private readonly companyEnrichQueue: CompanyEnrichQueueService,
+    private readonly crawlerRegistry: JobPostingCrawlerRegistryPort,
     @InjectRepository(RecruitJobPostingEntity)
     private readonly postingRepo: Repository<RecruitJobPostingEntity>,
   ) {}
@@ -80,7 +87,9 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
     this.recruitDb.pruneDetailCache();
     this.imageService.pruneImageCache();
     void this.ensureInitialCatchPostings().catch((err) => {
-      this.logger.warn(`캐치 초기 공고 로드 실패: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.warn(
+        `캐치 초기 공고 로드 실패: ${err instanceof Error ? err.message : String(err)}`,
+      );
     });
   }
 
@@ -92,25 +101,34 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
     return { ...this.status };
   }
 
-  async startScraping(opts: JobPostingScrapeOptions = {}): Promise<{ message: string }> {
+  async startScraping(
+    opts: JobPostingScrapeOptions = {},
+  ): Promise<{ message: string }> {
     if (this.status.running) return { message: '이미 수집 중입니다.' };
     this.status = {
-      running: true, currentPage: opts.startPage ?? 1, totalCollected: this.collectedIds.size,
-      totalSkipped: 0, errors: 0, startedAt: new Date().toISOString(), lastActivity: new Date().toISOString(),
+      running: true,
+      currentPage: opts.startPage ?? 1,
+      totalCollected: this.collectedIds.size,
+      totalSkipped: 0,
+      errors: 0,
+      startedAt: new Date().toISOString(),
+      lastActivity: new Date().toISOString(),
     };
     this.runScraping(opts).catch((err) => {
       this.logger.error('스크래핑 중 오류', err);
       this.status.running = false;
     });
     return {
-      message: (opts.source ?? 'linkareer') === 'all'
-        ? '전체 사이트 병렬 수집을 시작했습니다.'
-        : '채용공고 수집을 시작했습니다.',
+      message:
+        (opts.source ?? 'linkareer') === 'all'
+          ? '전체 사이트 병렬 수집을 시작했습니다.'
+          : '채용공고 수집을 시작했습니다.',
     };
   }
 
   stopScraping(): { message: string } {
-    if (!this.status.running) return { message: '실행 중인 수집 작업이 없습니다.' };
+    if (!this.status.running)
+      return { message: '실행 중인 수집 작업이 없습니다.' };
     this.status.running = false;
     return { message: '수집 중단 요청됨.' };
   }
@@ -123,10 +141,14 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
 
   private async seedInitialCatchPostings(): Promise<void> {
     const existingPostings = await this.querySvc.readAllFromDb();
-    const hasCatchPostings = existingPostings.some((p) => (p.source ?? '') === 'catch');
+    const hasCatchPostings = existingPostings.some(
+      (p) => (p.source ?? '') === 'catch',
+    );
 
     try {
-      const postings = await this.catchCrawler.getPopularPostings(50);
+      const postings = await this.crawlerRegistry
+        .get('catch')
+        .getPopularPostings(50);
       const existingIds = new Set(existingPostings.map((p) => p.id));
       let savedCount = 0;
       for (const posting of postings) {
@@ -142,7 +164,9 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
     } catch (err) {
       this.initialCatchSeedPromise = null;
       if (hasCatchPostings) {
-        this.logger.warn(`캐치 인기 공고 갱신 실패 — 기존 캐치 공고를 사용합니다: ${err instanceof Error ? err.message : String(err)}`);
+        this.logger.warn(
+          `캐치 인기 공고 갱신 실패 — 기존 캐치 공고를 사용합니다: ${err instanceof Error ? err.message : String(err)}`,
+        );
         return;
       }
       throw err;
@@ -160,28 +184,59 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
     const source = opts.source ?? 'linkareer';
     if (source === 'all') {
       await Promise.allSettled([
-        this.runCrawlerLoop('linkareer', (p) => this.linkareerCrawler.getPostingsFromPage(p, { jobType: 'RECRUIT', status: opts.status }), opts),
-        this.runJobkoreaRoundRobin(['대기업', '중견기업', '외국계기업', '공공기관'], opts),
-        this.runCrawlerLoop('catch', (p) => this.catchCrawler.getPostingsFromPage(p), opts),
-        this.runCrawlerLoop('jobplanet', (p) => this.jobplanetCrawler.getPostingsFromPage(p), opts),
-        this.runCrawlerLoop('jobda', (p) => this.jobdaCrawler.getPostingsFromPage(p), opts),
+        this.runCrawlerLoop(
+          'linkareer',
+          (page) =>
+            this.fetchCrawlerPage('linkareer', page, {
+              ...opts,
+              jobType: 'RECRUIT',
+            }),
+          opts,
+        ),
+        this.runJobkoreaRoundRobin(
+          ['대기업', '중견기업', '외국계기업', '공공기관'],
+          opts,
+        ),
+        this.runCrawlerLoop(
+          'catch',
+          (page) => this.fetchCrawlerPage('catch', page, opts),
+          opts,
+        ),
+        this.runCrawlerLoop(
+          'jobplanet',
+          (page) => this.fetchCrawlerPage('jobplanet', page, opts),
+          opts,
+        ),
+        this.runCrawlerLoop(
+          'jobda',
+          (page) => this.fetchCrawlerPage('jobda', page, opts),
+          opts,
+        ),
       ]);
     } else if (source === 'jobkorea') {
-      const types = ((opts.jobkoreaCompanyTypes ?? []) as JobkoreaCompanyType[]).length > 0
-        ? (opts.jobkoreaCompanyTypes as JobkoreaCompanyType[])
-        : (['대기업', '중견기업', '외국계기업', '공공기관'] as JobkoreaCompanyType[]);
+      const types =
+        ((opts.jobkoreaCompanyTypes ?? []) as JobkoreaCompanyType[]).length > 0
+          ? (opts.jobkoreaCompanyTypes as JobkoreaCompanyType[])
+          : ([
+              '대기업',
+              '중견기업',
+              '외국계기업',
+              '공공기관',
+            ] as JobkoreaCompanyType[]);
       await this.runJobkoreaRoundRobin(types, opts);
     } else {
-      const fetchPage =
-        source === 'catch' ? (p: number) => this.catchCrawler.getPostingsFromPage(p)
-        : source === 'jobplanet' ? (p: number) => this.jobplanetCrawler.getPostingsFromPage(p)
-        : source === 'jobda' ? (p: number) => this.jobdaCrawler.getPostingsFromPage(p)
-        : (p: number) => this.linkareerCrawler.getPostingsFromPage(p, { jobType: opts.jobType, status: opts.status });
-      await this.runCrawlerLoop(source, fetchPage, opts);
+      const crawlerSource = this.resolveCrawlerSource(source);
+      await this.runCrawlerLoop(
+        crawlerSource,
+        (page) => this.fetchCrawlerPage(crawlerSource, page, opts),
+        opts,
+      );
     }
 
     this.status.running = false;
-    this.logger.log(`수집 종료 — 총 ${this.status.totalCollected}개 (에러 ${this.status.errors}개)`);
+    this.logger.log(
+      `수집 종료 — 총 ${this.status.totalCollected}개 (에러 ${this.status.errors}개)`,
+    );
   }
 
   private async runCrawlerLoop(
@@ -194,10 +249,18 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
     const sourceCheckpoint = this.crawlCheckpoint.sources[label];
     const startPage =
       opts.startPage ??
-      (sourceCheckpoint && !sourceCheckpoint.done ? sourceCheckpoint.lastCompletedPage + 1 : 1);
+      (sourceCheckpoint && !sourceCheckpoint.done
+        ? sourceCheckpoint.lastCompletedPage + 1
+        : 1);
 
-    if (opts.startPage === undefined && sourceCheckpoint && !sourceCheckpoint.done) {
-      this.logger.log(`[${label}] 체크포인트 복원: 페이지 ${startPage}부터 재개`);
+    if (
+      opts.startPage === undefined &&
+      sourceCheckpoint &&
+      !sourceCheckpoint.done
+    ) {
+      this.logger.log(
+        `[${label}] 체크포인트 복원: 페이지 ${startPage}부터 재개`,
+      );
     }
 
     let page = startPage;
@@ -219,20 +282,35 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
       }
 
       if (postings.length === 0) {
-        if (++emptyPageCount >= 3) { this.logger.log(`[${label}] 빈 페이지 3회 연속 — 완료`); exhausted = true; break; }
+        if (++emptyPageCount >= 3) {
+          this.logger.log(`[${label}] 빈 페이지 3회 연속 — 완료`);
+          exhausted = true;
+          break;
+        }
       } else {
         emptyPageCount = 0;
       }
 
       const newPostings = postings.filter((p) => !this.collectedIds.has(p.id));
-      this.logger.log(`[${label}] 페이지 ${page}: ${postings.length}개 중 신규 ${newPostings.length}개`);
+      this.logger.log(
+        `[${label}] 페이지 ${page}: ${postings.length}개 중 신규 ${newPostings.length}개`,
+      );
 
       for (const posting of newPostings) {
         if (!this.status.running) break;
-        if (this.collectedIds.has(posting.id)) { this.status.totalSkipped++; continue; }
-        if (isIgnoredPosting(posting)) { this.collectedIds.add(posting.id); this.status.totalSkipped++; continue; }
+        if (this.collectedIds.has(posting.id)) {
+          this.status.totalSkipped++;
+          continue;
+        }
+        if (isIgnoredPosting(posting)) {
+          this.collectedIds.add(posting.id);
+          this.status.totalSkipped++;
+          continue;
+        }
         if (label === 'linkareer' && opts.fetchDetail === true) {
-          const detail = await this.linkareerCrawler.getDetail(posting.id);
+          const detail = await this.crawlerRegistry
+            .get('linkareer')
+            .getDetail({ id: posting.id, url: posting.url });
           Object.assign(posting, detail);
           await delay(delayMs * 0.5);
         }
@@ -250,13 +328,19 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
     this.updateSourceCheckpoint(label, page - 1, exhausted);
   }
 
-  private async runJobkoreaRoundRobin(companyTypes: JobkoreaCompanyType[], opts: JobPostingScrapeOptions) {
+  private async runJobkoreaRoundRobin(
+    companyTypes: JobkoreaCompanyType[],
+    opts: JobPostingScrapeOptions,
+  ) {
     const delayMs = opts.delayMs ?? 2000;
     const pages: Record<string, number> = {};
     const emptyCount: Record<string, number> = {};
     const exhausted = new Set<string>();
 
-    for (const ct of companyTypes) { pages[ct] = 1; emptyCount[ct] = 0; }
+    for (const ct of companyTypes) {
+      pages[ct] = 1;
+      emptyCount[ct] = 0;
+    }
 
     while (this.status.running && exhausted.size < companyTypes.length) {
       const round = shuffled(companyTypes.filter((ct) => !exhausted.has(ct)));
@@ -268,7 +352,9 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
 
         let postings: JobPosting[];
         try {
-          postings = await this.jobkoreaCrawler.getPostingsFromPage(page, ct);
+          postings = await this.crawlerRegistry
+            .get('jobkorea')
+            .getPostingsFromPage({ page, companyType: ct });
         } catch (err) {
           this.logger.warn(`[jobkorea-${ct}] p.${page} 오류: ${err}`);
           this.status.errors++;
@@ -277,18 +363,32 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
         }
 
         if (postings.length === 0) {
-          if (++emptyCount[ct] >= 3) { this.logger.log(`[jobkorea-${ct}] 빈 페이지 3회 — 완료`); exhausted.add(ct); }
+          if (++emptyCount[ct] >= 3) {
+            this.logger.log(`[jobkorea-${ct}] 빈 페이지 3회 — 완료`);
+            exhausted.add(ct);
+          }
         } else {
           emptyCount[ct] = 0;
         }
 
-        const newPostings = postings.filter((p) => !this.collectedIds.has(p.id));
-        this.logger.log(`[jobkorea-${ct}] p.${page}: ${postings.length}개 중 신규 ${newPostings.length}개`);
+        const newPostings = postings.filter(
+          (p) => !this.collectedIds.has(p.id),
+        );
+        this.logger.log(
+          `[jobkorea-${ct}] p.${page}: ${postings.length}개 중 신규 ${newPostings.length}개`,
+        );
 
         for (const posting of newPostings) {
           if (!this.status.running) break;
-          if (this.collectedIds.has(posting.id)) { this.status.totalSkipped++; continue; }
-          if (isIgnoredPosting(posting)) { this.collectedIds.add(posting.id); this.status.totalSkipped++; continue; }
+          if (this.collectedIds.has(posting.id)) {
+            this.status.totalSkipped++;
+            continue;
+          }
+          if (isIgnoredPosting(posting)) {
+            this.collectedIds.add(posting.id);
+            this.status.totalSkipped++;
+            continue;
+          }
           await this.savePosting(posting);
           this.status.totalCollected++;
         }
@@ -300,18 +400,49 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
       }
     }
 
-    for (const ct of companyTypes) this.updateSourceCheckpoint(`jobkorea-${ct}`, pages[ct] - 1, true);
+    for (const ct of companyTypes)
+      this.updateSourceCheckpoint(`jobkorea-${ct}`, pages[ct] - 1, true);
+  }
+
+  private fetchCrawlerPage(
+    source: JobPostingCrawlerSource,
+    page: number,
+    opts: JobPostingScrapeOptions,
+  ): Promise<JobPosting[]> {
+    return this.crawlerRegistry.get(source).getPostingsFromPage({
+      page,
+      jobType: opts.jobType,
+      status: opts.status,
+    });
+  }
+
+  private resolveCrawlerSource(source: string): JobPostingCrawlerSource {
+    if (
+      source === 'catch' ||
+      source === 'jobplanet' ||
+      source === 'jobda' ||
+      source === 'jobkorea'
+    ) {
+      return source;
+    }
+    return 'linkareer';
   }
 
   private async savePosting(p: JobPosting) {
     await this.upsertPostingToDb(p);
-    this.querySvc.invalidateDedupCache();
+    this.querySvc.invalidateDuplicateFilterCache();
     this.collectedIds.add(p.id);
-    if (this.companyProfileSvc.upsertFromPosting(p)) this.companyProfileSvc.save();
+    if (this.companyProfileSvc.upsertFromPosting(p))
+      this.companyProfileSvc.save();
     if (p.company) {
-      const knownType = normalizeCompanyType(p.companyType) ?? p.companyType ?? null;
-      const knownEmployees = extractEmployeesFromDetail(p.detailContent ?? p.detailHtml);
-      this.companyEnrichQueue.enqueue(cleanCompanyName(p.company), knownType, knownEmployees).catch(() => {});
+      const knownType =
+        normalizeCompanyType(p.companyType) ?? p.companyType ?? null;
+      const knownEmployees = extractEmployeesFromDetail(
+        p.detailContent ?? p.detailHtml,
+      );
+      this.companyEnrichQueue
+        .enqueue(cleanCompanyName(p.company), knownType, knownEmployees)
+        .catch(() => {});
     }
   }
 
@@ -323,8 +454,23 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
       .into(RecruitJobPostingEntity)
       .values(entity)
       .orUpdate(
-        ['source', 'source_type', 'title', 'company', 'location', 'url', 'company_type', 'type',
-         'start_date', 'end_date', 'deadline', 'jobs', 'homepage', 'view_count', 'collected_at'],
+        [
+          'source',
+          'source_type',
+          'title',
+          'company',
+          'location',
+          'url',
+          'company_type',
+          'type',
+          'start_date',
+          'end_date',
+          'deadline',
+          'jobs',
+          'homepage',
+          'view_count',
+          'collected_at',
+        ],
         ['id'],
       )
       .execute();
@@ -340,8 +486,13 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
       try {
         this.crawlCheckpoint = JSON.parse(row.data) as CrawlCheckpointFile;
         const sources = Object.entries(this.crawlCheckpoint.sources)
-          .map(([k, v]) => `${k}:p${v.lastCompletedPage}${v.done ? '(완료)' : ''}`).join(', ');
-        this.logger.log(`체크포인트 DB 로드 — ${this.crawlCheckpoint.date} [${sources || '없음'}]`);
+          .map(
+            ([k, v]) => `${k}:p${v.lastCompletedPage}${v.done ? '(완료)' : ''}`,
+          )
+          .join(', ');
+        this.logger.log(
+          `체크포인트 DB 로드 — ${this.crawlCheckpoint.date} [${sources || '없음'}]`,
+        );
         return;
       } catch {
         this.logger.warn('체크포인트 DB 로드 실패 — 초기화');
@@ -350,10 +501,17 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
 
     if (!fs.existsSync(CHECKPOINT_FILE)) return;
     try {
-      this.crawlCheckpoint = JSON.parse(fs.readFileSync(CHECKPOINT_FILE, 'utf-8'));
+      this.crawlCheckpoint = JSON.parse(
+        fs.readFileSync(CHECKPOINT_FILE, 'utf-8'),
+      );
       const sources = Object.entries(this.crawlCheckpoint.sources)
-        .map(([k, v]) => `${k}:p${v.lastCompletedPage}${v.done ? '(완료)' : ''}`).join(', ');
-      this.logger.log(`체크포인트 JSON 로드 — ${this.crawlCheckpoint.date} [${sources || '없음'}]`);
+        .map(
+          ([k, v]) => `${k}:p${v.lastCompletedPage}${v.done ? '(완료)' : ''}`,
+        )
+        .join(', ');
+      this.logger.log(
+        `체크포인트 JSON 로드 — ${this.crawlCheckpoint.date} [${sources || '없음'}]`,
+      );
       this.saveCheckpoint();
     } catch {
       this.logger.warn('체크포인트 로드 실패 — 초기화');
@@ -363,16 +521,30 @@ export class JobPostingScrapeEngineService implements OnModuleInit, OnModuleDest
   private saveCheckpoint() {
     this.recruitDb
       .get()
-      .prepare(`
+      .prepare(
+        `
         INSERT INTO job_posting_crawl_checkpoints (id, data, updated_at)
         VALUES (?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
-      `)
-      .run(CHECKPOINT_ID, JSON.stringify(this.crawlCheckpoint), new Date().toISOString());
+      `,
+      )
+      .run(
+        CHECKPOINT_ID,
+        JSON.stringify(this.crawlCheckpoint),
+        new Date().toISOString(),
+      );
   }
 
-  private updateSourceCheckpoint(label: string, lastPage: number, done: boolean) {
-    this.crawlCheckpoint.sources[label] = { lastCompletedPage: lastPage, done, updatedAt: new Date().toISOString() };
+  private updateSourceCheckpoint(
+    label: string,
+    lastPage: number,
+    done: boolean,
+  ) {
+    this.crawlCheckpoint.sources[label] = {
+      lastCompletedPage: lastPage,
+      done,
+      updatedAt: new Date().toISOString(),
+    };
     this.saveCheckpoint();
   }
 }

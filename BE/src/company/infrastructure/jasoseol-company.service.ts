@@ -1,6 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { load } from 'cheerio';
-import { PuppeteerService } from 'src/browse/infrastructure/puppeteer.service';
+import { BrowserService } from 'src/browse/application/browser.service';
 import { SessionGateway } from 'src/sessions/presentation/session.gateway';
 
 export interface JasoseolCompanyInfo {
@@ -41,7 +41,7 @@ export class JasoseolCompanyService {
   private runningCount = 0;
 
   constructor(
-    private readonly puppeteer: PuppeteerService,
+    private readonly browser: BrowserService,
     @Optional() private readonly gateway?: SessionGateway,
   ) {}
 
@@ -105,7 +105,7 @@ export class JasoseolCompanyService {
     companyName: string,
   ): Promise<JasoseolCompanyInfo | null> {
     const url = `https://jasoseol.com/companies?keyword=${encodeURIComponent(companyName)}`;
-    const html = await this.puppeteer.fetchRenderedHtml(
+    const html = await this.browser.fetchRenderedHtml(
       url,
       '[class*="company"], [class*="Corp"]',
     );

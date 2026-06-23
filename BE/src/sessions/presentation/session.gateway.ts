@@ -9,6 +9,7 @@ import {
 import { Server, WebSocket } from 'ws';
 import { SessionQueryService } from 'src/sessions/application/query/session-query.service';
 import { QueueStatusDto } from 'src/queue/presentation/dto/response/queue-status.dto';
+import type { EnrichApiStats } from 'src/company/application/company-enrich.service';
 
 @WebSocketGateway({ path: '/ws' })
 export class SessionGateway implements OnGatewayDisconnect {
@@ -35,7 +36,20 @@ export class SessionGateway implements OnGatewayDisconnect {
     pending: number;
     processing: boolean;
     currentCompany: string | null;
-  } = { pending: 0, processing: false, currentCompany: null };
+    estimatedMs: number | null;
+    sessionProcessed: number;
+    sessionTotal: number;
+    recentCompanies: { name: string; doneAt: string }[];
+    apiStats?: EnrichApiStats;
+  } = {
+    pending: 0,
+    processing: false,
+    currentCompany: null,
+    estimatedMs: null,
+    sessionProcessed: 0,
+    sessionTotal: 0,
+    recentCompanies: [],
+  };
 
   constructor(private readonly sessionQueryService: SessionQueryService) {}
 
@@ -114,6 +128,10 @@ export class SessionGateway implements OnGatewayDisconnect {
     processing: boolean;
     currentCompany: string | null;
     estimatedMs: number | null;
+    sessionProcessed: number;
+    sessionTotal: number;
+    recentCompanies: { name: string; doneAt: string }[];
+    apiStats?: EnrichApiStats;
   }): void {
     this.enrichQueueStatus = status;
     if (this.enrichQueueSubscribers.size === 0) return;

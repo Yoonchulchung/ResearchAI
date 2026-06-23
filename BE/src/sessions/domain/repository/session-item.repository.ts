@@ -49,6 +49,7 @@ export class SessionItemRepository {
     extra?: {
       usedWebModel?: string;
       searchLog?: { query: string; result: string }[];
+      chartData?: unknown[];
     },
   ): Promise<void> {
     await this.repo.update(id, {
@@ -67,6 +68,9 @@ export class SessionItemRepository {
       ...(extra?.usedWebModel != null && { usedWebModel: extra.usedWebModel }),
       ...(extra?.searchLog != null && {
         searchLog: JSON.stringify(extra.searchLog),
+      }),
+      ...(extra?.chartData != null && {
+        chartData: JSON.stringify(extra.chartData),
       }),
     });
   }

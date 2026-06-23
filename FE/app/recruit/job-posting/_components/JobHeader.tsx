@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { JobPosting, JobScrapingStatus, CollectDetailStatus, CollectDetailConfig, JobkoreaCompanyType } from "@/lib/api/recruit/job-posting";
 import { CollectSettingsModal } from "./CollectSettingsModal";
 import { ScrapeSettingsModal } from "./ScrapeSettingsModal";
+import { ScrapeGaugeBar } from "@/recruit/_components/ScrapeGaugeBar";
 
 interface JobHeaderProps {
   total: number;
@@ -196,11 +197,24 @@ export function JobHeader({
         />
       </div>
 
-      {/* 수집 진행 상태 표시 */}
-      {status?.running && (
-        <div className="flex items-center gap-1.5 mt-2 text-xs px-3 py-1.5 rounded-md bg-emerald-50 text-emerald-600 font-medium border border-emerald-100 w-fit dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50">
-          <span className="w-1.5 h-1.5 rounded-sm bg-emerald-500 animate-pulse" />
-          수집 중 {status.totalCollected.toLocaleString()}건 · p.{status.currentPage}
+      {/* 수집 진행 상태 게이지 */}
+      {(status?.running || collectStatus?.running) && (
+        <div className="flex flex-col gap-1.5 mt-2">
+          {status?.running && (
+            <ScrapeGaugeBar
+              running
+              label={`크롤링 중 · p.${status.currentPage}`}
+              current={status.totalCollected}
+            />
+          )}
+          {collectStatus?.running && (
+            <ScrapeGaugeBar
+              running
+              label="AI 상세 수집 중"
+              current={collectStatus.processed}
+              total={collectStatus.total}
+            />
+          )}
         </div>
       )}
     </div>

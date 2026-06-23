@@ -13,7 +13,7 @@ const MODELS = [
 
 const COMPANY_TYPES = ["대기업", "중견기업", "중소기업", "금융권", "외국계기업"];
 const JOB_TYPES = ["신입", "인턴", "경력", "계약직"];
-const CATEGORIES = ["IT", "전자"];
+const CATEGORIES = ["IT", "기획", "전자"];
 
 interface CollectSettingsModalProps {
   open: boolean;
@@ -235,17 +235,31 @@ export function CollectSettingsModal({
               </button>
             </div>
 
-            {/* VLM */}
+            {/* AI 단계 건너뛰기 */}
             <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">AI 단계 건너뛰기</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">HTML 수집만 · VLM·추천 분석 생략 (나중에 별도 실행)</p>
+              </div>
+              <button
+                onClick={() => onChange({ ...config, skipAiSteps: !config.skipAiSteps })}
+                className={`relative w-9 h-5 rounded-sm transition-colors shrink-0 ml-3 ${config.skipAiSteps ? "bg-amber-500" : "bg-slate-200 dark:bg-slate-700"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-sm bg-white shadow transition-transform ${config.skipAiSteps ? "translate-x-4" : "translate-x-0"}`} />
+              </button>
+            </div>
+
+            {/* VLM */}
+            <div className={`flex items-center justify-between ${config.skipAiSteps ? "opacity-40 pointer-events-none" : ""}`}>
               <div>
                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">이미지 텍스트 추출 (VLM)</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">공고 이미지에서 AI로 텍스트 추출</p>
               </div>
               <button
                 onClick={() => onChange({ ...config, enableVlm: !config.enableVlm })}
-                className={`relative w-9 h-5 rounded-sm transition-colors shrink-0 ml-3 ${config.enableVlm ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700"}`}
+                className={`relative w-9 h-5 rounded-sm transition-colors shrink-0 ml-3 ${config.enableVlm && !config.skipAiSteps ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700"}`}
               >
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-sm bg-white shadow transition-transform ${config.enableVlm ? "translate-x-4" : "translate-x-0"}`} />
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-sm bg-white shadow transition-transform ${config.enableVlm && !config.skipAiSteps ? "translate-x-4" : "translate-x-0"}`} />
               </button>
             </div>
           </div>

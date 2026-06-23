@@ -29,6 +29,7 @@ import {
   getCalendarDays,
   matchesPopularCategory,
   isTypingTarget,
+  type PopularCategory,
 } from "../_utils";
 import type { CalendarEvent, CalendarEventKind } from "../_types";
 import { recruitSearch } from "@/lib/recruit-search";
@@ -63,7 +64,7 @@ export function useJobPostings(jobId: string | null, initialSearch?: string | nu
   const [favoritePostings, setFavoritePostings] = useState<JobPosting[]>([]);
   const [popularLoading, setPopularLoading] = useState(false);
   const [recommendations, setRecommendations] = useState<JobRecommendation[]>([]);
-  const [popularCategoryFilter, setPopularCategoryFilter] = useState<"" | "IT" | "전자">("");
+  const [popularCategoryFilter, setPopularCategoryFilter] = useState<PopularCategory>("");
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
 
   const listScrollTopRef = useRef(0);

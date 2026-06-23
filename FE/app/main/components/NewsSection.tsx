@@ -5,17 +5,11 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { API_BASE, apiFetch } from "@/lib/api/base";
-import { getGithubTrending, getHuggingFaceTrending } from "@/lib/api/news-feed";
+import { getGithubTrending, getHuggingFaceTrending, getNewsFeed, type NewsItem } from "@/lib/api/news-feed";
 import { useTheme } from "@/contexts/ThemeContext";
 
-// ── Google News ──────────────────────────────────────────────
-interface GoogleNewsItem {
-  title: string;
-  link: string;
-  source: string;
-  pubDate: string;
-  description: string;
-}
+// ── Naver News ──────────────────────────────────────────────
+type GoogleNewsItem = NewsItem;
 
 interface NewsArticleSummary {
   id: string;
@@ -386,20 +380,15 @@ function GoogleNewsPanel() {
   const [summarizedUrls, setSummarizedUrls] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const ctrl = new AbortController();
+    let cancelled = false;
     setLoading(true); setError(false); setItems([]);
 
-    fetch(`${API_BASE}/news/naver?category=${category}`, { signal: ctrl.signal })
-      .then((r) => r.json())
-      .then((data) => {
-        if (ctrl.signal.aborted) return;
-        const fetched = data?.isSuccess ? (data.result ?? []) : (Array.isArray(data) ? data : []);
-        setItems(fetched);
-      })
-      .catch(() => { if (!ctrl.signal.aborted) setError(true); })
-      .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
+    getNewsFeed(category)
+      .then((data) => { if (!cancelled) setItems(data); })
+      .catch(() => { if (!cancelled) setError(true); })
+      .finally(() => { if (!cancelled) setLoading(false); });
 
-    return () => ctrl.abort();
+    return () => { cancelled = true; };
   }, [category]);
 
   // 각 기사의 AI 요약 존재 여부 확인
@@ -716,7 +705,7 @@ export function NewsSection() {
               tab === "naver" ? "bg-blue-500 text-white" : isDark ? "text-white/50 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
             }`}
           >
-            구글 뉴스
+            네이버 뉴스
           </button>
           <button
             onClick={() => setTab("github")}

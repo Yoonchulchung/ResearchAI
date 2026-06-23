@@ -31,6 +31,8 @@ import { SearchListRepository } from 'src/research/domain/repository/search-list
 import { ResearchRecruitRepository } from 'src/research/domain/repository/research-recruit.repository';
 import { LightResearchEventType } from 'src/research/domain/model/light-research.model';
 import { AttachedFilePayload } from 'src/queue/presentation/dto/request/enqueue-light-research.dto';
+import { BrowserService } from 'src/browse/application/browser.service';
+import { NewsService } from 'src/news/application/service/news.service';
 
 export type JobItem = {
   title: string;
@@ -78,7 +80,7 @@ export type LightResearchEvent =
  * │          auto → Ollama 라우터가 web / recruit / both 판단           │
  * │          직접 지정 → 지정값 사용                                     │
  * ├─────────────────────────────────────────────────────────────────┤
- * │  Step 1a. 웹 검색 (web / both, Tavily API 키 필요)                  │
+ * │  Step 1a. 웹 검색 (web / both, Puppeteer 내장 엔진)                  │
  * │  Step 1b. 채용 공고 크롤러 실시간 실행 (recruit / both)                  │
  * ├─────────────────────────────────────────────────────────────────┤
  * │  Step 2. AI 태스크 목록 생성 (Claude 등)                             │
@@ -95,6 +97,8 @@ export class LightResearchPipelineService {
     private readonly aiProvier: AiProviderService,
     private readonly searchListRepository: SearchListRepository,
     private readonly researchRecruitRepository: ResearchRecruitRepository,
+    private readonly browser: BrowserService,
+    private readonly newsService: NewsService,
   ) {}
 
   /** 파이프라인 테스트용 — fullPrompt, searchContext, searchPlan 포함 반환 */
@@ -117,12 +121,26 @@ export class LightResearchPipelineService {
 
     let webContext: string | undefined;
     if (
-      (searchPlan.searchMode === SearchMode.WEB ||
-        searchPlan.searchMode === SearchMode.BOTH) &&
-      this.hasEngine(SearchEngine.TAVILY)
+      searchPlan.searchMode === SearchMode.WEB ||
+      searchPlan.searchMode === SearchMode.BOTH
     ) {
       try {
-        webContext = await searchTavilyLight(keyword);
+        const [webRaw, newsRaw] = await Promise.allSettled([
+          this.browser.searchWeb(keyword, 10),
+          this.newsService.getQueryNews(keyword, 1).catch(() => ({ items: [] })),
+        ]);
+        const webItems = webRaw.status === 'fulfilled' ? webRaw.value : [];
+        const newsItems = newsRaw.status === 'fulfilled' ? newsRaw.value.items : [];
+        const seen = new Set(newsItems.map((n) => n.url));
+        const all = [...newsItems, ...webItems.filter((w) => !seen.has(w.url))];
+        if (all.length > 0) {
+          webContext = all
+            .map((item, i) => {
+              const date = 'publishedAt' in item && item.publishedAt ? ` (${String(item.publishedAt).substring(0, 10)})` : '';
+              return `[${i + 1}] ${item.title}${date}\n${item.snippet ?? ''}\n출처: ${item.url}`;
+            })
+            .join('\n\n');
+        }
       } catch {
         /* 무시 */
       }
@@ -251,9 +269,9 @@ export class LightResearchPipelineService {
     if (
       !useBuiltin &&
       (searchPlan.searchMode === SearchMode.WEB ||
-        searchPlan.searchMode === SearchMode.BOTH) &&
-      this.hasEngine(webModel)
+        searchPlan.searchMode === SearchMode.BOTH)
     ) {
+      // Puppeteer 내장 엔진이므로 API 키 불필요 — hasEngine 체크 제거
       webContext = yield* this.step1aWebSearch(searchPlan.keyword, webModel);
     }
 
@@ -308,19 +326,45 @@ export class LightResearchPipelineService {
     return searchPlan;
   }
 
-  // ── Step 1a: 웹 검색 ──
+  // ── Step 1a: 웹 검색 (다중 엔진 병렬) ──
   async *step1aWebSearch(
     searchKeyword: string,
     webModel: SearchEngine,
   ): AsyncGenerator<LightResearchEvent, string | undefined> {
-    yield* this.printFront(
-      `웹 검색을 시작하겠습니다. 잠시만 기다려주세요. (엔진: ${webModel || 'auto'})`,
-    );
+    yield* this.printFront(`웹 검색 시작 (웹 + 뉴스 병렬)`);
     try {
-      const webContext = await this.searchWithEngine(webModel, searchKeyword);
-      const lines = webContext?.split('\n').length ?? 0;
-      yield* this.printFront(`웹 검색 완료 — ${lines}줄 수집`);
-      return webContext;
+      const [webRaw, newsRaw] = await Promise.allSettled([
+        this.browser.searchWeb(searchKeyword, 10),
+        this.newsService.getQueryNews(searchKeyword, 1).catch(() => ({ items: [] })),
+      ]);
+
+      const webItems = webRaw.status === 'fulfilled' ? webRaw.value : [];
+      const newsItems = newsRaw.status === 'fulfilled' ? newsRaw.value.items : [];
+
+      // URL 기준 중복 제거 — 뉴스 우선(날짜 포함)
+      const seen = new Set(newsItems.map((n) => n.url));
+      const dedupedWeb = webItems.filter((w) => !seen.has(w.url));
+
+      const allItems = [...newsItems, ...dedupedWeb];
+
+      if (allItems.length === 0) {
+        // 폴백: 기존 단일 엔진
+        yield* this.printFront(`결과 없음 — ${webModel} 폴백 검색`);
+        const fallback = await this.searchWithEngine(webModel, searchKeyword).catch(() => '');
+        return fallback || undefined;
+      }
+
+      const contextLines = allItems.map((item, i) => {
+        const isNews = 'publishedAt' in item;
+        const date = isNews && item.publishedAt ? ` (${String(item.publishedAt).substring(0, 10)})` : '';
+        const source = 'source' in item ? item.source : '';
+        return `[${i + 1}] ${item.title}${date}\n${item.snippet ?? ''}${source ? `\n출처: ${item.url} (${source})` : `\n출처: ${item.url}`}`;
+      });
+
+      yield* this.printFront(
+        `웹 검색 완료 — 웹 ${dedupedWeb.length}건 + 뉴스 ${newsItems.length}건 (총 ${allItems.length}건)`,
+      );
+      return contextLines.join('\n\n');
     } catch (err) {
       this.logger.warn(`웹 검색 실패 (무시됨): ${err}`);
       yield* this.printFront('웹 검색 실패 (무시됨)');
@@ -485,31 +529,6 @@ export class LightResearchPipelineService {
 
   private *printFront(message: string): Generator<LightResearchEvent> {
     yield { type: LightResearchEventType.LOG, message };
-  }
-
-  private hasEngine(engine: SearchEngine): boolean {
-    switch (engine) {
-      case SearchEngine.SERPER:
-        return (
-          !!process.env.SERPER_API_KEY &&
-          !process.env.SERPER_API_KEY.startsWith('your_')
-        );
-      case SearchEngine.NAVER:
-        return (
-          !!process.env.NAVER_CLIENT_ID &&
-          !process.env.NAVER_CLIENT_ID.startsWith('your_')
-        );
-      case SearchEngine.BRAVE:
-        return (
-          !!process.env.BRAVE_API_KEY &&
-          !process.env.BRAVE_API_KEY.startsWith('your_')
-        );
-      default:
-        return (
-          !!process.env.TAVILY_API_KEY &&
-          !process.env.TAVILY_API_KEY.startsWith('your_')
-        );
-    }
   }
 
   private async searchWithEngine(

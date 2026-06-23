@@ -14,7 +14,6 @@ import { useDocStoreModal } from "@/contexts/DocStoreModalContext";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { useTheme } from "@/contexts/ThemeContext";
 
-
 function formatDate(iso: string) {
   const date = new Date(iso);
   const now = new Date();
@@ -42,67 +41,185 @@ function StatusDot({ status }: { status: DotStatus }) {
       </span>
     );
   }
-  const cls = {
-    idle: "bg-slate-300",
-    partial: "bg-amber-400",
-    done: "bg-emerald-400",
-  }[status] ?? "bg-slate-300";
+  const cls =
+    {
+      idle: "bg-slate-300",
+      partial: "bg-amber-400",
+      done: "bg-emerald-400",
+    }[status] ?? "bg-slate-300";
   return <span className={`w-2 h-2 rounded-full shrink-0 mt-0.5 ${cls}`} />;
 }
 
 // Inline SVG Icons
 function IconResearch() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      className="shrink-0"
+    >
       <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M10.5 10.5L13.5 13.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
-
 function IconPencil() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
-      <path d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M9.5 4L12 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      className="shrink-0"
+    >
+      <path
+        d="M11 2.5L13.5 5L5.5 13H3V10.5L11 2.5Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.5 4L12 6.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
 function IconBookmark() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
-      <path d="M4 2H12C12.55 2 13 2.45 13 3V14L8 11L3 14V3C3 2.45 3.45 2 4 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M6 6H10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      className="shrink-0"
+    >
+      <path
+        d="M4 2H12C12.55 2 13 2.45 13 3V14L8 11L3 14V3C3 2.45 3.45 2 4 2Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6 6H10"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
 function IconChart() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
-      <path d="M2 13V6M6 13V3M10 13V8M14 13V5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M1.5 14H14.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      className="shrink-0"
+    >
+      <path
+        d="M2 13V6M6 13V3M10 13V8M14 13V5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M1.5 14H14.5"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
 function IconFeed() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      className="shrink-0"
+    >
       <circle cx="4" cy="12" r="1.2" fill="currentColor" />
-      <path d="M3 8C5.76 8 8 10.24 8 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M3 4C7.97 4 12 8.03 12 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M3 8C5.76 8 8 10.24 8 13"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M3 4C7.97 4 12 8.03 12 13"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
+function IconStock() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      className="shrink-0"
+    >
+      <path
+        d="M2 12L5.2 8.7L7.8 10.2L12.8 4.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10.3 4.5H12.8V7"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M2 14H14"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 function IconPlus() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
-      <path d="M7 2V12M2 7H12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      className="shrink-0"
+    >
+      <path
+        d="M7 2V12M2 7H12"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -110,7 +227,13 @@ function IconPlus() {
 function IconChevronLeft() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M9 11L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M9 11L5 7L9 3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -118,21 +241,43 @@ function IconChevronLeft() {
 function IconChevronRight() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M5 3L9 7L5 11"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 function LogoMark({ size = 28 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 28 28" fill="none" className="shrink-0">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 28 28"
+      fill="none"
+      className="shrink-0"
+    >
       <rect width="28" height="28" rx="7" fill="#4F46E5" />
-      <path d="M8 20V9H13.5C15.433 9 17 10.567 17 12.5C17 14.433 15.433 16 13.5 16H8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M14 16L18 20" stroke="white" strokeWidth="2" strokeLinecap="round" />
+      <path
+        d="M8 20V9H13.5C15.433 9 17 10.567 17 12.5C17 14.433 15.433 16 13.5 16H8"
+        stroke="white"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 16L18 20"
+        stroke="white"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
-
 
 const COLLAPSE_BREAKPOINT = 1024; // px — 이 너비 이하에서 자동 축소
 
@@ -155,14 +300,17 @@ export function Sidebar() {
     pathname?.startsWith("/recruit/cover-letter") ||
     pathname?.startsWith("/recruit/spec") ||
     pathname?.startsWith("/recruit/doc-store");
-  const isNewsActive =
-    pathname === "/news" ||
-    pathname?.startsWith("/news/");
+  const isNewsActive = pathname === "/news" || pathname?.startsWith("/news/");
+  const isStockActive =
+    pathname === "/stock" || pathname?.startsWith("/stock/");
 
-  const updateCollapsed = useCallback((v: boolean) => {
-    setCollapsed(v);
-    setSidebarCollapsed(v);
-  }, [setSidebarCollapsed]);
+  const updateCollapsed = useCallback(
+    (v: boolean) => {
+      setCollapsed(v);
+      setSidebarCollapsed(v);
+    },
+    [setSidebarCollapsed],
+  );
 
   // 반응형: 창 너비에 따라 자동 축소/확장
   useEffect(() => {
@@ -175,7 +323,9 @@ export function Sidebar() {
   }, [updateCollapsed]);
 
   const fetchSessions = useCallback(() => {
-    getSessions().then(setSessions).catch(() => { });
+    getSessions()
+      .then(setSessions)
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -201,7 +351,7 @@ export function Sidebar() {
           const msg = JSON.parse(event.data as string);
           if (msg.event === "session:update" && msg.data) {
             setSessions((prev) =>
-              prev.map((s) => (s.id === msg.data.id ? msg.data : s))
+              prev.map((s) => (s.id === msg.data.id ? msg.data : s)),
             );
           }
         } catch {
@@ -230,7 +380,9 @@ export function Sidebar() {
   }, []);
 
   const filteredSessions = searchQuery.trim()
-    ? sessions.filter((s) => s.topic.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? sessions.filter((s) =>
+        s.topic.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
     : sessions;
 
   const currentId = pathname.startsWith("/sessions/")
@@ -247,13 +399,16 @@ export function Sidebar() {
     if (currentId === id) router.push("/");
   };
 
-  const containerClasses = uiStyle === "glass"
-    ? "m-3 mr-0 h-[calc(100dvh-1.5rem)] rounded-2xl glass-panel shadow-lg"
-    : "h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800";
+  const containerClasses =
+    uiStyle === "glass"
+      ? "m-3 mr-0 h-[calc(100dvh-1.5rem)] rounded-2xl glass-panel shadow-lg"
+      : "h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800";
 
   if (collapsed) {
     return (
-      <aside className={`w-13 shrink-0 flex flex-col overflow-hidden transition-all duration-300 z-10 ${containerClasses}`}>
+      <aside
+        className={`w-13 shrink-0 flex flex-col overflow-hidden transition-all duration-300 z-10 ${containerClasses}`}
+      >
         <div className="flex flex-col items-center gap-1 pt-4 pb-2 px-2">
           <button
             onClick={() => router.push("/")}
@@ -279,10 +434,11 @@ export function Sidebar() {
           </button>
           <button
             onClick={() => router.push("/recruit")}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${isRecruitWorkspaceActive
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+              isRecruitWorkspaceActive
                 ? "bg-brand-primary text-white shadow-md shadow-brand-primary/30"
                 : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
-              }`}
+            }`}
             title="채용"
           >
             <IconPencil />
@@ -290,7 +446,8 @@ export function Sidebar() {
           <button
             onClick={() => router.push("/companies")}
             className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
-              pathname?.startsWith("/companies") || pathname?.startsWith("/company-analysis")
+              pathname?.startsWith("/companies") ||
+              pathname?.startsWith("/company-analysis")
                 ? "bg-brand-primary/10 text-brand-primary"
                 : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
             }`}
@@ -309,21 +466,39 @@ export function Sidebar() {
           >
             <IconFeed />
           </button>
+          <button
+            onClick={() => router.push("/stock")}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+              isStockActive
+                ? "bg-brand-primary/10 text-brand-primary"
+                : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
+            }`}
+            title="증시"
+          >
+            <IconStock />
+          </button>
         </div>
         {/* Session dots */}
         <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1 py-2 px-2 min-h-0">
-
           {sessions.map((s) => {
-            const isRunning = s.researchState === "running" || s.researchState === "pending";
+            const isRunning =
+              s.researchState === "running" || s.researchState === "pending";
             const done = s.doneCount ?? 0;
-            const dotStatus: DotStatus = isRunning ? "running" : done > 0 ? "partial" : "idle";
+            const dotStatus: DotStatus = isRunning
+              ? "running"
+              : done > 0
+                ? "partial"
+                : "idle";
             const isActive = currentId === s.id;
             return (
               <button
                 key={s.id}
                 onClick={() => router.push(`/sessions/${s.id}`)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${isActive ? "bg-indigo-50 ring-1 ring-indigo-200" : "hover:bg-slate-50"
-                  }`}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                  isActive
+                    ? "bg-indigo-50 ring-1 ring-indigo-200"
+                    : "hover:bg-slate-50"
+                }`}
                 title={s.topic}
               >
                 <StatusDot status={dotStatus} />
@@ -346,7 +521,9 @@ export function Sidebar() {
   }
 
   return (
-    <aside className={`w-60 shrink-0 flex flex-col overflow-hidden transition-all duration-300 z-10 ${containerClasses}`}>
+    <aside
+      className={`w-60 shrink-0 flex flex-col overflow-hidden transition-all duration-300 z-10 ${containerClasses}`}
+    >
       {/* Header */}
       <div className="px-4 pt-5 pb-3 flex items-center justify-between">
         <button
@@ -358,7 +535,9 @@ export function Sidebar() {
             <div className="text-xs2 font-bold text-slate-800 leading-tight tracking-tight">
               ResearchAI
             </div>
-            <div className="text-2xs text-slate-400 leading-tight">AI Research Platform</div>
+            <div className="text-2xs text-slate-400 leading-tight">
+              AI Research Platform
+            </div>
           </div>
         </button>
         <button
@@ -376,15 +555,15 @@ export function Sidebar() {
           onClick={openModal}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
         >
-          <IconPlus />
-          새 리서치
+          <IconPlus />새 리서치
         </button>
         <button
           onClick={() => router.push("/recruit")}
-          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isRecruitWorkspaceActive
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            isRecruitWorkspaceActive
               ? "bg-brand-primary text-white shadow-md shadow-brand-primary/30"
               : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
-            }`}
+          }`}
         >
           <IconPencil />
           채용
@@ -393,7 +572,8 @@ export function Sidebar() {
         <button
           onClick={() => router.push("/companies")}
           className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-            pathname?.startsWith("/companies") || pathname?.startsWith("/company-analysis")
+            pathname?.startsWith("/companies") ||
+            pathname?.startsWith("/company-analysis")
               ? "bg-brand-primary/10 text-brand-primary"
               : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
           }`}
@@ -411,6 +591,17 @@ export function Sidebar() {
         >
           <IconFeed />
           뉴스
+        </button>
+        <button
+          onClick={() => router.push("/stock")}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            isStockActive
+              ? "bg-brand-primary/10 text-brand-primary"
+              : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
+          }`}
+        >
+          <IconStock />
+          증시
         </button>
       </div>
 
@@ -451,36 +642,46 @@ export function Sidebar() {
             <div className="px-2 py-1.5 text-2xs font-semibold text-slate-400 uppercase tracking-widest flex items-center justify-between">
               <span>리서치</span>
               <span className="text-slate-300 font-normal normal-case tracking-normal">
-                {filteredSessions.length}{searchQuery ? `/${sessions.length}` : ""}
+                {filteredSessions.length}
+                {searchQuery ? `/${sessions.length}` : ""}
               </span>
             </div>
             <QueueWidget />
             {filteredSessions.map((s) => {
-              const isRunning = s.researchState === "running" || s.researchState === "pending";
+              const isRunning =
+                s.researchState === "running" || s.researchState === "pending";
               const done = s.doneCount ?? 0;
-              const dotStatus: DotStatus = isRunning ? "running" : done > 0 ? "partial" : "idle";
+              const dotStatus: DotStatus = isRunning
+                ? "running"
+                : done > 0
+                  ? "partial"
+                  : "idle";
               const isActive = currentId === s.id;
 
               return (
                 <div
                   key={s.id}
                   onClick={() => router.push(`/sessions/${s.id}`)}
-                  className={`group relative flex items-start gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-all ${isActive
+                  className={`group relative flex items-start gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-all ${
+                    isActive
                       ? "bg-indigo-50 border border-indigo-100"
                       : "hover:bg-slate-50 border border-transparent"
-                    }`}
+                  }`}
                 >
                   <div className="mt-0.5">
                     <StatusDot status={dotStatus} />
                   </div>
                   <div className="flex-1 min-w-0 pr-4">
                     <div
-                      className={`text-xs font-medium truncate leading-snug ${isActive ? "text-indigo-700" : "text-slate-700"
-                        }`}
+                      className={`text-xs font-medium truncate leading-snug ${
+                        isActive ? "text-indigo-700" : "text-slate-700"
+                      }`}
                     >
                       {s.topic}
                     </div>
-                    <div className={`text-2xs mt-0.5 ${isActive ? "text-indigo-400" : "text-slate-400"}`}>
+                    <div
+                      className={`text-2xs mt-0.5 ${isActive ? "text-indigo-400" : "text-slate-400"}`}
+                    >
                       {formatDate(s.createdAt)}
                       {done > 0 && ` · ${done}개 완료`}
                     </div>

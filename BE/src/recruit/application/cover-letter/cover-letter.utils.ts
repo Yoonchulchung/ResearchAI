@@ -8,6 +8,11 @@ import {
 import { CoverLetterEntity } from 'src/recruit/domain/cover-letter/entity/cover-letter.entity';
 import { CoverLetterSpecAnalysisEntity } from 'src/recruit/domain/cover-letter/entity/cover-letter-spec-analysis.entity';
 import { requestContext } from 'src/shared/request-context';
+import {
+  classifyQuestionTitle,
+  extractQuestionKeywords as extractKeywordsBase,
+  QUESTION_CATEGORIES,
+} from 'src/recruit/application/question-classifier';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -21,18 +26,9 @@ export const VALID_JOB_CATEGORIES: JobCategory[] = [
   'IT', '전자', '영업', '경영/기획', '마케팅', '인사/총무', '재무/회계', '생산/제조', '기타',
 ];
 
-export const QUESTION_TAG_RULES: Array<{ tag: string; patterns: RegExp[] }> = [
-  { tag: '성장과정', patterns: [/성장\s*과정/, /성장\s*배경/, /어린\s*시절/, /가정환경/, /인생관/, /가치관/] },
-  { tag: '지원동기', patterns: [/지원\s*동기/, /지원한\s*이유/, /관심을\s*갖게/, /왜\s*(?:우리|당사|귀사)/] },
-  { tag: '입사후포부', patterns: [/입사\s*후\s*포부/, /입사\s*후\s*계획/, /향후\s*계획/, /10년\s*후/, /비전/] },
-  { tag: '직무역량', patterns: [/직무\s*역량/, /전문성/, /강점/, /역량/, /능력/, /경쟁력/, /skill/i] },
-  { tag: '도전/실패', patterns: [/도전/, /실패/, /극복/, /어려움/, /난관/, /한계/, /위기/, /문제\s*해결/] },
-  { tag: '협업/갈등', patterns: [/협업/, /팀워크/, /갈등/, /소통/, /의견\s*차이/, /조율/, /협력/, /팀\s*프로젝트/] },
-  { tag: '리더십', patterns: [/리더십/, /주도/, /이끌/, /대표/, /책임자/, /팀장/, /initiative/i] },
-  { tag: '창의/개선', patterns: [/창의/, /개선/, /아이디어/, /혁신/, /효율/, /변화/, /제안/] },
-  { tag: '성과/경험', patterns: [/성과/, /경험/, /프로젝트/, /활동/, /인턴/, /공모전/, /수상/] },
-  { tag: '성격/장단점', patterns: [/성격/, /장점/, /단점/, /보완점/, /생활\s*신조/] },
-];
+/** @deprecated question-classifier.ts 의 QUESTION_CATEGORIES 를 사용하세요 */
+export const QUESTION_TAG_RULES: Array<{ tag: string; patterns: RegExp[] }> =
+  QUESTION_CATEGORIES.map((c) => ({ tag: c.tag, patterns: [...c.titlePatterns] }));
 
 // ── Company helpers ───────────────────────────────────────────────────────────
 
@@ -127,30 +123,28 @@ export function getCatchCredentials(): { id: string; password: string } | undefi
 
 // ── Question tagging ──────────────────────────────────────────────────────────
 
+/**
+ * 문항 제목(question) 우선으로 태그를 추출합니다.
+ * 제목에서 매칭 실패 시 답변(answer)을 fallback으로 사용합니다.
+ */
 export function classifyQuestionTags(
   question: Pick<CoverLetterQuestion, 'question' | 'answer'>,
 ): string[] {
-  const text = `${question.question ?? ''}\n${question.answer ?? ''}`;
-  return QUESTION_TAG_RULES.filter((rule) =>
-    rule.patterns.some((pattern) => pattern.test(text)),
-  ).map((rule) => rule.tag);
+  return classifyQuestionTitle(
+    question.question ?? '',
+    question.answer ?? '',
+  );
 }
 
 export function extractQuestionKeywords(
   question: Pick<CoverLetterQuestion, 'question' | 'answer'>,
   tags: string[],
 ): string[] {
-  const text = `${question.question ?? ''}\n${question.answer ?? ''}`;
-  const words =
-    text
-      .match(/[가-힣A-Za-z0-9+#.]{2,}/g)
-      ?.map((word) => word.toLowerCase())
-      .filter(
-        (word) =>
-          !/^(그리고|하지만|입니다|합니다|있는|없는|제가|저는|이를|통해|대한|위해|에서|으로|하게|되어|하며|또한)$/.test(word),
-      )
-      .slice(0, 80) ?? [];
-  return [...new Set([...tags, ...words])].slice(0, 80);
+  return extractKeywordsBase(
+    question.question ?? '',
+    question.answer ?? '',
+    tags,
+  );
 }
 
 // ── Cover letter transformers ─────────────────────────────────────────────────

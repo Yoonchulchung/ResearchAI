@@ -1,16 +1,9 @@
-export interface ImageContentBlock {
-  type: 'image';
-  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
-  data: string; // base64
-}
-
-/** 텍스트 또는 이미지 블록의 배열, 혹은 단순 문자열 */
-export type VlmContent = string | Array<string | ImageContentBlock>;
-
-export interface VlmMessage {
-  role: 'user' | 'assistant';
-  content: VlmContent;
-}
+export type {
+  ImageContentBlock,
+  VlmContent,
+  VlmMessage,
+} from 'src/ai/application/ai-provider.types';
+import type { VlmContent } from 'src/ai/application/ai-provider.types';
 
 /** VlmContent → 텍스트만 추출 (이미지 미지원 폴백용) */
 export function extractText(content: VlmContent): string {

@@ -1,6 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { load } from 'cheerio';
-import { PuppeteerService } from 'src/browse/infrastructure/puppeteer.service';
+import { BrowserService } from 'src/browse/application/browser.service';
 import { SessionGateway } from 'src/sessions/presentation/session.gateway';
 
 export interface NamuWikiCompanyInfo {
@@ -42,7 +42,7 @@ export class NamuWikiService {
   private runningCount = 0;
 
   constructor(
-    private readonly puppeteer: PuppeteerService,
+    private readonly browser: BrowserService,
     @Optional() private readonly gateway?: SessionGateway,
   ) {}
 
@@ -124,10 +124,7 @@ export class NamuWikiService {
   /** DuckDuckGo 검색으로 NamuWiki 페이지 제목 후보 반환 */
   private async searchNamuWikiTitle(name: string): Promise<string[]> {
     try {
-      const results = await this.puppeteer.searchGoogle(
-        `${name} 나무위키 기업`,
-        5,
-      );
+      const results = await this.browser.search(`${name} 나무위키 기업`, 5);
       return results
         .map((r) => {
           const m = r.url.match(/namu\.wiki\/w\/([^?#]+)/);
@@ -155,7 +152,7 @@ export class NamuWikiService {
 
   private async fetchPage(title: string): Promise<NamuWikiCompanyInfo | null> {
     const url = `https://namu.wiki/w/${encodeURIComponent(title)}`;
-    const html = await this.puppeteer.fetchRenderedHtml(
+    const html = await this.browser.fetchRenderedHtml(
       url,
       'a[href*="/w/분류:"], .wiki-heading-1, h2',
       { waitUntil: 'networkidle2', selectorTimeout: 12000 },

@@ -106,6 +106,7 @@ import { ZippoomRealEstateUrlService } from 'src/company/infrastructure/zippoom-
   exports: [
     CompanyAnalysisService,
     CompanyService,
+    CompanyNewsService,
     CompanyEnrichService,
     CompanyStockService,
     CompanyFinancialInsightsService,

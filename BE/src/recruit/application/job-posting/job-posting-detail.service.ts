@@ -2,10 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { load } from 'cheerio';
 import type { CheerioAPI } from 'cheerio';
 import type { JobPosting } from 'src/recruit/domain/job-posting.model';
-import { LinkareerJobCrawler } from 'src/recruit/infrastructure/job-posting/linkareer-job.crawler';
-import { CatchJobCrawler } from 'src/recruit/infrastructure/job-posting/catch-job.crawler';
-import { JobplanetJobCrawler } from 'src/recruit/infrastructure/job-posting/jobplanet-job.crawler';
-import { JobdaJobCrawler } from 'src/recruit/infrastructure/job-posting/jobda-job.crawler';
+import { JobPostingCrawlerRegistryPort } from 'src/recruit/application/job-posting/ports/job-posting-crawler.port';
 import { RecruitDb } from 'src/recruit/infrastructure/database/recruit-db';
 import { JobPostingImageService } from './job-posting-image.service';
 import { findHtmlContent } from './job-posting.utils';
@@ -13,21 +10,26 @@ import { findHtmlContent } from './job-posting.utils';
 @Injectable()
 export class JobPostingDetailService {
   private readonly logger = new Logger(JobPostingDetailService.name);
-  private readonly linkareerCrawler = new LinkareerJobCrawler();
-  private readonly catchCrawler = new CatchJobCrawler();
-  private readonly jobplanetCrawler = new JobplanetJobCrawler();
-  private readonly jobdaCrawler = new JobdaJobCrawler();
 
   constructor(
     private readonly recruitDb: RecruitDb,
     private readonly imageService: JobPostingImageService,
+    private readonly crawlerRegistry: JobPostingCrawlerRegistryPort,
   ) {}
 
-  getAiAnalysis(id: string, mode: 'analysis' | 'interview'): { text: string; docId: string | null } | null {
+  getAiAnalysis(
+    id: string,
+    mode: 'analysis' | 'interview',
+  ): { text: string; docId: string | null } | null {
     return this.recruitDb.getAiAnalysisCache(id, mode);
   }
 
-  setAiAnalysis(id: string, mode: 'analysis' | 'interview', text: string, docId?: string | null): void {
+  setAiAnalysis(
+    id: string,
+    mode: 'analysis' | 'interview',
+    text: string,
+    docId?: string | null,
+  ): void {
     this.recruitDb.setAiAnalysisCache(id, mode, text, docId);
   }
 
@@ -35,11 +37,19 @@ export class JobPostingDetailService {
     id: string,
     url: string,
     source: string,
-  ): Promise<Pick<JobPosting, 'companyType' | 'jobs' | 'detailContent' | 'detailHtml'>> {
+  ): Promise<
+    Pick<JobPosting, 'companyType' | 'jobs' | 'detailContent' | 'detailHtml'>
+  > {
     const cached = this.recruitDb.getDetailCache(id);
     if (cached) {
-      if (cached.detailHtml && /<img\b[^>]*\bsrc=["'](https?:|\/\/)/i.test(cached.detailHtml)) {
-        const processed = await this.imageService.downloadAndCacheImages(cached.detailHtml, url);
+      if (
+        cached.detailHtml &&
+        /<img\b[^>]*\bsrc=["'](https?:|\/\/)/i.test(cached.detailHtml)
+      ) {
+        const processed = await this.imageService.downloadAndCacheImages(
+          cached.detailHtml,
+          url,
+        );
         if (processed !== cached.detailHtml) {
           const updated = { ...cached, detailHtml: processed };
           this.recruitDb.setDetailCache(id, updated);
@@ -50,11 +60,20 @@ export class JobPostingDetailService {
     }
 
     try {
-      let result: Pick<JobPosting, 'companyType' | 'jobs' | 'detailContent' | 'detailHtml'>;
+      let result: Pick<
+        JobPosting,
+        'companyType' | 'jobs' | 'detailContent' | 'detailHtml'
+      >;
 
       if (source === 'linkareer') {
-        const detail = await this.linkareerCrawler.getDetail(id);
-        result = { companyType: detail.companyType, jobs: detail.jobs, detailHtml: detail.detailHtml };
+        const detail = await this.crawlerRegistry
+          .get('linkareer')
+          .getDetail({ id, url });
+        result = {
+          companyType: detail.companyType,
+          jobs: detail.jobs,
+          detailHtml: detail.detailHtml,
+        };
       } else if (source === 'jobkorea') {
         const gno = id.startsWith('jk-') ? id.slice('jk-'.length) : id;
         result = await this.parseJobkoreaDetail(gno);
@@ -67,7 +86,9 @@ export class JobPostingDetailService {
         if (!html) return {};
         const $ = load(html);
         if (source === 'catch') {
-          const recruitId = id.startsWith('catch-') ? id.slice('catch-'.length) : id;
+          const recruitId = id.startsWith('catch-')
+            ? id.slice('catch-'.length)
+            : id;
           result = await this.parseCatchDetail($, recruitId);
         } else {
           $('script, style, nav, header, footer').remove();
@@ -82,10 +103,20 @@ export class JobPostingDetailService {
         }
       }
 
-      const hasContent = result.detailHtml || result.detailContent || result.jobs || result.companyType;
+      const hasContent =
+        result.detailHtml ||
+        result.detailContent ||
+        result.jobs ||
+        result.companyType;
       if (hasContent) {
         if (result.detailHtml) {
-          result = { ...result, detailHtml: await this.imageService.downloadAndCacheImages(result.detailHtml, url) };
+          result = {
+            ...result,
+            detailHtml: await this.imageService.downloadAndCacheImages(
+              result.detailHtml,
+              url,
+            ),
+          };
         }
         this.recruitDb.setDetailCache(id, result);
       }
@@ -96,7 +127,9 @@ export class JobPostingDetailService {
     }
   }
 
-  private async parseJobkoreaDetail(gno: string): Promise<Pick<JobPosting, 'detailHtml'>> {
+  private async parseJobkoreaDetail(
+    gno: string,
+  ): Promise<Pick<JobPosting, 'detailHtml'>> {
     const iframeUrl = `https://www.jobkorea.co.kr/Recruit/GI_Read_Comt_Ifrm?Gno=${gno}&isHiringCenter=false&hideMapView=false`;
     const html = await this.fetchHtml(iframeUrl);
     if (!html) return {};
@@ -107,12 +140,18 @@ export class JobPostingDetailService {
       const dataSrc = $img.attr('data-src');
       if (dataSrc && !$img.attr('src')) $img.attr('src', dataSrc);
     });
-    const contentEl = $('article.view-content, div#container, div#secDetailRead').first();
-    const detailHtml = contentEl.length ? contentEl.html()?.trim() : $('body').html()?.trim();
+    const contentEl = $(
+      'article.view-content, div#container, div#secDetailRead',
+    ).first();
+    const detailHtml = contentEl.length
+      ? contentEl.html()?.trim()
+      : $('body').html()?.trim();
     return { detailHtml: detailHtml || undefined };
   }
 
-  private async parseJobdaDetail(url: string): Promise<Pick<JobPosting, 'detailHtml'>> {
+  private async parseJobdaDetail(
+    url: string,
+  ): Promise<Pick<JobPosting, 'detailHtml'>> {
     const html = await this.fetchHtml(url, {
       Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       Referer: 'https://www.jobda.im/',
@@ -147,7 +186,9 @@ export class JobPostingDetailService {
     return { detailHtml: mainEl.html()?.trim() || undefined };
   }
 
-  private async parseJobplanetDetail(url: string): Promise<Pick<JobPosting, 'detailHtml'>> {
+  private async parseJobplanetDetail(
+    url: string,
+  ): Promise<Pick<JobPosting, 'detailHtml'>> {
     const encodedUrl = url.replace(/\[]/g, '%5B%5D');
     const html = await this.fetchHtml(encodedUrl, {
       'jp-ssr-auth': 'jobplanet_desktop_ssr_1d6f8a5f219176accbb8fe051729fc6a',
@@ -162,7 +203,9 @@ export class JobPostingDetailService {
 
     const iframeSrc = mainContent.find('iframe').first().attr('src');
     if (iframeSrc) {
-      const iframeUrl = iframeSrc.startsWith('http') ? iframeSrc : `https://www.jobplanet.co.kr${iframeSrc}`;
+      const iframeUrl = iframeSrc.startsWith('http')
+        ? iframeSrc
+        : `https://www.jobplanet.co.kr${iframeSrc}`;
       const iframeHtml = await this.fetchHtml(iframeUrl);
       if (iframeHtml) {
         const $i = load(iframeHtml);
@@ -188,7 +231,10 @@ export class JobPostingDetailService {
     return { detailHtml: htmlParts.join('\n\n') || undefined };
   }
 
-  private async parseCatchDetail($: CheerioAPI, recruitId: string): Promise<Pick<JobPosting, 'detailHtml'>> {
+  private async parseCatchDetail(
+    $: CheerioAPI,
+    recruitId: string,
+  ): Promise<Pick<JobPosting, 'detailHtml'>> {
     const htmlParts: string[] = [];
     const summaryEl = $('.recr_pop_summary').first();
     summaryEl.find('script, style').remove();
@@ -209,13 +255,17 @@ export class JobPostingDetailService {
     return { detailHtml: htmlParts.join('\n\n') || undefined };
   }
 
-  private async fetchHtml(url: string, extraHeaders: Record<string, string> = {}): Promise<string | null> {
+  private async fetchHtml(
+    url: string,
+    extraHeaders: Record<string, string> = {},
+  ): Promise<string | null> {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 15_000);
       const res = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
           'Accept-Language': 'ko-KR,ko;q=0.9',
           ...extraHeaders,
         },

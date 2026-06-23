@@ -37,20 +37,29 @@ export class AiService {
     searchFn: (query: string) => Promise<string>,
     maxIterations = 5,
     signal?: AbortSignal,
+    /** 추가 툴 정의 (Anthropic/OpenAI 포맷 각각) */
+    extraTools?: { anthropic: object[]; openai: object[] },
+    /** 툴 이름 → 핸들러: 반환값은 AI에게 돌려줄 텍스트 + 구조화 데이터 */
+    toolHandlers?: Record<
+      string,
+      (input: unknown) => Promise<{ text: string; data?: unknown }>
+    >,
   ): Promise<{
     result: string;
     searchLog: Array<{ query: string; result: string }>;
+    toolData: Record<string, unknown[]>;
     inputTokens: number;
     outputTokens: number;
     estimatedFees: number;
   }> {
     const searchLog: Array<{ query: string; result: string }> = [];
+    const toolData: Record<string, unknown[]> = {};
     let inputTokens = 0;
     let outputTokens = 0;
     let estimatedFees = 0;
     const provider = getProvider(aiModel);
 
-    const anthropicTool = {
+    const anthropicWebSearch = {
       name: 'web_search',
       description:
         '웹에서 최신 정보를 검색합니다. 학습 데이터에 없는 최신 정보나 특정 사실 확인이 필요한 경우에만 호출하세요.',
@@ -62,23 +71,20 @@ export class AiService {
         required: ['query'],
       },
     };
-    const openaiTool = {
+    const openaiWebSearch = {
       type: 'function',
       function: {
         name: 'web_search',
-        description:
-          '웹에서 최신 정보를 검색합니다. 학습 데이터에 없는 최신 정보나 특정 사실 확인이 필요한 경우에만 호출하세요.',
-        parameters: {
-          type: 'object',
-          properties: {
-            query: { type: 'string', description: '검색할 쿼리 (영어 권장)' },
-          },
-          required: ['query'],
-        },
+        description: anthropicWebSearch.description,
+        parameters: anthropicWebSearch.input_schema,
       },
     };
+
     const tools =
-      provider === AIProvider.ANTHROPIC ? [anthropicTool] : [openaiTool]; // Ollama도 OpenAI 호환 format 사용
+      provider === AIProvider.ANTHROPIC
+        ? [anthropicWebSearch, ...(extraTools?.anthropic ?? [])]
+        : [openaiWebSearch, ...(extraTools?.openai ?? [])];
+
     const messages: any[] = [{ role: 'user', content: prompt }];
 
     for (let i = 0; i < maxIterations; i++) {
@@ -93,6 +99,7 @@ export class AiService {
         return {
           result: result.text,
           searchLog,
+          toolData,
           inputTokens,
           outputTokens,
           estimatedFees,
@@ -114,13 +121,24 @@ export class AiService {
 
         const toolResults: any[] = [];
         for (const tc of result.toolCalls) {
-          const query = (tc.input as { query: string }).query;
-          const searchResult = await searchFn(query);
-          searchLog.push({ query, result: searchResult });
+          let toolResponse: string;
+          if (tc.name === 'web_search') {
+            const query = (tc.input as { query: string }).query;
+            toolResponse = await searchFn(query);
+            searchLog.push({ query, result: toolResponse });
+          } else if (toolHandlers?.[tc.name]) {
+            const { text, data } = await toolHandlers[tc.name](tc.input);
+            toolResponse = text;
+            if (data !== undefined) {
+              toolData[tc.name] = [...(toolData[tc.name] ?? []), data];
+            }
+          } else {
+            toolResponse = `Unknown tool: ${tc.name}`;
+          }
           toolResults.push({
             type: 'tool_result',
             tool_use_id: tc.id,
-            content: searchResult,
+            content: toolResponse,
           });
         }
         messages.push({ role: 'user', content: toolResults });
@@ -128,7 +146,6 @@ export class AiService {
         provider === AIProvider.OPENAI ||
         provider === AIProvider.OLLAMA
       ) {
-        // OpenAI / Ollama (OpenAI 호환 format)
         messages.push({
           role: 'assistant',
           content: result.text || null,
@@ -139,13 +156,24 @@ export class AiService {
           })),
         });
         for (const tc of result.toolCalls) {
-          const query = (tc.input as { query: string }).query;
-          const searchResult = await searchFn(query);
-          searchLog.push({ query, result: searchResult });
+          let toolResponse: string;
+          if (tc.name === 'web_search') {
+            const query = (tc.input as { query: string }).query;
+            toolResponse = await searchFn(query);
+            searchLog.push({ query, result: toolResponse });
+          } else if (toolHandlers?.[tc.name]) {
+            const { text, data } = await toolHandlers[tc.name](tc.input);
+            toolResponse = text;
+            if (data !== undefined) {
+              toolData[tc.name] = [...(toolData[tc.name] ?? []), data];
+            }
+          } else {
+            toolResponse = `Unknown tool: ${tc.name}`;
+          }
           messages.push({
             role: 'tool',
             tool_call_id: tc.id,
-            content: searchResult,
+            content: toolResponse,
           });
         }
       } else {
@@ -164,6 +192,7 @@ export class AiService {
     return {
       result: lastText,
       searchLog,
+      toolData,
       inputTokens,
       outputTokens,
       estimatedFees,

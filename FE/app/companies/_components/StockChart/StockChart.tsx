@@ -9,6 +9,7 @@ import {
   getCompanyFinancialInsights,
   getCompanyQuarterlyFinancials,
 } from "@/lib/api/companies";
+import { getStockQuote } from "@/lib/api/stock";
 import type {
   IntervalKey,
   ChartType,
@@ -88,8 +89,10 @@ import {
 
 export function StockChart({
   companyId,
-  financials,
-  disclosures,
+  symbol,
+  companyName = "",
+  financials = [],
+  disclosures = [],
   isDark,
   panelClass,
   mutedPanel: _mutedPanel,
@@ -138,6 +141,14 @@ export function StockChart({
   const loadMoreRef = useRef(false);
   const zoomWindowRef = useRef(WINDOW_SIZE);
   const loadMoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quoteKey = companyId ?? symbol ?? "";
+  const loadQuote = useCallback(
+    (nextInterval: string, before?: string) => {
+      if (companyId) return getCompanyStock(companyId, nextInterval, before);
+      return getStockQuote(symbol ?? "", companyName, nextInterval, before);
+    },
+    [companyId, companyName, symbol],
+  );
 
   // 차트 컨테이너 실제 픽셀 너비/높이 — viewBox와 1:1 매칭으로 화질 개선
   const [containerSize, setContainerSize] = useState({ w: 600, h: 432 });
@@ -196,7 +207,7 @@ export function StockChart({
     setZoomWindow(initialZoom);
     setHasMore(LOAD_MORE_INTERVALS.has(interval));
     loadMoreRef.current = false;
-    getCompanyStock(companyId, interval)
+    loadQuote(interval)
       .then((s) => {
         if (!cancelled) {
           setStock(s);
@@ -217,9 +228,13 @@ export function StockChart({
     return () => {
       cancelled = true;
     };
-  }, [companyId, interval]);
+  }, [interval, loadQuote, quoteKey]);
 
   useEffect(() => {
+    if (!companyId) {
+      setInsights(null);
+      return;
+    }
     let cancelled = false;
     getCompanyFinancialInsights(companyId)
       .then((next) => {
@@ -234,6 +249,10 @@ export function StockChart({
   }, [companyId]);
 
   useEffect(() => {
+    if (!companyId) {
+      setQuarterEvents([]);
+      return;
+    }
     let cancelled = false;
     getCompanyQuarterlyFinancials(companyId)
       .then((items) => {
@@ -315,7 +334,7 @@ export function StockChart({
       loadMoreRef.current = true;
       setLoadingMore(true);
       try {
-        const res = await getCompanyStock(companyId, interval, oldest.date);
+        const res = await loadQuote(interval, oldest.date);
         const existingDates = new Set(candles.map((c) => c.date));
         const newCandles = res.chart.filter(
           (c) => !existingDates.has(c.date) && c.close != null && c.close > 0,
@@ -343,7 +362,7 @@ export function StockChart({
         loadMoreRef.current = false;
       }
     },
-    [companyId, interval, hasMore],
+    [hasMore, interval, loadQuote],
   );
 
   const chart = allCandles;
@@ -1038,7 +1057,7 @@ export function StockChart({
         overlays={overlays}
         subPanels={subPanels}
         symbol={stock?.symbol ?? stock?.stockCode ?? ""}
-        companyName={undefined}
+        companyName={stock?.companyName || companyName || undefined}
         interval={interval}
         currentPrice={stock?.regularMarketPrice ?? 0}
         changePercent={displayChangePercent ?? 0}

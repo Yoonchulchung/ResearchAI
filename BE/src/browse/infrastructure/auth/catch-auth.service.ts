@@ -26,6 +26,15 @@ export interface CatchAuthenticatedHeaders {
   finalUrl?: string;
 }
 
+export interface CatchLoginTestResult {
+  ok: boolean;
+  failedStep?: string;
+  finalUrl?: string;
+  error?: string;
+  sessionReused?: boolean;
+  logs: string[];
+}
+
 @Injectable()
 export class CatchAuthService {
   private readonly logger = new Logger(CatchAuthService.name);
@@ -100,6 +109,51 @@ export class CatchAuthService {
       };
     } finally {
       await browser.close().catch(() => {});
+    }
+  }
+
+  /**
+   * 진단용 로그인 전체 흐름.
+   * 컨트롤러가 Puppeteer를 직접 실행하지 않도록 브라우저 생명주기까지
+   * infrastructure 내부에서 처리한다.
+   */
+  async testLogin(
+    id: string,
+    password: string,
+    onLog?: BrowserLogFn,
+  ): Promise<CatchLoginTestResult> {
+    const logs: string[] = [];
+    const log = (message: string) => {
+      const line = `[${new Date().toISOString()}] ${message}`;
+      logs.push(line);
+      onLog?.(line);
+    };
+
+    const browser = await puppeteer.launch(BROWSER_LAUNCH_OPTIONS);
+    try {
+      log('브라우저 실행 완료');
+      const page = await browser.newPage();
+      await BrowserAutomationUtil.setupPage(page);
+      const result = await this.loginWithSession(page, id, password, log);
+      if (!result.ok) {
+        return { ...result, ok: false, logs };
+      }
+      return {
+        ok: true,
+        finalUrl: result.finalUrl ?? page.url(),
+        sessionReused: result.reused,
+        logs,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        failedStep: '테스트 실행',
+        error: (error as Error).message,
+        logs,
+      };
+    } finally {
+      await browser.close().catch(() => {});
+      log('브라우저 종료');
     }
   }
 

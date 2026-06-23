@@ -9,6 +9,15 @@ import {
   SearchEngine,
   isBuiltinSearchEngine,
 } from 'src/research/domain/model/search-planner.model';
+import { BrowserService } from 'src/browse/application/browser.service';
+import { NewsService } from 'src/news/application/service/news.service';
+import {
+  ChartData,
+  isChartTrigger,
+  CHART_TOOL_ANTHROPIC,
+  CHART_TOOL_OPENAI,
+  CHART_SYSTEM_ADDENDUM,
+} from 'src/research/application/chart/chart-tool';
 
 export interface DeepResearchResult {
   aiResult: string;
@@ -19,6 +28,7 @@ export interface DeepResearchResult {
   estimatedFees: number;
   searchLog?: { query: string; result: string }[];
   usedWebModel: string;
+  chartData?: ChartData[];
 }
 
 export type DeepResearchEvent =
@@ -52,6 +62,8 @@ export class DeepResearchPipelineService {
     private readonly aiProvider: AiProviderService,
     private readonly aiService: AiService,
     private readonly webSearch: WebSearchService,
+    private readonly browser: BrowserService,
+    private readonly newsService: NewsService,
   ) {}
 
   async run(
@@ -69,14 +81,34 @@ export class DeepResearchPipelineService {
     let outputTokens = 0;
     let estimatedFees = 0;
     let searchLog: { query: string; result: string }[] | undefined;
+    let chartData: ChartData[] | undefined;
+
+    const useChart = isChartTrigger(prompt);
+    const chartSystem = useChart
+      ? PROMPTS.system + CHART_SYSTEM_ADDENDUM
+      : PROMPTS.system;
+
+    const chartToolHandlers = useChart
+      ? {
+          generate_chart: async (input: unknown) => {
+            const data = input as ChartData;
+            chartData = [...(chartData ?? []), data];
+            return { text: '차트 데이터가 저장되었습니다.', data };
+          },
+        }
+      : undefined;
+
+    const chartExtraTools = useChart
+      ? { anthropic: [CHART_TOOL_ANTHROPIC], openai: [CHART_TOOL_OPENAI] }
+      : undefined;
 
     if (contextOverride) {
-      // 미리 가져온 컨텍스트: 기존 방식으로 분석
       const usage = await this.deepAnalyze(
         aiModel,
         prompt,
         contextOverride,
         signal,
+        chartSystem,
       );
       aiResult = usage.text;
       inputTokens = usage.inputTokens;
@@ -84,8 +116,7 @@ export class DeepResearchPipelineService {
       estimatedFees = usage.estimatedFees;
       webSources = { [webModel]: contextOverride };
     } else if (isBuiltinSearchEngine(webModel)) {
-      // AI 벤더 내장 검색: useBuiltinSearch=true 로 AI 단독 처리
-      const usage = await this.deepAnalyze(aiModel, prompt, '', signal);
+      const usage = await this.deepAnalyze(aiModel, prompt, '', signal, chartSystem);
       aiResult = usage.text;
       inputTokens = usage.inputTokens;
       outputTokens = usage.outputTokens;
@@ -99,15 +130,17 @@ export class DeepResearchPipelineService {
         };
       }
     } else if (this.supportsAgentLoop(aiModel)) {
-      // Claude / OpenAI: AI 에이전트 루프
-      const searchFn = this.getSearchFn(webModel, filterModel);
+      // Claude / OpenAI: AI 에이전트 루프 (다중 엔진 검색 + 차트 툴)
+      const searchFn = this.getEnhancedSearchFn(webModel, filterModel);
       const agentResult = await this.aiService.runAgenticLoop(
         aiModel,
-        PROMPTS.system,
+        chartSystem,
         prompt,
         searchFn,
         5,
         signal,
+        chartExtraTools,
+        chartToolHandlers,
       );
       aiResult = agentResult.result;
       inputTokens = agentResult.inputTokens;
@@ -119,11 +152,14 @@ export class DeepResearchPipelineService {
           [webModel]: agentResult.searchLog.map((s) => s.result).join('\n\n'),
         };
       }
+      if (agentResult.toolData['generate_chart']?.length) {
+        chartData = agentResult.toolData['generate_chart'] as ChartData[];
+      }
     } else {
-      // Gemini / Ollama: 고정 파이프라인 (검색 → 분석)
+      // Gemini / Ollama: 고정 파이프라인 (다중 엔진 검색 → 분석)
       let context = '';
       try {
-        const searchResult = await this.doSearch(webModel, prompt);
+        const searchResult = await this.doEnhancedSearch(webModel, prompt, filterModel);
         if (searchResult) {
           context = searchResult;
           webSources = { [webModel]: searchResult };
@@ -132,7 +168,7 @@ export class DeepResearchPipelineService {
       } catch {
         // 검색 실패 시 컨텍스트 없이 진행
       }
-      const usage = await this.deepAnalyze(aiModel, prompt, context, signal);
+      const usage = await this.deepAnalyze(aiModel, prompt, context, signal, chartSystem);
       aiResult = usage.text;
       inputTokens = usage.inputTokens;
       outputTokens = usage.outputTokens;
@@ -158,6 +194,7 @@ export class DeepResearchPipelineService {
       estimatedFees,
       searchLog,
       usedWebModel: webModel,
+      chartData,
     };
   }
 
@@ -169,20 +206,47 @@ export class DeepResearchPipelineService {
     );
   }
 
-  private getSearchFn(
+  /** 웹 검색(Serper→DDG) + Naver 뉴스 병렬 실행 후 포맷된 컨텍스트 반환 */
+  private async doEnhancedSearch(
+    webModel: SearchEngine,
+    query: string,
+    filterModel?: string,
+  ): Promise<string> {
+    const [webRaw, newsRaw] = await Promise.allSettled([
+      this.browser.searchWeb(query, 10),
+      this.newsService.getQueryNews(query, 1).catch(() => ({ items: [] })),
+    ]);
+
+    const webItems = webRaw.status === 'fulfilled' ? webRaw.value : [];
+    const newsItems = newsRaw.status === 'fulfilled' ? newsRaw.value.items : [];
+    const seen = new Set(newsItems.map((n) => n.url));
+    const dedupedWeb = webItems.filter((w) => !seen.has(w.url));
+    const all = [...newsItems, ...dedupedWeb];
+
+    if (all.length > 0) {
+      return all
+        .map((item, i) => {
+          const date =
+            'publishedAt' in item && item.publishedAt
+              ? ` (${String(item.publishedAt).substring(0, 10)})`
+              : '';
+          const src = 'source' in item ? item.source : '';
+          return `[${i + 1}] ${item.title}${date}\n${item.snippet ?? ''}\n출처: ${item.url}${src ? ` (${src})` : ''}`;
+        })
+        .join('\n\n');
+    }
+
+    // 폴백: 기존 단일 엔진
+    return this.webSearch.searchByEngine(webModel, query, filterModel) ?? '';
+  }
+
+  /** 에이전트 루프에 전달할 다중 엔진 검색 함수 */
+  private getEnhancedSearchFn(
     webModel: SearchEngine,
     filterModel?: string,
   ): (query: string) => Promise<string> {
     return (query: string) =>
-      this.webSearch.searchByEngine(webModel, query, filterModel);
-  }
-
-  private doSearch(
-    webModel: SearchEngine,
-    query: string,
-    filterModel?: string,
-  ): Promise<string | undefined> {
-    return this.webSearch.searchByEngine(webModel, query, filterModel);
+      this.doEnhancedSearch(webModel, query, filterModel);
   }
 
   private deepAnalyze(
@@ -190,12 +254,14 @@ export class DeepResearchPipelineService {
     prompt: string,
     context: string,
     signal?: AbortSignal,
+    systemOverride?: string,
   ) {
+    const system = systemOverride ?? PROMPTS.system;
     const fullPrompt = context
       ? PROMPTS.withSearchContext(context, prompt)
       : prompt;
     const useBuiltinSearch = !context;
-    return this.aiProvider.call(aiModel, PROMPTS.system, fullPrompt, {
+    return this.aiProvider.call(aiModel, system, fullPrompt, {
       useBuiltinSearch,
       signal,
     });

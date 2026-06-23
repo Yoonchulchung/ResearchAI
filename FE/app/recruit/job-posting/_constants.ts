@@ -17,7 +17,7 @@ export const DEFAULT_FILTER_OPTIONS: JobPostingFilterOptions = {
   jobs: [],
   companyTypes: [],
   types: ["인턴", "신입", "경력", "신입·경력", "계약직"],
-  categories: ["IT", "전자"],
+  categories: ["IT", "기획", "전자"],
 };
 
 export const FILTER_STORAGE_KEY = "job-posting.filters.v1";

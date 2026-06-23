@@ -108,6 +108,15 @@ export class SessionRepository {
           })()
         : null,
       result: item.aiResult || null,
+      chartData: item.chartData
+        ? (() => {
+            try {
+              return JSON.parse(item.chartData);
+            } catch {
+              return null;
+            }
+          })()
+        : null,
       confidenceScore: item.confidenceScore ?? null,
       confidenceReason: item.confidenceReason ?? null,
       inputTokens: item.inputTokens ?? null,

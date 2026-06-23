@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { Session } from "@/types";
 import { markdownComponents } from "@/lib/markdown";
 import { useTheme } from "@/contexts/ThemeContext";
+import { ResearchChart, type ChartData } from "./ResearchChart";
 
 const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20] as const;
 const DEFAULT_FONT_SIZE_IDX = 2; // 14px
@@ -290,6 +291,9 @@ export function DetailPanel({ session, sessionId, expanded, selectedTaskId, inst
                   [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:text-slate-700 [&_code]:font-mono
                   [&_blockquote]:bg-slate-50 [&_blockquote]:border-l-4 [&_blockquote]:border-indigo-400 [&_blockquote]:p-3 [&_blockquote]:my-4 [&_blockquote]:not-italic [&_blockquote]:text-slate-700 [&_blockquote]:rounded-r-lg [&_blockquote_p]:m-0
                   [&_hr]:border-slate-200 [&_hr]:my-6">
+                  {task.chartData && Array.isArray(task.chartData) && task.chartData.length > 0 && (
+                    <ResearchChart chartData={task.chartData as ChartData[]} />
+                  )}
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{task.aiResult ?? ""}</ReactMarkdown>
                 </div>
                 <div className="mt-6 border-b border-slate-100" />

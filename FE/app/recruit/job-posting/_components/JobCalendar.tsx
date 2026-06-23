@@ -1,13 +1,13 @@
 "use client";
 import type { JobPosting, JobRecommendation } from "@/lib/api/recruit/job-posting";
 import type { CalendarEvent } from "../_types";
-import { toDateKey } from "../_utils";
+import { toDateKey, type PopularCategory } from "../_utils";
 
 interface JobCalendarProps {
   calendarMonth: Date;
   moveCalendarMonth: (delta: number) => void;
-  popularCategoryFilter: "" | "IT" | "전자";
-  setPopularCategoryFilter: (cat: "" | "IT" | "전자") => void;
+  popularCategoryFilter: PopularCategory;
+  setPopularCategoryFilter: (cat: PopularCategory) => void;
   popularLoading: boolean;
   popularPostings: JobPosting[];
   visiblePopularPostings: JobPosting[];
@@ -128,6 +128,7 @@ export function JobCalendar({
                 [
                   ["", "전체"],
                   ["IT", "IT"],
+                  ["기획", "기획"],
                   ["전자", "전자"],
                 ] as const
               ).map(([val, label]) => (

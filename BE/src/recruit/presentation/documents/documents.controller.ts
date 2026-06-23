@@ -14,17 +14,12 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import puppeteer, { Browser } from 'puppeteer';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { DocumentsService } from 'src/recruit/application/documents/documents.service';
 import { JobplanetScraperService } from 'src/company/infrastructure/jobplanet/jobplanet-scraper.service';
 import { requestContext } from 'src/shared/request-context';
 import { CatchAuthService } from 'src/browse/infrastructure/auth/catch-auth.service';
-import {
-  BrowserAutomationUtil,
-  BROWSER_LAUNCH_OPTIONS,
-} from 'src/browse/infrastructure/browser-automation.util';
 
 // ── Experience DTOs ───────────────────────────────────────────────────────
 
@@ -273,62 +268,8 @@ export class DocumentsController {
     body: { id: string; password: string },
     onLog?: (line: string) => void,
   ) {
-    const logs: string[] = [];
-    const addLog = (message: string) => {
-      const line = `[${new Date().toISOString()}] ${message}`;
-      logs.push(line);
-      onLog?.(line);
-    };
-
-    let browser: Browser | null = null;
-    try {
-      addLog('캐치 로그인 테스트 시작');
-      addLog('브라우저 실행 중');
-      browser = await puppeteer.launch(BROWSER_LAUNCH_OPTIONS);
-      const page = await browser.newPage();
-      await BrowserAutomationUtil.setupPage(page);
-      addLog('브라우저 페이지 설정 완료');
-
-      const result = await this.catchAuth.loginWithSession(
-        page,
-        body.id,
-        body.password,
-        addLog,
-      );
-      if (!result.ok) {
-        addLog(
-          `캐치 로그인 실패: ${result.failedStep ?? '로그인'}${result.error ? ` - ${result.error}` : ''}`,
-        );
-        return {
-          ok: false,
-          failedStep: result.failedStep,
-          finalUrl: result.finalUrl,
-          error: result.error,
-          logs,
-        };
-      }
-
-      addLog(
-        `캐치 로그인 성공${result.reused ? ' (저장된 세션 사용)' : ''}: ${result.finalUrl ?? page.url()}`,
-      );
-      return {
-        ok: true,
-        finalUrl: result.finalUrl ?? page.url(),
-        sessionReused: result.reused,
-        logs,
-      };
-    } catch (err) {
-      addLog(`캐치 테스트 예외: ${(err as Error).message}`);
-      return {
-        ok: false,
-        failedStep: '테스트 실행',
-        error: (err as Error).message,
-        logs,
-      };
-    } finally {
-      await browser?.close();
-      addLog('브라우저 종료');
-    }
+    onLog?.(`[${new Date().toISOString()}] 캐치 로그인 테스트 시작`);
+    return this.catchAuth.testLogin(body.id, body.password, onLog);
   }
 
   // ── Documents ───────────────────────────────────────────────────────────

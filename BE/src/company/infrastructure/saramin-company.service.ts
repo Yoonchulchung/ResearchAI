@@ -1,6 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { load } from 'cheerio';
-import { PuppeteerService } from 'src/browse/infrastructure/puppeteer.service';
+import { BrowserService } from 'src/browse/application/browser.service';
 import { SessionGateway } from 'src/sessions/presentation/session.gateway';
 
 export interface SaraminCompanyInfo {
@@ -44,7 +44,7 @@ export class SaraminCompanyService {
   private runningCount = 0;
 
   constructor(
-    private readonly puppeteer: PuppeteerService,
+    private readonly browser: BrowserService,
     @Optional() private readonly gateway?: SessionGateway,
   ) {}
 
@@ -108,7 +108,7 @@ export class SaraminCompanyService {
     companyName: string,
   ): Promise<SaraminCompanyInfo | null> {
     const url = `https://www.saramin.co.kr/zf_user/company-review?keyword=${encodeURIComponent(companyName)}`;
-    const html = await this.puppeteer.fetchRenderedHtml(
+    const html = await this.browser.fetchRenderedHtml(
       url,
       '.item .front .company, .list_company .company',
       { waitUntil: 'networkidle2', selectorTimeout: 10000 },

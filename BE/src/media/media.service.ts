@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { VectorService } from 'src/vector/vector.service';
 import { requestContext } from 'src/shared/request-context';
 import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
-import type { ImageContentBlock } from 'src/ai/infrastructure/provider/vlm.types';
+import type { ImageContentBlock } from 'src/ai/application/ai-provider.types';
 
 export enum MediaType {
   IMAGE = 'image',

@@ -18,6 +18,8 @@ import { RecruitModule } from 'src/recruit/recruit.module';
 import { AiModule } from 'src/ai/ai.module';
 import { SessionsModule } from 'src/sessions/sessions.module';
 import { QueueModule } from 'src/queue/queue.module';
+import { BrowseModule } from 'src/browse/browse.module';
+import { NewsModule } from 'src/news/news.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { QueueModule } from 'src/queue/queue.module';
     forwardRef(() => AiModule),
     forwardRef(() => SessionsModule),
     forwardRef(() => QueueModule),
+    BrowseModule,
+    forwardRef(() => NewsModule),
   ],
   controllers: [ResearchController],
   providers: [

@@ -1,6 +1,6 @@
-import { apiFetch } from "./base";
+import { apiFetch, API_BASE } from "./base";
 
-export type NewsCategory = "it" | "economy" | "society" | "politics" | "world" | "culture" | "science" | "github" | "huggingface";
+export type NewsCategory = "it" | "economy" | "society" | "politics" | "world" | "culture" | "science" | "github" | "huggingface" | "youtube";
 
 export const NEWS_CATEGORY_LABELS: Record<NewsCategory, string> = {
   it: "IT/기술",
@@ -12,6 +12,7 @@ export const NEWS_CATEGORY_LABELS: Record<NewsCategory, string> = {
   science: "과학",
   github: "GitHub",
   huggingface: "Hugging Face",
+  youtube: "YouTube 뉴스",
 };
 
 export interface NewsItem {
@@ -20,6 +21,7 @@ export interface NewsItem {
   source: string;
   pubDate: string;
   description?: string;
+  imageUrl?: string | null;
 }
 
 export interface GithubTrendingRepo {
@@ -40,6 +42,19 @@ export interface HuggingFaceTrendingItem {
   trendingScore?: number;
   pipeline_tag?: string;
   lastModified?: string;
+}
+
+export interface YoutubeNewsItem {
+  videoId: string;
+  title: string;
+  link: string;
+  source: string;
+  channelId: string;
+  pubDate: string;
+  thumbnailUrl: string;
+  description: string;
+  isLive?: boolean;
+  viewCount?: number;
 }
 
 export function getNewsFeed(
@@ -74,12 +89,129 @@ export function getNewsFeed(
       }),
     );
   }
+  if (category === "youtube") {
+    if (offset > 0) return Promise.resolve([]);
+    return getYoutubeNews(options?.limit ?? 30).then((items) =>
+      items.map((item) => ({
+        title: item.title,
+        link: item.link,
+        source: item.source,
+        pubDate: item.pubDate,
+        description: item.description,
+      })),
+    );
+  }
   const qs = new URLSearchParams({
     category,
     limit: String(options?.limit ?? 20),
     offset: String(offset),
   });
   return apiFetch<NewsItem[]>(`/news/naver?${qs.toString()}`);
+}
+
+export function getYoutubeNews(limit = 30): Promise<YoutubeNewsItem[]> {
+  return apiFetch<YoutubeNewsItem[]>(`/news/youtube?limit=${limit}`);
+}
+
+export function getYoutubeLive(): Promise<YoutubeNewsItem[]> {
+  return apiFetch<YoutubeNewsItem[]>(`/news/youtube?type=live`);
+}
+
+export interface SearchRoadmapEvent {
+  category: string;
+  summary: string;
+  type: string;
+  importance: string;
+  sourceIndex?: number;
+  sourceUrl?: string;
+  sourceTitle?: string;
+}
+
+export interface SearchRoadmapMonth {
+  yearMonth: string;
+  events: SearchRoadmapEvent[];
+}
+
+export interface SearchRoadmapResult {
+  months: SearchRoadmapMonth[];
+  newsCount: number;
+  query: string;
+  model: string;
+}
+
+export function getSearchRoadmap(q: string): Promise<SearchRoadmapResult> {
+  return apiFetch<SearchRoadmapResult>(`/news/search-roadmap?q=${encodeURIComponent(q)}`);
+}
+
+export interface QueryNewsItem {
+  title: string;
+  url: string;
+  snippet: string;
+  publishedAt: string | null;
+  imageUrl?: string;
+  source: string;
+  itemType?: 'news' | 'web';
+}
+
+export interface QueryNewsResult {
+  items: QueryNewsItem[];
+  hasMore: boolean;
+  nextStart: number;
+}
+
+export interface WebSearchItem {
+  title: string;
+  url: string;
+  snippet: string;
+  source: string;
+}
+
+export function getWebSearch(q: string, limit = 10): Promise<WebSearchItem[]> {
+  return apiFetch<WebSearchItem[]>(`/news/web-search?q=${encodeURIComponent(q)}&limit=${limit}`);
+}
+
+export function getQueryNews(
+  q: string,
+  start = 1,
+  dateFrom?: string,
+  dateTo?: string,
+): Promise<QueryNewsResult> {
+  const qs = new URLSearchParams({ q, start: String(start) });
+  if (dateFrom) qs.set('dateFrom', dateFrom);
+  if (dateTo) qs.set('dateTo', dateTo);
+  return apiFetch<QueryNewsResult>(`/news/query-news?${qs.toString()}`);
+}
+
+export interface RoadmapExpandResult {
+  months: SearchRoadmapMonth[];
+  newsCount: number;
+  query: string;
+  model: string;
+  addedCount: number;
+}
+
+export function expandRoadmap(body: {
+  q: string;
+  direction: 'newer' | 'older';
+  refDate: string;
+  existingMonths: SearchRoadmapMonth[];
+}): Promise<RoadmapExpandResult> {
+  return apiFetch<RoadmapExpandResult>('/news/roadmap-expand', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export function createSearchAnswerSSE(
+  q: string,
+  dateFrom?: string,
+  dateTo?: string,
+): EventSource {
+  const qs = new URLSearchParams({ q });
+  if (dateFrom) qs.set("dateFrom", dateFrom);
+  if (dateTo) qs.set("dateTo", dateTo);
+  return new EventSource(`${API_BASE}/news/search-answer?${qs.toString()}`);
 }
 
 export function getGithubTrending(since: "daily" | "weekly" | "monthly" = "daily"): Promise<GithubTrendingRepo[]> {

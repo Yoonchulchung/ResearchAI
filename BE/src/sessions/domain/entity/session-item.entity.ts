@@ -67,6 +67,9 @@ export class SessionItemEntity {
   @Column({ name: 'search_log', type: 'text', nullable: true })
   searchLog: string | null; // JSON string: { query, result }[]
 
+  @Column({ name: 'chart_data', type: 'text', nullable: true })
+  chartData: string | null; // JSON string: ChartData[]
+
   @Column({
     name: 'research_state',
     type: 'simple-enum',

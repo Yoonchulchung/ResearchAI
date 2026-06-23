@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getNewsFeed, NEWS_CATEGORY_LABELS, type NewsCategory, type NewsItem } from "@/lib/api/news-feed";
+import { getNewsFeed, getYoutubeNews, NEWS_CATEGORY_LABELS, type NewsCategory, type NewsItem, type YoutubeNewsItem } from "@/lib/api/news-feed";
 import { groupNewsByDailyTopic, type DailyNewsTopicGroup } from "../_lib/news-topic-groups";
 
 function IconRefresh({ spinning = false }: { spinning?: boolean }) {
@@ -51,22 +51,86 @@ function NewsCard({ item, isDark }: { item: NewsItem; isDark: boolean }) {
       href={item.link}
       target="_blank"
       rel="noreferrer"
-      className={`group flex flex-col gap-2 rounded-md border p-4 transition ${isDark ? "border-white/10 bg-white/5 hover:border-emerald-400/30" : "border-slate-200 bg-white hover:border-emerald-300"}`}
+      className={`group flex flex-col overflow-hidden rounded-md border transition ${isDark ? "border-white/10 bg-white/5 hover:border-emerald-400/30" : "border-slate-200 bg-white hover:border-emerald-300"}`}
     >
-      <div className="flex items-center gap-2">
-        <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-700"}`}>{item.source}</span>
-        {item.pubDate && <span className={`text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>{formatDate(item.pubDate)}</span>}
-        <IconExternal />
-      </div>
-      <h2 className={`text-sm font-semibold leading-snug ${isDark ? "text-white group-hover:text-emerald-300" : "text-slate-900 group-hover:text-emerald-700"}`}>
-        {stripHtml(item.title)}
-      </h2>
-      {item.description && (
-        <p className={`line-clamp-3 text-xs leading-5 ${isDark ? "text-white/45" : "text-slate-500"}`}>
-          {stripHtml(item.description)}
-        </p>
+      {item.imageUrl && (
+        <div className="aspect-2/1 w-full overflow-hidden bg-slate-100">
+          <img
+            src={item.imageUrl}
+            alt=""
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+            onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
+          />
+        </div>
       )}
+      <div className="flex flex-col gap-2 p-4">
+        <div className="flex items-center gap-2">
+          <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-700"}`}>{item.source}</span>
+          {item.pubDate && <span className={`text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>{formatDate(item.pubDate)}</span>}
+          <IconExternal />
+        </div>
+        <h2 className={`text-sm font-semibold leading-snug ${isDark ? "text-white group-hover:text-emerald-300" : "text-slate-900 group-hover:text-emerald-700"}`}>
+          {stripHtml(item.title)}
+        </h2>
+        {item.description && (
+          <p className={`line-clamp-3 text-xs leading-5 ${isDark ? "text-white/45" : "text-slate-500"}`}>
+            {stripHtml(item.description)}
+          </p>
+        )}
+      </div>
     </a>
+  );
+}
+
+function YoutubeCard({ item, isDark }: { item: YoutubeNewsItem; isDark: boolean }) {
+  const [playing, setPlaying] = useState(false);
+
+  return (
+    <div className={`group flex flex-col overflow-hidden rounded-md border transition ${isDark ? "border-white/10 bg-white/5 hover:border-red-400/30" : "border-slate-200 bg-white hover:border-red-300"}`}>
+      <div className="relative aspect-video w-full cursor-pointer overflow-hidden bg-black" onClick={() => setPlaying(true)}>
+        {playing ? (
+          <iframe
+            className="h-full w-full"
+            src={`https://www.youtube.com/embed/${item.videoId}?autoplay=1`}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        ) : (
+          <>
+            {item.thumbnailUrl ? (
+              <img
+                src={item.thumbnailUrl}
+                alt={item.title}
+                className="h-full w-full object-cover transition group-hover:scale-105"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-slate-800">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="20" fill="#FF0000"/><polygon points="16,13 30,20 16,27" fill="white"/></svg>
+              </div>
+            )}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 shadow-lg transition group-hover:bg-red-500 group-hover:scale-110">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><polygon points="7,4 17,10 7,16" fill="white"/></svg>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+      <div className="flex flex-col gap-1.5 p-3">
+        <div className="flex items-center gap-2">
+          <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${isDark ? "bg-red-500/15 text-red-300" : "bg-red-50 text-red-700"}`}>{item.source}</span>
+          {item.pubDate && <span className={`text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>{formatDate(item.pubDate)}</span>}
+        </div>
+        <a href={item.link} target="_blank" rel="noreferrer" className={`text-sm font-semibold leading-snug line-clamp-2 ${isDark ? "text-white/90 hover:text-red-300" : "text-slate-900 hover:text-red-700"}`}>
+          {item.title}
+        </a>
+        {item.description && (
+          <p className={`line-clamp-2 text-xs leading-5 ${isDark ? "text-white/40" : "text-slate-500"}`}>
+            {item.description}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -123,7 +187,7 @@ function TopicGroupCard({
             } ${isDark ? "hover:bg-white/5" : "hover:bg-slate-50"}`}
           >
             <span
-              className={`mt-0.5 w-16 shrink-0 text-xs font-semibold ${
+              className={`mt-0.5 w-24 shrink-0 truncate text-xs font-semibold ${
                 isDark ? "text-emerald-400" : "text-emerald-600"
               }`}
             >
@@ -198,6 +262,7 @@ export default function NewsFeedPage() {
     return value && value in NEWS_CATEGORY_LABELS ? (value as NewsCategory) : "it";
   });
   const [items, setItems] = useState<NewsItem[]>([]);
+  const [youtubeItems, setYoutubeItems] = useState<YoutubeNewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -225,10 +290,17 @@ export default function NewsFeedPage() {
     setLoadingMore(false);
     setHasMore(false);
     try {
-      const result = await getNewsFeed(cat, { limit: PAGE_SIZE, offset: 0 });
-      setItems(result);
-      setHasMore(PAGED_CATEGORIES.has(cat) && result.length >= PAGE_SIZE);
-      setNextOffset(PAGE_SIZE);
+      if (cat === "youtube") {
+        const result = await getYoutubeNews(30);
+        setYoutubeItems(result);
+        setItems([]);
+      } else {
+        const result = await getNewsFeed(cat, { limit: PAGE_SIZE, offset: 0 });
+        setItems(result);
+        setYoutubeItems([]);
+        setHasMore(PAGED_CATEGORIES.has(cat) && result.length >= PAGE_SIZE);
+        setNextOffset(PAGE_SIZE);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "뉴스를 불러오지 못했습니다.");
     } finally {
@@ -368,23 +440,27 @@ export default function NewsFeedPage() {
               <span className={`text-sm font-medium ${textSub}`}>
                 {loading
                   ? "불러오는 중..."
-                  : groupTopics && groupedTopicCount > 0
-                    ? `${filtered.length}개 기사 · ${groupedTopicCount}개 주제`
-                    : `${filtered.length}개의 기사`}
+                  : category === "youtube"
+                    ? `${youtubeItems.length}개의 영상`
+                    : groupTopics && groupedTopicCount > 0
+                      ? `${filtered.length}개 기사 · ${groupedTopicCount}개 주제`
+                      : `${filtered.length}개의 기사`}
               </span>
-              <label
-                className={`flex cursor-pointer items-center gap-2 text-sm font-semibold ${
-                  isDark ? "text-white/55" : "text-slate-600"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={groupTopics}
-                  onChange={(event) => setGroupTopics(event.target.checked)}
-                  className="h-4 w-4 accent-emerald-500"
-                />
-                동일 주제 묶기
-              </label>
+              {category !== "youtube" && (
+                <label
+                  className={`flex cursor-pointer items-center gap-2 text-sm font-semibold ${
+                    isDark ? "text-white/55" : "text-slate-600"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={groupTopics}
+                    onChange={(event) => setGroupTopics(event.target.checked)}
+                    className="h-4 w-4 accent-emerald-500"
+                  />
+                  동일 주제 묶기
+                </label>
+              )}
             </div>
 
             {error && (
@@ -397,6 +473,22 @@ export default function NewsFeedPage() {
               <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                 {Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} isDark={isDark} />)}
               </div>
+            ) : category === "youtube" ? (
+              youtubeItems.length === 0 ? (
+                <div className={`py-16 text-center text-sm ${textSub}`}>YouTube 뉴스를 가져오지 못했습니다.</div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {youtubeItems
+                    .filter((item) => {
+                      if (!query.trim()) return true;
+                      const q = query.trim().toLowerCase();
+                      return item.title.toLowerCase().includes(q) || item.source.toLowerCase().includes(q);
+                    })
+                    .map((item) => (
+                      <YoutubeCard key={item.videoId} item={item} isDark={isDark} />
+                    ))}
+                </div>
+              )
             ) : filtered.length === 0 ? (
               <div className={`py-16 text-center text-sm ${textSub}`}>
                 {query ? `"${query}"에 해당하는 기사가 없습니다.` : "기사가 없습니다."}
@@ -432,17 +524,19 @@ export default function NewsFeedPage() {
               </div>
             )}
 
-            <div ref={loadMoreRef} className="min-h-8">
-              {!loading && !query.trim() && filtered.length > 0 ? (
-                <p className={`py-5 text-center text-xs ${textSub}`}>
-                  {loadingMore
-                    ? "다음 뉴스를 불러오는 중..."
-                    : hasMore
-                      ? "아래로 스크롤하면 뉴스를 더 가져옵니다."
-                      : "더 가져올 뉴스가 없습니다."}
-                </p>
-              ) : null}
-            </div>
+            {category !== "youtube" && (
+              <div ref={loadMoreRef} className="min-h-8">
+                {!loading && !query.trim() && filtered.length > 0 ? (
+                  <p className={`py-5 text-center text-xs ${textSub}`}>
+                    {loadingMore
+                      ? "다음 뉴스를 불러오는 중..."
+                      : hasMore
+                        ? "아래로 스크롤하면 뉴스를 더 가져옵니다."
+                        : "더 가져올 뉴스가 없습니다."}
+                  </p>
+                ) : null}
+              </div>
+            )}
           </div>
         </div>
       </div>

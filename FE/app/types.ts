@@ -10,6 +10,7 @@ export interface Task {
   usedWebModel?: string | null;
   searchLog?: { query: string; result: string }[] | null;
   aiResult?: string | null;
+  chartData?: unknown[] | null;
   confidence?: { score: number; reason: string } | null;
   inputTokens?: number | null;
   outputTokens?: number | null;

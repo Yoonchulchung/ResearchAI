@@ -1,23 +1,28 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AiQueueService } from 'src/queue/application/queue/ai-queue.service';
-import { AiJobDispatcher } from 'src/queue/application/queue/ai-job-dispatcher.service';
-import { DeepResearchExecutorService } from 'src/queue/application/job/deep-research-executor.service';
-import { LightResearchExecutorService } from 'src/queue/application/job/light-research-executor.service';
-import { SummaryExecutorService } from 'src/queue/application/job/summary-executor.service';
-import { WriteAssistExecutorService } from 'src/queue/application/job/write-assist/write-assist-executor.service';
-import { CompanyProfileExecutorService } from 'src/queue/application/job/company-profile-executor.service';
-import { CompanyAnalysisExecutorService } from 'src/queue/application/job/company-analysis-executor.service';
-import { DocParseExecutorService } from 'src/queue/application/job/doc-parse-executor.service';
-import { SpecAnalysisExecutorService } from 'src/queue/application/job/spec-analysis-executor.service';
-import { TechBlogTrendExecutorService } from 'src/queue/application/job/tech-blog-trend-executor.service';
-import { PaperSummaryExecutorService } from 'src/queue/application/job/paper-summary-executor.service';
-import { PaperTrendExecutorService } from 'src/queue/application/job/paper-trend-executor.service';
-import { NewsArticleSummaryExecutorService } from 'src/queue/application/job/news-article-summary-executor.service';
-import { ResumeCoverLetterCategoryExecutorService } from 'src/queue/application/job/resume-cover-letter-category-executor.service';
-import { ResumeCoverLetterRefinedTitleExecutorService } from 'src/queue/application/job/resume-cover-letter-refined-title-executor.service';
-import { ImageOcrQueueService } from 'src/queue/application/queue/image-ocr-queue.service';
-import { NewsQueueService } from 'src/queue/application/queue/news-queue.service';
+import { QueueService } from 'src/queue/application/queue/queue.service';
+import { QueueDispatcher } from 'src/queue/application/queue/queue.dispatcher';
+import { ResearchHandler } from 'src/queue/application/queue/handlers/research.handler';
+import { WriteAssistHandler } from 'src/queue/application/queue/handlers/write-assist.handler';
+import { CompanyHandler } from 'src/queue/application/queue/handlers/company.handler';
+import { DocumentHandler } from 'src/queue/application/queue/handlers/document.handler';
+import { ContentHandler } from 'src/queue/application/queue/handlers/content.handler';
+import { ResumeHandler } from 'src/queue/application/queue/handlers/resume.handler';
+import { ImageHandler } from 'src/queue/application/queue/handlers/image.handler';
+import { DeepResearchExecutor } from 'src/queue/application/job/deep-research.executor';
+import { LightResearchExecutor } from 'src/queue/application/job/light-research.executor';
+import { SummaryExecutor } from 'src/queue/application/job/summary.executor';
+import { WriteAssistExecutor } from 'src/queue/application/job/write-assist/write-assist.executor';
+import { CompanyProfileExecutor } from 'src/queue/application/job/company-profile.executor';
+import { CompanyAnalysisExecutor } from 'src/queue/application/job/company-analysis.executor';
+import { DocParseExecutor } from 'src/queue/application/job/doc-parse.executor';
+import { SpecAnalysisExecutor } from 'src/queue/application/job/spec-analysis.executor';
+import { TechBlogTrendExecutor } from 'src/queue/application/job/tech-blog-trend.executor';
+import { PaperSummaryExecutor } from 'src/queue/application/job/paper-summary.executor';
+import { PaperTrendExecutor } from 'src/queue/application/job/paper-trend.executor';
+import { NewsArticleSummaryExecutor } from 'src/queue/application/job/news-article-summary.executor';
+import { ResumeCoverLetterCategoryExecutor } from 'src/queue/application/job/resume-cover-letter-category.executor';
+import { ResumeCoverLetterRefinedTitleExecutor } from 'src/queue/application/job/resume-cover-letter-refined-title.executor';
 import { CompanyEnrichQueueService } from 'src/queue/application/company-enrich-queue.service';
 import { QueueController } from 'src/queue/presentation/queue.controller';
 import { ResearchModule } from 'src/research/research.module';
@@ -52,27 +57,37 @@ import { SharedModule } from 'src/shared/shared.module';
   ],
   controllers: [QueueController],
   providers: [
-    AiQueueService,
-    AiJobDispatcher,
-    DeepResearchExecutorService,
-    LightResearchExecutorService,
-    SummaryExecutorService,
-    WriteAssistExecutorService,
-    CompanyProfileExecutorService,
-    CompanyAnalysisExecutorService,
-    DocParseExecutorService,
-    SpecAnalysisExecutorService,
-    TechBlogTrendExecutorService,
-    PaperSummaryExecutorService,
-    PaperTrendExecutorService,
-    NewsArticleSummaryExecutorService,
-    ResumeCoverLetterCategoryExecutorService,
-    ResumeCoverLetterRefinedTitleExecutorService,
-    ImageOcrQueueService,
-    NewsQueueService,
+    // 핸들러 (카테고리별 SSE + 실행)
+    ResearchHandler,
+    WriteAssistHandler,
+    CompanyHandler,
+    DocumentHandler,
+    ContentHandler,
+    ResumeHandler,
+    ImageHandler,
+    // 디스패처 (핸들러 라우팅)
+    QueueDispatcher,
+    // 큐 서비스 (엔진 + 공개 API)
+    QueueService,
+    // 잡 실행자
+    DeepResearchExecutor,
+    LightResearchExecutor,
+    SummaryExecutor,
+    WriteAssistExecutor,
+    CompanyProfileExecutor,
+    CompanyAnalysisExecutor,
+    DocParseExecutor,
+    SpecAnalysisExecutor,
+    TechBlogTrendExecutor,
+    PaperSummaryExecutor,
+    PaperTrendExecutor,
+    NewsArticleSummaryExecutor,
+    ResumeCoverLetterCategoryExecutor,
+    ResumeCoverLetterRefinedTitleExecutor,
+    // 기타
     CompanyEnrichQueueService,
     QueueJobRepository,
   ],
-  exports: [AiQueueService, NewsQueueService, CompanyEnrichQueueService],
+  exports: [QueueService, CompanyEnrichQueueService],
 })
 export class QueueModule {}

@@ -8,13 +8,8 @@ import {
   HttpException,
   HttpStatus,
   Res,
-  Sse,
-  NotFoundException,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { Observable } from 'rxjs';
-import type { MessageEvent } from '@nestjs/common';
-import { NewsQueueService } from 'src/queue/application/queue/news-queue.service';
 import { requestContext } from 'src/shared/request-context';
 import { CompanyMissingRefreshService } from 'src/queue/application/company-missing-refresh.service';
 import { CompanyEnrichQueueService } from 'src/queue/application/company-enrich-queue.service';
@@ -46,7 +41,6 @@ export class CompanyController {
     private readonly investorTrading: CompanyInvestorTradingService,
     private readonly shortSelling: CompanyShortSellingService,
     private readonly dartFinancial: DartFinancialService,
-    private readonly newsQueue: NewsQueueService,
   ) {}
 
   @Get()
@@ -318,35 +312,6 @@ export class CompanyController {
     );
   }
 
-  // ── 사업 로드맵 분석 큐 ──────────────────────────────────────────────────────
-
-  @Post(':id/news/timeline/analyze-queue')
-  async enqueueRoadmapAnalysis(
-    @Param('id') id: string,
-    @Body() body: { model: string; companyName: string },
-  ): Promise<{ jobId: string }> {
-    const company = await this.companyService.findCompany(id);
-    const jobId = this.newsQueue.enqueue(
-      company?.id ?? id,
-      company?.name ?? body.companyName,
-      body.model,
-    );
-    return { jobId };
-  }
-
-  @Sse(':id/news/timeline/queue/:jobId/stream')
-  roadmapAnalysisStream(
-    @Param('jobId') jobId: string,
-  ): Observable<MessageEvent> {
-    const stream = this.newsQueue.getStream(jobId);
-    if (!stream) throw new NotFoundException(`jobId를 찾을 수 없습니다: ${jobId}`);
-    return stream;
-  }
-
-  @Get(':id/news/timeline/queue/:jobId/status')
-  getRoadmapJobStatus(@Param('jobId') jobId: string) {
-    return this.newsQueue.getStatus(jobId) ?? { status: 'not_found' };
-  }
 
   /** DART 재무 데이터 재수집 (DB 업데이트) */
   @Post(':id/refresh-financials')

@@ -7,6 +7,7 @@ import { MarketCard } from "./components/MarketCard";
 import { WeatherCard } from "./components/WeatherCard";
 import { TechBlogCard } from "./components/TechBlogCard";
 import { PapersCard } from "./components/PapersCard";
+import { YoutubeSection } from "./components/YoutubeSection";
 
 export default function MainPage() {
   return (
@@ -15,6 +16,7 @@ export default function MainPage() {
         <SearchPromptCard />
         <MarketCard />
         <SummaryCard />
+        <YoutubeSection />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
           <div className="md:col-span-2 flex flex-col gap-4">

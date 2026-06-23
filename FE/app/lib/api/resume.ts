@@ -273,9 +273,19 @@ export async function searchResume(
   return res?.items ?? [];
 }
 
+export interface ExperienceGroup {
+  key: string;
+  items: ResumeSearchExperienceItem[];
+}
+
+export interface PrizeGroup {
+  key: string;
+  items: ResumeSearchPrizeItem[];
+}
+
 export interface ResumeActivitiesResult {
-  experiences: ResumeSearchExperienceItem[];
-  prizes: ResumeSearchPrizeItem[];
+  experienceGroups: ExperienceGroup[];
+  prizeGroups: PrizeGroup[];
 }
 
 export async function getResumeActivities(

@@ -89,7 +89,13 @@ export function groupExperiences(
 }
 
 export function groupPrizes(prizes: ResumeSearchPrizeItem[]): PrizeGroup[] {
-  const raw = groupBySimilarity(prizes, (item) => item.title, 0.45);
+  // title만 비교하면 "입선" 같은 공통 단어로 전혀 다른 수상이 묶이므로
+  // title + organization + description 조합으로 비교
+  const raw = groupBySimilarity(
+    prizes,
+    (item) => [item.title, item.organization, item.description].filter(Boolean).join(" "),
+    0.45,
+  );
   return raw.map((items, i) => ({
     id: `prize-g-${i}`,
     key: items[0]?.title ?? "",

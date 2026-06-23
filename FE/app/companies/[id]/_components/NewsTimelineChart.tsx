@@ -2,10 +2,15 @@
 
 import { useEffect, useState } from "react";
 import type { BulkFetchResult, ScrapeHistoricalResult, NewsTimelineEvent, NewsTimelineResult } from "@/lib/api/companies";
-import { bulkFetchCompanyNews, scrapeHistoricalNews, getNewsTimeline, analyzeNewsTimeline } from "@/lib/api/companies";
+import {
+  scrapeHistoricalNews, getNewsTimeline,
+  enqueueRoadmapAnalysis, subscribeRoadmapAnalysis,
+  enqueueBulkFetchNews, subscribeBulkFetchNews,
+} from "@/lib/api/companies";
 import { getModels } from "@/lib/api/research";
 import type { ModelDefinition } from "@/types";
 import { NewsTimelineSourcesModal } from "./NewsTimelineSourcesModal";
+import { ScrapeGaugeBar } from "@/recruit/_components/ScrapeGaugeBar";
 
 /* ── 이벤트 타입별 색상 (배지용) ───────────────────────────────── */
 const TYPE_META: Record<string, { label: string; color: string }> = {
@@ -479,17 +484,30 @@ export function NewsTimelineChart({
     return () => { cancelled = true; };
   }, []);
 
+  const runRoadmapAnalysis = (jobId: string): Promise<NewsTimelineResult> =>
+    new Promise((resolve, reject) => {
+      subscribeRoadmapAnalysis(companyId, jobId, (event) => {
+        if (event.type === "done" && event.result) resolve(event.result);
+        else if (event.type === "error") reject(new Error(event.message ?? "분석 실패"));
+      });
+    });
+
   const handleBulkAnalyze = async (round: number) => {
     if (phase !== "idle" || !selectedModel) return;
     setError("");
     setFetchResult(null);
     setLastAiUsage(undefined);
 
-    // 1단계: 대량 뉴스 수집 (지정 round)
+    // 1단계: 대량 뉴스 수집 (큐)
     setPhase("fetching");
-    let fetchRes: BulkFetchResult;
     try {
-      fetchRes = await bulkFetchCompanyNews(companyId, companyName, round);
+      const { jobId: fetchJobId } = await enqueueBulkFetchNews(companyId, companyName, round);
+      const fetchRes = await new Promise<BulkFetchResult>((resolve, reject) => {
+        subscribeBulkFetchNews(fetchJobId, (event) => {
+          if (event.type === "done" && event.result) resolve(event.result);
+          else if (event.type === "error") reject(new Error(event.message ?? "뉴스 수집 실패"));
+        });
+      });
       setFetchResult(fetchRes);
     } catch (e) {
       setError(e instanceof Error ? e.message : "뉴스 수집 실패");
@@ -497,10 +515,11 @@ export function NewsTimelineChart({
       return;
     }
 
-    // 2단계: 타임라인 AI 분석
+    // 2단계: 타임라인 AI 분석 (큐)
     setPhase("analyzing");
     try {
-      const result = await analyzeNewsTimeline(companyId, companyName, selectedModel, true);
+      const { jobId } = await enqueueRoadmapAnalysis(companyId, companyName, selectedModel, true);
+      const result = await runRoadmapAnalysis(jobId);
       setData(result);
       setLastAiUsage(result.aiUsage);
       onBulkComplete?.();
@@ -517,7 +536,7 @@ export function NewsTimelineChart({
     setScrapeResult(null);
     setLastAiUsage(undefined);
 
-    // 1단계: Puppeteer로 과거 뉴스 스크래핑
+    // 1단계: Puppeteer로 과거 뉴스 스크래핑 (동기 유지)
     setPhase("fetching");
     let res: ScrapeHistoricalResult;
     try {
@@ -529,10 +548,11 @@ export function NewsTimelineChart({
       return;
     }
 
-    // 2단계: 새로 수집된 기간 AI 분석 (증분)
+    // 2단계: 타임라인 AI 분석 (큐)
     setPhase("analyzing");
     try {
-      const result = await analyzeNewsTimeline(companyId, companyName, selectedModel, true);
+      const { jobId } = await enqueueRoadmapAnalysis(companyId, companyName, selectedModel, true);
+      const result = await runRoadmapAnalysis(jobId);
       setData(result);
       setLastAiUsage(result.aiUsage);
       onBulkComplete?.();
@@ -549,7 +569,8 @@ export function NewsTimelineChart({
     setError("");
     setLastAiUsage(undefined);
     try {
-      const result = await analyzeNewsTimeline(companyId, companyName, selectedModel);
+      const { jobId } = await enqueueRoadmapAnalysis(companyId, companyName, selectedModel, false);
+      const result = await runRoadmapAnalysis(jobId);
       setData(result);
       setLastAiUsage(result.aiUsage);
     } catch (e) {
@@ -636,30 +657,40 @@ export function NewsTimelineChart({
             <button
               onClick={() => handleBulkAnalyze(0)}
               disabled={busy || !selectedModel}
-              className={`h-8 rounded-md px-3 text-xs font-bold transition-colors ${
-                busy || !selectedModel
-                  ? "cursor-wait bg-slate-200 text-slate-400 dark:bg-white/10 dark:text-white/30"
-                  : isDark
-                    ? "bg-white text-slate-950 hover:bg-white/90"
-                    : "bg-slate-950 text-white hover:bg-slate-800"
+              className={`h-8 rounded-md px-3 text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-wait ${
+                isDark
+                  ? "bg-white text-slate-950 hover:bg-white/90"
+                  : "bg-slate-950 text-white hover:bg-slate-800"
               }`}
             >
-              {busy ? phaseLabel : hasData ? "대량 수집 + 재분석" : "대량 수집 + 분석"}
+              {hasData ? "대량 수집 + 재분석" : "대량 수집 + 분석"}
             </button>
           </div>
         </div>
-        {fetchResult && !busy && (
-          <p className={`text-xs ${subtleText}`}>
-            수집 완료: 신규 {fetchResult.saved}건 저장 (총 {fetchResult.fetched}건 처리)
-          </p>
+        {busy && (
+          <div className="mt-2">
+            <ScrapeGaugeBar
+              running
+              label={phaseLabel}
+            />
+          </div>
         )}
-        {scrapeResult && !busy && (
-          <p className={`text-xs ${subtleText}`}>
-            스크래핑 완료 ({scrapeResult.dateFrom} ~ {scrapeResult.dateTo}): 신규 {scrapeResult.saved}건 저장 (총 {scrapeResult.fetched}건 처리)
-          </p>
+        {!busy && fetchResult && (
+          <ScrapeGaugeBar
+            running={false}
+            done
+            label={`수집 완료 — 신규 ${fetchResult.saved}건 저장 (총 ${fetchResult.fetched}건 처리)`}
+          />
+        )}
+        {!busy && scrapeResult && (
+          <ScrapeGaugeBar
+            running={false}
+            done
+            label={`스크래핑 완료 (${scrapeResult.dateFrom} ~ ${scrapeResult.dateTo}) — 신규 ${scrapeResult.saved}건`}
+          />
         )}
         {error && (
-          <p className="mt-1 rounded-md border border-red-500/30 px-3 py-2 text-xs text-red-400">{error}</p>
+          <ScrapeGaugeBar running={false} error={error} />
         )}
       </div>
 

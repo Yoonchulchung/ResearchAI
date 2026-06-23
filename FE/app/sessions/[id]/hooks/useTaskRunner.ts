@@ -43,8 +43,9 @@ export function useTaskRunner(session: Session | null, id: string) {
     }
     const terminalStates: TaskStatus[] = [TaskStatus.DONE, TaskStatus.ERROR, TaskStatus.STOPPED, TaskStatus.ABORTED];
     for (const [key, state] of Object.entries(taskRunStates)) {
-      // DB에 이미 terminal 상태가 있으면 로컬 상태로 덮어쓰지 않음
-      if (base[key] && terminalStates.includes(base[key])) continue;
+      // 재시도(RUNNING/PENDING)일 때는 DB terminal 상태를 무시하고 덮어씀
+      const isRetrying = state.status === TaskStatus.RUNNING || state.status === TaskStatus.PENDING;
+      if (base[key] && terminalStates.includes(base[key]) && !isRetrying) continue;
       base[key] = state.status;
     }
     return base;

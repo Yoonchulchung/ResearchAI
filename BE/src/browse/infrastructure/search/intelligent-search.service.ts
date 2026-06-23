@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import puppeteer, { Browser, Page } from 'puppeteer';
-import { DdgSearchService, DdgResult } from 'src/browse/infrastructure/search/ddg-search.service';
+import {
+  DdgSearchService,
+  DdgResult,
+} from 'src/browse/infrastructure/search/ddg-search.service';
 import {
   ExtractedJob,
   classifyJobSiteUrl,

@@ -38,6 +38,12 @@ type InternalScrapeOptions = ScrapeOptions & {
   catchCredentials?: { id: string; password: string };
 };
 
+export type ScrapeByCompanyEvent =
+  | { type: 'page'; page: number; total: number; found: number }
+  | { type: 'item'; index: number; pageTotal: number; position: string; season: string; isNew: boolean }
+  | { type: 'done'; collected: number; skipped: number; errors: number; company: string }
+  | { type: 'error'; message: string };
+
 @Injectable()
 export class CoverLetterScrapeEngineService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CoverLetterScrapeEngineService.name);
@@ -124,6 +130,72 @@ export class CoverLetterScrapeEngineService implements OnModuleInit, OnModuleDes
           ? '캐치 자소서 수집을 시작했습니다.'
           : '수집을 시작했습니다.',
     };
+  }
+
+  /**
+   * 기업명으로 린커리어 즉시 수집 (await 가능, 최대 maxPages 페이지)
+   * onProgress 콜백으로 실시간 진행상황 스트리밍 지원
+   */
+  async scrapeByCompany(
+    company: string,
+    maxPages = 3,
+    delayMs = 800,
+    onProgress?: (event: ScrapeByCompanyEvent) => void,
+  ): Promise<{ collected: number; skipped: number; errors: number; company: string }> {
+    const trimmed = company.trim();
+    if (!trimmed) throw new Error('기업명을 입력하세요.');
+
+    this.logger.log(`[linkareer] 기업 즉시 수집 시작: "${trimmed}" (최대 ${maxPages}페이지)`);
+
+    let collected = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    const emit = (event: ScrapeByCompanyEvent) => onProgress?.(event);
+
+    for (let page = 1; page <= maxPages; page++) {
+      let ids: string[];
+      try {
+        ids = await this.linkareerCrawler.getIdsFromPage(page, { company: trimmed });
+      } catch (err) {
+        this.logger.warn(`[linkareer] 페이지 ${page} 목록 오류: ${err}`);
+        errors++;
+        emit({ type: 'error', message: `페이지 ${page} 목록 오류: ${(err as Error).message}` });
+        break;
+      }
+
+      if (ids.length === 0) break;
+
+      const newIds = ids.filter((id) => !this.collectedIds.has(id));
+      skipped += ids.length - newIds.length;
+      emit({ type: 'page', page, total: maxPages, found: ids.length });
+
+      for (let i = 0; i < newIds.length; i++) {
+        const id = newIds[i];
+        try {
+          const detail = await this.linkareerCrawler.getDetail(id);
+          if (detail) {
+            detail.source ??= 'linkareer';
+            detail.companyType ??= inferCompanyType(detail.company);
+            await this.saveCoverLetter(detail);
+            collected++;
+            emit({ type: 'item', index: i + 1, pageTotal: newIds.length, position: detail.position ?? '', season: detail.season ?? '', isNew: true });
+          } else {
+            errors++;
+          }
+        } catch (err) {
+          this.logger.warn(`[linkareer] [${id}] 상세 오류: ${err}`);
+          errors++;
+        }
+        await this.delay(delayMs);
+      }
+
+      if (page < maxPages) await this.delay(delayMs);
+    }
+
+    this.logger.log(`[linkareer] 기업 수집 완료: "${trimmed}" — 신규 ${collected}건, 스킵 ${skipped}건, 오류 ${errors}건`);
+    emit({ type: 'done', collected, skipped, errors, company: trimmed });
+    return { collected, skipped, errors, company: trimmed };
   }
 
   stopScraping(): { message: string } {

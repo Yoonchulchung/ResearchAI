@@ -6,6 +6,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useCoverLetterList } from "./_hooks/useCoverLetterList";
 import { useCoverLetterScraping } from "./_hooks/useCoverLetterScraping";
 import CompanyAnalysisPanel from "@/recruit/resume/components/CompanyAnalysisPanel";
+import { ScrapeGaugeBar } from "@/recruit/_components/ScrapeGaugeBar";
 
 const SOURCE_FILTERS = [
   { value: "", label: "전체" },
@@ -152,12 +153,13 @@ function CoverLetterPageContent() {
               </button>
             )}
           </div>
-          {scraping.status?.running && (
-            <div className="flex items-center px-4 sm:px-5 pb-2">
-              <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm ${isDark ? "bg-emerald-500/15 text-emerald-400" : "bg-emerald-50 text-emerald-600"}`}>
-                <span className="w-1.5 h-1.5 rounded-sm bg-emerald-500 animate-pulse" />
-                수집 중 {scraping.status.totalCollected.toLocaleString()}건 · p.{scraping.status.currentPage}
-              </div>
+          {(scraping.status?.running) && (
+            <div className="px-4 sm:px-5 pb-2.5">
+              <ScrapeGaugeBar
+                running={!!scraping.status?.running}
+                label={`수집 중 · p.${scraping.status.currentPage}`}
+                current={scraping.status.totalCollected}
+              />
             </div>
           )}
         </div>

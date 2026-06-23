@@ -9,7 +9,10 @@ import {
   ScrapeStatus,
 } from 'src/recruit/domain/cover-letter/cover-letter.model';
 import { CoverLetterQueryService } from './cover-letter-query.service';
-import { CoverLetterScrapeEngineService } from './cover-letter-scrape-engine.service';
+import {
+  CoverLetterScrapeEngineService,
+  ScrapeByCompanyEvent,
+} from './cover-letter-scrape-engine.service';
 import { CoverLetterSpecAnalysisService } from './cover-letter-spec-analysis.service';
 
 /**
@@ -33,6 +36,21 @@ export class CoverLetterScraperService {
   }
   stopScraping(): { message: string } {
     return this.engine.stopScraping();
+  }
+  scrapeByCompany(
+    company: string,
+    maxPages?: number,
+    delayMs?: number,
+  ): Promise<{ collected: number; skipped: number; errors: number; company: string }> {
+    return this.engine.scrapeByCompany(company, maxPages, delayMs);
+  }
+  scrapeByCompanyWithProgress(
+    company: string,
+    maxPages: number,
+    delayMs: number,
+    onProgress: (event: ScrapeByCompanyEvent) => void,
+  ): Promise<{ collected: number; skipped: number; errors: number; company: string }> {
+    return this.engine.scrapeByCompany(company, maxPages, delayMs, onProgress);
   }
   backfillJobCategories(): Promise<{ updated: number }> {
     return this.engine.backfillJobCategories();
@@ -59,8 +77,10 @@ export class CoverLetterScraperService {
   searchQuestions(
     query: string,
     limit = 20,
-  ): Promise<{ items: CoverLetterQuestionSearchItem[]; total: number }> {
-    return this.query.searchQuestions(query, limit);
+    offset = 0,
+    sortDir: 'asc' | 'desc' = 'desc',
+  ): Promise<{ items: CoverLetterQuestionSearchItem[]; total: number; hasMore: boolean }> {
+    return this.query.searchQuestions(query, limit, offset, sortDir);
   }
 
   // ── Spec analysis ──────────────────────────────────────────────────────────

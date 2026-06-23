@@ -47,6 +47,9 @@ export namespace QueueJob {
     RESUME_COVER_LETTER_CATEGORY = 'resume_cover_letter_category',
     RESUME_COVER_LETTER_REFINED_TITLE = 'resume_cover_letter_refined_title',
     WRITEASSIST_JD_EVALUATE = 'writeassist_jd_evaluate',
+    ROADMAP_ANALYSIS = 'roadmap_analysis',
+    IMAGE_OCR = 'image_ocr',
+    BULK_FETCH_NEWS = 'bulk_fetch_news',
   }
 
   export function isWriteAssist(type: TaskType): boolean {

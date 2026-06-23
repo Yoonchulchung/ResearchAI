@@ -1,44 +1,47 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import puppeteer from 'puppeteer';
-import { ResumePdfResult, ResumeTarget, ResumeExperienceDto, ResumePrizeDto, ResumeTrainingDto, ResumeSelfIntro } from './resume.types';
+import { BrowserService } from 'src/browse/application/browser.service';
+import {
+  ResumePdfResult,
+  ResumeTarget,
+  ResumeExperienceDto,
+  ResumePrizeDto,
+  ResumeTrainingDto,
+  ResumeSelfIntro,
+} from './resume.types';
 import { escapeHtml, normalizeLineBreaks, safeFilename } from './resume.utils';
 import { ResumeCrudService } from './resume-crud.service';
 
 @Injectable()
 export class ResumePdfService {
-  constructor(private readonly crud: ResumeCrudService) {}
+  constructor(
+    private readonly crud: ResumeCrudService,
+    private readonly browser: BrowserService,
+  ) {}
 
   async generateResumePdf(resumeId: string): Promise<ResumePdfResult> {
     const detail = await this.crud.getResumeDetail([resumeId]);
     const target = detail?.resume[0];
     if (!target) throw new NotFoundException('이력서를 찾을 수 없습니다.');
 
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    const buffer = await this.browser.renderPdf(this.renderHtml(target), {
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true,
+      displayHeaderFooter: true,
+      headerTemplate: '<div></div>',
+      footerTemplate:
+        '<div style="width:100%; padding:0 14mm; text-align:right; font-size:8px; color:#94a3b8;"><span class="pageNumber"></span></div>',
+      margin: {
+        top: '14mm',
+        right: '14mm',
+        bottom: '16mm',
+        left: '14mm',
+      },
     });
-    try {
-      const page = await browser.newPage();
-      await page.setContent(this.renderHtml(target), {
-        waitUntil: ['load', 'networkidle0'],
-      });
-      const pdf = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        preferCSSPageSize: true,
-        displayHeaderFooter: true,
-        headerTemplate: '<div></div>',
-        footerTemplate:
-          '<div style="width:100%; padding:0 14mm; text-align:right; font-size:8px; color:#94a3b8;"><span class="pageNumber"></span></div>',
-        margin: { top: '14mm', right: '14mm', bottom: '16mm', left: '14mm' },
-      });
-      return {
-        buffer: Buffer.from(pdf),
-        filename: `${safeFilename(target.companyName || 'resume')}-${safeFilename(target.jobTitle || 'resume')}.pdf`,
-      };
-    } finally {
-      await browser.close();
-    }
+    return {
+      buffer,
+      filename: `${safeFilename(target.companyName || 'resume')}-${safeFilename(target.jobTitle || 'resume')}.pdf`,
+    };
   }
 
   private renderHtml(target: ResumeTarget): string {

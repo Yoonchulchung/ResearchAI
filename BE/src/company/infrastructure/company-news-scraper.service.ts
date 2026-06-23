@@ -2,8 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, IsNull, Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
-import type { Page } from 'puppeteer';
-import { PuppeteerService } from 'src/browse/infrastructure/puppeteer.service';
+import { BrowserService } from 'src/browse/application/browser.service';
 import { CompanyNewsEntity } from 'src/company/domain/entity/company-news.entity';
 import { CompanyNewsTimelineEntity } from 'src/company/domain/entity/company-news-timeline.entity';
 import {
@@ -16,10 +15,6 @@ interface ScrapedArticle {
   url: string;
   snippet: string;
   publishedAt: string | null;
-}
-
-function toNaverDate(d: Date): string {
-  return d.toISOString().substring(0, 10).replace(/-/g, '');
 }
 
 function subtractMonths(d: Date, months: number): Date {
@@ -44,7 +39,7 @@ export class CompanyNewsScraperService {
   private readonly logger = new Logger(CompanyNewsScraperService.name);
 
   constructor(
-    private readonly puppeteer: PuppeteerService,
+    private readonly browser: BrowserService,
     @InjectRepository(CompanyNewsEntity)
     private readonly newsRepo: Repository<CompanyNewsEntity>,
     @InjectRepository(CompanyNewsTimelineEntity)
@@ -160,112 +155,17 @@ export class CompanyNewsScraperService {
     dateTo: Date,
     maxPages = 5,
   ): Promise<ScrapedArticle[]> {
-    const from = toNaverDate(dateFrom);
-    const to = toNaverDate(dateTo);
-    const today = new Date().toISOString().substring(0, 10);
     const articles: ScrapedArticle[] = [];
     const seenUrls = new Set<string>();
 
-    // ds/de 형식: YYYY.MM.DD
-    const toDotDate = (d: Date) =>
-      `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-    const ds = toDotDate(dateFrom);
-    const de = toDotDate(dateTo);
-
     for (let pageIdx = 0; pageIdx < maxPages; pageIdx++) {
       const start = pageIdx * 10 + 1;
-      // 따옴표 없는 회사명 + 날짜 필터 + 뉴스 탭 직접 지정
-      const url =
-        `https://search.naver.com/search.naver?ssc=tab.news.all` +
-        `&query=${encodeURIComponent(companyName)}` +
-        `&sm=tab_opt&sort=1&photo=0&field=0&pd=3` +
-        `&ds=${ds}&de=${de}` +
-        `&nso=so:r,p:from${from}to${to}` +
-        `&start=${start}`;
-
       try {
-        const items = await this.puppeteer.withPage(async (page: Page) => {
-          await page.setUserAgent(
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          );
-          await page.goto(url, { waitUntil: 'networkidle2', timeout: 30_000 });
-          await page
-            .waitForSelector('section._prs_nws a[href]', { timeout: 5_000 })
-            .catch(() => {});
-
-          return page.evaluate((todayStr: string) => {
-            const newsSection =
-              document.querySelector('section._prs_nws') ??
-              document.querySelector('.sp_nnews') ??
-              document.querySelector('[class*="_prs_nws"]') ??
-              document.querySelector('#main_pack');
-
-            const allAnchors = Array.from(
-              (newsSection ?? document).querySelectorAll('a[href]'),
-            ) as HTMLAnchorElement[];
-
-            const isNewsUrl = (href: string) => {
-              if (!href.startsWith('http')) return false;
-              if (href.includes('media.naver.com/press')) return false;
-              if (href.includes('search.naver.com')) return false;
-              if (
-                href.includes('naver.com/') &&
-                !href.includes('n.news.naver.com') &&
-                !href.includes('news.naver.com/article')
-              )
-                return false;
-              return true;
-            };
-
-            const titleLinks = allAnchors.filter((a) => {
-              const text = a.textContent?.trim() ?? '';
-              return text.length >= 15 && isNewsUrl(a.href);
-            });
-
-            const results: Array<{
-              title: string;
-              url: string;
-              snippet: string;
-              publishedAt: string | null;
-            }> = [];
-            const seenInPage = new Set<string>();
-
-            for (const a of titleLinks) {
-              const href = a.href.split('?')[0];
-              if (seenInPage.has(href)) continue;
-              seenInPage.add(href);
-
-              const title = a.textContent?.trim() ?? '';
-              const card = a.closest('[class]') ?? a.parentElement;
-              let publishedAt: string | null = null;
-
-              const timeEl = card
-                ?.closest('[class]')
-                ?.querySelector('time[datetime]') as HTMLElement | null;
-              if (timeEl?.getAttribute('datetime')) {
-                const dt = timeEl.getAttribute('datetime')!;
-                const m = dt.match(/(\d{4})-(\d{2})-(\d{2})/);
-                if (m) publishedAt = `${m[1]}-${m[2]}-${m[3]}`;
-              }
-
-              if (!publishedAt) {
-                const cardText = card?.closest('[class]')?.textContent ?? '';
-                const dm = cardText.match(/(\d{4})\.(\d{2})\.(\d{2})/);
-                if (dm) publishedAt = `${dm[1]}-${dm[2]}-${dm[3]}`;
-                else if (/시간|분|초|방금|오늘/.test(cardText))
-                  publishedAt = todayStr;
-                else if (/어제/.test(cardText)) {
-                  const d = new Date(todayStr);
-                  d.setDate(d.getDate() - 1);
-                  publishedAt = d.toISOString().substring(0, 10);
-                }
-              }
-
-              results.push({ title, url: a.href, snippet: '', publishedAt });
-            }
-
-            return results;
-          }, today);
+        const items = await this.browser.searchNews({
+          query: companyName,
+          start,
+          dateFrom: dateFrom.toISOString().substring(0, 10),
+          dateTo: dateTo.toISOString().substring(0, 10),
         });
 
         for (const item of items) {

@@ -7,6 +7,13 @@ import { SessionsModule } from 'src/sessions/sessions.module';
 import { OverviewModule } from 'src/overview/overview.module';
 import { AiCallLogEntity } from 'src/ai/domain/entity/ai-call-log.entity';
 import { AiCallLogRepository } from 'src/ai/domain/repository/ai-call-log.repository';
+import { AiProviderRegistry } from 'src/ai/infrastructure/provider/ai-provider.registry';
+import { AnthropicProviderAdapter } from 'src/ai/infrastructure/provider/anthropic/anthropic-provider.adapter';
+import { GoogleProviderAdapter } from 'src/ai/infrastructure/provider/google/google-provider.adapter';
+import { GroqProviderAdapter } from 'src/ai/infrastructure/provider/groq/groq-provider.adapter';
+import { LlamaCppProviderAdapter } from 'src/ai/infrastructure/provider/llama-cpp/llama-cpp-provider.adapter';
+import { OllamaProviderAdapter } from 'src/ai/infrastructure/provider/ollama/ollama-provider.adapter';
+import { OpenAiProviderAdapter } from 'src/ai/infrastructure/provider/openai/openai-provider.adapter';
 
 @Module({
   imports: [
@@ -15,7 +22,18 @@ import { AiCallLogRepository } from 'src/ai/domain/repository/ai-call-log.reposi
     OverviewModule,
   ],
   controllers: [AiController],
-  providers: [AiProviderService, AiService, AiCallLogRepository],
+  providers: [
+    AiProviderService,
+    AiService,
+    AiCallLogRepository,
+    AiProviderRegistry,
+    AnthropicProviderAdapter,
+    GoogleProviderAdapter,
+    GroqProviderAdapter,
+    LlamaCppProviderAdapter,
+    OllamaProviderAdapter,
+    OpenAiProviderAdapter,
+  ],
   exports: [AiProviderService, AiService],
 })
 export class AiModule {}

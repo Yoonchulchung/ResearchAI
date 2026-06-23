@@ -21,6 +21,9 @@ export class CompanyEnrichQueueService implements OnApplicationBootstrap {
   private isProcessing = false;
   private recentDurationsMs: number[] = [];
   private currentStartedAt: number | null = null;
+  private sessionProcessed = 0;
+  private resetTimer: ReturnType<typeof setTimeout> | null = null;
+  private recentCompanies: { name: string; doneAt: string }[] = [];
 
   constructor(
     @InjectRepository(CompanyEnrichQueueEntity)
@@ -86,7 +89,6 @@ export class CompanyEnrichQueueService implements OnApplicationBootstrap {
   ): Promise<void> {
     const pending = await this.repo.count();
     const avg = this.avgDurationMs();
-    // 현재 처리 중인 항목의 경과 시간을 포함해 남은 시간 추정
     let estimatedMs: number | null = null;
     if (avg !== null) {
       const elapsedMs = this.currentStartedAt
@@ -97,11 +99,18 @@ export class CompanyEnrichQueueService implements OnApplicationBootstrap {
         : 0;
       estimatedMs = remainingForCurrent + pending * avg;
     }
+    // total = 완료 + 남은 대기 + 현재 처리 중 1건
+    const sessionTotal =
+      this.sessionProcessed + pending + (this.isProcessing ? 1 : 0);
     this.gateway?.emitEnrichQueueUpdate({
       pending,
       processing: this.isProcessing,
       currentCompany,
       estimatedMs,
+      sessionProcessed: this.sessionProcessed,
+      sessionTotal,
+      recentCompanies: this.recentCompanies,
+      apiStats: this.companyService.getStats(),
     });
   }
 
@@ -148,6 +157,12 @@ export class CompanyEnrichQueueService implements OnApplicationBootstrap {
         item.knownEmployees,
       );
       await this.repo.delete({ normalizedName: item.normalizedName });
+      this.sessionProcessed++;
+      this.recentCompanies.unshift({
+        name: item.companyName,
+        doneAt: new Date().toISOString(),
+      });
+      if (this.recentCompanies.length > 20) this.recentCompanies.pop();
       const duration = Date.now() - this.currentStartedAt;
       this.recentDurationsMs.push(duration);
       if (this.recentDurationsMs.length > TIMING_WINDOW)
@@ -174,6 +189,15 @@ export class CompanyEnrichQueueService implements OnApplicationBootstrap {
     await this.emitStatus(null);
     if (remaining > 0) {
       this.scheduleNext(PROCESS_INTERVAL_MS);
+    } else {
+      // 큐가 비면 30초 후 세션 카운터 리셋
+      if (this.resetTimer) clearTimeout(this.resetTimer);
+      this.resetTimer = setTimeout(() => {
+        this.sessionProcessed = 0;
+        this.recentCompanies = [];
+        this.companyService.resetStats();
+        this.resetTimer = null;
+      }, 30_000);
     }
   }
 

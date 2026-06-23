@@ -108,13 +108,36 @@ export const setCoverLetterHidden = (id: string, isHidden: boolean) =>
     body: JSON.stringify({ isHidden }),
   });
 
-export const searchCoverLetterQuestions = (q: string, limit = 30) => {
-  const params = new URLSearchParams({ q, limit: String(limit) });
-  return apiFetch<CoverLetterQuestionSearchResponse>(`/cover-letter-scraper/questions?${params}`);
+export const searchCoverLetterQuestions = (
+  q: string,
+  limit = 20,
+  offset = 0,
+  sortDir: 'asc' | 'desc' = 'desc',
+) => {
+  const params = new URLSearchParams({ q, limit: String(limit), offset: String(offset), sortDir });
+  return apiFetch<CoverLetterQuestionSearchResponse & { hasMore: boolean }>(
+    `/cover-letter-scraper/questions?${params}`,
+  );
 };
 
 export const backfillCategories = (): Promise<{ updated: number }> =>
   apiFetch<{ updated: number }>("/cover-letter-scraper/backfill-categories", { method: "POST" });
+
+export type ScrapeByCompanyEvent =
+  | { type: "page"; page: number; total: number; found: number }
+  | { type: "item"; index: number; pageTotal: number; position: string; season: string; isNew: boolean }
+  | { type: "done"; collected: number; skipped: number; errors: number; company: string }
+  | { type: "error"; message: string };
+
+export function createScrapeByCompanySSE(
+  company: string,
+  opts: { maxPages?: number; delayMs?: number } = {},
+): EventSource {
+  const qs = new URLSearchParams({ company });
+  if (opts.maxPages) qs.set("maxPages", String(opts.maxPages));
+  if (opts.delayMs) qs.set("delayMs", String(opts.delayMs));
+  return new EventSource(`${API_BASE}/cover-letter-scraper/scrape-by-company/stream?${qs}`);
+}
 
 export const startScraping = (opts: { source?: "linkareer" | "catch" | "all"; company?: string; role?: string; keyword?: string } = {}) =>
   apiFetch<{ message: string }>("/cover-letter-scraper/start", { method: "POST", body: JSON.stringify(opts) });

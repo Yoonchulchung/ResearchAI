@@ -21,6 +21,13 @@ import { SharedModule } from 'src/shared/shared.module';
 import { AiModule } from 'src/ai/ai.module';
 import { CompanyModule } from 'src/company/company.module';
 import { QueueModule } from 'src/queue/queue.module';
+import { JobPostingCrawlerRegistry } from 'src/recruit/infrastructure/job-posting/job-posting-crawler.registry';
+import { CatchJobCrawler } from 'src/recruit/infrastructure/job-posting/catch/catch-job.crawler';
+import { JobdaJobCrawler } from 'src/recruit/infrastructure/job-posting/jobda/jobda-job.crawler';
+import { JobkoreaJobCrawler } from 'src/recruit/infrastructure/job-posting/jobkorea/jobkorea-job.crawler';
+import { JobplanetJobCrawler } from 'src/recruit/infrastructure/job-posting/jobplanet/jobplanet-job.crawler';
+import { LinkareerJobCrawler } from 'src/recruit/infrastructure/job-posting/linkareer/linkareer-job.crawler';
+import { JobPostingCrawlerRegistryPort } from 'src/recruit/application/job-posting/ports/job-posting-crawler.port';
 
 @Module({
   imports: [
@@ -48,6 +55,16 @@ import { QueueModule } from 'src/queue/queue.module';
     JobPostingScrapeEngineService,
     JobPostingScraperService,
     RecruitJobPostingCollectService,
+    JobPostingCrawlerRegistry,
+    {
+      provide: JobPostingCrawlerRegistryPort,
+      useExisting: JobPostingCrawlerRegistry,
+    },
+    CatchJobCrawler,
+    JobdaJobCrawler,
+    JobkoreaJobCrawler,
+    JobplanetJobCrawler,
+    LinkareerJobCrawler,
   ],
   exports: [RecruitContextService, JobPostingScraperService],
 })

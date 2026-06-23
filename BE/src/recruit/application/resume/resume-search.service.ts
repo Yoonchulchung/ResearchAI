@@ -6,7 +6,13 @@ import { ResumeExperienceEntity } from 'src/recruit/domain/resume/resume-experie
 import { ResumePrizeEntity } from 'src/recruit/domain/resume/resume-prize.entity';
 import { ResumeTrainingEntity } from 'src/recruit/domain/resume/resume-training.entity';
 import { ResumeEntity } from 'src/recruit/domain/resume/resume.entity';
-import { ResumeSearchItem, ResumeSearchResult } from './resume.types';
+import {
+  ExperienceGroup,
+  PrizeGroup,
+  ResumeActivitiesResult,
+  ResumeSearchItem,
+  ResumeSearchResult,
+} from './resume.types';
 import { parseCategory } from './resume.utils';
 
 @Injectable()
@@ -162,10 +168,7 @@ export class ResumeSearchService {
     return { items };
   }
 
-  async getAllActivities(excludeResumeId?: string): Promise<{
-    experiences: ResumeSearchItem[];
-    prizes: ResumeSearchItem[];
-  }> {
+  async getAllActivities(excludeResumeId?: string): Promise<ResumeActivitiesResult> {
     const resumes = await this.resumeRepo.find({
       select: ['id', 'companyName', 'jobTitle'],
       where: { isDeleted: false },
@@ -176,7 +179,7 @@ export class ResumeSearchService {
         .map((r) => [r.id, { companyName: r.companyName ?? '', jobTitle: r.jobTitle ?? '' }]),
     );
     const validResumeIds = [...resumeMap.keys()];
-    if (!validResumeIds.length) return { experiences: [], prizes: [] };
+    if (!validResumeIds.length) return { experienceGroups: [], prizeGroups: [] };
 
     const [allExperiences, allPrizes] = await Promise.all([
       this.experienceRepo.find({
@@ -189,8 +192,13 @@ export class ResumeSearchService {
       }),
     ]);
 
-    return {
-      experiences: allExperiences.map((ex) => ({
+    const normalize = (s?: string | null) =>
+      (s ?? '').replace(/\s+/g, '').toLowerCase();
+
+    // 경험: organizationName 정규화 기준으로 그룹핑
+    const expMap = new Map<string, ExperienceGroup>();
+    for (const ex of allExperiences) {
+      const item = {
         type: 'experience' as const,
         id: ex.id,
         resumeId: ex.resumeId,
@@ -202,8 +210,20 @@ export class ResumeSearchService {
         endDate: ex.endDate ?? null,
         role: ex.role ?? null,
         description: ex.description ?? null,
-      })),
-      prizes: allPrizes.map((pr) => ({
+      };
+      const key = normalize(ex.organizationName) || ex.id;
+      const group = expMap.get(key);
+      if (group) {
+        group.items.push(item);
+      } else {
+        expMap.set(key, { key: ex.organizationName ?? '', items: [item] });
+      }
+    }
+
+    // 수상: title + organization 조합으로 그룹핑
+    const prizeMap = new Map<string, PrizeGroup>();
+    for (const pr of allPrizes) {
+      const item = {
         type: 'prize' as const,
         id: pr.id,
         resumeId: pr.resumeId,
@@ -213,7 +233,19 @@ export class ResumeSearchService {
         organization: pr.organization ?? '',
         issuedDate: pr.issuedDate ?? null,
         description: pr.description ?? null,
-      })),
+      };
+      const key = `${normalize(pr.title)}||${normalize(pr.organization)}`;
+      const group = prizeMap.get(key);
+      if (group) {
+        group.items.push(item);
+      } else {
+        prizeMap.set(key, { key: pr.title ?? '', items: [item] });
+      }
+    }
+
+    return {
+      experienceGroups: [...expMap.values()],
+      prizeGroups: [...prizeMap.values()],
     };
   }
 

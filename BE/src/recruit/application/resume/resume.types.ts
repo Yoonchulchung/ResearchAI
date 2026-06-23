@@ -144,6 +144,21 @@ export type ResumeSearchItem =
 
 export type ResumeSearchResult = { items: ResumeSearchItem[] };
 
+export interface ExperienceGroup {
+  key: string;
+  items: ResumeSearchExperienceItem[];
+}
+
+export interface PrizeGroup {
+  key: string;
+  items: ResumeSearchPrizeItem[];
+}
+
+export interface ResumeActivitiesResult {
+  experienceGroups: ExperienceGroup[];
+  prizeGroups: PrizeGroup[];
+}
+
 export interface ResumeCoverLetterCategoryItem {
   id: string;
   resumeId: string;

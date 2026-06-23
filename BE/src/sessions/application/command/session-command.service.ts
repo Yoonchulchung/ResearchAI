@@ -69,6 +69,7 @@ export class SessionCommandService {
     extra?: {
       usedWebModel?: string;
       searchLog?: { query: string; result: string }[];
+      chartData?: unknown[];
     },
   ): Promise<void> {
     await this.sessionItemRepository.updateResult(

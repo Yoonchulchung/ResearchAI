@@ -13,7 +13,12 @@ import { Session } from "@/types";
 function IconHome() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-      <path d="M3 9.5L11 3L19 9.5V19C19 19.55 18.55 20 18 20H14V14H8V20H4C3.45 20 3 19.55 3 19V9.5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path
+        d="M3 9.5L11 3L19 9.5V19C19 19.55 18.55 20 18 20H14V14H8V20H4C3.45 20 3 19.55 3 19V9.5Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -22,7 +27,12 @@ function IconSearch() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
       <circle cx="10" cy="10" r="6" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M14.5 14.5L19 19" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path
+        d="M14.5 14.5L19 19"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -30,7 +40,12 @@ function IconSearch() {
 function IconPencil() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-      <path d="M15 3.5L18.5 7L8 17.5H4.5V14L15 3.5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path
+        d="M15 3.5L18.5 7L8 17.5H4.5V14L15 3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -39,7 +54,12 @@ function IconSettings() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
       <circle cx="11" cy="11" r="3" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M11 2.5V5M11 17V19.5M2.5 11H5M17 11H19.5M4.4 4.4L6.2 6.2M15.8 15.8L17.6 17.6M4.4 17.6L6.2 15.8M15.8 6.2L17.6 4.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M11 2.5V5M11 17V19.5M2.5 11H5M17 11H19.5M4.4 4.4L6.2 6.2M15.8 15.8L17.6 17.6M4.4 17.6L6.2 15.8M15.8 6.2L17.6 4.4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -47,17 +67,31 @@ function IconSettings() {
 function IconNewspaper() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-      <path d="M19 4H3C2.45 4 2 4.45 2 5V17C2 17.55 2.45 18 3 18H19C19.55 18 20 17.55 20 17V5C20 4.45 19.55 4 19 4Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M6 8H10M6 11H10M6 14H16M13 8H16M13 11H16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path
+        d="M19 4H3C2.45 4 2 4.45 2 5V17C2 17.55 2.45 18 3 18H19C19.55 18 20 17.55 20 17V5C20 4.45 19.55 4 19 4Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6 8H10M6 11H10M6 14H16M13 8H16M13 11H16"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
 
-
 function IconPlus() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-      <path d="M11 4V18M4 11H18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+      <path
+        d="M11 4V18M4 11H18"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -65,7 +99,12 @@ function IconPlus() {
 function IconClose() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <path d="M4 4L14 14M14 4L4 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path
+        d="M4 4L14 14M14 4L4 14"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -73,7 +112,13 @@ function IconClose() {
 function IconTrash() {
   return (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-      <path d="M2.5 4H12.5M5.5 4V2.5H9.5V4M6 7V11M9 7V11M3.5 4L4 12.5H11L11.5 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M2.5 4H12.5M5.5 4V2.5H9.5V4M6 7V11M9 7V11M3.5 4L4 12.5H11L11.5 4"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -87,20 +132,31 @@ function StatusDot({ state }: { state: string }) {
       </span>
     );
   }
-  return <span className={`w-2 h-2 rounded-full shrink-0 ${state === "done" ? "bg-emerald-400" : "bg-slate-300"}`} />;
+  return (
+    <span
+      className={`w-2 h-2 rounded-full shrink-0 ${state === "done" ? "bg-emerald-400" : "bg-slate-300"}`}
+    />
+  );
 }
 
 function formatDate(iso: string) {
   const d = new Date(iso);
   const now = new Date();
   const diffH = (now.getTime() - d.getTime()) / 3600000;
-  if (diffH < 24) return d.toLocaleString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  if (diffH < 24)
+    return d.toLocaleString("ko-KR", { hour: "2-digit", minute: "2-digit" });
   return d.toLocaleString("ko-KR", { month: "short", day: "numeric" });
 }
 
 // ─── Sessions Drawer ──────────────────────────────────────────────────────────
 
-function SessionsDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+function SessionsDrawer({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const { isDark } = useMobileTheme();
@@ -117,15 +173,23 @@ function SessionsDrawer({ open, onClose }: { open: boolean; onClose: () => void 
   }, [open, onClose]);
 
   const fetchSessions = useCallback(() => {
-    getSessions().then(setSessions).catch(() => {});
+    getSessions()
+      .then(setSessions)
+      .catch(() => {});
   }, []);
 
-  useEffect(() => { fetchSessions(); }, [pathname, fetchSessions]);
+  useEffect(() => {
+    fetchSessions();
+  }, [pathname, fetchSessions]);
 
-  const currentId = pathname.startsWith("/sessions/") ? pathname.split("/sessions/")[1] : null;
+  const currentId = pathname.startsWith("/sessions/")
+    ? pathname.split("/sessions/")[1]
+    : null;
 
   const filtered = query.trim()
-    ? sessions.filter((s) => s.topic.toLowerCase().includes(query.toLowerCase()))
+    ? sessions.filter((s) =>
+        s.topic.toLowerCase().includes(query.toLowerCase()),
+      )
     : sessions;
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
@@ -139,7 +203,9 @@ function SessionsDrawer({ open, onClose }: { open: boolean; onClose: () => void 
 
   const bg = isDark ? "bg-slate-900 text-white" : "bg-white text-slate-800";
   const border = isDark ? "border-white/10" : "border-slate-200";
-  const inputCls = isDark ? "bg-white/10 border-white/15 text-white placeholder:text-white/40" : "bg-slate-50 border-slate-200 text-slate-700 placeholder:text-slate-400";
+  const inputCls = isDark
+    ? "bg-white/10 border-white/15 text-white placeholder:text-white/40"
+    : "bg-slate-50 border-slate-200 text-slate-700 placeholder:text-slate-400";
 
   return (
     <>
@@ -149,15 +215,28 @@ function SessionsDrawer({ open, onClose }: { open: boolean; onClose: () => void 
         onClick={onClose}
       />
       {/* sheet */}
-      <div className={`fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl ${bg} shadow-2xl transition-transform duration-300 ${open ? "translate-y-0" : "translate-y-full"}`}
-        style={{ maxHeight: "80vh" }}>
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl ${bg} shadow-2xl transition-transform duration-300 ${open ? "translate-y-0" : "translate-y-full"}`}
+        style={{ maxHeight: "80vh" }}
+      >
         {/* handle */}
         <div className="flex justify-center pt-3 pb-1">
-          <div className={`w-10 h-1 rounded-full ${isDark ? "bg-white/20" : "bg-slate-200"}`} />
+          <div
+            className={`w-10 h-1 rounded-full ${isDark ? "bg-white/20" : "bg-slate-200"}`}
+          />
         </div>
-        <div className={`flex items-center justify-between px-5 py-3 border-b ${border}`}>
+        <div
+          className={`flex items-center justify-between px-5 py-3 border-b ${border}`}
+        >
           <span className="font-semibold text-sm">리서치 세션</span>
-          <button onClick={onClose} className={isDark ? "text-white/50 hover:text-white" : "text-slate-400 hover:text-slate-600"}>
+          <button
+            onClick={onClose}
+            className={
+              isDark
+                ? "text-white/50 hover:text-white"
+                : "text-slate-400 hover:text-slate-600"
+            }
+          >
             <IconClose />
           </button>
         </div>
@@ -172,9 +251,14 @@ function SessionsDrawer({ open, onClose }: { open: boolean; onClose: () => void 
           />
         </div>
         {/* list */}
-        <div className="overflow-y-auto px-3 pb-6" style={{ maxHeight: "calc(80vh - 140px)" }}>
+        <div
+          className="overflow-y-auto px-3 pb-6"
+          style={{ maxHeight: "calc(80vh - 140px)" }}
+        >
           {filtered.length === 0 ? (
-            <p className={`text-center py-8 text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}>
+            <p
+              className={`text-center py-8 text-xs ${isDark ? "text-white/40" : "text-slate-400"}`}
+            >
               {query ? `'${query}'에 대한 결과 없음` : "리서치 세션이 없습니다"}
             </p>
           ) : (
@@ -183,21 +267,32 @@ function SessionsDrawer({ open, onClose }: { open: boolean; onClose: () => void 
               return (
                 <div
                   key={s.id}
-                  onClick={() => { router.push(`/sessions/${s.id}`); onClose(); }}
+                  onClick={() => {
+                    router.push(`/sessions/${s.id}`);
+                    onClose();
+                  }}
                   className={`group flex items-start gap-3 px-3 py-3 rounded-xl cursor-pointer transition-all mb-1 ${
                     isActive
-                      ? isDark ? "bg-indigo-500/20 border border-indigo-500/30" : "bg-indigo-50 border border-indigo-100"
-                      : isDark ? "hover:bg-white/5" : "hover:bg-slate-50"
+                      ? isDark
+                        ? "bg-indigo-500/20 border border-indigo-500/30"
+                        : "bg-indigo-50 border border-indigo-100"
+                      : isDark
+                        ? "hover:bg-white/5"
+                        : "hover:bg-slate-50"
                   }`}
                 >
                   <div className="mt-1">
                     <StatusDot state={s.researchState ?? "idle"} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-medium truncate ${isActive ? (isDark ? "text-indigo-300" : "text-indigo-700") : ""}`}>
+                    <div
+                      className={`text-sm font-medium truncate ${isActive ? (isDark ? "text-indigo-300" : "text-indigo-700") : ""}`}
+                    >
                       {s.topic}
                     </div>
-                    <div className={`text-xs mt-0.5 ${isDark ? "text-white/40" : "text-slate-400"}`}>
+                    <div
+                      className={`text-xs mt-0.5 ${isDark ? "text-white/40" : "text-slate-400"}`}
+                    >
                       {formatDate(s.createdAt)}
                       {(s.doneCount ?? 0) > 0 && ` · ${s.doneCount}개 완료`}
                     </div>
@@ -228,18 +323,35 @@ function useMobileTheme() {
 
 // ─── Mobile Header ────────────────────────────────────────────────────────────
 
-function MobileHeader({ title, onNewResearch }: { title: string; onNewResearch: () => void }) {
+function MobileHeader({
+  title,
+  onNewResearch,
+}: {
+  title: string;
+  onNewResearch: () => void;
+}) {
   const router = useRouter();
   const { isDark } = useMobileTheme();
-  const bg = isDark ? "bg-slate-900/95 border-white/10" : "bg-white/95 border-slate-200";
+  const bg = isDark
+    ? "bg-slate-900/95 border-white/10"
+    : "bg-white/95 border-slate-200";
 
   return (
-    <header className={`z-20 backdrop-blur-md border-b px-4 py-2 flex items-center justify-between ${bg}`}>
-      <button onClick={() => router.push("/main")} className="flex items-center gap-2">
+    <header
+      className={`z-20 backdrop-blur-md border-b px-4 py-2 flex items-center justify-between ${bg}`}
+    >
+      <button
+        onClick={() => router.push("/main")}
+        className="flex items-center gap-2"
+      >
         <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center text-xs shadow shadow-indigo-500/30">
           ◈
         </div>
-        <span className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-800"}`}>{title}</span>
+        <span
+          className={`text-sm font-bold ${isDark ? "text-white" : "text-slate-800"}`}
+        >
+          {title}
+        </span>
       </button>
       <button
         onClick={onNewResearch}
@@ -251,27 +363,61 @@ function MobileHeader({ title, onNewResearch }: { title: string; onNewResearch: 
   );
 }
 
-
 // ─── Bottom Navigation ────────────────────────────────────────────────────────
 
 type NavTab = "home" | "sessions" | "write" | "news" | "settings" | "more";
 
-function BottomNav({ active, onSessions }: { active: NavTab; onSessions: () => void }) {
+function BottomNav({
+  active,
+  onSessions,
+}: {
+  active: NavTab;
+  onSessions: () => void;
+}) {
   const router = useRouter();
   const { isDark } = useMobileTheme();
-  const bg = isDark ? "bg-slate-900/95 border-white/10" : "bg-white/95 border-slate-200";
+  const bg = isDark
+    ? "bg-slate-900/95 border-white/10"
+    : "bg-white/95 border-slate-200";
 
-  const items: { id: NavTab; icon: React.ReactNode; label: string; action: () => void }[] = [
-    { id: "home", icon: <IconHome />, label: "홈", action: () => router.push("/main") },
+  const items: {
+    id: NavTab;
+    icon: React.ReactNode;
+    label: string;
+    action: () => void;
+  }[] = [
+    {
+      id: "home",
+      icon: <IconHome />,
+      label: "홈",
+      action: () => router.push("/main"),
+    },
     { id: "sessions", icon: <IconSearch />, label: "세션", action: onSessions },
-    { id: "news", icon: <IconNewspaper />, label: "뉴스", action: () => router.push("/news") },
-    { id: "write", icon: <IconPencil />, label: "채용", action: () => router.push("/recruit") },
-    { id: "settings", icon: <IconSettings />, label: "설정", action: () => router.push("/settings/overview") },
+    {
+      id: "news",
+      icon: <IconNewspaper />,
+      label: "뉴스",
+      action: () => router.push("/news"),
+    },
+    {
+      id: "write",
+      icon: <IconPencil />,
+      label: "채용",
+      action: () => router.push("/recruit"),
+    },
+    {
+      id: "settings",
+      icon: <IconSettings />,
+      label: "설정",
+      action: () => router.push("/settings/overview"),
+    },
   ];
 
   return (
-    <nav className={`border-t backdrop-blur-md ${bg}`}
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <nav
+      className={`border-t backdrop-blur-md ${bg}`}
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
       <div className="flex">
         {items.map((item) => {
           const isActive = item.id === active;
@@ -282,11 +428,15 @@ function BottomNav({ active, onSessions }: { active: NavTab; onSessions: () => v
               className={`flex-1 flex flex-col items-center py-1.5 gap-0.5 transition-colors [&>svg]:h-5 [&>svg]:w-5 ${
                 isActive
                   ? "text-indigo-500"
-                  : isDark ? "text-white/40 hover:text-white/70" : "text-slate-400 hover:text-slate-600"
+                  : isDark
+                    ? "text-white/40 hover:text-white/70"
+                    : "text-slate-400 hover:text-slate-600"
               }`}
             >
               {item.icon}
-              <span className="text-[10px] font-medium leading-tight">{item.label}</span>
+              <span className="text-[10px] font-medium leading-tight">
+                {item.label}
+              </span>
             </button>
           );
         })}
@@ -311,7 +461,12 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/news/tech-blogs")) return "기술 블로그";
   if (pathname.startsWith("/news/papers")) return "핫한 논문";
   if (pathname.startsWith("/news")) return "뉴스";
-  if (pathname.startsWith("/companies") || pathname.startsWith("/company-analysis")) return "기업 분석";
+  if (pathname.startsWith("/stock")) return "증시";
+  if (
+    pathname.startsWith("/companies") ||
+    pathname.startsWith("/company-analysis")
+  )
+    return "기업 분석";
   if (pathname.startsWith("/settings")) return "설정";
   return "ResearchAI";
 }
@@ -322,13 +477,20 @@ function getActiveTab(pathname: string): NavTab {
   if (pathname.startsWith("/news")) return "news";
   if (pathname.startsWith("/recruit")) return "write";
   if (pathname.startsWith("/settings")) return "settings";
-  if (pathname.startsWith("/companies") || pathname.startsWith("/company-analysis")) return "more";
+  if (
+    pathname.startsWith("/companies") ||
+    pathname.startsWith("/company-analysis")
+  )
+    return "more";
+  if (pathname.startsWith("/stock")) return "more";
   return "home";
 }
 
 function isInteractiveTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
-  return !!target.closest("button, a, input, textarea, select, [role='button']");
+  return !!target.closest(
+    "button, a, input, textarea, select, [role='button']",
+  );
 }
 
 export function MobileShell({ children }: { children: React.ReactNode }) {
@@ -339,7 +501,10 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
   const mainRef = useRef<HTMLElement>(null);
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
   const lastScrollTopRef = useRef(0);
-  const scrollIntentRef = useRef<{ direction: "up" | "down" | null; distance: number }>({ direction: null, distance: 0 });
+  const scrollIntentRef = useRef<{
+    direction: "up" | "down" | null;
+    distance: number;
+  }>({ direction: null, distance: 0 });
 
   // 페이지 전환 시 헤더 상태 초기화
   useEffect(() => {
@@ -354,7 +519,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
     if (!el || !pathname.startsWith("/main")) return;
     const handleScroll = () => {
       const scrollTop = el.scrollTop;
-      
+
       // 최상단 근처에서는 무조건 헤더 노출
       if (scrollTop <= 10) {
         lastScrollTopRef.current = scrollTop;
@@ -367,32 +532,32 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
         lastScrollTopRef.current = scrollTop;
         return;
       }
-      
+
       const delta = scrollTop - lastScrollTopRef.current;
       lastScrollTopRef.current = scrollTop;
-      
+
       // 미세한 픽셀 오차(스크롤 노이즈) 무시
       if (Math.abs(delta) < 3) return;
 
       const direction = delta > 0 ? "down" : "up";
       const intent = scrollIntentRef.current;
-      
+
       if (intent.direction !== direction) {
         // 스크롤 중간에 발생하는 미세한 반대 방향 튐(8px 미만)은 노이즈로 간주해 무시하고 방향 전환을 보류함
         if (Math.abs(delta) < 8) return;
-        
+
         scrollIntentRef.current = { direction, distance: Math.abs(delta) };
       } else {
         intent.distance += Math.abs(delta);
       }
 
       const distance = scrollIntentRef.current.distance;
-      
+
       // 아래로 40px 이상 확실하게 내렸을 때 숨김
       if (direction === "down" && distance > 40) {
         setIsHeaderHidden(true);
         scrollIntentRef.current.distance = 0;
-      } 
+      }
       // 위로 30px 이상 확실하게 올렸을 때 자연스럽게 노출 (반응성을 높여줌)
       else if (direction === "up" && distance > 30) {
         setIsHeaderHidden(false);
@@ -413,30 +578,35 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/settings");
 
   return (
-    <div className={`relative flex flex-col overflow-hidden ${bg}`} style={{ height: '100dvh' }}>
+    <div
+      className={`relative flex flex-col overflow-hidden ${bg}`}
+      style={{ height: "100dvh" }}
+    >
       {!hideHeader && (
-        <div className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-out ${
-          isHeaderHidden
-            ? "max-h-0 opacity-0 pointer-events-none"
-            : "max-h-14 opacity-100"
-        }`}>
+        <div
+          className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-out ${
+            isHeaderHidden
+              ? "max-h-0 opacity-0 pointer-events-none"
+              : "max-h-14 opacity-100"
+          }`}
+        >
           <MobileHeader
             title={getPageTitle(pathname)}
             onNewResearch={openModal}
           />
         </div>
       )}
-      <main
-        ref={mainRef}
-        className="relative flex-1 min-h-0 overflow-y-auto"
-      >
+      <main ref={mainRef} className="relative flex-1 min-h-0 overflow-y-auto">
         {children}
       </main>
       <BottomNav
         active={getActiveTab(pathname)}
         onSessions={() => setSessionsOpen(true)}
       />
-      <SessionsDrawer open={sessionsOpen} onClose={() => setSessionsOpen(false)} />
+      <SessionsDrawer
+        open={sessionsOpen}
+        onClose={() => setSessionsOpen(false)}
+      />
     </div>
   );
 }

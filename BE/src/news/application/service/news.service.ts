@@ -1,611 +1,134 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { createHash } from 'crypto';
-import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
-import { PuppeteerService } from 'src/browse/infrastructure/puppeteer.service';
-import { NewsBriefingEntity } from 'src/news/domain/entity/news-briefing.entity';
-import { NewsArticleSummaryEntity } from 'src/news/domain/entity/news-article-summary.entity';
-import { NewsProviderService } from 'src/news/infrastructure/news-provider.service';
+import { NewsFeedService } from 'src/news/application/service/news-feed.service';
+import { NewsArticleService } from 'src/news/application/service/news-article.service';
+import { NewsYoutubeService } from 'src/news/application/service/news-youtube.service';
+import { NewsSearchService } from 'src/news/application/service/news-search.service';
+import { NewsCacheService } from 'src/news/application/service/news-cache.service';
 import {
-  AppConfigService,
-  CONFIG_KEYS,
-} from 'src/config/application/app-config.service';
-import { deduplicateNewsItems } from 'src/news/application/news-dedup.utils';
-
-export interface CountryNewsItem {
-  title: string;
-  link: string;
-  source: string;
-  pubDate: string;
-}
-
-export interface NewsItem {
-  title: string;
-  link: string;
-  source: string;
-  pubDate: string;
-  description: string;
-}
-
-export interface GithubNewsItem {
-  id: number;
-  full_name: string;
-  description: string | null;
-  html_url: string;
-  stargazers_count: number;
-  language: string | null;
-  forks_count: number;
-}
-
-export interface HuggingFaceNewsItem {
-  id: string;
-  modelId?: string;
-  likes: number;
-  downloads?: number;
-  trendingScore?: number;
-  pipeline_tag?: string;
-  lastModified?: string;
-}
-
-export interface KeywordItem {
-  keyword: string;
-  count: number;
-}
-
-export interface ConflictZone {
-  code: string; // ISO numeric
-  score: number; // 뉴스 언급 점수 (높을수록 분쟁 강도 ↑)
-  headlines: string[]; // 근거 헤드라인
-}
-
-export interface NewsArticleSummary {
-  id: string;
-  url: string;
-  title: string;
-  source: string | null;
-  description: string | null;
-  summary: string;
-  model: string | null;
-  articleUrl: string | null;
-  updatedAt: string;
-}
-
-const CATEGORY_QUERIES: Record<string, string> = {
-  it: 'IT 기술 AI',
-  economy: '경제 금융',
-  society: '사회 사건',
-  politics: '정치 국회',
-  world: '국제 세계',
-  culture: '문화 엔터테인먼트',
-  science: '과학 우주',
-};
-
-const KO_STOPWORDS = new Set([
-  '은',
-  '는',
-  '이',
-  '가',
-  '을',
-  '를',
-  '의',
-  '에',
-  '로',
-  '와',
-  '과',
-  '도',
-  '만',
-  '에서',
-  '으로',
-  '하다',
-  '했다',
-  '한다',
-  '된다',
-  '있다',
-  '없다',
-  '등',
-  '및',
-  '또',
-  '더',
-  '것',
-  '수',
-  '그',
-  '저',
-  '우리',
-  '하는',
-  '하여',
-  '하며',
-  '하고',
-  '라며',
-  '라고',
-  '이라고',
-  '것으로',
-  '것이',
-  '것을',
-  '것은',
-  '있는',
-  '없는',
-  '위해',
-  '통해',
-  '대한',
-  '따른',
-  '관련',
-  '경우',
-  '이번',
-  '지난',
-  '오는',
-  '전',
-  '후',
-  '때',
-  '중',
-  '간',
-  '내',
-  '외',
-  '년',
-  '월',
-  '일',
-  '시',
-  '분',
-  '원',
-  '달러',
-  '위',
-  '아래',
-  '대해',
-  '부터',
-  '까지',
-  '한편',
-  '또한',
-  '다만',
-  '오히려',
-  '결국',
-  '이미',
-  '앞서',
-  '이에',
-  '이를',
-  '이후',
-  '기자',
-  '뉴스',
-  '연합',
-  '특파원',
-  '코리아',
-  '헤럴드',
-  '매일',
-  '조선',
-  '동아',
-  '한국',
-  'the',
-  'a',
-  'an',
-  'of',
-  'in',
-  'to',
-  'and',
-  'for',
-  'is',
-  'on',
-  'at',
-  'by',
-  'or',
-]);
-
-const CONFLICT_KEYWORDS = [
-  '전쟁',
-  '교전',
-  '공격',
-  '폭격',
-  '침공',
-  '내전',
-  '분쟁',
-  '충돌',
-  '사상자',
-  '사망',
-  '포격',
-  '미사일',
-  '드론',
-  '폭탄',
-  '테러',
-  '반군',
-  '군사작전',
-  '휴전',
-  '민간인',
-  '탈출',
-  '피난',
-  '봉쇄',
-  '점령',
-  '저항',
-  '전투',
-  '전선',
-  '공습',
-  'war',
-  'attack',
-  'conflict',
-  'invasion',
-  'bombing',
-  'airstrike',
-  'missile',
-  'ceasefire',
-  'casualties',
-  'troops',
-  'military',
-  'offensive',
-  'hostage',
-  'occupation',
-  'resistance',
-  'rebel',
-  'coup',
-];
-
-const COUNTRY_NAME_MAP: Array<{ names: string[]; code: string }> = [
-  { names: ['우크라이나', 'ukraine'], code: '804' },
-  { names: ['러시아', 'russia'], code: '643' },
-  { names: ['이스라엘', 'israel'], code: '376' },
-  { names: ['팔레스타인', '가자', 'palestine', 'gaza'], code: '275' },
-  { names: ['이란', 'iran'], code: '364' },
-  { names: ['레바논', 'lebanon'], code: '422' },
-  { names: ['시리아', 'syria'], code: '760' },
-  { names: ['예멘', 'yemen'], code: '887' },
-  { names: ['수단', 'sudan'], code: '729' },
-  { names: ['미얀마', '버마', 'myanmar', 'burma'], code: '104' },
-  { names: ['에티오피아', 'ethiopia'], code: '231' },
-  { names: ['소말리아', 'somalia'], code: '706' },
-  { names: ['아이티', 'haiti'], code: '332' },
-  { names: ['콩고', 'congo'], code: '180' },
-  { names: ['말리', 'mali'], code: '466' },
-  { names: ['니제르', 'niger'], code: '562' },
-  { names: ['부르키나파소', 'burkina'], code: '854' },
-  { names: ['리비아', 'libya'], code: '434' },
-  { names: ['이라크', 'iraq'], code: '368' },
-  { names: ['아프가니스탄', 'afghanistan'], code: '004' },
-  { names: ['파키스탄', 'pakistan'], code: '586' },
-  { names: ['인도', 'india'], code: '356' },
-  { names: ['중국', 'china'], code: '156' },
-  { names: ['대만', 'taiwan'], code: '158' },
-  { names: ['북한', '북조선', 'north korea'], code: '408' },
-  { names: ['사우디', 'saudi'], code: '682' },
-  { names: ['튀르키예', '터키', 'turkey', 'türkiye'], code: '792' },
-  { names: ['나이지리아', 'nigeria'], code: '566' },
-  { names: ['카메룬', 'cameroon'], code: '120' },
-  { names: ['모잠비크', 'mozambique'], code: '508' },
-];
-
-function extractKeywords(texts: string[], limit: number): KeywordItem[] {
-  const freq = new Map<string, number>();
-
-  for (const text of texts) {
-    const cleaned = text
-      .replace(/[^\uAC00-\uD7A3\u1100-\u11FF\u3130-\u318Fa-zA-Z\s]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    const words = cleaned.split(' ');
-    for (const word of words) {
-      const w = word.trim();
-      if (w.length < 2 || /^\d+$/.test(w) || KO_STOPWORDS.has(w)) continue;
-      if (/^[a-zA-Z]{1,2}$/.test(w)) continue;
-      freq.set(w, (freq.get(w) ?? 0) + 1);
-    }
-  }
-
-  return [...freq.entries()]
-    .filter(([, count]) => count >= 2)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([keyword, count]) => ({ keyword, count }));
-}
-
-function detectConflictCountries(titles: string[]): ConflictZone[] {
-  const scores = new Map<string, { score: number; headlines: string[] }>();
-
-  for (const title of titles) {
-    const lower = title.toLowerCase();
-    const hasConflict = CONFLICT_KEYWORDS.some(
-      (kw) => lower.includes(kw) || title.includes(kw),
-    );
-    if (!hasConflict) continue;
-
-    for (const { names, code } of COUNTRY_NAME_MAP) {
-      const mentioned = names.some(
-        (n) => lower.includes(n.toLowerCase()) || title.includes(n),
-      );
-      if (!mentioned) continue;
-
-      const entry = scores.get(code) ?? { score: 0, headlines: [] };
-      const kwCount = CONFLICT_KEYWORDS.filter(
-        (kw) => lower.includes(kw) || title.includes(kw),
-      ).length;
-      entry.score += 1 + (kwCount - 1) * 0.5;
-      if (entry.headlines.length < 3) entry.headlines.push(title);
-      scores.set(code, entry);
-    }
-  }
-
-  return [...scores.entries()]
-    .map(([code, { score, headlines }]) => ({
-      code,
-      score: Math.round(score * 10) / 10,
-      headlines,
-    }))
-    .sort((a, b) => b.score - a.score);
-}
+  ConflictZone,
+  CountryNewsItem,
+  GithubNewsItem,
+  HuggingFaceNewsItem,
+  KeywordItem,
+  NewsArticleSummary,
+  NewsItem,
+  QueryNewsResult,
+  RoadmapExpandResult,
+  SaveNewsArticleSummaryInput,
+  SearchRoadmapMonth,
+  SearchRoadmapResult,
+} from 'src/news/application/service/news.types';
+import { YoutubeNewsItem } from 'src/news/infrastructure/provider/youtube.api';
 
 export type {
-  MarketItem,
-  ChartPoint,
-} from 'src/news/application/service/market.service';
+  ConflictZone,
+  CountryNewsItem,
+  GithubNewsItem,
+  HuggingFaceNewsItem,
+  KeywordItem,
+  NewsArticleSummary,
+  NewsItem,
+  QueryNewsItem,
+  QueryNewsResult,
+  RoadmapExpandResult,
+  SearchRoadmapEvent,
+  SearchRoadmapMonth,
+  SearchRoadmapResult,
+} from 'src/news/application/service/news.types';
 
+/**
+ * 뉴스 애플리케이션 파사드.
+ *
+ * 컨트롤러와 큐는 이 클래스만 의존하고, 실제 책임은 기능별 서비스가 맡는다.
+ */
 @Injectable()
 export class NewsService {
   constructor(
-    private readonly puppeteer: PuppeteerService,
-    private readonly aiProvider: AiProviderService,
-    @InjectRepository(NewsBriefingEntity)
-    private readonly briefingRepo: Repository<NewsBriefingEntity>,
-    @InjectRepository(NewsArticleSummaryEntity)
-    private readonly articleSummaryRepo: Repository<NewsArticleSummaryEntity>,
-    private readonly newsProvider: NewsProviderService,
-    private readonly appConfig: AppConfigService,
+    private readonly feed: NewsFeedService,
+    private readonly article: NewsArticleService,
+    private readonly youtube: NewsYoutubeService,
+    private readonly search: NewsSearchService,
+    private readonly cache: NewsCacheService,
   ) {}
 
-  private getTodayKey(): string {
-    return new Date()
-      .toLocaleDateString('ko-KR', {
-        timeZone: 'Asia/Seoul',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      })
-      .replace(/\. /g, '-')
-      .replace('.', '');
+  getNaverNews(category: string, limit = 20, offset = 0): Promise<NewsItem[]> {
+    return this.feed.getNaverNews(category, limit, offset);
   }
 
-  // ─── Raw data cache helpers ────────────────────────────────────────────────
-
-  private async getRawCache<T>(cacheKey: string): Promise<T | null> {
-    const cached = await this.briefingRepo.findOneBy({ date: cacheKey });
-    if (cached?.rawData) {
-      return JSON.parse(cached.rawData) as T;
-    }
-    return null;
+  getGithubTrending(since: string): Promise<GithubNewsItem[]> {
+    return this.feed.getGithubTrending(since);
   }
 
-  private async setRawCache(cacheKey: string, data: unknown): Promise<void> {
-    const existing = await this.briefingRepo.findOneBy({ date: cacheKey });
-    if (existing) {
-      await this.briefingRepo.update(
-        { date: cacheKey },
-        { rawData: JSON.stringify(data) },
-      );
-    } else {
-      await this.briefingRepo.save({
-        date: cacheKey,
-        titlesHash: '',
-        summary: '',
-        rawData: JSON.stringify(data),
-      });
-    }
+  getHuggingFaceTrending(category: string): Promise<HuggingFaceNewsItem[]> {
+    return this.feed.getHuggingFaceTrending(category);
   }
 
-  // ─── Public methods ────────────────────────────────────────────────────────
+  getStackOverflowHot(site: string, limit: number) {
+    return this.feed.getStackOverflowHot(site, limit);
+  }
 
-  async getNaverNews(
-    category: string,
-    limit = 20,
-    offset = 0,
-  ): Promise<NewsItem[]> {
-    const normalizedLimit = Math.min(Math.max(Math.floor(limit), 1), 100);
-    const normalizedOffset = Math.min(Math.max(Math.floor(offset), 0), 999);
-    const cacheKey = `raw-naver-${category}-${normalizedLimit}-${normalizedOffset}-${this.getTodayKey()}`;
-    const cached = await this.getRawCache<NewsItem[]>(cacheKey);
-    if (cached) return deduplicateNewsItems(cached);
+  getKeywords(limit: number): Promise<KeywordItem[]> {
+    return this.feed.getKeywords(limit);
+  }
 
-    const query = CATEGORY_QUERIES[category] ?? CATEGORY_QUERIES.it;
-    const items = await this.newsProvider.fetchNewsByQuery(
+  getConflictZones(): Promise<ConflictZone[]> {
+    return this.feed.getConflictZones();
+  }
+
+  getCountryNews(name: string, limit: number): Promise<CountryNewsItem[]> {
+    return this.feed.getCountryNews(name, limit);
+  }
+
+  getArticleContent(url: string) {
+    return this.article.getContent(url);
+  }
+
+  getArticleSummary(url: string): Promise<NewsArticleSummary | null> {
+    return this.article.getSummary(url);
+  }
+
+  saveArticleSummary(
+    input: SaveNewsArticleSummaryInput,
+  ): Promise<NewsArticleSummary> {
+    return this.article.saveSummary(input);
+  }
+
+  getYoutubeNews(limit = 30): Promise<YoutubeNewsItem[]> {
+    return this.youtube.getNews(limit);
+  }
+
+  getYoutubeLive(): Promise<YoutubeNewsItem[]> {
+    return this.youtube.getLive();
+  }
+
+  refreshTodayCache(): Promise<void> {
+    return this.cache.clearToday();
+  }
+
+  getSearchRoadmap(query: string): Promise<SearchRoadmapResult> {
+    return this.search.getRoadmap(query);
+  }
+
+  getQueryNews(
+    query: string,
+    start = 1,
+    dateFrom?: string,
+    dateTo?: string,
+  ): Promise<QueryNewsResult> {
+    return this.search.getQueryNews(query, start, dateFrom, dateTo);
+  }
+
+  expandRoadmap(
+    query: string,
+    direction: 'newer' | 'older',
+    referenceDate: string,
+    existingMonths: SearchRoadmapMonth[],
+  ): Promise<RoadmapExpandResult> {
+    return this.search.expandRoadmap(
       query,
-      normalizedLimit,
-      normalizedOffset,
+      direction,
+      referenceDate,
+      existingMonths,
     );
-    const deduplicated = deduplicateNewsItems(items);
-    await this.setRawCache(cacheKey, deduplicated);
-    return deduplicated;
-  }
-
-  async getGithubTrending(since: string): Promise<GithubNewsItem[]> {
-    const normalized =
-      since === 'weekly' || since === 'monthly' ? since : 'daily';
-    const cacheKey = `raw-github-${normalized}-${this.getTodayKey()}`;
-    const cached = await this.getRawCache<GithubNewsItem[]>(cacheKey);
-    if (cached) return cached;
-
-    const items = await this.newsProvider.fetchTrendingRepos(normalized);
-    await this.setRawCache(cacheKey, items);
-    return items;
-  }
-
-  async getHuggingFaceTrending(
-    category: string,
-  ): Promise<HuggingFaceNewsItem[]> {
-    const normalized =
-      category === 'datasets' || category === 'spaces' ? category : 'models';
-    const cacheKey = `raw-huggingface-${normalized}-${this.getTodayKey()}`;
-    const cached = await this.getRawCache<HuggingFaceNewsItem[]>(cacheKey);
-    if (cached) return cached;
-
-    const items = await this.newsProvider.fetchHfTrending(normalized, 20);
-    await this.setRawCache(cacheKey, items);
-    return items;
-  }
-
-  async getStackOverflowHot(site: string, limit: number) {
-    const cacheKey = `raw-stackoverflow-${site}-${this.getTodayKey()}`;
-    const cached = await this.getRawCache(cacheKey);
-    if (cached) return cached;
-
-    const items = await this.newsProvider.fetchStackOverflowHot(site, limit);
-    await this.setRawCache(cacheKey, items);
-    return items;
-  }
-
-  async getKeywords(limit: number): Promise<KeywordItem[]> {
-    const rawCacheKey = `raw-kw-titles-${this.getTodayKey()}`;
-    let allTitles = await this.getRawCache<string[]>(rawCacheKey);
-
-    if (!allTitles) {
-      const queries = [
-        'IT AI 기술',
-        '경제 금융 증시',
-        '사회 정치',
-        '국제 세계',
-        '과학 환경',
-      ];
-      const results = await Promise.allSettled(
-        queries.map((q) => this.newsProvider.fetchNewsByQuery(q)),
-      );
-      allTitles = [];
-      for (const r of results) {
-        if (r.status === 'fulfilled') {
-          allTitles.push(
-            ...deduplicateNewsItems(r.value).map((item) => item.title),
-          );
-        }
-      }
-      await this.setRawCache(rawCacheKey, allTitles);
-    }
-
-    return extractKeywords(allTitles, limit);
-  }
-
-  async getConflictZones(): Promise<ConflictZone[]> {
-    const cacheKey = `raw-conflicts-${this.getTodayKey()}`;
-    const cached = await this.getRawCache<ConflictZone[]>(cacheKey);
-    if (cached) return cached;
-
-    const queries = [
-      '전쟁 교전 공격 폭격',
-      'war conflict attack military',
-      '분쟁 사상자 내전 반군',
-      'ceasefire invasion troops casualties',
-      '이스라엘 가자 우크라이나 러시아 이란',
-    ];
-    const results = await Promise.allSettled(
-      queries.map((q) => this.newsProvider.fetchNewsByQuery(q)),
-    );
-
-    const allTitles: string[] = [];
-    for (const r of results) {
-      if (r.status === 'fulfilled') {
-        allTitles.push(
-          ...deduplicateNewsItems(r.value).map((item) => item.title),
-        );
-      }
-    }
-
-    const zones = detectConflictCountries(allTitles);
-    await this.setRawCache(cacheKey, zones);
-    return zones;
-  }
-
-  async getCountryNews(
-    name: string,
-    limit: number,
-  ): Promise<CountryNewsItem[]> {
-    if (!name.trim()) return [];
-    const items = await this.newsProvider.fetchNewsByQuery(name);
-    return deduplicateNewsItems(items)
-      .slice(0, limit)
-      .map(({ title, link, source, pubDate }) => ({
-        title,
-        link,
-        source,
-        pubDate,
-      }));
-  }
-
-  async getArticleContent(url: string): Promise<{
-    title: string;
-    content: string;
-    image?: string;
-    finalUrl?: string;
-  }> {
-    if (!url.trim()) return { title: '', content: '' };
-    try {
-      return await this.puppeteer.fetchArticle(url);
-    } catch {
-      return { title: '', content: '', finalUrl: url };
-    }
-  }
-
-  async getArticleSummary(url: string): Promise<NewsArticleSummary | null> {
-    const normalizedUrl = this.normalizeArticleUrl(url);
-    if (!normalizedUrl) return null;
-    const entity = await this.articleSummaryRepo.findOneBy({
-      url: normalizedUrl,
-    });
-    return entity ? this.toArticleSummary(entity) : null;
-  }
-
-  async saveArticleSummary(input: {
-    url: string;
-    title: string;
-    source?: string | null;
-    description?: string | null;
-    summary: string;
-    model?: string | null;
-    articleUrl?: string | null;
-  }): Promise<NewsArticleSummary> {
-    const normalizedUrl = this.normalizeArticleUrl(input.url);
-    if (!normalizedUrl) throw new Error('뉴스 요약 저장 URL이 비어 있습니다.');
-
-    const existing = await this.articleSummaryRepo.findOneBy({
-      url: normalizedUrl,
-    });
-    const entity = this.articleSummaryRepo.create({
-      id: existing?.id ?? this.articleSummaryId(normalizedUrl),
-      url: normalizedUrl,
-      title: input.title || existing?.title || '제목 없음',
-      source: input.source ?? existing?.source ?? null,
-      description: input.description ?? existing?.description ?? null,
-      summary: input.summary,
-      model: input.model ?? existing?.model ?? null,
-      articleUrl: input.articleUrl ?? existing?.articleUrl ?? normalizedUrl,
-    });
-    await this.articleSummaryRepo.save(entity);
-    const saved = await this.articleSummaryRepo.findOneByOrFail({
-      id: entity.id,
-    });
-    return this.toArticleSummary(saved);
-  }
-
-  private normalizeArticleUrl(url: string): string {
-    return (url ?? '').trim();
-  }
-
-  private articleSummaryId(url: string): string {
-    return createHash('sha1').update(url).digest('hex');
-  }
-
-  private toArticleSummary(
-    entity: NewsArticleSummaryEntity,
-  ): NewsArticleSummary {
-    return {
-      id: entity.id,
-      url: entity.url,
-      title: entity.title,
-      source: entity.source,
-      description: entity.description,
-      summary: entity.summary,
-      model: entity.model,
-      articleUrl: entity.articleUrl,
-      updatedAt: entity.updatedAt.toISOString(),
-    };
-  }
-
-  /** 오늘 날짜의 모든 캐시(원시 데이터 + AI 요약)를 삭제하여 다음 요청 시 재조회하도록 함 */
-  async refreshTodayCache(): Promise<void> {
-    const today = this.getTodayKey();
-    await this.briefingRepo
-      .createQueryBuilder()
-      .delete()
-      .where('date LIKE :pattern', { pattern: `%-${today}` })
-      .execute();
   }
 }

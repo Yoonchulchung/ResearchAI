@@ -162,6 +162,7 @@ export const getPostingImageFiles = (html: string) =>
 export interface CollectDetailConfig {
   model?: string;
   enableVlm?: boolean;
+  skipAiSteps?: boolean;
   maxItems?: number;
   skipExisting?: boolean;
   companyTypes?: string[];

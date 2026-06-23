@@ -15,6 +15,7 @@ import {
 } from "@/news/_lib/news-topic-groups";
 import type { ModelDefinition } from "@/types";
 import { NewsTimelineChart } from "./NewsTimelineChart";
+import { ScrapeGaugeBar } from "@/recruit/_components/ScrapeGaugeBar";
 
 interface NewsCardProps {
   item: CompanyNewsItem;
@@ -422,46 +423,47 @@ export function NewsTab({
       {/* 오른쪽: 뉴스 기사 목록 — 독립 스크롤 */}
       <div className="flex w-full shrink-0 flex-col gap-4 xl:w-110 2xl:w-130 xl:max-w-[42%] xl:h-full xl:overflow-y-auto custom-scrollbar xl:pr-2">
         <div className={`rounded-md border p-4 ${panelClass}`}>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-black">뉴스</h2>
-              <p className={`mt-0.5 text-xs ${subtleText}`}>
-                {savedNewsLoaded
-                  ? `표시 중 ${visibleNews.length}건`
-                  : "저장된 뉴스를 불러오는 중..."}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => loadSavedNews(companyId)}
-                className={`rounded px-2.5 py-1 text-xs font-bold transition-colors ${
-                  isDark
-                    ? "text-white/50 hover:text-white/80"
-                    : "text-slate-400 hover:text-slate-700"
-                }`}
-              >
-                새로고침
-              </button>
-              <button
-                onClick={hasAnyNews ? handleFetchMoreNews : handleFetchNews}
-                disabled={newsLoading}
-                className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
-                  newsLoading
-                    ? "cursor-wait bg-slate-200 text-slate-400 dark:bg-white/10 dark:text-white/30"
-                    : isDark
+          <div className="mb-3 flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-black">뉴스</h2>
+                <p className={`mt-0.5 text-xs ${subtleText}`}>
+                  {savedNewsLoaded
+                    ? `표시 중 ${visibleNews.length}건`
+                    : "저장된 뉴스를 불러오는 중..."}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => loadSavedNews(companyId)}
+                  disabled={newsLoading}
+                  className={`rounded px-2.5 py-1 text-xs font-bold transition-colors disabled:opacity-40 ${
+                    isDark
+                      ? "text-white/50 hover:text-white/80"
+                      : "text-slate-400 hover:text-slate-700"
+                  }`}
+                >
+                  새로고침
+                </button>
+                <button
+                  onClick={hasAnyNews ? handleFetchMoreNews : handleFetchNews}
+                  disabled={newsLoading}
+                  className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-wait ${
+                    isDark
                       ? "bg-white text-slate-950 hover:bg-white/90"
                       : "bg-slate-950 text-white hover:bg-slate-800"
-                }`}
-              >
-                {newsLoading
-                  ? "수집 중..."
-                  : hasAnyNews
-                    ? "더 수집"
-                    : newsFetched
-                      ? "다시 수집"
-                      : "뉴스 수집"}
-              </button>
+                  }`}
+                >
+                  {hasAnyNews ? "더 수집" : newsFetched ? "다시 수집" : "뉴스 수집"}
+                </button>
+              </div>
             </div>
+            {newsLoading && (
+              <ScrapeGaugeBar
+                running
+                label="뉴스 수집 중..."
+              />
+            )}
           </div>
 
           {hasAnyNews ? (
@@ -630,15 +632,13 @@ export function NewsTab({
         </div>
 
         <div className="min-h-1">
-          {hasAnyNews ? (
+          {hasAnyNews && !newsLoading && (
             <p className={`py-2 text-center text-xs ${subtleText}`}>
-              {newsLoading
-                ? "마지막 수집 이후의 최신 뉴스를 찾는 중..."
-                : newsHasMore
-                  ? "더 수집은 저장된 최신 기사 이후부터 현재까지의 새 뉴스를 수집합니다."
-                  : "새로 추가할 뉴스가 없습니다."}
+              {newsHasMore
+                ? "더 수집은 저장된 최신 기사 이후부터 현재까지의 새 뉴스를 수집합니다."
+                : "새로 추가할 뉴스가 없습니다."}
             </p>
-          ) : null}
+          )}
         </div>
       </div>
     </section>

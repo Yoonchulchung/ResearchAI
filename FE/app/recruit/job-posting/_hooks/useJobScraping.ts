@@ -26,11 +26,12 @@ export function useJobScraping(onScrapeDone: () => void) {
   const [collectConfig, setCollectConfig] = useState<CollectDetailConfig>({
     model: "claude-sonnet-4-6",
     enableVlm: true,
+    skipAiSteps: false,
     maxItems: 0,
     skipExisting: true,
     companyTypes: [],
     jobTypes: ["신입", "인턴"],
-    jobs: ["IT", "전자"],
+    jobs: ["IT", "기획", "전자"],
   });
   const collectTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 

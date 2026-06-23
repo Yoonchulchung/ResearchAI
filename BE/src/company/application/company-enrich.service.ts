@@ -36,9 +36,30 @@ interface EnrichResult {
   source: string;
 }
 
+export interface EnrichApiStats {
+  [source: string]: { calls: number; success: number; fail: number };
+}
+
 @Injectable()
 export class CompanyEnrichService {
   private readonly logger = new Logger(CompanyEnrichService.name);
+  private apiStats: EnrichApiStats = {};
+
+  resetStats(): void {
+    this.apiStats = {};
+  }
+
+  getStats(): EnrichApiStats {
+    return { ...this.apiStats };
+  }
+
+  private recordCall(source: string, success: boolean): void {
+    if (!this.apiStats[source])
+      this.apiStats[source] = { calls: 0, success: 0, fail: 0 };
+    this.apiStats[source].calls++;
+    if (success) this.apiStats[source].success++;
+    else this.apiStats[source].fail++;
+  }
 
   constructor(
     @InjectRepository(CompanyEntity)
@@ -324,6 +345,14 @@ export class CompanyEnrichService {
         abort(this.jobplanetInfo.fetchCompanyInfo(searchName, { force })),
         abort(this.inferFromJobplanetCache(companyKey)),
       ]);
+
+    if (dartApiKey) {
+      this.recordCall('DART', dartR.status === 'fulfilled' && dartR.value !== null);
+    }
+    this.recordCall('나무위키', wikiR.status === 'fulfilled' && wikiR.value !== null);
+    this.recordCall('잡코리아', jkR.status === 'fulfilled' && jkR.value !== null);
+    this.recordCall('자소설', jasR.status === 'fulfilled' && jasR.value !== null);
+    this.recordCall('잡플래닛', jpInfoR.status === 'fulfilled' && jpInfoR.value !== null);
 
     if (dartR.status === 'fulfilled' && dartR.value) {
       const dartData = dartR.value;

@@ -109,19 +109,31 @@ export class CoverLetterQueryService {
   async searchQuestions(
     query: string,
     limit = 20,
-  ): Promise<{ items: CoverLetterQuestionSearchItem[]; total: number }> {
+    offset = 0,
+    sortDir: 'asc' | 'desc' = 'desc',
+  ): Promise<{ items: CoverLetterQuestionSearchItem[]; total: number; hasMore: boolean }> {
     const search = normalizeSearchText(query);
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+    const safeOffset = Math.max(Number(offset) || 0, 0);
+    const dir = sortDir === 'asc' ? 'ASC' : 'DESC';
     const qb = this.questionRepo
       .createQueryBuilder('question')
       .leftJoinAndSelect('question.coverLetter', 'coverLetter')
-      .orderBy('coverLetter.collectedAt', 'DESC')
+      .addSelect(
+        `CASE WHEN coverLetter.season IS NULL OR coverLetter.season = '' THEN 1 ELSE 0 END`,
+        'season_null_flag',
+      )
+      .orderBy('season_null_flag', 'ASC')
+      .addOrderBy('coverLetter.season', dir)
+      .addOrderBy('coverLetter.collectedAt', dir)
       .addOrderBy('question.number', 'ASC')
+      .skip(safeOffset)
       .take(safeLimit);
     qb.andWhere(
       '(coverLetter.isHidden = :isHidden OR coverLetter.isHidden IS NULL)',
       { isHidden: false },
     );
+    qb.andWhere("coverLetter.season GLOB '[0-9][0-9][0-9][0-9]*'");
     if (search) {
       qb.andWhere('question.searchText LIKE :search', { search: `%${search}%` });
     }
@@ -131,37 +143,35 @@ export class CoverLetterQueryService {
       ...new Set(rows.map((row) => row.coverLetter?.company).filter(Boolean)),
     ] as string[];
     const industryMap = await this.lookupIndustries(companyNames);
-    return {
-      items: rows
-        .filter((row) => row.coverLetter)
-        .map((row) => {
-          const coverLetter = toCoverLetter(row.coverLetter, industryMap.get(row.coverLetter.company));
-          return {
-            id: row.id,
-            coverLetterId: row.coverLetterId,
-            number: row.number,
-            question: row.question,
-            answer: row.answer,
-            keywords: parseJsonArray(row.keywords),
-            tags: parseJsonArray(row.tags),
-            coverLetter: {
-              id: coverLetter.id,
-              url: coverLetter.url,
-              source: coverLetter.source,
-              companyType: coverLetter.companyType,
-              jobCategory: coverLetter.jobCategory,
-              company: coverLetter.company,
-              position: coverLetter.position,
-              season: coverLetter.season,
-              spec: coverLetter.spec,
-              viewCount: coverLetter.viewCount,
-              collectedAt: coverLetter.collectedAt,
-              industry: coverLetter.industry,
-            },
-          };
-        }),
-      total,
-    };
+    const items = rows
+      .filter((row) => row.coverLetter)
+      .map((row) => {
+        const coverLetter = toCoverLetter(row.coverLetter, industryMap.get(row.coverLetter.company));
+        return {
+          id: row.id,
+          coverLetterId: row.coverLetterId,
+          number: row.number,
+          question: row.question,
+          answer: row.answer,
+          keywords: parseJsonArray(row.keywords),
+          tags: parseJsonArray(row.tags),
+          coverLetter: {
+            id: coverLetter.id,
+            url: coverLetter.url,
+            source: coverLetter.source,
+            companyType: coverLetter.companyType,
+            jobCategory: coverLetter.jobCategory,
+            company: coverLetter.company,
+            position: coverLetter.position,
+            season: coverLetter.season,
+            spec: coverLetter.spec,
+            viewCount: coverLetter.viewCount,
+            collectedAt: coverLetter.collectedAt,
+            industry: coverLetter.industry,
+          },
+        };
+      });
+    return { items, total, hasMore: safeOffset + items.length < total };
   }
 
   async lookupIndustries(companyNames: string[]): Promise<Map<string, string | null>> {
@@ -178,3 +188,4 @@ export class CoverLetterQueryService {
     return map;
   }
 }
+

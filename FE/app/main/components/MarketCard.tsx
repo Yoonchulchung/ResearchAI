@@ -1,10 +1,16 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { API_BASE } from "@/lib/api/base";
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
 } from "recharts";
 
 interface MarketItem {
@@ -58,14 +64,29 @@ const SYMBOL_ICON: Record<string, string> = {
   "USDKRW=X": "💱",
 };
 
+const SYMBOL_PAGE: Record<string, string> = {
+  "^KS11": "/stock?market=KR",
+  "^KQ11": "/stock?market=KR",
+  "USDKRW=X": "/stock?market=KR",
+  "^IXIC": "/stock?market=US",
+};
+
 // ── Chart Modal ────────────────────────────────────────────────
-function ChartModal({ item, onClose }: { item: MarketItem; onClose: () => void }) {
+function ChartModal({
+  item,
+  onClose,
+}: {
+  item: MarketItem;
+  onClose: () => void;
+}) {
   const [range, setRange] = useState<Range>("1mo");
   const [points, setPoints] = useState<ChartPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
@@ -73,7 +94,7 @@ function ChartModal({ item, onClose }: { item: MarketItem; onClose: () => void }
   useEffect(() => {
     setLoading(true);
     fetch(
-      `${API_BASE}/news/market-chart?symbol=${encodeURIComponent(item.symbol)}&range=${range}`,
+      `${API_BASE}/stock/chart?symbol=${encodeURIComponent(item.symbol)}&range=${range}`,
     )
       .then((r) => r.json())
       .then((data: unknown) => {
@@ -88,13 +109,18 @@ function ChartModal({ item, onClose }: { item: MarketItem; onClose: () => void }
   const color = up ? "#ef4444" : "#3b82f6";
   const gradId = `grad-${item.symbol.replace(/[^a-z0-9]/gi, "")}`;
 
-  const minVal = points.length ? Math.min(...points.map((p) => p.close)) * 0.998 : 0;
-  const maxVal = points.length ? Math.max(...points.map((p) => p.close)) * 1.002 : 0;
+  const minVal = points.length
+    ? Math.min(...points.map((p) => p.close)) * 0.998
+    : 0;
+  const maxVal = points.length
+    ? Math.max(...points.map((p) => p.close)) * 1.002
+    : 0;
 
   const formatXTick = (date: string) => {
     const d = new Date(date);
     if (range === "5d") return `${d.getMonth() + 1}/${d.getDate()}`;
-    if (range === "1y") return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (range === "1y")
+      return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}`;
     return `${d.getMonth() + 1}/${d.getDate()}`;
   };
 
@@ -106,7 +132,9 @@ function ChartModal({ item, onClose }: { item: MarketItem; onClose: () => void }
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
         {/* Header */}
@@ -114,14 +142,18 @@ function ChartModal({ item, onClose }: { item: MarketItem; onClose: () => void }
           <div>
             <div className="flex items-center gap-2">
               <span>{SYMBOL_ICON[item.symbol] ?? "📈"}</span>
-              <h3 className="text-base font-bold text-slate-800">{item.name}</h3>
+              <h3 className="text-base font-bold text-slate-800">
+                {item.name}
+              </h3>
               <span className="text-xs text-slate-400">{item.symbol}</span>
             </div>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-2xl font-bold text-slate-900">
                 {formatPrice(item.price, item.symbol)}
               </span>
-              <span className={`text-sm font-semibold ${up ? "text-red-500" : "text-blue-500"}`}>
+              <span
+                className={`text-sm font-semibold ${up ? "text-red-500" : "text-blue-500"}`}
+              >
                 {formatChange(item.change, item.changePercent)}
               </span>
             </div>
@@ -164,7 +196,10 @@ function ChartModal({ item, onClose }: { item: MarketItem; onClose: () => void }
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={210}>
-              <AreaChart data={points} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <AreaChart
+                data={points}
+                margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+              >
                 <defs>
                   <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={color} stopOpacity={0.15} />
@@ -218,6 +253,7 @@ function ChartModal({ item, onClose }: { item: MarketItem; onClose: () => void }
 
 // ── MarketCard ─────────────────────────────────────────────────
 export function MarketCard() {
+  const router = useRouter();
   const [items, setItems] = useState<MarketItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -227,7 +263,7 @@ export function MarketCard() {
   const fetchData = useCallback(() => {
     setLoading(true);
     setError(false);
-    fetch(`${API_BASE}/news/market`)
+    fetch(`${API_BASE}/stock/market`)
       .then((r) => r.json())
       .then((data: unknown) => {
         const result = unwrapApiResult<MarketItem[]>(data);
@@ -246,7 +282,9 @@ export function MarketCard() {
 
   return (
     <>
-      {selected && <ChartModal item={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <ChartModal item={selected} onClose={() => setSelected(null)} />
+      )}
 
       <div className="glass-panel rounded-2xl px-5 py-4">
         <div className="flex items-center justify-between mb-3">
@@ -254,7 +292,11 @@ export function MarketCard() {
           <div className="flex items-center gap-2">
             {lastUpdated && (
               <span className="text-xs font-medium text-slate-400">
-                {lastUpdated.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 기준
+                {lastUpdated.toLocaleTimeString("ko-KR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}{" "}
+                기준
               </span>
             )}
             <button
@@ -281,7 +323,10 @@ export function MarketCard() {
           <div className="flex items-center justify-center py-4 gap-2 text-slate-400">
             <span className="text-lg">📡</span>
             <p className="text-xs">지표를 불러올 수 없습니다</p>
-            <button onClick={fetchData} className="text-xs text-indigo-600 hover:underline">
+            <button
+              onClick={fetchData}
+              className="text-xs text-indigo-600 hover:underline"
+            >
               다시 시도
             </button>
           </div>
@@ -292,17 +337,27 @@ export function MarketCard() {
               return (
                 <button
                   key={item.symbol}
-                  onClick={() => setSelected(item)}
+                  onClick={() => {
+                    const page = SYMBOL_PAGE[item.symbol];
+                    if (page) router.push(page);
+                    else setSelected(item);
+                  }}
                   className="p-3 rounded-xl bg-slate-50 hover:bg-indigo-50 hover:border-indigo-100 border border-transparent transition-colors text-left cursor-pointer"
                 >
                   <div className="flex items-center gap-1 mb-1">
-                    <span className="text-xs">{SYMBOL_ICON[item.symbol] ?? "📈"}</span>
-                    <span className="text-2xs sm:text-xs font-semibold text-slate-500 truncate">{item.name}</span>
+                    <span className="text-xs">
+                      {SYMBOL_ICON[item.symbol] ?? "📈"}
+                    </span>
+                    <span className="text-2xs sm:text-xs font-semibold text-slate-500 truncate">
+                      {item.name}
+                    </span>
                   </div>
                   <p className="text-sm sm:text-base font-bold text-slate-800 leading-tight">
                     {formatPrice(item.price, item.symbol)}
                   </p>
-                  <p className={`text-2xs sm:text-xs font-medium mt-0.5 ${up ? "text-red-500" : "text-blue-500"}`}>
+                  <p
+                    className={`text-2xs sm:text-xs font-medium mt-0.5 ${up ? "text-red-500" : "text-blue-500"}`}
+                  >
                     {formatChange(item.change, item.changePercent)}
                   </p>
                 </button>
