@@ -4,8 +4,9 @@ import {
   BrowserAutomationUtil,
   BrowserLogFn,
   BROWSER_LAUNCH_OPTIONS,
-} from 'src/browse/infrastructure/browser-automation.util';
+} from 'src/browse/application/puppeteer/browser-automation.util';
 import { JobplanetAuthService } from 'src/browse/infrastructure/auth/jobplanet-auth.service';
+import { buildCompanyNameSearchCandidates } from 'src/company/application/info/company-name-search.util';
 
 export interface JobplanetReview {
   rating: number;
@@ -111,7 +112,8 @@ export class JobplanetScraperService {
       await this.jobplanetAuth.loginWithSession(page, id, password);
       const loginUrl = page.url();
 
-      const searchUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(companyName)}`;
+      const searchName = buildCompanyNameSearchCandidates(companyName)[0];
+      const searchUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(searchName)}`;
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 20000 });
 
       // 실제 페이지에서 /companies/ 링크 수집
@@ -235,7 +237,6 @@ export class JobplanetScraperService {
       }, EXCLUDE);
 
       if (panelLink) {
-        this.logger.log(`[Scraper] 공식 웹사이트(패널): ${panelLink}`);
         return panelLink;
       }
 
@@ -278,7 +279,6 @@ export class JobplanetScraperService {
       );
 
       if (firstResult) {
-        this.logger.log(`[Scraper] 공식 웹사이트(검색): ${firstResult}`);
         return firstResult;
       }
 
@@ -360,55 +360,78 @@ export class JobplanetScraperService {
     onLog?: JobplanetLogFn,
   ): Promise<JobplanetCompanyData | null> {
     try {
-      // /search?query= 가 올바른 검색 엔드포인트 (/companies?query= 는 랭킹 홈 리다이렉트)
-      const searchUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(companyName)}`;
-      onLog?.(`기업 검색 페이지 이동: ${searchUrl}`);
-      await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 20000 });
+      const searchCandidates = buildCompanyNameSearchCandidates(companyName);
+      let companyLink: string | null = null;
+      let allLinks: { href: string; text: string }[] = [];
+      let usedSearchName = searchCandidates[0] ?? companyName;
 
-      // 회사 링크 추출 — 빈 텍스트 앵커와 사이드바 링크 제외
-      const { companyLink, allLinks } = await page.evaluate((query) => {
-        const norm = (s: string) =>
-          s.replace(/[\s(주)㈜()（）\.,·]/g, '').toLowerCase();
-        const qNorm = norm(query);
-
-        const anchors = Array.from(
-          document.querySelectorAll('a[href*="/companies/"]'),
-        ).filter((a) => /\/companies\/\d+/.test((a as HTMLAnchorElement).href)); // 숫자 ID가 있는 실제 기업 페이지만
-
-        const allLinks = anchors.slice(0, 15).map((a) => ({
-          href: (a as HTMLAnchorElement).href,
-          text: a.textContent?.trim().slice(0, 30) ?? '',
-        }));
-
-        // 1순위: 정규화 후 정확 일치 또는 시작
-        let match = anchors.find((a) => {
-          const t = norm(a.textContent?.trim() ?? '');
-          return (
-            t && (t === qNorm || t.startsWith(qNorm) || qNorm.startsWith(t))
-          );
+      for (const searchName of searchCandidates) {
+        // /search?query= 가 올바른 검색 엔드포인트 (/companies?query= 는 랭킹 홈 리다이렉트)
+        const searchUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(searchName)}`;
+        onLog?.(`기업 검색 페이지 이동: ${searchUrl}`);
+        await page.goto(searchUrl, {
+          waitUntil: 'networkidle2',
+          timeout: 20000,
         });
 
-        // 2순위: 포함 관계 (단, 텍스트 비어있으면 제외)
-        if (!match) {
-          match = anchors.find((a) => {
-            const t = a.textContent?.trim() ?? '';
-            return t.length > 0 && (t.includes(query) || query.includes(t));
+        // 회사 링크 추출 — 빈 텍스트 앵커와 사이드바 링크 제외
+        const result = await page.evaluate((queries) => {
+          const norm = (s: string) =>
+            s
+              .replace(/\(주\)|（주）|㈜|주식회사/gi, '')
+              .replace(/[\s()（）\.,·]/g, '')
+              .toLowerCase();
+          const qNorms = queries.map(norm).filter(Boolean);
+
+          const anchors = Array.from(
+            document.querySelectorAll('a[href*="/companies/"]'),
+          ).filter((a) =>
+            /\/companies\/\d+/.test((a as HTMLAnchorElement).href),
+          ); // 숫자 ID가 있는 실제 기업 페이지만
+
+          const allLinks = anchors.slice(0, 15).map((a) => ({
+            href: (a as HTMLAnchorElement).href,
+            text: a.textContent?.trim().slice(0, 30) ?? '',
+          }));
+
+          // 1순위: 법인 표기를 제거한 정확 일치 또는 시작
+          let match = anchors.find((a) => {
+            const t = norm(a.textContent?.trim() ?? '');
+            return qNorms.some(
+              (qNorm) =>
+                t &&
+                (t === qNorm || t.startsWith(qNorm) || qNorm.startsWith(t)),
+            );
           });
+
+          // 2순위: 원문 포함 관계 (단, 텍스트 비어있으면 제외)
+          if (!match) {
+            match = anchors.find((a) => {
+              const t = a.textContent?.trim() ?? '';
+              return queries.some(
+                (query) =>
+                  t.length > 0 && (t.includes(query) || query.includes(t)),
+              );
+            });
+          }
+
+          // 3순위: 첫 번째 숫자ID 링크 (검색결과 페이지 최상단)
+          if (!match) match = anchors[0];
+
+          return {
+            companyLink: match ? (match as HTMLAnchorElement).href : null,
+            allLinks,
+          };
+        }, searchCandidates);
+
+        allLinks = result.allLinks;
+        if (result.companyLink) {
+          companyLink = result.companyLink;
+          usedSearchName = searchName;
+          break;
         }
+      }
 
-        // 3순위: 첫 번째 숫자ID 링크 (검색결과 페이지 최상단)
-        if (!match) match = anchors[0];
-
-        return {
-          companyLink: match ? (match as HTMLAnchorElement).href : null,
-          allLinks,
-        };
-      }, companyName);
-
-      this.logger.log(
-        `[Jobplanet] 검색 링크 후보: ${JSON.stringify(allLinks)}`,
-      );
-      this.logger.log(`[Jobplanet] 선택된 링크: ${companyLink}`);
       onLog?.(`기업 링크 후보 ${allLinks.length}개 탐색`);
       onLog?.(`선택된 기업 링크: ${companyLink ?? '없음'}`);
 
@@ -420,7 +443,6 @@ export class JobplanetScraperService {
 
       // /companies/{id}/reviews/{slug} 형태로 리뷰 페이지 이동
       const reviewUrl = this.toReviewUrl(companyLink);
-      this.logger.log(`[Jobplanet] 리뷰 URL: ${reviewUrl}`);
       onLog?.(`리뷰 페이지 이동: ${reviewUrl}`);
       await page.goto(reviewUrl, { waitUntil: 'networkidle2', timeout: 20000 });
 
@@ -562,9 +584,6 @@ export class JobplanetScraperService {
         };
       }, companyName);
 
-      this.logger.log(
-        `[Jobplanet] 수집 완료 — 평점: ${data.overallRating}, 리뷰: ${data.reviewCount}개, 추출: ${data.reviews.length}건`,
-      );
       onLog?.(
         `데이터 추출 완료 — 평점 ${data.overallRating}, 리뷰 ${data.reviewCount}개, 미리보기 ${data.reviews.length}건`,
       );
@@ -599,7 +618,8 @@ export class JobplanetScraperService {
 
       await this.jobplanetAuth.loginWithSession(page, id, password);
 
-      const searchUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(companyName)}`;
+      const searchName = buildCompanyNameSearchCandidates(companyName)[0];
+      const searchUrl = `https://www.jobplanet.co.kr/search?query=${encodeURIComponent(searchName)}`;
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 20000 });
 
       const companyLink = await page.evaluate((query) => {
@@ -627,9 +647,6 @@ export class JobplanetScraperService {
       }, companyName);
 
       const reviewUrl = companyLink ? this.toReviewUrl(companyLink) : searchUrl;
-      this.logger.log(
-        `[Jobplanet-Debug] 선택 링크: ${companyLink} → 리뷰: ${reviewUrl}`,
-      );
 
       await page.goto(reviewUrl, { waitUntil: 'networkidle2', timeout: 20000 });
       await new Promise<void>((r) => setTimeout(r, 2000));

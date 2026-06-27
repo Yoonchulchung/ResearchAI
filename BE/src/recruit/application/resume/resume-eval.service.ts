@@ -70,7 +70,12 @@ export class ResumeEvalService {
   ): Promise<RecruitResumeCompanyJdEntity> {
     const existing = await this.companyJdRepo.findOne({ where: { resumeId } });
     if (existing) {
-      await this.companyJdRepo.update(existing.id, { companyName, jdText, result, model });
+      await this.companyJdRepo.update(existing.id, {
+        companyName,
+        jdText,
+        result,
+        model,
+      });
       return { ...existing, companyName, jdText, result, model };
     }
     const entity = this.companyJdRepo.create({

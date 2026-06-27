@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CompanyAnalysisService } from 'src/company/application/analysis/company-analysis.service';
+import { CompanyAnalysisService } from 'src/company/application/company-analysis.service';
 import {
   CompanyAnalysisProgress,
   CompanyAnalysisDto,

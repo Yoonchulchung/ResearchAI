@@ -6,7 +6,7 @@ import {
   BrowserAutomationUtil,
   BrowserLogFn,
   NAVIGATION_TIMEOUT_MS,
-} from 'src/browse/infrastructure/browser-automation.util';
+} from 'src/browse/application/puppeteer/browser-automation.util';
 
 const LOGIN_URL = 'https://www.catch.co.kr/Member/Login?ReturnURL=%2F';
 const HOME_URL = 'https://www.catch.co.kr/';

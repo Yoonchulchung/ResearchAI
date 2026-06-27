@@ -50,7 +50,10 @@ export class ResumeService {
   ) {}
 
   // ── Core CRUD ──────────────────────────────────────────────────────────────
-  getResume(ids?: string, options: { deleted?: boolean } = {}): Promise<ResumeResult | null> {
+  getResume(
+    ids?: string,
+    options: { deleted?: boolean } = {},
+  ): Promise<ResumeResult | null> {
     return this.crud.getResume(ids, options);
   }
   saveResume(body: AnyProfile): Promise<ResumeResult> {
@@ -76,10 +79,16 @@ export class ResumeService {
   listVersions(resumeId: string): Promise<ResumeVersionListResult> {
     return this.version.listVersions(resumeId);
   }
-  getVersion(resumeId: string, versionId: string): Promise<ResumeVersionDetailResult> {
+  getVersion(
+    resumeId: string,
+    versionId: string,
+  ): Promise<ResumeVersionDetailResult> {
     return this.version.getVersion(resumeId, versionId);
   }
-  async restoreVersion(resumeId: string, versionId: string): Promise<ResumeResult> {
+  async restoreVersion(
+    resumeId: string,
+    versionId: string,
+  ): Promise<ResumeResult> {
     const target = await this.version.getSnapshotAsTarget(resumeId, versionId);
     return this.crud.saveResume({ resume: [target], replaceAll: false });
   }
@@ -93,7 +102,10 @@ export class ResumeService {
   }
 
   // ── Search ────────────────────────────────────────────────────────────────
-  searchResume(q: string, excludeResumeId?: string): Promise<ResumeSearchResult> {
+  searchResume(
+    q: string,
+    excludeResumeId?: string,
+  ): Promise<ResumeSearchResult> {
     return this.search.searchResume(q, excludeResumeId);
   }
   getAllActivities(excludeResumeId?: string) {
@@ -102,7 +114,9 @@ export class ResumeService {
 
   // ── Cover Letter ──────────────────────────────────────────────────────────
   findCoverLettersForCategoryClassification(
-    request: Parameters<ResumeCoverLetterService['findForCategoryClassification']>[0],
+    request: Parameters<
+      ResumeCoverLetterService['findForCategoryClassification']
+    >[0],
   ): Promise<ResumeCoverLetterCategoryItem[]> {
     return this.coverLetter.findForCategoryClassification(request);
   }
@@ -114,7 +128,10 @@ export class ResumeService {
   ) {
     return this.coverLetter.findForRefinedTitle(request);
   }
-  updateCoverLetterRefinedTitle(id: string, refinedTitle: string): Promise<void> {
+  updateCoverLetterRefinedTitle(
+    id: string,
+    refinedTitle: string,
+  ): Promise<void> {
     return this.coverLetter.updateRefinedTitle(id, refinedTitle);
   }
 
@@ -134,7 +151,9 @@ export class ResumeService {
   deleteAiEval(id: string): Promise<void> {
     return this.eval_.deleteAiEval(id);
   }
-  getCompanyJdEval(resumeId: string): Promise<RecruitResumeCompanyJdEntity | null> {
+  getCompanyJdEval(
+    resumeId: string,
+  ): Promise<RecruitResumeCompanyJdEntity | null> {
     return this.eval_.getCompanyJdEval(resumeId);
   }
   upsertCompanyJdEval(
@@ -144,11 +163,20 @@ export class ResumeService {
     result: string,
     model: string | null,
   ): Promise<RecruitResumeCompanyJdEntity> {
-    return this.eval_.upsertCompanyJdEval(resumeId, companyName, jdText, result, model);
+    return this.eval_.upsertCompanyJdEval(
+      resumeId,
+      companyName,
+      jdText,
+      result,
+      model,
+    );
   }
 
   // ── Company News ─────────────────────────────────────────────────────────
-  getCompanyNews(resumeId: string, companyName?: string): Promise<RecruitCompanyNewsEntity[]> {
+  getCompanyNews(
+    resumeId: string,
+    companyName?: string,
+  ): Promise<RecruitCompanyNewsEntity[]> {
     return this.companyNews.getCompanyNews(resumeId, companyName);
   }
   upsertCompanyNewsItem(
@@ -160,7 +188,12 @@ export class ResumeService {
     searchId: string | null,
   ): Promise<RecruitCompanyNewsEntity> {
     return this.companyNews.upsertCompanyNewsItem(
-      resumeId, companyName, itemId, title, searchQuery, searchId,
+      resumeId,
+      companyName,
+      itemId,
+      title,
+      searchQuery,
+      searchId,
     );
   }
   updateCompanyNewsDetail(id: string, detailJson: string): Promise<void> {
@@ -169,7 +202,10 @@ export class ResumeService {
   deleteCompanyNews(id: string): Promise<void> {
     return this.companyNews.deleteCompanyNews(id);
   }
-  deleteCompanyNewsByResume(resumeId: string, companyName?: string): Promise<void> {
+  deleteCompanyNewsByResume(
+    resumeId: string,
+    companyName?: string,
+  ): Promise<void> {
     return this.companyNews.deleteCompanyNewsByResume(resumeId, companyName);
   }
 
@@ -185,7 +221,10 @@ export class ResumeService {
   ) {
     return this.attachment.addAttachment(resumeId, file, parsedText, pageCount);
   }
-  getAttachmentFile(resumeId: string, id: string): Promise<ResumeAttachmentEntity | null> {
+  getAttachmentFile(
+    resumeId: string,
+    id: string,
+  ): Promise<ResumeAttachmentEntity | null> {
     return this.attachment.getAttachmentFile(resumeId, id);
   }
   deleteAttachment(resumeId: string, id: string): Promise<void> {

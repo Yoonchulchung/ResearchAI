@@ -453,6 +453,7 @@ function TopicGroupCard({
     .map((item) => newsByUrl.get(item.link))
     .filter((item): item is CompanyNewsItem => Boolean(item));
   const visibleItems = expanded ? groupItems : groupItems.slice(0, 3);
+  const groupDate = formatDate(group.dateKey) || group.dateKey;
 
   return (
     <section className="overflow-hidden rounded-md border border-emerald-100 bg-white">
@@ -465,7 +466,7 @@ function TopicGroupCard({
           {group.keyword}
         </span>
         <span className="text-2xs font-semibold text-slate-400">
-          같은 날 {groupItems.length}건
+          {groupDate} · {groupItems.length}건
         </span>
         <span
           className={`ml-auto text-2xs text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}

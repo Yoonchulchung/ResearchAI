@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { TechBlogService } from 'src/news/tech-blog/application/tech-blog.service';
-import type { TechBlogTrendSummary } from 'src/news/tech-blog/domain/tech-blog.types';
+import { TechBlogService } from 'src/news/application/tech-blog/tech-blog.service';
+import type { TechBlogTrendSummary } from 'src/news/domain/tech-blog/tech-blog.types';
 
 export interface TechBlogTrendRequest {
   days?: number;

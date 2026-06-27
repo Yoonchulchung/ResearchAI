@@ -52,8 +52,7 @@ export const CHART_TOOL_ANTHROPIC = {
       type: {
         type: 'string',
         enum: ['line', 'bar', 'pie', 'area'],
-        description:
-          '차트 유형: 추이→line/area, 비교→bar, 비율→pie',
+        description: '차트 유형: 추이→line/area, 비교→bar, 비율→pie',
       },
       title: { type: 'string', description: '차트 제목 (한국어)' },
       unit: { type: 'string', description: '값의 단위 (예: 억달러, %, 조원)' },

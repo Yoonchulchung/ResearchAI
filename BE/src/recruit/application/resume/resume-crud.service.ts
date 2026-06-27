@@ -11,11 +11,7 @@ import { RecruitCompanyNewsEntity } from 'src/recruit/domain/company-news/recrui
 import { RecruitResumeCompanyJdEntity } from 'src/recruit/domain/resume/recruit-resume-company-jd.entity';
 import { ResumeAiEvalEntity } from 'src/recruit/domain/resume/resume-ai-eval.entity';
 import { ResumeAttachmentEntity } from 'src/recruit/domain/resume/resume-attachment.entity';
-import {
-  AnyProfile,
-  ResumeResult,
-  ResumeTarget,
-} from './resume.types';
+import { AnyProfile, ResumeResult, ResumeTarget } from './resume.types';
 import {
   safeId,
   emptyToNull,
@@ -67,10 +63,14 @@ export class ResumeCrudService {
       });
     }
 
-    const rows = await this.findAllResumes({ deleted: options.deleted === true });
+    const rows = await this.findAllResumes({
+      deleted: options.deleted === true,
+    });
     if (rows.length === 0) return null;
 
-    const hasNormalizedData = rows.some((row) => this.hasNormalizedContent(row));
+    const hasNormalizedData = rows.some((row) =>
+      this.hasNormalizedContent(row),
+    );
     if (!hasNormalizedData) {
       const legacy = rows.find((row) => row.profileJson);
       if (legacy?.profileJson) {
@@ -84,7 +84,9 @@ export class ResumeCrudService {
     }
 
     return {
-      resume: this.toTargets(rows.filter((row) => this.hasNormalizedContent(row))),
+      resume: this.toTargets(
+        rows.filter((row) => this.hasNormalizedContent(row)),
+      ),
     };
   }
 
@@ -125,7 +127,8 @@ export class ResumeCrudService {
 
     const entities = targets.map((target, targetIndex) => {
       const resumeId = safeId(target.id);
-      const coverLetters = target.selfIntroductions ?? target.coverLetters ?? [];
+      const coverLetters =
+        target.selfIntroductions ?? target.coverLetters ?? [];
       const experiences = target.experiences ?? [];
       const prizes = target.prizes ?? [];
       const trainings = target.trainings ?? [];
@@ -255,7 +258,10 @@ export class ResumeCrudService {
     });
     if (!existing) throw new NotFoundException('이력서를 찾을 수 없습니다.');
     const nextScript = interviewScript ?? '';
-    await this.resumeRepo.update({ id: resumeId }, { interviewScript: emptyToNull(nextScript) });
+    await this.resumeRepo.update(
+      { id: resumeId },
+      { interviewScript: emptyToNull(nextScript) },
+    );
     return { interviewScript: nextScript };
   }
 
@@ -267,7 +273,10 @@ export class ResumeCrudService {
       where: { id: resumeId, isDeleted: false },
     });
     if (!existing) throw new NotFoundException('이력서를 찾을 수 없습니다.');
-    await this.resumeRepo.update({ id: resumeId }, { companyId: companyId ?? null });
+    await this.resumeRepo.update(
+      { id: resumeId },
+      { companyId: companyId ?? null },
+    );
     return { companyId: companyId ?? null };
   }
 
@@ -373,10 +382,17 @@ export class ResumeCrudService {
     };
   }
 
-  private async findAllResumes(options: { deleted?: boolean } = {}): Promise<ResumeEntity[]> {
+  private async findAllResumes(
+    options: { deleted?: boolean } = {},
+  ): Promise<ResumeEntity[]> {
     return this.resumeRepo.find({
       where: { isDeleted: options.deleted === true },
-      relations: { coverLetters: true, experiences: true, prizes: true, trainings: true },
+      relations: {
+        coverLetters: true,
+        experiences: true,
+        prizes: true,
+        trainings: true,
+      },
       order: { applyDate: 'DESC', updatedAt: 'DESC' },
     });
   }
@@ -384,14 +400,14 @@ export class ResumeCrudService {
   private hasNormalizedContent(row: ResumeEntity): boolean {
     return Boolean(
       row.companyName?.trim() ||
-        row.jobTitle?.trim() ||
-        row.applyDate ||
-        row.jd ||
-        row.interviewScript ||
-        row.coverLetters?.length ||
-        row.experiences?.length ||
-        row.prizes?.length ||
-        row.trainings?.length,
+      row.jobTitle?.trim() ||
+      row.applyDate ||
+      row.jd ||
+      row.interviewScript ||
+      row.coverLetters?.length ||
+      row.experiences?.length ||
+      row.prizes?.length ||
+      row.trainings?.length,
     );
   }
 

@@ -1,4 +1,7 @@
-import { GeneralSuccessCode, SuccessCode } from 'src/shared/response/success-code';
+import {
+  GeneralSuccessCode,
+  SuccessCode,
+} from 'src/shared/response/success-code';
 import { ErrorCode } from 'src/shared/response/error-code';
 
 export class ApiResponse<T = null> {

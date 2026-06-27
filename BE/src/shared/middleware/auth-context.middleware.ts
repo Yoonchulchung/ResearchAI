@@ -12,7 +12,17 @@ export class AuthContextMiddleware implements NestMiddleware {
   ) {}
 
   async use(req: Request, _res: Response, next: NextFunction) {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    // Authorization 헤더 우선, 없으면 쿠키에서 읽기 (EventSource/SSE는 헤더를 못 보냄)
+    const TOKEN_COOKIE = 'researchai_token';
+    const cookieToken = req.headers.cookie
+      ?.split(';')
+      .map((c) => c.trim())
+      .find((c) => c.startsWith(`${TOKEN_COOKIE}=`))
+      ?.split('=')
+      .slice(1)
+      .join('=');
+    const token =
+      req.headers.authorization?.replace('Bearer ', '') || cookieToken;
 
     if (token) {
       try {

@@ -24,7 +24,10 @@ const CHANNELS: { id: string; name: string }[] = [
 ];
 
 export const LIVE_CHANNELS: { baseUrl: string; name: string }[] = [
-  { baseUrl: 'https://www.youtube.com/channel/UChlgI3UHCOnwUGzWzbJ3H5w', name: 'YTN' },
+  {
+    baseUrl: 'https://www.youtube.com/channel/UChlgI3UHCOnwUGzWzbJ3H5w',
+    name: 'YTN',
+  },
   { baseUrl: 'https://www.youtube.com/@newskbs', name: 'KBS 뉴스' },
   { baseUrl: 'https://www.youtube.com/@MBCNEWS11', name: 'MBC 뉴스' },
   { baseUrl: 'https://www.youtube.com/sbs8news', name: 'SBS 뉴스' },
@@ -67,7 +70,9 @@ export class YoutubeApi {
       const xml = await res.text();
       return this.parseRss(xml, channelName, channelId);
     } catch (e) {
-      this.logger.warn(`YouTube RSS ${channelName} failed: ${(e as Error).message}`);
+      this.logger.warn(
+        `YouTube RSS ${channelName} failed: ${(e as Error).message}`,
+      );
       return [];
     }
   }
@@ -83,8 +88,11 @@ export class YoutubeApi {
     $('entry').each((_, el) => {
       const videoId = $('yt\\:videoId', el).text().trim();
       const title = $('title', el).first().text().trim();
-      const link = $('link[rel="alternate"]', el).attr('href') ?? `https://www.youtube.com/watch?v=${videoId}`;
-      const pubDate = $('published', el).text().trim() || $('updated', el).text().trim();
+      const link =
+        $('link[rel="alternate"]', el).attr('href') ??
+        `https://www.youtube.com/watch?v=${videoId}`;
+      const pubDate =
+        $('published', el).text().trim() || $('updated', el).text().trim();
       const description = $('media\\:description', el).text().trim();
       const thumbnail =
         $('media\\:thumbnail', el).attr('url') ??

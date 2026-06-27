@@ -10,7 +10,7 @@ import {
   isBuiltinSearchEngine,
 } from 'src/research/domain/model/search-planner.model';
 import { BrowserService } from 'src/browse/application/browser.service';
-import { NewsService } from 'src/news/application/service/news.service';
+import { NewsService } from 'src/news/application/news.service';
 import {
   ChartData,
   isChartTrigger,
@@ -116,7 +116,13 @@ export class DeepResearchPipelineService {
       estimatedFees = usage.estimatedFees;
       webSources = { [webModel]: contextOverride };
     } else if (isBuiltinSearchEngine(webModel)) {
-      const usage = await this.deepAnalyze(aiModel, prompt, '', signal, chartSystem);
+      const usage = await this.deepAnalyze(
+        aiModel,
+        prompt,
+        '',
+        signal,
+        chartSystem,
+      );
       aiResult = usage.text;
       inputTokens = usage.inputTokens;
       outputTokens = usage.outputTokens;
@@ -159,7 +165,11 @@ export class DeepResearchPipelineService {
       // Gemini / Ollama: 고정 파이프라인 (다중 엔진 검색 → 분석)
       let context = '';
       try {
-        const searchResult = await this.doEnhancedSearch(webModel, prompt, filterModel);
+        const searchResult = await this.doEnhancedSearch(
+          webModel,
+          prompt,
+          filterModel,
+        );
         if (searchResult) {
           context = searchResult;
           webSources = { [webModel]: searchResult };
@@ -168,7 +178,13 @@ export class DeepResearchPipelineService {
       } catch {
         // 검색 실패 시 컨텍스트 없이 진행
       }
-      const usage = await this.deepAnalyze(aiModel, prompt, context, signal, chartSystem);
+      const usage = await this.deepAnalyze(
+        aiModel,
+        prompt,
+        context,
+        signal,
+        chartSystem,
+      );
       aiResult = usage.text;
       inputTokens = usage.inputTokens;
       outputTokens = usage.outputTokens;

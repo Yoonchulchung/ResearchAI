@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { load } from 'cheerio';
 import { BrowserService } from 'src/browse/application/browser.service';
 import { SessionGateway } from 'src/sessions/presentation/session.gateway';
+import { CompanyProfileUrlResolverService } from 'src/company/application/info/company-profile-url-resolver.service';
 
 export interface NamuWikiCompanyInfo {
   companyType: string | null;
@@ -43,6 +44,7 @@ export class NamuWikiService {
 
   constructor(
     private readonly browser: BrowserService,
+    private readonly profileUrlSearch: CompanyProfileUrlResolverService,
     @Optional() private readonly gateway?: SessionGateway,
   ) {}
 
@@ -101,18 +103,18 @@ export class NamuWikiService {
     }
     this.lastRequestAt = Date.now();
 
-    // 1단계: 이름 기반 직접 후보
-    const candidates = this.buildCandidates(companyName);
-    for (const title of candidates) {
+    // 1단계: 검색 엔진 결과에서 NamuWiki 제목 후보 보완
+    const searchTitles = await this.searchNamuWikiTitle(companyName);
+    for (const title of searchTitles) {
       const result = await this.fetchPage(title);
       if (result) return result;
       await this.sleep(500);
     }
 
-    // 2단계: DuckDuckGo 검색으로 NamuWiki 제목 보완
-    const searchTitles = await this.searchNamuWikiTitle(companyName);
-    for (const title of searchTitles) {
-      if (candidates.includes(title)) continue;
+    // 2단계: 이름 기반 직접 후보
+    const candidates = this.buildCandidates(companyName);
+    for (const title of candidates) {
+      if (searchTitles.includes(title)) continue;
       const result = await this.fetchPage(title);
       if (result) return result;
       await this.sleep(500);
@@ -121,22 +123,38 @@ export class NamuWikiService {
     return null;
   }
 
-  /** DuckDuckGo 검색으로 NamuWiki 페이지 제목 후보 반환 */
+  /** 검색 엔진으로 NamuWiki 페이지 제목 후보 반환 */
   private async searchNamuWikiTitle(name: string): Promise<string[]> {
     try {
-      const results = await this.browser.search(`${name} 나무위키 기업`, 5);
-      return results
-        .map((r) => {
-          const m = r.url.match(/namu\.wiki\/w\/([^?#]+)/);
-          return m ? decodeURIComponent(m[1]) : null;
-        })
-        .filter(
-          (t): t is string =>
-            t !== null && !t.includes(':') && !t.startsWith('분류'),
-        );
+      const found = await this.profileUrlSearch.findUrl(name, {
+        source: 'NamuWiki',
+        domains: ['namu.wiki'],
+        keywords: ['나무위키', '기업'],
+        preferredPathPatterns: [/\/w\/[^/]+/],
+        rejectPathPatterns: [/\/w\/분류:/, /\/history\//],
+      });
+      const foundTitle = found ? this.extractTitleFromUrl(found) : null;
+
+      const results = await this.browser.searchWeb(`${name} 나무위키 기업`, 8);
+      const titles = results
+        .map((r) => this.extractTitleFromUrl(r.url))
+        .filter((t): t is string => Boolean(t));
+
+      const allTitles = [foundTitle, ...titles].filter(
+        (title): title is string => Boolean(title),
+      );
+      return [...new Set(allTitles)];
     } catch {
       return [];
     }
+  }
+
+  private extractTitleFromUrl(url: string): string | null {
+    const m = url.match(/namu\.wiki\/w\/([^?#]+)/);
+    if (!m) return null;
+    const title = decodeURIComponent(m[1]);
+    if (!title || title.includes(':') || title.startsWith('분류')) return null;
+    return title;
   }
 
   private buildCandidates(name: string): string[] {

@@ -698,7 +698,7 @@ export default function ResumeSearchPanel({
                       학내외 활동 ({expGroups.reduce((s, g) => s + g.items.length, 0)})
                     </p>
                     {expGroups.map((group, i) => (
-                      <ExperienceGroupCard key={group.key + i} group={{ id: `eg-${i}`, ...group }} onInsert={onInsertExperience} />
+                      <ExperienceGroupCard key={group.key + i} group={group} onInsert={onInsertExperience} />
                     ))}
                   </div>
                 )}
@@ -708,7 +708,7 @@ export default function ResumeSearchPanel({
                       수상 ({prizeGroups.reduce((s, g) => s + g.items.length, 0)})
                     </p>
                     {prizeGroups.map((group, i) => (
-                      <PrizeGroupCard key={group.key + i} group={{ id: `pg-${i}`, ...group }} onInsert={onInsertPrize} />
+                      <PrizeGroupCard key={group.key + i} group={group} onInsert={onInsertPrize} />
                     ))}
                   </div>
                 )}

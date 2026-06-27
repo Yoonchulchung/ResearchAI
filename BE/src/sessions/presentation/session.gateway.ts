@@ -9,7 +9,7 @@ import {
 import { Server, WebSocket } from 'ws';
 import { SessionQueryService } from 'src/sessions/application/query/session-query.service';
 import { QueueStatusDto } from 'src/queue/presentation/dto/response/queue-status.dto';
-import type { EnrichApiStats } from 'src/company/application/company-enrich.service';
+import type { CompanyInfoApiStats as EnrichApiStats } from 'src/company/application/info/company-info.types';
 
 @WebSocketGateway({ path: '/ws' })
 export class SessionGateway implements OnGatewayDisconnect {

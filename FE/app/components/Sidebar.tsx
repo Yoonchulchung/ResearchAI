@@ -205,6 +205,31 @@ function IconStock() {
   );
 }
 
+function IconLand() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      className="shrink-0"
+    >
+      <path
+        d="M2.5 13.5V6.5L8 3L13.5 6.5V13.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5.5 13.5V8.5H10.5V13.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function IconPlus() {
   return (
     <svg
@@ -303,6 +328,7 @@ export function Sidebar() {
   const isNewsActive = pathname === "/news" || pathname?.startsWith("/news/");
   const isStockActive =
     pathname === "/stock" || pathname?.startsWith("/stock/");
+  const isLandActive = pathname === "/land" || pathname?.startsWith("/land/");
 
   const updateCollapsed = useCallback(
     (v: boolean) => {
@@ -477,6 +503,17 @@ export function Sidebar() {
           >
             <IconStock />
           </button>
+          <button
+            onClick={() => router.push("/land")}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+              isLandActive
+                ? "bg-brand-primary/10 text-brand-primary"
+                : "text-slate-500 hover:bg-slate-500/10 hover:text-brand-primary"
+            }`}
+            title="부동산"
+          >
+            <IconLand />
+          </button>
         </div>
         {/* Session dots */}
         <div className="flex-1 overflow-y-auto flex flex-col items-center gap-1 py-2 px-2 min-h-0">
@@ -602,6 +639,17 @@ export function Sidebar() {
         >
           <IconStock />
           증시
+        </button>
+        <button
+          onClick={() => router.push("/land")}
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            isLandActive
+              ? "bg-brand-primary/10 text-brand-primary"
+              : "text-slate-600 hover:bg-slate-500/5 hover:text-brand-primary"
+          }`}
+        >
+          <IconLand />
+          부동산
         </button>
       </div>
 

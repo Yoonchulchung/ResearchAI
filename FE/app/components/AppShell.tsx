@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { MobileShell } from "./MobileShell";
+import { MarketTicker } from "./MarketTicker";
 import { NewSessionModal } from "./NewSessionModal";
 import { DocStoreModal } from "./DocStoreModal";
 import { SummaryProgressProvider } from "@/contexts/SummaryProgressContext";
@@ -52,10 +53,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex overflow-hidden mesh-bg" style={containerStyle}>
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto min-w-0 h-full">
-        {children}
-      </main>
+      <div className="no-print"><Sidebar /></div>
+      <div className="flex flex-1 min-w-0 flex-col h-full">
+        <main className="flex-1 overflow-y-auto min-w-0">
+          {children}
+        </main>
+        {pathname.startsWith("/stock") && <div className="no-print"><MarketTicker /></div>}
+      </div>
     </div>
   );
 }

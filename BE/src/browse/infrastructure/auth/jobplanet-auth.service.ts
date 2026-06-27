@@ -5,7 +5,7 @@ import {
   BrowserLogFn,
   INPUT_ACTION_TIMEOUT_MS,
   NAVIGATION_TIMEOUT_MS,
-} from 'src/browse/infrastructure/browser-automation.util';
+} from 'src/browse/application/puppeteer/browser-automation.util';
 
 const LOGIN_URL = 'https://www.jobplanet.co.kr/users/sign_in';
 const HOME_URL = 'https://www.jobplanet.co.kr/';

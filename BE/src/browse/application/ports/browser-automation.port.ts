@@ -54,6 +54,12 @@ export abstract class BrowserAutomationPort {
     request: BrowserNewsSearchRequest,
   ): Promise<BrowserNewsSearchResult[]>;
 
+  /** Google(Serper) → DDG 폴백 순서로 뉴스를 검색한다. publishedAt 포함. */
+  abstract searchGoogleNews(
+    query: string,
+    limit?: number,
+  ): Promise<BrowserNewsSearchResult[]>;
+
   /** 채널의 현재 YouTube 라이브 방송을 확인한다. */
   abstract findLiveVideo(
     channelUrl: string,

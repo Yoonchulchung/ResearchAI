@@ -41,7 +41,12 @@ export class CoverLetterScraperService {
     company: string,
     maxPages?: number,
     delayMs?: number,
-  ): Promise<{ collected: number; skipped: number; errors: number; company: string }> {
+  ): Promise<{
+    collected: number;
+    skipped: number;
+    errors: number;
+    company: string;
+  }> {
     return this.engine.scrapeByCompany(company, maxPages, delayMs);
   }
   scrapeByCompanyWithProgress(
@@ -49,7 +54,12 @@ export class CoverLetterScraperService {
     maxPages: number,
     delayMs: number,
     onProgress: (event: ScrapeByCompanyEvent) => void,
-  ): Promise<{ collected: number; skipped: number; errors: number; company: string }> {
+  ): Promise<{
+    collected: number;
+    skipped: number;
+    errors: number;
+    company: string;
+  }> {
     return this.engine.scrapeByCompany(company, maxPages, delayMs, onProgress);
   }
   backfillJobCategories(): Promise<{ updated: number }> {
@@ -79,7 +89,11 @@ export class CoverLetterScraperService {
     limit = 20,
     offset = 0,
     sortDir: 'asc' | 'desc' = 'desc',
-  ): Promise<{ items: CoverLetterQuestionSearchItem[]; total: number; hasMore: boolean }> {
+  ): Promise<{
+    items: CoverLetterQuestionSearchItem[];
+    total: number;
+    hasMore: boolean;
+  }> {
     return this.query.searchQuestions(query, limit, offset, sortDir);
   }
 

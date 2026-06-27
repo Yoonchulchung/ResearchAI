@@ -2,7 +2,7 @@ import { CompetencyScores } from 'src/company/domain/entity/company-analysis.ent
 import {
   YearlyFinancial,
   EmployeeDetail,
-} from 'src/company/infrastructure/dart/dart-types';
+} from 'src/financial/infrastructure/dart/dart-types';
 
 export type { CompetencyScores };
 

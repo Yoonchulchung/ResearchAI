@@ -36,6 +36,21 @@ export default function CompanyDetailPage() {
       : "border-slate-200 bg-white";
   const subtleText = isDark ? "text-white/55" : "text-slate-500";
   const mutedPanel = isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50";
+  const missingProgress = data.missingRefreshProgress;
+  const sourceStatusLabel = {
+    pending: "대기",
+    running: "진행",
+    success: "성공",
+    empty: "없음",
+    error: "실패",
+    skipped: "건너뜀",
+  } as const;
+  const progressHasError = missingProgress?.sources.some((source) => source.status === "error") ?? false;
+  const progressDone = (missingProgress?.percent ?? 0) >= 100;
+  const sourceSummary = missingProgress?.sources
+    .filter((source) => source.status !== "pending")
+    .map((source) => `${source.label} ${sourceStatusLabel[source.status]}`)
+    .join(" · ");
 
   if (data.loading) {
     return (
@@ -90,26 +105,65 @@ export default function CompanyDetailPage() {
           />
 
           {/* 탭 및 결측치 크롤링 버튼 */}
-          <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 gap-4">
-            <div className="flex-1 min-w-0">
-              <DetailTabs
-                activeTab={data.activeTab}
-                setActiveTab={data.setActiveTab}
-                isDark={isDark}
-                hasStock={!!data.company.stockCode}
-              />
+          <div className="border-b border-slate-200 dark:border-white/10">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <DetailTabs
+                  activeTab={data.activeTab}
+                  setActiveTab={data.setActiveTab}
+                  isDark={isDark}
+                  hasStock={!!data.company.stockCode}
+                />
+              </div>
+              <button
+                onClick={data.handleRefreshMissing}
+                disabled={data.refreshing}
+                className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-bold transition-colors mb-1 ${
+                  data.refreshing
+                    ? "cursor-wait bg-slate-300 text-slate-600"
+                    : isDark ? "bg-white text-slate-950 hover:bg-white/90" : "bg-slate-950 text-white hover:bg-slate-800"
+                }`}
+              >
+                {data.refreshing ? "재수집 중..." : "결측치 크롤링"}
+              </button>
             </div>
-            <button
-              onClick={data.handleRefreshMissing}
-              disabled={data.refreshing}
-              className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-bold transition-colors mb-1 ${
-                data.refreshing
-                  ? "cursor-wait bg-slate-300 text-slate-600"
-                  : isDark ? "bg-white text-slate-950 hover:bg-white/90" : "bg-slate-950 text-white hover:bg-slate-800"
-              }`}
-            >
-              {data.refreshing ? "재수집 중..." : "결측치 크롤링"}
-            </button>
+
+            {missingProgress ? (
+              <div className="mb-3 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <span className={`max-w-[min(28rem,70vw)] truncate text-xs font-medium ${
+                    progressHasError
+                      ? "text-red-500"
+                      : progressDone
+                        ? "text-emerald-600"
+                        : isDark ? "text-white/70" : "text-slate-600"
+                  }`}>
+                    {missingProgress.message}
+                  </span>
+                  <span className={`ml-2 shrink-0 text-xs tabular-nums ${isDark ? "text-white/40" : "text-slate-400"}`}>
+                    {missingProgress.completed} / {missingProgress.total}단계
+                  </span>
+                </div>
+                <div className={`h-1.5 w-full overflow-hidden rounded-full ${isDark ? "bg-white/10" : "bg-slate-200"}`}>
+                  {progressHasError ? (
+                    <div className="h-full w-full rounded-full bg-red-400" />
+                  ) : (
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.max(2, Math.min(100, missingProgress.percent))}%`,
+                        backgroundColor: progressDone ? "#10b981" : "#34d399",
+                      }}
+                    />
+                  )}
+                </div>
+                {sourceSummary ? (
+                  <p className={`truncate text-xs ${isDark ? "text-white/35" : "text-slate-400"}`}>
+                    {sourceSummary}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           {data.error ? (
@@ -158,9 +212,19 @@ export default function CompanyDetailPage() {
               newsHasMore={data.newsHasMore}
               savedNews={data.savedNews}
               savedNewsLoaded={data.savedNewsLoaded}
+              savedNewsHasMore={data.savedNewsHasMore}
+              savedNewsLoadingMore={data.savedNewsLoadingMore}
+              newsResetting={data.newsResetting}
+              olderNewsLoading={data.olderNewsLoading}
+              olderNewsStopping={data.olderNewsStopping}
+              olderNewsMessage={data.olderNewsMessage}
               handleFetchNews={data.handleFetchNews}
               handleFetchMoreNews={data.handleFetchMoreNews}
+              handleFindOlderNews={data.handleFindOlderNews}
+              handleStopOlderNews={data.handleStopOlderNews}
+              handleResetNews={data.handleResetNews}
               loadSavedNews={data.loadSavedNews}
+              loadMoreSavedNews={data.loadMoreSavedNews}
               companyId={companyId}
               isDark={isDark}
               panelClass={panelClass}

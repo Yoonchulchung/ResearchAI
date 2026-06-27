@@ -16,11 +16,7 @@ import {
   SearchEngine,
   isBuiltinSearchEngine,
 } from 'src/research/domain/model/search-planner.model';
-import {
-  AIProvider,
-  AI_MODEL_PREFIX,
-  getProvider,
-} from 'src/ai/domain/models';
+import { AIProvider, AI_MODEL_PREFIX, getProvider } from 'src/ai/domain/models';
 import { RecruitContextService } from 'src/recruit/application/recruit-context.service';
 import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
 import {
@@ -32,7 +28,7 @@ import { ResearchRecruitRepository } from 'src/research/domain/repository/resear
 import { LightResearchEventType } from 'src/research/domain/model/light-research.model';
 import { AttachedFilePayload } from 'src/queue/presentation/dto/request/enqueue-light-research.dto';
 import { BrowserService } from 'src/browse/application/browser.service';
-import { NewsService } from 'src/news/application/service/news.service';
+import { NewsService } from 'src/news/application/news.service';
 
 export type JobItem = {
   title: string;
@@ -127,16 +123,22 @@ export class LightResearchPipelineService {
       try {
         const [webRaw, newsRaw] = await Promise.allSettled([
           this.browser.searchWeb(keyword, 10),
-          this.newsService.getQueryNews(keyword, 1).catch(() => ({ items: [] })),
+          this.newsService
+            .getQueryNews(keyword, 1)
+            .catch(() => ({ items: [] })),
         ]);
         const webItems = webRaw.status === 'fulfilled' ? webRaw.value : [];
-        const newsItems = newsRaw.status === 'fulfilled' ? newsRaw.value.items : [];
+        const newsItems =
+          newsRaw.status === 'fulfilled' ? newsRaw.value.items : [];
         const seen = new Set(newsItems.map((n) => n.url));
         const all = [...newsItems, ...webItems.filter((w) => !seen.has(w.url))];
         if (all.length > 0) {
           webContext = all
             .map((item, i) => {
-              const date = 'publishedAt' in item && item.publishedAt ? ` (${String(item.publishedAt).substring(0, 10)})` : '';
+              const date =
+                'publishedAt' in item && item.publishedAt
+                  ? ` (${String(item.publishedAt).substring(0, 10)})`
+                  : '';
               return `[${i + 1}] ${item.title}${date}\n${item.snippet ?? ''}\n출처: ${item.url}`;
             })
             .join('\n\n');
@@ -335,11 +337,14 @@ export class LightResearchPipelineService {
     try {
       const [webRaw, newsRaw] = await Promise.allSettled([
         this.browser.searchWeb(searchKeyword, 10),
-        this.newsService.getQueryNews(searchKeyword, 1).catch(() => ({ items: [] })),
+        this.newsService
+          .getQueryNews(searchKeyword, 1)
+          .catch(() => ({ items: [] })),
       ]);
 
       const webItems = webRaw.status === 'fulfilled' ? webRaw.value : [];
-      const newsItems = newsRaw.status === 'fulfilled' ? newsRaw.value.items : [];
+      const newsItems =
+        newsRaw.status === 'fulfilled' ? newsRaw.value.items : [];
 
       // URL 기준 중복 제거 — 뉴스 우선(날짜 포함)
       const seen = new Set(newsItems.map((n) => n.url));
@@ -350,13 +355,19 @@ export class LightResearchPipelineService {
       if (allItems.length === 0) {
         // 폴백: 기존 단일 엔진
         yield* this.printFront(`결과 없음 — ${webModel} 폴백 검색`);
-        const fallback = await this.searchWithEngine(webModel, searchKeyword).catch(() => '');
+        const fallback = await this.searchWithEngine(
+          webModel,
+          searchKeyword,
+        ).catch(() => '');
         return fallback || undefined;
       }
 
       const contextLines = allItems.map((item, i) => {
         const isNews = 'publishedAt' in item;
-        const date = isNews && item.publishedAt ? ` (${String(item.publishedAt).substring(0, 10)})` : '';
+        const date =
+          isNews && item.publishedAt
+            ? ` (${String(item.publishedAt).substring(0, 10)})`
+            : '';
         const source = 'source' in item ? item.source : '';
         return `[${i + 1}] ${item.title}${date}\n${item.snippet ?? ''}${source ? `\n출처: ${item.url} (${source})` : `\n출처: ${item.url}`}`;
       });

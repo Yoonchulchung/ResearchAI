@@ -2,6 +2,9 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
 import { AiService } from 'src/ai/application/ai.service';
+import { AiAgenticImplService } from 'src/ai/application/agentic/ai-agentic-impl.service';
+import { AiTaskImplService } from 'src/ai/application/task/ai-task-impl.service';
+import { AiWritingImplService } from 'src/ai/application/writing/ai-writing-impl.service';
 import { AiController } from 'src/ai/presentation/ai.controller';
 import { SessionsModule } from 'src/sessions/sessions.module';
 import { OverviewModule } from 'src/overview/overview.module';
@@ -25,6 +28,9 @@ import { OpenAiProviderAdapter } from 'src/ai/infrastructure/provider/openai/ope
   providers: [
     AiProviderService,
     AiService,
+    AiAgenticImplService,
+    AiTaskImplService,
+    AiWritingImplService,
     AiCallLogRepository,
     AiProviderRegistry,
     AnthropicProviderAdapter,

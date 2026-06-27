@@ -94,7 +94,7 @@ function ChartModal({
   useEffect(() => {
     setLoading(true);
     fetch(
-      `${API_BASE}/stock/chart?symbol=${encodeURIComponent(item.symbol)}&range=${range}`,
+      `${API_BASE}/financial/chart?symbol=${encodeURIComponent(item.symbol)}&range=${range}`,
     )
       .then((r) => r.json())
       .then((data: unknown) => {
@@ -263,7 +263,7 @@ export function MarketCard() {
   const fetchData = useCallback(() => {
     setLoading(true);
     setError(false);
-    fetch(`${API_BASE}/stock/market`)
+    fetch(`${API_BASE}/financial/market`)
       .then((r) => r.json())
       .then((data: unknown) => {
         const result = unwrapApiResult<MarketItem[]>(data);

@@ -1,7 +1,10 @@
 import { load } from 'cheerio';
 import { randomUUID } from 'crypto';
 import { JobPosting } from 'src/recruit/domain/job-posting.model';
-import { CollectQuery, JobSource } from 'src/recruit/domain/job-source.interface';
+import {
+  CollectQuery,
+  JobSource,
+} from 'src/recruit/domain/job-source.interface';
 
 const BASE_URL = 'https://www.saramin.co.kr';
 const DELAY_MS = 1000;

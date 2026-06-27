@@ -6,7 +6,7 @@ import { DocumentEntity } from 'src/recruit/domain/documents/entity/document.ent
 import { ResumeCoverLetterEntity } from 'src/recruit/domain/resume/resume-cover-letter.entity';
 import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
 import { VectorService } from 'src/vector/vector.service';
-import { QueueService } from 'src/queue/application/queue/queue.service';
+import { QueueService } from 'src/queue/application/queue.service';
 import {
   buildPortfolioEvaluationPrompt,
   PORTFOLIO_EVALUATION_SYSTEM_PROMPT,

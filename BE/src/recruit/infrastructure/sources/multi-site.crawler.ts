@@ -2,7 +2,10 @@ import puppeteer, { Browser, Page } from 'puppeteer';
 import { randomUUID } from 'crypto';
 import { Logger } from '@nestjs/common';
 import { JobPosting } from 'src/recruit/domain/job-posting.model';
-import { CollectQuery, JobSource } from 'src/recruit/domain/job-source.interface';
+import {
+  CollectQuery,
+  JobSource,
+} from 'src/recruit/domain/job-source.interface';
 
 const BROWSER_ARGS = [
   '--no-sandbox',

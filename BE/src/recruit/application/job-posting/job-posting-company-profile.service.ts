@@ -17,7 +17,12 @@ import {
 const DATA_DIR = path.resolve(__dirname, '../../../../data/job-postings');
 const COMPANY_PROFILES_FILE = path.join(DATA_DIR, 'company-profiles.json');
 
-type CompanyProfileSource = 'manual' | 'dart' | 'publicData' | 'jobSite' | 'search';
+type CompanyProfileSource =
+  | 'manual'
+  | 'dart'
+  | 'publicData'
+  | 'jobSite'
+  | 'search';
 
 interface CompanyProfile {
   companyName: string;
@@ -35,7 +40,11 @@ interface CompanyProfileFile {
 }
 
 const SOURCE_PRIORITY: Record<CompanyProfileSource, number> = {
-  manual: 100, dart: 80, publicData: 70, jobSite: 40, search: 30,
+  manual: 100,
+  dart: 80,
+  publicData: 70,
+  jobSite: 40,
+  search: 30,
 };
 
 @Injectable()
@@ -65,7 +74,8 @@ export class JobPostingCompanyProfileService {
 
   upsertFromPosting(p: JobPosting): boolean {
     const companyType =
-      inferCompanyTypeFromCompanyName(p.company) ?? normalizeCompanyType(p.companyType);
+      inferCompanyTypeFromCompanyName(p.company) ??
+      normalizeCompanyType(p.companyType);
     if (!companyType) return false;
     return this.upsertProfile({
       companyName: p.company,
@@ -84,7 +94,11 @@ export class JobPostingCompanyProfileService {
     const normalizedName = normalizeCompanyName(input.companyName);
     if (!normalizedName || !input.companyType) return false;
     const existing = this.profiles.get(normalizedName);
-    if (existing && SOURCE_PRIORITY[existing.source] > SOURCE_PRIORITY[input.source]) return false;
+    if (
+      existing &&
+      SOURCE_PRIORITY[existing.source] > SOURCE_PRIORITY[input.source]
+    )
+      return false;
     const next: CompanyProfile = {
       companyName: existing?.companyName ?? input.companyName,
       normalizedName,
@@ -106,7 +120,9 @@ export class JobPostingCompanyProfileService {
   }
 
   save(): void {
-    const sorted = [...this.profiles.entries()].sort(([a], [b]) => a.localeCompare(b, 'ko'));
+    const sorted = [...this.profiles.entries()].sort(([a], [b]) =>
+      a.localeCompare(b, 'ko'),
+    );
     const db = this.recruitDb.get();
     const transaction = db.transaction((profiles: CompanyProfile[]) => {
       db.prepare(`DELETE FROM company_profiles`).run();
@@ -116,7 +132,8 @@ export class JobPostingCompanyProfileService {
         VALUES
           (@normalizedName, @companyName, @companyType, @source, @evidence, @updatedAt)
       `);
-      for (const profile of profiles) stmt.run({ ...profile, evidence: profile.evidence ?? null });
+      for (const profile of profiles)
+        stmt.run({ ...profile, evidence: profile.evidence ?? null });
     });
     transaction(sorted.map(([, profile]) => profile));
   }
@@ -124,15 +141,17 @@ export class JobPostingCompanyProfileService {
   private async load(): Promise<void> {
     const rows = this.recruitDb
       .get()
-      .prepare(`SELECT normalized_name, company_name, company_type, source, evidence, updated_at FROM company_profiles`)
+      .prepare(
+        `SELECT normalized_name, company_name, company_type, source, evidence, updated_at FROM company_profiles`,
+      )
       .all() as Array<{
-        normalized_name: string;
-        company_name: string;
-        company_type: string;
-        source: CompanyProfileSource;
-        evidence: string | null;
-        updated_at: string;
-      }>;
+      normalized_name: string;
+      company_name: string;
+      company_type: string;
+      source: CompanyProfileSource;
+      evidence: string | null;
+      updated_at: string;
+    }>;
 
     this.profiles = new Map(
       rows.map((row) => [
@@ -151,7 +170,9 @@ export class JobPostingCompanyProfileService {
   }
 
   private async bootstrapFromPostings(): Promise<void> {
-    const rows = await this.postingRepo.find({ order: { collectedAt: 'DESC' } });
+    const rows = await this.postingRepo.find({
+      order: { collectedAt: 'DESC' },
+    });
     const postings = rows.map((e) => entityToJobPosting(e));
     let changed = false;
     for (const posting of postings) {
@@ -168,7 +189,9 @@ export class JobPostingCompanyProfileService {
     if (existing.count > 0 || !fs.existsSync(COMPANY_PROFILES_FILE)) return;
 
     try {
-      const file = JSON.parse(fs.readFileSync(COMPANY_PROFILES_FILE, 'utf-8')) as Partial<CompanyProfileFile>;
+      const file = JSON.parse(
+        fs.readFileSync(COMPANY_PROFILES_FILE, 'utf-8'),
+      ) as Partial<CompanyProfileFile>;
       const profiles = Object.values(file.profiles ?? {});
       if (profiles.length === 0) return;
 
@@ -178,11 +201,16 @@ export class JobPostingCompanyProfileService {
         VALUES
           (@normalizedName, @companyName, @companyType, @source, @evidence, @updatedAt)
       `);
-      const transaction = this.recruitDb.get().transaction((rows: CompanyProfile[]) => {
-        for (const profile of rows) stmt.run({ ...profile, evidence: profile.evidence ?? null });
-      });
+      const transaction = this.recruitDb
+        .get()
+        .transaction((rows: CompanyProfile[]) => {
+          for (const profile of rows)
+            stmt.run({ ...profile, evidence: profile.evidence ?? null });
+        });
       transaction(profiles);
-      this.logger.log(`기업 프로필 JSON ${profiles.length}건을 DB로 마이그레이션 완료`);
+      this.logger.log(
+        `기업 프로필 JSON ${profiles.length}건을 DB로 마이그레이션 완료`,
+      );
     } catch {
       this.logger.warn('company-profiles.json 마이그레이션 실패 — 건너뜀');
     }

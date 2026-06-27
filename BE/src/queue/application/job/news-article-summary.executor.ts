@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
-import { NewsService } from 'src/news/application/service/news.service';
+import { NewsService } from 'src/news/application/news.service';
 
 export interface NewsArticleSummaryRequest {
   title: string;

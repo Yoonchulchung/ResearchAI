@@ -1,4 +1,4 @@
-import { apiFetch, API_BASE } from "./base";
+import { apiFetch, API_BASE, getAuthHeaders, readSSE } from "./base";
 import type { YearlyFinancial } from "./company-analysis";
 
 const readRequestCache = new Map<
@@ -161,7 +161,21 @@ export async function getCompanyStock(
 ): Promise<CompanyStockQuote> {
   const qs = new URLSearchParams({ interval });
   if (before) qs.set("before", before);
-  const path = `/companies/${encodeURIComponent(id)}/stock?${qs.toString()}`;
+  qs.set("companyId", id);
+  const path = `/financial/stock?${qs.toString()}`;
+  if (before) return apiFetch<CompanyStockQuote>(path);
+  return cachedApiFetch<CompanyStockQuote>(`stock:${path}`, path, 30_000);
+}
+
+/** symbol 기반 — DB에서 companyId 자동 매핑, 없으면 Yahoo fallback */
+export async function getCompanyStockBySymbol(
+  symbol: string,
+  interval = "1d",
+  before?: string,
+): Promise<CompanyStockQuote> {
+  const qs = new URLSearchParams({ symbol, interval });
+  if (before) qs.set("before", before);
+  const path = `/financial/stock?${qs.toString()}`;
   if (before) return apiFetch<CompanyStockQuote>(path);
   return cachedApiFetch<CompanyStockQuote>(`stock:${path}`, path, 30_000);
 }
@@ -221,7 +235,7 @@ export interface CompanyFinancialAiAnalysis {
 export async function getCompanyFinancialInsights(
   id: string,
 ): Promise<CompanyFinancialInsights> {
-  const path = `/companies/${encodeURIComponent(id)}/financial-insights`;
+  const path = `/financial/insights?companyId=${encodeURIComponent(id)}`;
   return apiFetch<CompanyFinancialInsights>(path);
 }
 
@@ -230,7 +244,7 @@ export async function getCompanyFinancialAiHistory(
   limit = 10,
 ): Promise<Array<CompanyFinancialAiAnalysis & { id: string; createdAt: string }>> {
   return apiFetch(
-    `/companies/${encodeURIComponent(id)}/financial-insights/ai-analysis?limit=${limit}`,
+    `/financial/insights/ai-analysis?companyId=${encodeURIComponent(id)}&limit=${limit}`,
   );
 }
 
@@ -239,7 +253,7 @@ export async function analyzeCompanyFinancialStatements(
   model: string,
 ): Promise<CompanyFinancialAiAnalysis> {
   return apiFetch<CompanyFinancialAiAnalysis>(
-    `/companies/${encodeURIComponent(id)}/financial-insights/ai-analysis`,
+    `/financial/insights/ai-analysis?companyId=${encodeURIComponent(id)}`,
     {
       method: "POST",
       body: JSON.stringify({ model }),
@@ -256,6 +270,66 @@ export async function refreshCompanyMissing(
       method: "POST",
     },
   );
+}
+
+export type CompanyRefreshMissingProgressEvent =
+  | {
+      type: "start";
+      companyId: string;
+      companyName: string;
+      completed: number;
+      total: number;
+      message: string;
+    }
+	  | {
+	      type: "source";
+	      source: "dart" | "jobkorea" | "jasoseol" | "jobplanet" | "namu-wiki";
+      label: string;
+      status: "running" | "success" | "empty" | "error" | "skipped";
+      completed: number;
+      total: number;
+      message: string;
+    }
+  | {
+      type: "merge" | "saving";
+      completed: number;
+      total: number;
+      message: string;
+    }
+  | {
+      type: "done";
+      completed: number;
+      total: number;
+      message: string;
+      result: CompanyListItem;
+    }
+  | {
+      type: "error";
+      completed: number;
+      total: number;
+      message: string;
+    };
+
+export async function refreshCompanyMissingStream(
+  id: string,
+  onEvent: (event: CompanyRefreshMissingProgressEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/companies/${encodeURIComponent(id)}/refresh-missing/stream`,
+    {
+      headers: getAuthHeaders(),
+      signal,
+    },
+  );
+  if (!res.ok || !res.body) {
+    throw new Error(`결측치 수집 스트림 연결 실패: ${res.status} ${res.statusText}`);
+  }
+
+  await readSSE<CompanyRefreshMissingProgressEvent>(res, (event) => {
+    onEvent(event);
+    return event.type === "done" || event.type === "error";
+  });
 }
 
 export interface CompanyMissingStats {
@@ -304,7 +378,7 @@ export interface CompanyNewsItem {
 
 export async function getCompanyNews(
   id: string,
-  limit = 12,
+  limit = 50,
   offset = 0,
   sinceLatest = false,
 ): Promise<CompanyNewsItem[]> {
@@ -325,6 +399,21 @@ export async function getSavedCompanyNews(
 ): Promise<CompanyNewsItem[]> {
   return apiFetch<CompanyNewsItem[]>(
     `/companies/${encodeURIComponent(id)}/news/saved?limit=${limit}&offset=${offset}`,
+  );
+}
+
+export interface ResetCompanyNewsResult {
+  deletedNews: number;
+  deletedKeywords: number;
+  deletedTimeline: number;
+}
+
+export async function resetCompanyNews(
+  id: string,
+): Promise<ResetCompanyNewsResult> {
+  return apiFetch<ResetCompanyNewsResult>(
+    `/companies/${encodeURIComponent(id)}/news`,
+    { method: "DELETE" },
   );
 }
 
@@ -476,18 +565,117 @@ export interface ScrapeHistoricalResult {
   hasMore: boolean;
   dateFrom: string;
   dateTo: string;
+  stopped: boolean;
+  reachedStopDate: boolean;
 }
+
+export type ScrapeHistoricalProgressEvent =
+  | {
+      type: "start";
+      companyName: string;
+      message: string;
+    }
+  | {
+      type: "window";
+      attempt: number;
+      maxAttempts: number;
+      dateFrom: string;
+      dateTo: string;
+      fetched: number;
+      message: string;
+    }
+  | {
+      type: "query";
+      query: string;
+      dateFrom: string;
+      dateTo: string;
+      message: string;
+    }
+  | {
+      type: "page";
+      query: string;
+      start: number;
+      dateFrom: string;
+      dateTo: string;
+      fetched: number;
+      added: number;
+      rejectedByTitle: number;
+      totalFetched: number;
+      message: string;
+    }
+  | {
+      type: "saving";
+      fetched: number;
+      message: string;
+    }
+  | {
+      type: "done";
+      result: ScrapeHistoricalResult;
+      message: string;
+    }
+  | {
+      type: "error";
+      message: string;
+    };
 
 export async function scrapeHistoricalNews(
   id: string,
   companyName: string,
+  stopDate?: string,
 ): Promise<ScrapeHistoricalResult> {
   return apiFetch<ScrapeHistoricalResult>(
     `/companies/${encodeURIComponent(id)}/news/scrape-historical`,
     {
       method: "POST",
-      body: JSON.stringify({ companyName }),
+      body: JSON.stringify({ companyName, stopDate }),
     },
+  );
+}
+
+export async function scrapeHistoricalNewsStream(
+  id: string,
+  companyName: string,
+  onEvent: (event: ScrapeHistoricalProgressEvent) => void,
+  stopDate?: string,
+  signal?: AbortSignal,
+): Promise<ScrapeHistoricalResult> {
+  const qs = new URLSearchParams({ companyName });
+  if (stopDate) qs.set("stopDate", stopDate);
+  const res = await fetch(
+    `${API_BASE}/companies/${encodeURIComponent(id)}/news/scrape-historical/stream?${qs.toString()}`,
+    {
+      headers: getAuthHeaders(),
+      signal,
+    },
+  );
+  if (!res.ok || !res.body) {
+    throw new Error(`이전 뉴스 수집 스트림 연결 실패: ${res.status} ${res.statusText}`);
+  }
+
+  let result: ScrapeHistoricalResult | null = null;
+  let errorMessage = "";
+  await readSSE<ScrapeHistoricalProgressEvent>(res, (event) => {
+    onEvent(event);
+    if (event.type === "done") {
+      result = event.result;
+      return true;
+    }
+    if (event.type === "error") {
+      errorMessage = event.message;
+      return true;
+    }
+  });
+
+  if (result) return result;
+  throw new Error(errorMessage || "이전 뉴스 수집이 완료되지 않았습니다.");
+}
+
+export async function stopHistoricalNewsScrape(
+  id: string,
+): Promise<{ stopped: boolean }> {
+  return apiFetch<{ stopped: boolean }>(
+    `/companies/${encodeURIComponent(id)}/news/scrape-historical/stop`,
+    { method: "POST" },
   );
 }
 
@@ -630,7 +818,7 @@ export async function getCompanyInvestorTrading(
   days = 30,
 ): Promise<InvestorTradingData> {
   return apiFetch<InvestorTradingData>(
-    `/companies/${encodeURIComponent(id)}/investor-trading?days=${days}`,
+    `/financial/investor-trading?companyId=${encodeURIComponent(id)}&days=${days}`,
   );
 }
 
@@ -656,7 +844,7 @@ export async function getCompanyShortSelling(
   days = 90,
 ): Promise<ShortSellingData> {
   return apiFetch<ShortSellingData>(
-    `/companies/${encodeURIComponent(id)}/short-selling?days=${days}`,
+    `/financial/short-selling?companyId=${encodeURIComponent(id)}&days=${days}`,
   );
 }
 
@@ -667,7 +855,7 @@ export async function refreshCompanyFinancials(
     ok: boolean;
     count: number;
     financials: YearlyFinancial[];
-  }>(`/companies/${encodeURIComponent(id)}/refresh-financials`, {
+  }>(`/financial/refresh-financials?companyId=${encodeURIComponent(id)}`, {
     method: "POST",
   });
   clearCompanyReadCache(id);
@@ -686,7 +874,7 @@ export async function getCompanyQuarterlyFinancials(
   id: string,
   options?: RequestInit,
 ): Promise<CompanyQuarterlyFinancial[]> {
-  const path = `/companies/${encodeURIComponent(id)}/financials/quarterly`;
+  const path = `/financial/quarterly?companyId=${encodeURIComponent(id)}`;
   const request = cachedApiFetch<CompanyQuarterlyFinancial[]>(
     `quarterly:${path}`,
     path,

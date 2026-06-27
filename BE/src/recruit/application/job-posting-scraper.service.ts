@@ -12,9 +12,7 @@ import { JobPostingQueryService } from './job-posting/job-posting-query.service'
 import { JobPostingScrapeEngineService } from './job-posting/job-posting-scrape-engine.service';
 import { matchesCategoryFilter } from './job-posting/job-posting.utils';
 
-export {
-  matchesCategoryFilter,
-} from './job-posting/job-posting.utils';
+export { matchesCategoryFilter } from './job-posting/job-posting.utils';
 
 /**
  * 얇은 파사드 — 컨트롤러가 단일 진입점으로 사용.
@@ -33,7 +31,9 @@ export class JobPostingScraperService {
   getStatus(): JobPostingScrapeStatus {
     return this.engineSvc.getStatus();
   }
-  startScraping(opts: JobPostingScrapeOptions = {}): Promise<{ message: string }> {
+  startScraping(
+    opts: JobPostingScrapeOptions = {},
+  ): Promise<{ message: string }> {
     return this.engineSvc.startScraping(opts);
   }
   stopScraping(): { message: string } {
@@ -41,7 +41,15 @@ export class JobPostingScraperService {
   }
 
   // ── Read ───────────────────────────────────────────────────────────────────
-  getData(page: number, limit: number, filters: JobPostingListFilters = {}): Promise<{ items: JobPosting[]; total: number; filterOptions: JobPostingFilterOptions }> {
+  getData(
+    page: number,
+    limit: number,
+    filters: JobPostingListFilters = {},
+  ): Promise<{
+    items: JobPosting[];
+    total: number;
+    filterOptions: JobPostingFilterOptions;
+  }> {
     return this.querySvc.getData(page, limit, filters);
   }
   getPostingById(id: string): Promise<JobPosting | null> {
@@ -64,7 +72,12 @@ export class JobPostingScraperService {
   getAiAnalysis(id: string, mode: 'analysis' | 'interview') {
     return this.detailService.getAiAnalysis(id, mode);
   }
-  setAiAnalysis(id: string, mode: 'analysis' | 'interview', text: string, docId?: string | null) {
+  setAiAnalysis(
+    id: string,
+    mode: 'analysis' | 'interview',
+    text: string,
+    docId?: string | null,
+  ) {
     return this.detailService.setAiAnalysis(id, mode, text, docId);
   }
 
@@ -80,7 +93,10 @@ export class JobPostingScraperService {
   }
 
   // ── Category (util re-export for external consumers) ─────────────────────
-  matchesCategoryFilter(p: { title: string; jobs?: string | null }, category: string): boolean {
+  matchesCategoryFilter(
+    p: { title: string; jobs?: string | null },
+    category: string,
+  ): boolean {
     return matchesCategoryFilter(p, category);
   }
 }

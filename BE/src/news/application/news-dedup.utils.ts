@@ -25,6 +25,47 @@ function normalizeNewsTitle(value: string): string {
     .trim();
 }
 
+function normalizeCompanyTitleToken(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/&quot;|&amp;|&#39;/g, ' ')
+    .replace(/\s+/g, '')
+    .replace(/[^0-9a-z가-힣]+/g, '')
+    .trim();
+}
+
+export function getCompanyTitleAliases(companyName: string): string[] {
+  const raw = String(companyName ?? '').trim();
+  const withoutCorporateWords = raw
+    .replace(/["'“”‘’]/g, ' ')
+    .replace(
+      /\(주\)|㈜|주식회사|유한회사|농업회사법인|재단법인|사단법인/gi,
+      ' ',
+    )
+    .replace(/\b(co|corp|corporation|inc|ltd|limited|llc)\b\.?/gi, ' ');
+
+  const candidates = [raw, withoutCorporateWords];
+  return Array.from(
+    new Set(
+      candidates
+        .map((candidate) => normalizeCompanyTitleToken(candidate))
+        .filter((candidate) => candidate.length >= 2),
+    ),
+  );
+}
+
+export function newsTitleIncludesCompanyName(
+  title: string,
+  companyName: string,
+): boolean {
+  const normalizedTitle = normalizeCompanyTitleToken(title);
+  if (!normalizedTitle) return false;
+  return getCompanyTitleAliases(companyName).some((alias) =>
+    normalizedTitle.includes(alias),
+  );
+}
+
 function titleVector(value: string): Map<string, number> {
   const normalized = normalizeNewsTitle(value);
   const vector = new Map<string, number>();

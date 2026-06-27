@@ -68,7 +68,7 @@ function PieFlat({ series }: { series: ChartSeries[] }) {
         cy="50%"
         outerRadius={90}
         label={({ name, percent }) =>
-          `${name} ${(percent * 100).toFixed(1)}%`
+          `${name} ${((percent ?? 0) * 100).toFixed(1)}%`
         }
       >
         {data.map((_, i) => (

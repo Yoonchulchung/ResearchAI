@@ -19,21 +19,23 @@ import { CompanyEntity } from 'src/company/domain/entity/company.entity';
 import { CompanyEnrichQueueEntity } from 'src/company/domain/entity/company-enrich-queue.entity';
 import { CompanyFinancialEntity } from 'src/company/domain/entity/company-financial.entity';
 import { CompanyFinancialAiAnalysisEntity } from 'src/company/domain/entity/company-financial-ai-analysis.entity';
-import { CompanyInvestorTradingEntity } from 'src/company/domain/entity/company-investor-trading.entity';
+import { CompanyInvestorTradingEntity } from 'src/financial/domain/company-investor-trading.entity';
 import { CompanyNewsKeywordEntity } from 'src/company/domain/entity/company-news-keyword.entity';
 import { CompanyNewsEntity } from 'src/company/domain/entity/company-news.entity';
 import { CompanyNewsTimelineEntity } from 'src/company/domain/entity/company-news-timeline.entity';
 import { CompanyRateEntity } from 'src/company/domain/entity/company-rate.entity';
-import { CompanyShortSellingEntity } from 'src/company/domain/entity/company-short-selling.entity';
+import { CompanyShortSellingEntity } from 'src/financial/domain/company-short-selling.entity';
 import { AiCallLogEntity } from 'src/ai/domain/entity/ai-call-log.entity';
+import { StockCacheEntity } from 'src/financial/domain/stock/stock-cache.entity';
+import { FinancialCacheEntity } from 'src/financial/domain/financial-cache.entity';
 import { UserEntity } from 'src/auth/domain/entity/user.entity';
 import { LoginHistoryEntity } from 'src/auth/domain/entity/login-history.entity';
 import { SessionJobEntity } from 'src/sessions/domain/entity/session-job.entity';
-import { PaperEntity } from 'src/news/papers/domain/entity/paper.entity';
-import { PaperTrendSummaryEntity } from 'src/news/papers/domain/entity/paper-trend-summary.entity';
-import { AiLeaderboardEntryEntity } from 'src/news/ai-leaderboard/domain/entity/ai-leaderboard-entry.entity';
-import { TechBlogPostEntity } from 'src/news/tech-blog/domain/entity/tech-blog-post.entity';
-import { TechBlogTrendSummaryEntity } from 'src/news/tech-blog/domain/entity/tech-blog-trend-summary.entity';
+import { PaperEntity } from 'src/news/domain/papers/entity/paper.entity';
+import { PaperTrendSummaryEntity } from 'src/news/domain/papers/entity/paper-trend-summary.entity';
+import { AiLeaderboardEntryEntity } from 'src/news/domain/ai-leaderboard/entity/ai-leaderboard-entry.entity';
+import { TechBlogPostEntity } from 'src/news/domain/tech-blog/entity/tech-blog-post.entity';
+import { TechBlogTrendSummaryEntity } from 'src/news/domain/tech-blog/entity/tech-blog-trend-summary.entity';
 import { ContentRefreshStateEntity } from 'src/shared/entity/content-refresh-state.entity';
 import { SystemSettingEntity } from 'src/shared/entity/system-setting.entity';
 import { ExamEventEntity } from 'src/recruit/domain/exam/entity/exam-event.entity';
@@ -129,6 +131,8 @@ function renameTableIfNeeded(
         CompanyShortSellingEntity,
         SessionJobEntity,
         AiCallLogEntity,
+        StockCacheEntity,
+        FinancialCacheEntity,
         UserEntity,
         LoginHistoryEntity,
         PaperEntity,

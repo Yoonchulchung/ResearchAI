@@ -30,14 +30,19 @@ export class JobPostingImageService {
     const buffer = fs.readFileSync(filePath);
     const ext = path.extname(safe).toLowerCase();
     const contentTypes: Record<string, string> = {
-      '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
     };
     return { buffer, contentType: contentTypes[ext] ?? 'image/jpeg' };
   }
 
   getPostingImageFiles(html: string): string[] {
     return [
-      ...html.matchAll(/src=["']\/api\/recruit\/job-postings\/image\/([^"']+)["']/g),
+      ...html.matchAll(
+        /src=["']\/api\/recruit\/job-postings\/image\/([^"']+)["']/g,
+      ),
     ]
       .map((m) => m[1])
       .slice(0, 5)
@@ -52,12 +57,21 @@ export class JobPostingImageService {
     const files = fs.readdirSync(IMAGE_CACHE_DIR).map((name) => {
       try {
         const stat = fs.statSync(path.join(IMAGE_CACHE_DIR, name));
-        return { name, sizeKb: Math.round(stat.size / 1024), ageMin: Math.round((now - stat.mtimeMs) / 60_000) };
+        return {
+          name,
+          sizeKb: Math.round(stat.size / 1024),
+          ageMin: Math.round((now - stat.mtimeMs) / 60_000),
+        };
       } catch {
         return { name, sizeKb: 0, ageMin: 0 };
       }
     });
-    return { dir: IMAGE_CACHE_DIR, count: files.length, totalKb: files.reduce((s, f) => s + f.sizeKb, 0), files };
+    return {
+      dir: IMAGE_CACHE_DIR,
+      count: files.length,
+      totalKb: files.reduce((s, f) => s + f.sizeKb, 0),
+      files,
+    };
   }
 
   async downloadAndCacheImages(html: string, referer: string): Promise<string> {
@@ -85,24 +99,32 @@ export class JobPostingImageService {
         const downloaded = await this.downloadImageFile(fetchUrl, referer);
         if (!downloaded) return;
         const filename = `${hash}${downloaded.ext}`;
-        fs.writeFileSync(path.join(IMAGE_CACHE_DIR, filename), downloaded.buffer);
+        fs.writeFileSync(
+          path.join(IMAGE_CACHE_DIR, filename),
+          downloaded.buffer,
+        );
         srcToProxy.set(src, `/api/recruit/job-postings/image/${filename}`);
       }),
     );
 
     if (srcToProxy.size === 0) return html;
     let result = html;
-    for (const [src, proxyUrl] of srcToProxy) result = result.split(src).join(proxyUrl);
+    for (const [src, proxyUrl] of srcToProxy)
+      result = result.split(src).join(proxyUrl);
     return result;
   }
 
-  private async downloadImageFile(url: string, referer: string): Promise<{ buffer: Buffer; ext: string } | null> {
+  private async downloadImageFile(
+    url: string,
+    referer: string,
+  ): Promise<{ buffer: Buffer; ext: string } | null> {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 10_000);
       const res = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
           Referer: referer,
         },
         signal: controller.signal,

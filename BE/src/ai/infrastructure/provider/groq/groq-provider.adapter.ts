@@ -65,12 +65,9 @@ export class GroqProviderAdapter extends AiModelProviderPort {
       : model;
   }
 
-  private getApiKey(mode: AiProviderCredentialMode = 'request'): string {
+  private getApiKey(_mode: AiProviderCredentialMode = 'default'): string {
     const requestKey = requestContext.getStore()?.apiKeys.groqApiKey?.trim();
-    const key =
-      mode === 'default'
-        ? DEFAULT_GROQ_API_KEY()
-        : requestKey || DEFAULT_GROQ_API_KEY();
+    const key = requestKey || DEFAULT_GROQ_API_KEY();
     if (key) return key;
     throw new UndefinedAiAPIException(
       'Groq API 키가 설정되지 않았습니다. Overview 설정에서 키를 입력해주세요.',

@@ -1,9 +1,4 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  PrimaryColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, PrimaryColumn } from 'typeorm';
 
 @Entity('resume_attachment')
 export class ResumeAttachmentEntity {
@@ -25,7 +20,12 @@ export class ResumeAttachmentEntity {
   @Column({ name: 'parsed_text', type: 'text', nullable: true, default: null })
   parsedText: string | null;
 
-  @Column({ name: 'page_count', type: 'integer', nullable: true, default: null })
+  @Column({
+    name: 'page_count',
+    type: 'integer',
+    nullable: true,
+    default: null,
+  })
   pageCount: number | null;
 
   @Column({ name: 'file_data', type: 'blob' })

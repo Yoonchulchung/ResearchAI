@@ -27,7 +27,15 @@ export class QueueDispatcher {
     readonly resume: ResumeHandler,
     readonly image: ImageHandler,
   ) {
-    for (const handler of [research, writeAssist, company, document, content, resume, image]) {
+    for (const handler of [
+      research,
+      writeAssist,
+      company,
+      document,
+      content,
+      resume,
+      image,
+    ]) {
       for (const type of handler.taskTypes) {
         this.registry.set(type, handler);
       }
@@ -38,7 +46,10 @@ export class QueueDispatcher {
     this.registry.get(taskType)?.setupChannel(channelId, taskType);
   }
 
-  getStream(channelId: string, taskType: QueueJob.TaskType): Observable<MessageEvent> | null {
+  getStream(
+    channelId: string,
+    taskType: QueueJob.TaskType,
+  ): Observable<MessageEvent> | null {
     return this.registry.get(taskType)?.getStream(channelId, taskType) ?? null;
   }
 

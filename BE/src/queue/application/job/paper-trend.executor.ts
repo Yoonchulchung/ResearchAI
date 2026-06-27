@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PapersService } from 'src/news/papers/application/papers.service';
-import type { PaperTrendSummary } from 'src/news/papers/application/papers.service';
+import { PapersService } from 'src/news/application/papers/papers.service';
+import type { PaperTrendSummary } from 'src/news/application/papers/papers.service';
 
 export interface PaperTrendRequest {
   model?: string;

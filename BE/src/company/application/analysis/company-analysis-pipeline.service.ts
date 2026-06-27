@@ -11,10 +11,10 @@ import {
   JobplanetScraperService,
   JobplanetCompanyData,
 } from 'src/company/infrastructure/jobplanet/jobplanet-scraper.service';
-import { CareerPageUrlService } from 'src/company/infrastructure/career-page-url.service';
-import { DartFinancialService } from 'src/company/infrastructure/dart/dart-financial.service';
-import { NeonetRealEstatePriceService } from 'src/company/infrastructure/neonet-real-estate-price.service';
-import { ZippoomRealEstateUrlService } from 'src/company/infrastructure/zippoom-real-estate-url.service';
+import { CareerPageUrlService } from 'src/company/application/career-page-url.service';
+import { DartFinancialService } from 'src/financial/infrastructure/dart/dart-financial.service';
+import { NeonetRealEstatePriceService } from 'src/financial/infrastructure/real-estate/neonet-real-estate-price.service';
+import { ZippoomRealEstateUrlService } from 'src/financial/infrastructure/real-estate/zippoom-real-estate-url.service';
 import { requestContext } from 'src/shared/request-context';
 
 import {
@@ -37,7 +37,7 @@ import {
   SYSTEM_PROMPT_HR,
 } from 'src/company/domain/company-analysis.prompts';
 import { CompanyService } from 'src/company/application/company.service';
-import { CompanyEnrichService } from 'src/company/application/company-enrich.service';
+import { CompanyInfoService } from 'src/company/application/company-info.service';
 import { CompanyAnalysisHrTechService } from './company-analysis-hr-tech.service';
 import {
   normalizeKey,
@@ -71,7 +71,7 @@ export class CompanyAnalysisPipelineService {
     private readonly zippoomRealEstateUrl: ZippoomRealEstateUrlService,
     private readonly careerPageUrl: CareerPageUrlService,
     private readonly companyService: CompanyService,
-    private readonly companyEnrich: CompanyEnrichService,
+    private readonly companyEnrich: CompanyInfoService,
     private readonly hrTech: CompanyAnalysisHrTechService,
   ) {}
 

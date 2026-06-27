@@ -1,6 +1,9 @@
 import { randomUUID } from 'crypto';
 import { IntelligentSearchService } from 'src/browse/infrastructure/search/intelligent-search.service';
-import { CollectQuery, JobSource } from 'src/recruit/domain/job-source.interface';
+import {
+  CollectQuery,
+  JobSource,
+} from 'src/recruit/domain/job-source.interface';
 import { JobPosting } from 'src/recruit/domain/job-posting.model';
 
 /**

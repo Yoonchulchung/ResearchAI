@@ -26,7 +26,7 @@ export class OpenAiProviderAdapter extends AiModelProviderPort {
     );
   }
 
-  isConfigured(mode: 'request' | 'default' = 'request'): boolean {
+  isConfigured(mode: 'request' | 'default' = 'default'): boolean {
     const requestKey = requestContext.getStore()?.apiKeys.openaiApiKey?.trim();
     return Boolean(
       mode === 'default'
@@ -55,7 +55,7 @@ export class OpenAiProviderAdapter extends AiModelProviderPort {
     );
   }
 
-  private getClient(mode: 'request' | 'default' = 'request'): OpenAI {
+  private getClient(mode: 'request' | 'default' = 'default'): OpenAI {
     const requestKey = requestContext.getStore()?.apiKeys.openaiApiKey?.trim();
     const key =
       mode === 'default'

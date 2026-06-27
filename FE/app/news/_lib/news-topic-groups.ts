@@ -144,6 +144,21 @@ function dateKey(value: string): string {
   }).format(date);
 }
 
+function dateTimeValue(value: string): number {
+  const time = new Date(value).getTime();
+  if (Number.isFinite(time)) return time;
+
+  const day = value.slice(0, 10);
+  const dayTime = new Date(`${day}T00:00:00+09:00`).getTime();
+  return Number.isFinite(dayTime) ? dayTime : 0;
+}
+
+function dateKeyValue(value: string): number {
+  if (value === "날짜 미상") return 0;
+  const time = new Date(`${value.slice(0, 10)}T00:00:00+09:00`).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
 function keywordDisplay(keyword: string, items: NewsItem[]): string {
   for (const item of items) {
     const rawTokens = stripHtml(item.title).split(
@@ -246,14 +261,18 @@ export function groupNewsByDailyTopic(
       .filter(Boolean),
   );
   const byDate = new Map<string, NewsItem[]>();
-  for (const item of items) {
+  const sortedItems = [...items].sort(
+    (left, right) => dateTimeValue(right.pubDate) - dateTimeValue(left.pubDate),
+  );
+
+  for (const item of sortedItems) {
     const day = dateKey(item.pubDate);
     const dayItems = byDate.get(day) ?? [];
     dayItems.push(item);
     byDate.set(day, dayItems);
   }
 
-  return [...byDate.entries()].flatMap(([day, dayItems]) =>
-    groupOneDay(day, dayItems, ignoredKeywords),
-  );
+  return [...byDate.entries()]
+    .sort(([leftDay], [rightDay]) => dateKeyValue(rightDay) - dateKeyValue(leftDay))
+    .flatMap(([day, dayItems]) => groupOneDay(day, dayItems, ignoredKeywords));
 }

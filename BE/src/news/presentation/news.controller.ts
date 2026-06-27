@@ -12,14 +12,14 @@ import {
   QueryNewsResult,
   RoadmapExpandResult,
   SearchRoadmapMonth,
-} from 'src/news/application/service/news.service';
+} from 'src/news/application/news.service';
 import { YoutubeNewsItem } from 'src/news/infrastructure/provider/youtube.api';
 import {
   MarketItem,
   ChartPoint,
   StockMarketService,
-} from 'src/stock/application/stock-market.service';
-import { NewsSummaryService } from 'src/news/application/service/news-summary.service';
+} from 'src/financial/application/stock/stock-market.service';
+import { NewsSummaryService } from 'src/news/application/news-summary.service';
 import { BrowserService } from 'src/browse/application/browser.service';
 import type { BrowserSearchResult } from 'src/browse/application/browser.types';
 import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';

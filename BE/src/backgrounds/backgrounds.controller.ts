@@ -41,8 +41,10 @@ export class BackgroundsController {
           const { existsSync, mkdirSync } = require('fs');
           // eslint-disable-next-line @typescript-eslint/no-require-imports
           const { join } = require('path');
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { BACKGROUNDS_BASE_DIR } = require('src/backgrounds/backgrounds.service');
+
+          const {
+            BACKGROUNDS_BASE_DIR,
+          } = require('src/backgrounds/backgrounds.service');
           const dir = join(BACKGROUNDS_BASE_DIR, userId);
           if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
           cb(null, dir);

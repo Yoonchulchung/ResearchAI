@@ -6,6 +6,7 @@ import type {
 } from "@/lib/api/companies";
 import {
   getCompanyStock,
+  getCompanyStockBySymbol,
   getCompanyFinancialInsights,
   getCompanyQuarterlyFinancials,
 } from "@/lib/api/companies";
@@ -145,7 +146,8 @@ export function StockChart({
   const loadQuote = useCallback(
     (nextInterval: string, before?: string) => {
       if (companyId) return getCompanyStock(companyId, nextInterval, before);
-      return getStockQuote(symbol ?? "", companyName, nextInterval, before);
+      if (symbol) return getCompanyStockBySymbol(symbol, nextInterval, before);
+      return getStockQuote("", companyName, nextInterval, before);
     },
     [companyId, companyName, symbol],
   );

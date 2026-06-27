@@ -15,7 +15,7 @@ import { ChatMessageDto } from 'src/chat/presentation/dto/request/chat-message.d
 import { ChatHistoryResponseDto } from 'src/chat/presentation/dto/response/chat-history.response.dto';
 import { ClearHistoryResponseDto } from 'src/chat/presentation/dto/response/clear-history.response.dto';
 import { AiProviderService } from 'src/ai/infrastructure/ai-provider.service';
-import { CompanyAnalysisService } from 'src/company/application/analysis/company-analysis.service';
+import { CompanyAnalysisService } from 'src/company/application/company-analysis.service';
 
 @Controller('chat')
 export class ChatController {

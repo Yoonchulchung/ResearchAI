@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { API_BASE } from "@/lib/api/base";
 
 function pdfProxyUrl(disclosureUrl: string) {
-  return `${API_BASE}/companies/disclosures/pdf?url=${encodeURIComponent(disclosureUrl)}`;
+  return `${API_BASE}/financial/disclosures/pdf?url=${encodeURIComponent(disclosureUrl)}`;
 }
 
 export function DisclosurePdfViewer() {

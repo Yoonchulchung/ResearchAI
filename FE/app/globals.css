@@ -146,6 +146,11 @@ body {
   animation: scroll-reveal 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
 @keyframes indeterminate {
   0%   { left: -40%; width: 40%; }
   60%  { left: 100%; width: 40%; }
@@ -598,4 +603,62 @@ html[data-theme="dark"] .prose blockquote {
 .job-detail-html br {
   display: block;
   margin: 2px 0;
+}
+
+/* ─── Print / PDF ────────────────────────────────────────────────────────────
+   window.print() 호출 시 company-analysis 내용만 인쇄됩니다.
+   ─────────────────────────────────────────────────────────────────────────── */
+@media print {
+  /* AppShell 사이드바 숨기기 */
+  nav, aside, header, footer { display: none !important; }
+
+  /* AppShell의 Sidebar 컴포넌트 숨기기 */
+  body > div > div > *:first-child { display: none !important; }
+
+  /* main 태그를 full-width로 */
+  main {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* 인쇄 불필요 버튼/UI 요소 숨기기 */
+  .no-print { display: none !important; }
+
+  /* 스크롤 컨테이너 해제 */
+  body, html {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* 인쇄 대상 컨테이너 — 전체 폭 사용 */
+  .print-content {
+    max-width: none !important;
+    padding: 10mm 15mm !important;
+    color: #0f172a !important;
+    font-size: 9pt !important;
+    line-height: 1.5 !important;
+  }
+
+  /* 다크 모드 색상을 인쇄용으로 변환 */
+  .print-content * {
+    color: inherit !important;
+    background: transparent !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  /* 차트 페이지 분할 방지 */
+  .recharts-wrapper,
+  .recharts-surface {
+    page-break-inside: avoid;
+  }
+
+  /* 섹션 카드 분할 방지 */
+  section { page-break-inside: avoid; }
+
+  /* 페이지 설정 */
+  @page {
+    size: A4;
+    margin: 12mm 15mm;
+  }
 }

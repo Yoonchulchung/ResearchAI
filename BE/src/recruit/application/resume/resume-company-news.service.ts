@@ -35,7 +35,11 @@ export class ResumeCompanyNewsService {
       where: { resumeId, companyName, itemId },
     });
     if (existing) {
-      await this.companyNewsRepo.update(existing.id, { title, searchQuery, searchId });
+      await this.companyNewsRepo.update(existing.id, {
+        title,
+        searchQuery,
+        searchId,
+      });
       return { ...existing, title, searchQuery, searchId };
     }
     const entity = this.companyNewsRepo.create({
@@ -59,7 +63,10 @@ export class ResumeCompanyNewsService {
     await this.companyNewsRepo.delete(id);
   }
 
-  async deleteCompanyNewsByResume(resumeId: string, companyName?: string): Promise<void> {
+  async deleteCompanyNewsByResume(
+    resumeId: string,
+    companyName?: string,
+  ): Promise<void> {
     const where: Record<string, unknown> = { resumeId };
     if (companyName) where.companyName = companyName;
     await this.companyNewsRepo.delete(where as any);

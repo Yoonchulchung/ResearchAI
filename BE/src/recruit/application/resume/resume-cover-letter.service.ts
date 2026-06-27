@@ -27,13 +27,19 @@ export class ResumeCoverLetterService {
       .addOrderBy('coverLetter.orderIndex', 'ASC');
 
     if (request.resumeIds?.length) {
-      qb.andWhere('coverLetter.resumeId IN (:...resumeIds)', { resumeIds: request.resumeIds });
+      qb.andWhere('coverLetter.resumeId IN (:...resumeIds)', {
+        resumeIds: request.resumeIds,
+      });
     }
     if (request.coverLetterIds?.length) {
-      qb.andWhere('coverLetter.id IN (:...coverLetterIds)', { coverLetterIds: request.coverLetterIds });
+      qb.andWhere('coverLetter.id IN (:...coverLetterIds)', {
+        coverLetterIds: request.coverLetterIds,
+      });
     }
     if (request.onlyEmpty !== false) {
-      qb.andWhere("(coverLetter.category IS NULL OR coverLetter.category = '' OR coverLetter.category = '[]')");
+      qb.andWhere(
+        "(coverLetter.category IS NULL OR coverLetter.category = '' OR coverLetter.category = '[]')",
+      );
     }
     if (request.limit && request.limit > 0) {
       qb.take(Math.min(request.limit, 100));
@@ -50,7 +56,9 @@ export class ResumeCoverLetterService {
   }
 
   async updateCategory(id: string, category: string[]): Promise<void> {
-    await this.coverLetterRepo.update(id, { category: stringifyCategory(category) });
+    await this.coverLetterRepo.update(id, {
+      category: stringifyCategory(category),
+    });
   }
 
   async findForRefinedTitle(request: {
@@ -77,10 +85,14 @@ export class ResumeCoverLetterService {
       .addOrderBy('cl.orderIndex', 'ASC');
 
     if (request.resumeIds?.length) {
-      qb.andWhere('cl.resumeId IN (:...resumeIds)', { resumeIds: request.resumeIds });
+      qb.andWhere('cl.resumeId IN (:...resumeIds)', {
+        resumeIds: request.resumeIds,
+      });
     }
     if (request.coverLetterIds?.length) {
-      qb.andWhere('cl.id IN (:...coverLetterIds)', { coverLetterIds: request.coverLetterIds });
+      qb.andWhere('cl.id IN (:...coverLetterIds)', {
+        coverLetterIds: request.coverLetterIds,
+      });
     }
     if (request.onlyEmpty !== false) {
       qb.andWhere("(cl.refinedTitle IS NULL OR cl.refinedTitle = '')");

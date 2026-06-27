@@ -68,13 +68,17 @@ export class CoverLetterQueryService {
     }
     if (jobCategory && jobCategory !== 'all' && jobCategory !== '전체') {
       if (jobCategory === 'IT+전자') {
-        qb.andWhere('coverLetter.jobCategory IN (:...cats)', { cats: ['IT', '전자'] });
+        qb.andWhere('coverLetter.jobCategory IN (:...cats)', {
+          cats: ['IT', '전자'],
+        });
       } else {
         qb.andWhere('coverLetter.jobCategory = :jobCategory', { jobCategory });
       }
     }
     if (search) {
-      qb.andWhere('coverLetter.searchText LIKE :search', { search: `%${search}%` });
+      qb.andWhere('coverLetter.searchText LIKE :search', {
+        search: `%${search}%`,
+      });
     }
 
     qb.orderBy('coverLetter.collectedAt', 'DESC')
@@ -83,9 +87,20 @@ export class CoverLetterQueryService {
       .take(safeLimit);
 
     const [entities, total] = await qb.getManyAndCount();
-    const industryMap = await this.lookupIndustries(entities.map((e) => e.company));
-    const items = entities.map((entity) => toCoverLetter(entity, industryMap.get(entity.company)));
-    return { items, total, page: safePage, limit: safeLimit, offset: safeOffset, hasNext: safeOffset + items.length < total };
+    const industryMap = await this.lookupIndustries(
+      entities.map((e) => e.company),
+    );
+    const items = entities.map((entity) =>
+      toCoverLetter(entity, industryMap.get(entity.company)),
+    );
+    return {
+      items,
+      total,
+      page: safePage,
+      limit: safeLimit,
+      offset: safeOffset,
+      hasNext: safeOffset + items.length < total,
+    };
   }
 
   async getById(id: string): Promise<CoverLetter | null> {
@@ -111,7 +126,11 @@ export class CoverLetterQueryService {
     limit = 20,
     offset = 0,
     sortDir: 'asc' | 'desc' = 'desc',
-  ): Promise<{ items: CoverLetterQuestionSearchItem[]; total: number; hasMore: boolean }> {
+  ): Promise<{
+    items: CoverLetterQuestionSearchItem[];
+    total: number;
+    hasMore: boolean;
+  }> {
     const search = normalizeSearchText(query);
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
     const safeOffset = Math.max(Number(offset) || 0, 0);
@@ -135,7 +154,9 @@ export class CoverLetterQueryService {
     );
     qb.andWhere("coverLetter.season GLOB '[0-9][0-9][0-9][0-9]*'");
     if (search) {
-      qb.andWhere('question.searchText LIKE :search', { search: `%${search}%` });
+      qb.andWhere('question.searchText LIKE :search', {
+        search: `%${search}%`,
+      });
     }
 
     const [rows, total] = await qb.getManyAndCount();
@@ -146,7 +167,10 @@ export class CoverLetterQueryService {
     const items = rows
       .filter((row) => row.coverLetter)
       .map((row) => {
-        const coverLetter = toCoverLetter(row.coverLetter, industryMap.get(row.coverLetter.company));
+        const coverLetter = toCoverLetter(
+          row.coverLetter,
+          industryMap.get(row.coverLetter.company),
+        );
         return {
           id: row.id,
           coverLetterId: row.coverLetterId,
@@ -174,18 +198,21 @@ export class CoverLetterQueryService {
     return { items, total, hasMore: safeOffset + items.length < total };
   }
 
-  async lookupIndustries(companyNames: string[]): Promise<Map<string, string | null>> {
+  async lookupIndustries(
+    companyNames: string[],
+  ): Promise<Map<string, string | null>> {
     const map = new Map<string, string | null>();
     if (companyNames.length === 0) return map;
     const normalizedNames = companyNames.map((n) => normalizeCompanyName(n));
     const companies = await this.companyRepo.find({
       where: normalizedNames.map((n) => ({ normalizedName: n })),
     });
-    const byNormalized = new Map(companies.map((c) => [c.normalizedName, c.industry ?? null]));
+    const byNormalized = new Map(
+      companies.map((c) => [c.normalizedName, c.industry ?? null]),
+    );
     for (const name of companyNames) {
       map.set(name, byNormalized.get(normalizeCompanyName(name)) ?? null);
     }
     return map;
   }
 }
-

@@ -143,6 +143,7 @@ function TopicGroupCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const visibleItems = expanded ? group.items : group.items.slice(0, 3);
+  const groupDate = formatDate(group.dateKey) || group.dateKey;
 
   return (
     <section
@@ -165,7 +166,7 @@ function TopicGroupCard({
           {group.keyword}
         </span>
         <span className={`text-xs font-semibold ${isDark ? "text-white/45" : "text-slate-500"}`}>
-          같은 날 관련 기사 {group.items.length}건
+          {groupDate} · 관련 기사 {group.items.length}건
         </span>
         <span
           className={`ml-auto text-xs transition-transform ${

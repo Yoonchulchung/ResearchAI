@@ -10,7 +10,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { CompanyAnalysisService } from 'src/company/application/analysis/company-analysis.service';
+import { CompanyAnalysisService } from 'src/company/application/company-analysis.service';
 
 @Controller('company-analysis')
 export class CompanyAnalysisController {

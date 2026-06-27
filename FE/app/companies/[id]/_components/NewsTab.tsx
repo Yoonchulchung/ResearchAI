@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CompanyListItem, CompanyNewsItem } from "@/lib/api/companies";
 import {
   detectCompanyNewsKeywords,
@@ -137,6 +137,7 @@ function CompanyTopicGroupCard({
     .map((item) => newsByUrl.get(item.link))
     .filter((item): item is CompanyNewsItem => Boolean(item));
   const visibleItems = expanded ? groupItems : groupItems.slice(0, 3);
+  const groupDate = formatNewsDate(group.dateKey) || group.dateKey;
 
   return (
     <section
@@ -163,7 +164,7 @@ function CompanyTopicGroupCard({
           {group.keyword}
         </span>
         <span className={`text-xs font-semibold ${subtleText}`}>
-          같은 날 {groupItems.length}건
+          {groupDate} · {groupItems.length}건
         </span>
         <span
           className={`ml-auto text-2xs transition-transform ${
@@ -282,9 +283,19 @@ interface NewsTabProps {
   newsHasMore: boolean;
   savedNews: CompanyNewsItem[];
   savedNewsLoaded: boolean;
-  handleFetchNews: () => void;
+  savedNewsHasMore: boolean;
+  savedNewsLoadingMore: boolean;
+  newsResetting: boolean;
+  olderNewsLoading: boolean;
+  olderNewsStopping: boolean;
+  olderNewsMessage: string;
+  handleFetchNews: (stopDate?: string) => void;
   handleFetchMoreNews: () => void;
+  handleFindOlderNews: (stopDate?: string) => void;
+  handleStopOlderNews: () => void;
+  handleResetNews: () => void | Promise<void>;
   loadSavedNews: (id: string) => void;
+  loadMoreSavedNews: (id: string) => void;
   companyId: string;
   isDark: boolean;
   panelClass: string;
@@ -299,9 +310,19 @@ export function NewsTab({
   newsHasMore,
   savedNews,
   savedNewsLoaded,
+  savedNewsHasMore,
+  savedNewsLoadingMore,
+  newsResetting,
+  olderNewsLoading,
+  olderNewsStopping,
+  olderNewsMessage,
   handleFetchNews,
   handleFetchMoreNews,
+  handleFindOlderNews,
+  handleStopOlderNews,
+  handleResetNews,
   loadSavedNews,
+  loadMoreSavedNews,
   companyId,
   isDark,
   panelClass,
@@ -313,12 +334,20 @@ export function NewsTab({
   const [keywordLoading, setKeywordLoading] = useState(false);
   const [keywordError, setKeywordError] = useState("");
   const [groupTopics, setGroupTopics] = useState(true);
+  const [showHiddenNews, setShowHiddenNews] = useState(false);
+  const [newsStopDate, setNewsStopDate] = useState("");
+  const scrollSentinelRef = useRef<HTMLDivElement>(null);
+  const allNews = useMemo(() => mergeNewsItems(savedNews, news), [news, savedNews]);
+  const hiddenNewsCount = useMemo(
+    () => allNews.filter((item) => shouldHideNewsItem(item)).length,
+    [allNews],
+  );
   const visibleNews = useMemo(
     () =>
-      mergeNewsItems(savedNews, news).filter(
-        (item) => !shouldHideNewsItem(item),
-      ),
-    [news, savedNews],
+      showHiddenNews
+        ? allNews
+        : allNews.filter((item) => !shouldHideNewsItem(item)),
+    [allNews, showHiddenNews],
   );
   const newsTitles = useMemo(
     () => visibleNews.map((item) => item.title).filter(Boolean),
@@ -344,6 +373,22 @@ export function NewsTab({
   const groupedTopicCount = topicGroups.filter(
     (group) => group.keyword !== null,
   ).length;
+
+  // 무한 스크롤 — 목록 하단 sentinel이 보이면 다음 페이지 로드
+  useEffect(() => {
+    const el = scrollSentinelRef.current;
+    if (!el || !savedNewsHasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMoreSavedNews(companyId);
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [savedNewsHasMore, loadMoreSavedNews, companyId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -406,6 +451,16 @@ export function NewsTab({
     }
   };
 
+  const handleResetClick = async () => {
+    if (newsResetting || newsLoading || olderNewsLoading) return;
+    if (!window.confirm("저장된 뉴스, 키워드, 뉴스 타임라인을 초기화할까요?")) {
+      return;
+    }
+    setKeywords([]);
+    setKeywordError("");
+    await handleResetNews();
+  };
+
   return (
     <section className="flex flex-col gap-4 xl:flex-row xl:items-stretch xl:h-full">
       {/* 왼쪽: 사업 로드맵 타임라인 — NewsTimelineChart가 내부 스크롤 처리 */}
@@ -433,10 +488,10 @@ export function NewsTab({
                     : "저장된 뉴스를 불러오는 중..."}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <button
                   onClick={() => loadSavedNews(companyId)}
-                  disabled={newsLoading}
+                  disabled={newsLoading || olderNewsLoading || newsResetting}
                   className={`rounded px-2.5 py-1 text-xs font-bold transition-colors disabled:opacity-40 ${
                     isDark
                       ? "text-white/50 hover:text-white/80"
@@ -446,15 +501,49 @@ export function NewsTab({
                   새로고침
                 </button>
                 <button
-                  onClick={hasAnyNews ? handleFetchMoreNews : handleFetchNews}
-                  disabled={newsLoading}
+                  onClick={handleResetClick}
+                  disabled={newsLoading || olderNewsLoading || newsResetting}
+                  className={`rounded px-2.5 py-1 text-xs font-bold transition-colors disabled:cursor-wait disabled:opacity-40 ${
+                    isDark
+                      ? "text-rose-300/70 hover:text-rose-200"
+                      : "text-rose-500 hover:text-rose-700"
+                  }`}
+                >
+                  {newsResetting ? "초기화 중..." : "초기화"}
+                </button>
+                {olderNewsLoading && (
+                  <button
+                    onClick={handleStopOlderNews}
+                    disabled={olderNewsStopping}
+                    className={`rounded px-2.5 py-1 text-xs font-bold transition-colors disabled:cursor-wait disabled:opacity-40 ${
+                      isDark
+                        ? "text-amber-300/80 hover:text-amber-200"
+                        : "text-amber-600 hover:text-amber-700"
+                    }`}
+                  >
+                    {olderNewsStopping ? "중지 중..." : "중지"}
+                  </button>
+                )}
+                <button
+                  onClick={() =>
+                    hasAnyNews
+                      ? handleFetchMoreNews()
+                      : handleFetchNews(newsStopDate || undefined)
+                  }
+                  disabled={newsLoading || olderNewsLoading || newsResetting}
                   className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-wait ${
                     isDark
                       ? "bg-white text-slate-950 hover:bg-white/90"
                       : "bg-slate-950 text-white hover:bg-slate-800"
                   }`}
                 >
-                  {hasAnyNews ? "더 수집" : newsFetched ? "다시 수집" : "뉴스 수집"}
+                  {newsLoading || (olderNewsLoading && !hasAnyNews)
+                    ? "수집 중..."
+                    : hasAnyNews
+                      ? "더 수집"
+                      : newsFetched
+                        ? "다시 수집"
+                        : "뉴스 수집"}
                 </button>
               </div>
             </div>
@@ -462,6 +551,18 @@ export function NewsTab({
               <ScrapeGaugeBar
                 running
                 label="뉴스 수집 중..."
+              />
+            )}
+            {newsResetting && (
+              <ScrapeGaugeBar
+                running
+                label="뉴스 초기화 중..."
+              />
+            )}
+            {olderNewsLoading && (
+              <ScrapeGaugeBar
+                running
+                label={olderNewsMessage || "뉴스 찾는 중..."}
               />
             )}
           </div>
@@ -539,23 +640,38 @@ export function NewsTab({
           ) : null}
 
           {hasAnyNews ? (
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <span className={`text-xs ${subtleText}`}>
                 {groupTopics && groupedTopicCount > 0
                   ? `${groupedTopicCount}개 주제로 묶음`
                   : "기사별 표시"}
               </span>
-              <label
-                className={`flex cursor-pointer items-center gap-2 text-xs font-bold ${subtleText}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={groupTopics}
-                  onChange={(event) => setGroupTopics(event.target.checked)}
-                  className="h-4 w-4 accent-emerald-500"
-                />
-                동일 주제 묶기
-              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                {hiddenNewsCount > 0 && (
+                  <label
+                    className={`flex cursor-pointer items-center gap-2 text-xs font-bold ${subtleText}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showHiddenNews}
+                      onChange={(event) => setShowHiddenNews(event.target.checked)}
+                      className="h-4 w-4 accent-emerald-500"
+                    />
+                    제외 기사 {hiddenNewsCount}건 보기
+                  </label>
+                )}
+                <label
+                  className={`flex cursor-pointer items-center gap-2 text-xs font-bold ${subtleText}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={groupTopics}
+                    onChange={(event) => setGroupTopics(event.target.checked)}
+                    className="h-4 w-4 accent-emerald-500"
+                  />
+                  동일 주제 묶기
+                </label>
+              </div>
             </div>
           ) : null}
 
@@ -637,6 +753,61 @@ export function NewsTab({
               {newsHasMore
                 ? "더 수집은 저장된 최신 기사 이후부터 현재까지의 새 뉴스를 수집합니다."
                 : "새로 추가할 뉴스가 없습니다."}
+            </p>
+          )}
+          {/* 무한 스크롤 sentinel */}
+          <div ref={scrollSentinelRef} className="h-px" />
+          {savedNewsLoadingMore && (
+            <p className={`py-2 text-center text-xs ${subtleText}`}>
+              이전 뉴스 불러오는 중...
+            </p>
+          )}
+          {!savedNewsHasMore && savedNews.length > 0 && (
+            <div className="flex flex-col items-center gap-2 py-2">
+              <p className={`text-center text-xs ${subtleText}`}>
+                저장된 뉴스를 모두 불러왔습니다.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <label
+                  className={`flex items-center gap-1.5 text-xs font-bold ${subtleText}`}
+                >
+                  <span>마지막</span>
+                  <input
+                    type="date"
+                    value={newsStopDate}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(event) => setNewsStopDate(event.target.value)}
+                    disabled={newsLoading || olderNewsLoading || newsResetting}
+                    className={`h-8 w-32 rounded border px-2 text-xs font-semibold outline-none disabled:opacity-50 ${
+                      isDark
+                        ? "border-white/10 bg-slate-950 text-white"
+                        : "border-slate-200 bg-white text-slate-700"
+                    }`}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => handleFindOlderNews(newsStopDate || undefined)}
+                  disabled={
+                    olderNewsLoading ||
+                    olderNewsStopping ||
+                    newsLoading ||
+                    newsResetting
+                  }
+                  className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors disabled:cursor-wait disabled:opacity-50 ${
+                    isDark
+                      ? "border border-white/20 text-white/70 hover:bg-white/10"
+                      : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {olderNewsLoading ? "찾는 중..." : "이전 뉴스 더 찾기"}
+                </button>
+              </div>
+            </div>
+          )}
+          {!olderNewsLoading && olderNewsMessage && (
+            <p className={`py-1 text-center text-xs ${subtleText}`}>
+              {olderNewsMessage}
             </p>
           )}
         </div>

@@ -1,7 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { SessionGateway } from 'src/sessions/presentation/session.gateway';
 import { CompanyService } from 'src/company/application/company.service';
-import { CompanyEnrichService } from 'src/company/application/company-enrich.service';
+import { CompanyInfoService } from 'src/company/application/company-info.service';
 
 export type CompanyMissingRefreshPhase =
   | 'idle'
@@ -27,7 +27,7 @@ export class CompanyMissingRefreshService {
 
   constructor(
     private readonly companyService: CompanyService,
-    private readonly companyEnrich: CompanyEnrichService,
+    private readonly companyEnrich: CompanyInfoService,
     @Optional() private readonly gateway?: SessionGateway,
   ) {}
 
@@ -84,7 +84,9 @@ export class CompanyMissingRefreshService {
     companies: { id: string; name: string }[],
     signal: AbortSignal,
   ): Promise<void> {
-    this.logger.log(`[CompanyMissingRefresh] 시작 — ${companies.length}개 기업`);
+    this.logger.log(
+      `[CompanyMissingRefresh] 시작 — ${companies.length}개 기업`,
+    );
     try {
       for (const { id, name } of companies) {
         if (signal.aborted) break;
@@ -92,7 +94,10 @@ export class CompanyMissingRefreshService {
         this.emitStatus();
         try {
           await this.companyEnrich.refreshMissing(id, { force: true });
-          this.recentCompanies.unshift({ name, doneAt: new Date().toISOString() });
+          this.recentCompanies.unshift({
+            name,
+            doneAt: new Date().toISOString(),
+          });
           if (this.recentCompanies.length > 20) this.recentCompanies.pop();
         } catch (e) {
           this.logger.warn(`[CompanyMissingRefresh] 실패 — id=${id}: ${e}`);

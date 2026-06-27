@@ -40,7 +40,7 @@ export class AnthropicProviderAdapter extends AiModelProviderPort {
 
   call(request: AiProviderCallRequest): Promise<AiCallResult> {
     return callAnthropic(
-      this.getClient(request.credentialMode),
+      this.getClient(request.credentialMode ?? 'default'),
       request.model,
       request.system,
       request.messages as Anthropic.MessageParam[],
@@ -52,14 +52,14 @@ export class AnthropicProviderAdapter extends AiModelProviderPort {
 
   stream(request: AiProviderStreamRequest): AsyncGenerator<string> {
     return streamAnthropic(
-      this.getClient(request.credentialMode),
+      this.getClient(request.credentialMode ?? 'default'),
       request.model,
       request.system,
       request.messages,
     );
   }
 
-  private getClient(mode: AiProviderCredentialMode = 'request'): Anthropic {
+  private getClient(mode: AiProviderCredentialMode = 'default'): Anthropic {
     const requestKey = requestContext
       .getStore()
       ?.apiKeys.anthropicApiKey?.trim();

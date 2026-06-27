@@ -1,7 +1,10 @@
 import puppeteer from 'puppeteer';
 import { randomUUID } from 'crypto';
 import { JobPosting } from 'src/recruit/domain/job-posting.model';
-import { CollectQuery, JobSource } from 'src/recruit/domain/job-source.interface';
+import {
+  CollectQuery,
+  JobSource,
+} from 'src/recruit/domain/job-source.interface';
 
 const BASE_URL = 'https://linkareer.com';
 const BROWSER_ARGS = [

@@ -24,10 +24,7 @@ export const QUESTION_CATEGORIES = [
       /관심을?\s*갖게\s*된/,
       /(?:회사|기업)에?\s*지원한\s*이유/,
     ],
-    answerPatterns: [
-      /지원\s*동기/,
-      /지원하게\s*된\s*이유/,
-    ],
+    answerPatterns: [/지원\s*동기/, /지원하게\s*된\s*이유/],
   },
 
   /**
@@ -48,10 +45,7 @@ export const QUESTION_CATEGORIES = [
       /지원\s*분야\s*이해/,
       /직무에?\s*적합(?:성)?/,
     ],
-    answerPatterns: [
-      /직무\s*(?:이해|적합)/,
-      /적합한\s*(?:이유|근거)/,
-    ],
+    answerPatterns: [/직무\s*(?:이해|적합)/, /적합한\s*(?:이유|근거)/],
   },
 
   /**
@@ -67,10 +61,7 @@ export const QUESTION_CATEGORIES = [
       /(?:회사|조직)에?\s*어떻게\s*기여/,
       /입사\s*(?:시|하면)\s*(?:어떤|무엇을|목표)/,
     ],
-    answerPatterns: [
-      /입사\s*후/,
-      /향후\s*(?:계획|목표)/,
-    ],
+    answerPatterns: [/입사\s*후/, /향후\s*(?:계획|목표)/],
   },
 
   /**
@@ -86,10 +77,7 @@ export const QUESTION_CATEGORIES = [
       /(?:살아오면서|살면서)\s*중요한/,
       /본인을\s*만든\s*(?:경험|사건)/,
     ],
-    answerPatterns: [
-      /성장\s*과정/,
-      /가치관/,
-    ],
+    answerPatterns: [/성장\s*과정/, /가치관/],
   },
 
   /**
@@ -112,12 +100,7 @@ export const QUESTION_CATEGORIES = [
       /갈등\s*(?:해결|극복|조율)/,
       /협력하여\s*(?:달성|이룬|수행)/,
     ],
-    answerPatterns: [
-      /협업/,
-      /팀워크/,
-      /공동의?\s*목표/,
-      /함께\s*노력/,
-    ],
+    answerPatterns: [/협업/, /팀워크/, /공동의?\s*목표/, /함께\s*노력/],
   },
 
   /**
@@ -134,11 +117,7 @@ export const QUESTION_CATEGORIES = [
       /팀장\s*(?:역할|경험|으로서)/,
       /리더\s*(?:역할|경험|로서)/,
     ],
-    answerPatterns: [
-      /리더십/,
-      /주도적/,
-      /이끌/,
-    ],
+    answerPatterns: [/리더십/, /주도적/, /이끌/],
   },
 
   /**
@@ -158,12 +137,7 @@ export const QUESTION_CATEGORIES = [
       /실패에서\s*배운/,
       /가장\s*힘들었던/,
     ],
-    answerPatterns: [
-      /도전/,
-      /실패/,
-      /극복/,
-      /어려움/,
-    ],
+    answerPatterns: [/도전/, /실패/, /극복/, /어려움/],
   },
 
   /**
@@ -181,11 +155,7 @@ export const QUESTION_CATEGORIES = [
       /경쟁\s*(?:력|우위)/,
       /skill/i,
     ],
-    answerPatterns: [
-      /전문성/,
-      /직무\s*역량/,
-      /보유\s*(?:기술|역량)/,
-    ],
+    answerPatterns: [/전문성/, /직무\s*역량/, /보유\s*(?:기술|역량)/],
   },
 
   /**
@@ -202,12 +172,7 @@ export const QUESTION_CATEGORIES = [
       /새로운\s*(?:방법|아이디어|시도)/,
       /제안(?:하여|을\s*통해)/,
     ],
-    answerPatterns: [
-      /창의/,
-      /개선/,
-      /혁신/,
-      /아이디어/,
-    ],
+    answerPatterns: [/창의/, /개선/, /혁신/, /아이디어/],
   },
 
   /**
@@ -224,12 +189,7 @@ export const QUESTION_CATEGORIES = [
       /생활\s*신조/,
       /자신의?\s*(?:특기|특성|특징)/,
     ],
-    answerPatterns: [
-      /성격/,
-      /장점/,
-      /단점/,
-      /강점/,
-    ],
+    answerPatterns: [/성격/, /장점/, /단점/, /강점/],
   },
 
   /**
@@ -243,11 +203,7 @@ export const QUESTION_CATEGORIES = [
       /프로젝트\s*(?:경험|사례)/,
       /(?:인턴|실습|대외활동|공모전|수상)\s*경험/,
     ],
-    answerPatterns: [
-      /성과/,
-      /경험/,
-      /프로젝트/,
-    ],
+    answerPatterns: [/성과/, /경험/, /프로젝트/],
   },
 ] as const;
 
@@ -283,9 +239,10 @@ export function classifyQuestionTitle(
   // 2단계: 제목 + 답변 함께 분류 (fallback) — 관대한 매칭
   if (answer) {
     const fullText = `${title}\n${answer}`;
-    return QUESTION_CATEGORIES.filter((rule) =>
-      rule.titlePatterns.some((p) => p.test(fullText)) ||
-      rule.answerPatterns.some((p) => p.test(fullText)),
+    return QUESTION_CATEGORIES.filter(
+      (rule) =>
+        rule.titlePatterns.some((p) => p.test(fullText)) ||
+        rule.answerPatterns.some((p) => p.test(fullText)),
     ).map((rule) => rule.tag);
   }
 
@@ -303,11 +260,42 @@ export function extractQuestionKeywords(
 ): string[] {
   const text = answer ? `${title}\n${answer}` : title;
   const stopwords = new Set([
-    '그리고', '하지만', '입니다', '합니다', '있는', '없는', '제가', '저는',
-    '이를', '통해', '대한', '위해', '에서', '으로', '하게', '되어', '하며',
-    '또한', '그래서', '따라서', '때문에', '이후', '이전', '이때', '이런',
-    '이런', '저런', '있어', '없어', '하여', '기술해', '기재해', '작성해',
-    '입력가능', '최소', '최대',
+    '그리고',
+    '하지만',
+    '입니다',
+    '합니다',
+    '있는',
+    '없는',
+    '제가',
+    '저는',
+    '이를',
+    '통해',
+    '대한',
+    '위해',
+    '에서',
+    '으로',
+    '하게',
+    '되어',
+    '하며',
+    '또한',
+    '그래서',
+    '따라서',
+    '때문에',
+    '이후',
+    '이전',
+    '이때',
+    '이런',
+    '이런',
+    '저런',
+    '있어',
+    '없어',
+    '하여',
+    '기술해',
+    '기재해',
+    '작성해',
+    '입력가능',
+    '최소',
+    '최대',
   ]);
   const words = (text.match(/[가-힣A-Za-z0-9+#.]{2,}/g) ?? [])
     .map((w) => w.toLowerCase())

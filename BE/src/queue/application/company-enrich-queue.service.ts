@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SessionGateway } from 'src/sessions/presentation/session.gateway';
 import { CompanyEnrichQueueEntity } from 'src/company/domain/entity/company-enrich-queue.entity';
-import { CompanyEnrichService } from 'src/company/application/company-enrich.service';
+import { CompanyInfoService } from 'src/company/application/company-info.service';
 import { SystemSettingsService } from 'src/shared/application/system-settings.service';
 
 const MAX_ATTEMPTS = 3;
@@ -28,7 +28,7 @@ export class CompanyEnrichQueueService implements OnApplicationBootstrap {
   constructor(
     @InjectRepository(CompanyEnrichQueueEntity)
     private readonly repo: Repository<CompanyEnrichQueueEntity>,
-    private readonly companyService: CompanyEnrichService,
+    private readonly companyService: CompanyInfoService,
     private readonly systemSettings: SystemSettingsService,
     @Optional() private readonly gateway?: SessionGateway,
   ) {}

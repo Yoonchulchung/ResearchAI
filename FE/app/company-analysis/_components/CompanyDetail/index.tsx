@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ResponsiveContainer, Tooltip, Legend,
@@ -80,6 +80,15 @@ export function CompanyDetail({
   reliabilityOpen, setReliabilityOpen, onBack, onReanalyze, onScroll,
 }: Props) {
   const card = `border rounded-sm p-5 ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-300 shadow-sm"}`;
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const handlePrint = () => {
+    const el = printRef.current;
+    if (!el) return;
+    el.classList.add("print-root");
+    window.print();
+    el.classList.remove("print-root");
+  };
 
   const radarData = useMemo(() => COMPETENCY_LABELS.map(({ key, label }) => {
     const avg = companies.length > 0 ? Math.round(companies.reduce((s, c) => s + (c.scores[key] ?? 0), 0) / companies.length) : 0;
@@ -92,8 +101,8 @@ export function CompanyDetail({
   [selected.recentNews]);
 
   return (
-    <div onScroll={onScroll} className={`flex-1 overflow-y-auto px-2 py-3 md:px-10 md:py-8 ${isGlass ? "" : isDark ? "bg-slate-900" : "bg-[#f4f5f7]"}`}>
-      <div className="md:max-w-5xl md:mx-auto space-y-6">
+    <div ref={printRef} onScroll={onScroll} className={`flex-1 overflow-y-auto px-2 py-3 md:px-10 md:py-8 ${isGlass ? "" : isDark ? "bg-slate-900" : "bg-[#f4f5f7]"}`}>
+      <div className="md:max-w-5xl md:mx-auto space-y-6 print-content">
 
         {/* 헤더 */}
         <div className={`border-b pb-4 ${isDark ? "border-slate-700" : "border-slate-300"}`}>
@@ -148,10 +157,22 @@ export function CompanyDetail({
                 })()}
               </p>
             </div>
-            <button onClick={() => onReanalyze(selected.companyName)} disabled={selectedCompanyIsAnalyzing}
-              className={`shrink-0 whitespace-nowrap px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold border rounded-sm transition-colors ${isDark ? "border-slate-600 text-slate-300 hover:bg-slate-800 disabled:opacity-50" : "border-slate-400 text-slate-700 hover:bg-slate-100 disabled:opacity-50"}`}>
-              {selectedCompanyIsAnalyzing ? "분석 중" : "재분석"}
-            </button>
+            <div className="flex shrink-0 items-center gap-2 no-print">
+              <button
+                onClick={handlePrint}
+                title="PDF로 저장"
+                className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold border rounded-sm transition-colors ${isDark ? "border-slate-600 text-slate-300 hover:bg-slate-800" : "border-slate-400 text-slate-700 hover:bg-slate-100"}`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                PDF
+              </button>
+              <button onClick={() => onReanalyze(selected.companyName)} disabled={selectedCompanyIsAnalyzing}
+                className={`whitespace-nowrap px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold border rounded-sm transition-colors ${isDark ? "border-slate-600 text-slate-300 hover:bg-slate-800 disabled:opacity-50" : "border-slate-400 text-slate-700 hover:bg-slate-100 disabled:opacity-50"}`}>
+                {selectedCompanyIsAnalyzing ? "분석 중" : "재분석"}
+              </button>
+            </div>
           </div>
         </div>
 

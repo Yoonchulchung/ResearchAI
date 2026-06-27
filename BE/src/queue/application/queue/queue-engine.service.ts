@@ -10,7 +10,10 @@ import { SessionItemService } from 'src/sessions/application/session-item.servic
 import { SessionCommandService } from 'src/sessions/application/command/session-command.service';
 import { SessionItemQueryService } from 'src/sessions/application/query/session-item-query.service';
 import { SessionQueryService } from 'src/sessions/application/query/session-query.service';
-import { ResearchState, SummaryState } from 'src/sessions/domain/entity/session.entity';
+import {
+  ResearchState,
+  SummaryState,
+} from 'src/sessions/domain/entity/session.entity';
 import { SearchEngine } from 'src/research/domain/model/search-planner.model';
 import { AttachedFilePayload } from 'src/queue/presentation/dto/request/enqueue-light-research.dto';
 
@@ -18,7 +21,9 @@ import { AttachedFilePayload } from 'src/queue/presentation/dto/request/enqueue-
  *  구체 서브클래스는 executeJob + cleanupSubjects + handleJobError 를 구현한다.
  */
 @Injectable()
-export abstract class QueueEngineService implements OnModuleInit, OnModuleDestroy {
+export abstract class QueueEngineService
+  implements OnModuleInit, OnModuleDestroy
+{
   protected jobs: QueueJob[] = [];
   protected abortControllers = new Map<string, AbortController>();
   protected cleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -58,7 +63,10 @@ export abstract class QueueEngineService implements OnModuleInit, OnModuleDestro
         QueueEngineService.STALE_JOB_THRESHOLD_MS;
 
       if (isStale) {
-        await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.STOPPED);
+        await this.queueJobRepository.updateStatus(
+          entity.jobId,
+          QueueJobDbStatus.STOPPED,
+        );
         if (entity.itemId) {
           await this.sessionItemCommandService
             .updateStatus(entity.itemId, ResearchState.STOPPED)
@@ -68,9 +76,15 @@ export abstract class QueueEngineService implements OnModuleInit, OnModuleDestro
       }
 
       if (entity.taskType === QueueJob.TaskType.DEEPRESEARCH) {
-        await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.INIT);
+        await this.queueJobRepository.updateStatus(
+          entity.jobId,
+          QueueJobDbStatus.INIT,
+        );
         if (entity.itemId) {
-          await this.sessionItemCommandService.updateStatus(entity.itemId, ResearchState.PENDING);
+          await this.sessionItemCommandService.updateStatus(
+            entity.itemId,
+            ResearchState.PENDING,
+          );
         }
         this.jobs.push({
           jobId: entity.jobId,
@@ -84,21 +98,33 @@ export abstract class QueueEngineService implements OnModuleInit, OnModuleDestro
           status: QueueJobStatus.PENDING,
         });
       } else if (entity.taskType === QueueJob.TaskType.SUMMARY) {
-        await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.ERROR);
+        await this.queueJobRepository.updateStatus(
+          entity.jobId,
+          QueueJobDbStatus.ERROR,
+        );
         await this.sessionCommandService
           .updateSummaryState(entity.sessionId, SummaryState.ERROR)
           .catch(() => {});
       } else if (entity.taskType === QueueJob.TaskType.LIGHTRESEARCH) {
-        await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.STOPPED);
+        await this.queueJobRepository.updateStatus(
+          entity.jobId,
+          QueueJobDbStatus.STOPPED,
+        );
       } else if (QueueJob.isWriteAssist(entity.taskType as QueueJob.TaskType)) {
-        await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.STOPPED);
+        await this.queueJobRepository.updateStatus(
+          entity.jobId,
+          QueueJobDbStatus.STOPPED,
+        );
       } else if (
         entity.taskType === QueueJob.TaskType.COMPANYPROFILE ||
         entity.taskType === QueueJob.TaskType.COMPANYANALYSIS ||
         entity.taskType === QueueJob.TaskType.ROADMAP_ANALYSIS ||
         entity.taskType === QueueJob.TaskType.IMAGE_OCR
       ) {
-        await this.queueJobRepository.updateStatus(entity.jobId, QueueJobDbStatus.STOPPED);
+        await this.queueJobRepository.updateStatus(
+          entity.jobId,
+          QueueJobDbStatus.STOPPED,
+        );
       }
     }
 
@@ -116,34 +142,69 @@ export abstract class QueueEngineService implements OnModuleInit, OnModuleDestro
     return {
       running: this.runningCount > 0,
       total: this.jobs.length,
-      pending: this.jobs.filter((j) => j.status === QueueJobStatus.PENDING).length,
-      running_jobs: this.jobs.filter((j) => j.status === QueueJobStatus.RUNNING).length,
+      pending: this.jobs.filter((j) => j.status === QueueJobStatus.PENDING)
+        .length,
+      running_jobs: this.jobs.filter((j) => j.status === QueueJobStatus.RUNNING)
+        .length,
       done: this.jobs.filter((j) => j.status === QueueJobStatus.DONE).length,
       error: this.jobs.filter((j) => j.status === QueueJobStatus.ERROR).length,
-      stopped: this.jobs.filter((j) => j.status === QueueJobStatus.STOPPED).length,
-      jobs: this.jobs.map(({ jobId, sessionId, itemId, itemContent, taskType, status, phase, result, errorMessage, webSources }) => ({
-        jobId,
-        sessionId,
-        itemId,
-        taskType,
-        status,
-        phase,
-        displayTitle: this.getJobDisplayTitle({ jobId, sessionId, itemId, itemContent, taskType }),
-        displaySubtitle: this.getJobDisplaySubtitle({ taskType, itemContent }),
-        companyName: this.getJobCompanyName({ taskType, itemContent }),
-        result,
-        errorMessage: errorMessage ?? (status === QueueJobStatus.ERROR ? result : undefined),
-        webSources,
-        referenceCount: result
-          ? (result.match(/\[.+?\]\(https?:\/\/[^)]+\)/g) ?? []).length
-          : undefined,
-      })),
+      stopped: this.jobs.filter((j) => j.status === QueueJobStatus.STOPPED)
+        .length,
+      jobs: this.jobs.map(
+        ({
+          jobId,
+          sessionId,
+          itemId,
+          itemContent,
+          taskType,
+          status,
+          phase,
+          result,
+          errorMessage,
+          webSources,
+        }) => ({
+          jobId,
+          sessionId,
+          itemId,
+          taskType,
+          status,
+          phase,
+          displayTitle: this.getJobDisplayTitle({
+            jobId,
+            sessionId,
+            itemId,
+            itemContent,
+            taskType,
+          }),
+          displaySubtitle: this.getJobDisplaySubtitle({
+            taskType,
+            itemContent,
+          }),
+          companyName: this.getJobCompanyName({ taskType, itemContent }),
+          result,
+          errorMessage:
+            errorMessage ??
+            (status === QueueJobStatus.ERROR ? result : undefined),
+          webSources,
+          referenceCount: result
+            ? (result.match(/\[.+?\]\(https?:\/\/[^)]+\)/g) ?? []).length
+            : undefined,
+        }),
+      ),
     };
   }
 
-  private getJobDisplayTitle(job: Pick<QueueJob, 'jobId' | 'sessionId' | 'itemId' | 'itemContent' | 'taskType'>): string {
+  private getJobDisplayTitle(
+    job: Pick<
+      QueueJob,
+      'jobId' | 'sessionId' | 'itemId' | 'itemContent' | 'taskType'
+    >,
+  ): string {
     if (job.taskType === QueueJob.TaskType.LIGHTRESEARCH) {
-      const parsed = this.parseJobContent<{ topic?: string; attachedFiles?: AttachedFilePayload[] }>(job.itemContent);
+      const parsed = this.parseJobContent<{
+        topic?: string;
+        attachedFiles?: AttachedFilePayload[];
+      }>(job.itemContent);
       return this.truncateDisplayText(parsed?.topic) || '라이트 리서치';
     }
     if (job.taskType === QueueJob.TaskType.DEEPRESEARCH) {
@@ -154,29 +215,45 @@ export abstract class QueueEngineService implements OnModuleInit, OnModuleDestro
       job.taskType === QueueJob.TaskType.COMPANYPROFILE ||
       job.taskType === QueueJob.TaskType.COMPANYANALYSIS
     ) {
-      const parsed = this.parseJobContent<{ companyName?: string }>(job.itemContent);
+      const parsed = this.parseJobContent<{ companyName?: string }>(
+        job.itemContent,
+      );
       return parsed?.companyName
         ? `${parsed.companyName} ${job.taskType === QueueJob.TaskType.COMPANYPROFILE ? '기업 프로필' : '기업 분석'}`
         : this.getTaskTypeLabel(job.taskType);
     }
     if (QueueJob.isWriteAssist(job.taskType)) {
-      const parsed = this.parseJobContent<{ content?: string; instruction?: string }>(job.itemContent);
-      return this.truncateDisplayText(parsed?.instruction || parsed?.content) || this.getTaskTypeLabel(job.taskType);
+      const parsed = this.parseJobContent<{
+        content?: string;
+        instruction?: string;
+      }>(job.itemContent);
+      return (
+        this.truncateDisplayText(parsed?.instruction || parsed?.content) ||
+        this.getTaskTypeLabel(job.taskType)
+      );
     }
     return job.itemId || job.sessionId || job.jobId;
   }
 
-  private getJobCompanyName(job: Pick<QueueJob, 'taskType' | 'itemContent'>): string | undefined {
+  private getJobCompanyName(
+    job: Pick<QueueJob, 'taskType' | 'itemContent'>,
+  ): string | undefined {
     if (
       job.taskType !== QueueJob.TaskType.COMPANYPROFILE &&
       job.taskType !== QueueJob.TaskType.COMPANYANALYSIS
-    ) return undefined;
-    return this.parseJobContent<{ companyName?: string }>(job.itemContent)?.companyName;
+    )
+      return undefined;
+    return this.parseJobContent<{ companyName?: string }>(job.itemContent)
+      ?.companyName;
   }
 
-  private getJobDisplaySubtitle(job: Pick<QueueJob, 'taskType' | 'itemContent'>): string {
+  private getJobDisplaySubtitle(
+    job: Pick<QueueJob, 'taskType' | 'itemContent'>,
+  ): string {
     if (job.taskType === QueueJob.TaskType.LIGHTRESEARCH) {
-      const parsed = this.parseJobContent<{ attachedFiles?: AttachedFilePayload[] }>(job.itemContent);
+      const parsed = this.parseJobContent<{
+        attachedFiles?: AttachedFilePayload[];
+      }>(job.itemContent);
       const fileCount = parsed?.attachedFiles?.length ?? 0;
       return fileCount > 0
         ? `${this.getTaskTypeLabel(job.taskType)} · 첨부 ${fileCount}개`
@@ -190,13 +267,19 @@ export abstract class QueueEngineService implements OnModuleInit, OnModuleDestro
   }
 
   protected parseJobContent<T>(content: string): T | null {
-    try { return JSON.parse(content) as T; } catch { return null; }
+    try {
+      return JSON.parse(content) as T;
+    } catch {
+      return null;
+    }
   }
 
   protected truncateDisplayText(value?: string | null): string {
     const normalized = value?.replace(/\s+/g, ' ').trim() ?? '';
     if (!normalized) return '';
-    return normalized.length > 80 ? `${normalized.slice(0, 80)}...` : normalized;
+    return normalized.length > 80
+      ? `${normalized.slice(0, 80)}...`
+      : normalized;
   }
 
   // ── 큐 처리 ──────────────────────────────────────────────────────────
@@ -236,10 +319,16 @@ export abstract class QueueEngineService implements OnModuleInit, OnModuleDestro
     this.jobs[idx] = { ...this.jobs[idx], ...updates };
 
     if (updates.status) {
-      this.queueJobRepository.updateStatus(jobId, this.toDbStatus(updates.status)).catch(() => {});
+      this.queueJobRepository
+        .updateStatus(jobId, this.toDbStatus(updates.status))
+        .catch(() => {});
     }
 
-    const terminalStatuses = [QueueJobStatus.DONE, QueueJobStatus.ERROR, QueueJobStatus.STOPPED];
+    const terminalStatuses = [
+      QueueJobStatus.DONE,
+      QueueJobStatus.ERROR,
+      QueueJobStatus.STOPPED,
+    ];
     if (updates.status && terminalStatuses.includes(updates.status)) {
       const existing = this.cleanupTimers.get(jobId);
       if (existing) clearTimeout(existing);
@@ -256,25 +345,37 @@ export abstract class QueueEngineService implements OnModuleInit, OnModuleDestro
 
   protected toDbStatus(status: QueueJobStatus): QueueJobDbStatus {
     switch (status) {
-      case QueueJobStatus.RUNNING: return QueueJobDbStatus.RUNNING;
-      case QueueJobStatus.DONE:    return QueueJobDbStatus.DONE;
-      case QueueJobStatus.ERROR:   return QueueJobDbStatus.ERROR;
-      case QueueJobStatus.STOPPED: return QueueJobDbStatus.STOPPED;
-      default:                     return QueueJobDbStatus.INIT;
+      case QueueJobStatus.RUNNING:
+        return QueueJobDbStatus.RUNNING;
+      case QueueJobStatus.DONE:
+        return QueueJobDbStatus.DONE;
+      case QueueJobStatus.ERROR:
+        return QueueJobDbStatus.ERROR;
+      case QueueJobStatus.STOPPED:
+        return QueueJobDbStatus.STOPPED;
+      default:
+        return QueueJobDbStatus.INIT;
     }
   }
 
   // ── 취소 연산 ────────────────────────────────────────────────────────
-  async stopResearch(sessionId: string): Promise<{ status: string; sessionId: string }> {
+  async stopResearch(
+    sessionId: string,
+  ): Promise<{ status: string; sessionId: string }> {
     await this.cancelBySession(sessionId);
     await this.sessionItemCommandService.stopActiveItemsBySession(sessionId);
     return { status: QueueJobStatus.STOPPED, sessionId };
   }
 
   async cancelByItem(sessionId: string, itemId: string): Promise<void> {
-    const job = this.jobs.find((j) => j.sessionId === sessionId && j.itemId === itemId);
+    const job = this.jobs.find(
+      (j) => j.sessionId === sessionId && j.itemId === itemId,
+    );
     if (!job) return;
-    if (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING) {
+    if (
+      job.status === QueueJobStatus.PENDING ||
+      job.status === QueueJobStatus.RUNNING
+    ) {
       this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
       this.abortControllers.get(job.jobId)?.abort();
     }
@@ -285,9 +386,15 @@ export abstract class QueueEngineService implements OnModuleInit, OnModuleDestro
   async cancelBySession(sessionId: string): Promise<void> {
     const sessionJobs = this.jobs.filter((j) => j.sessionId === sessionId);
     for (const job of sessionJobs) {
-      if (job.status === QueueJobStatus.PENDING || job.status === QueueJobStatus.RUNNING) {
+      if (
+        job.status === QueueJobStatus.PENDING ||
+        job.status === QueueJobStatus.RUNNING
+      ) {
         this.updateJob(job.jobId, { status: QueueJobStatus.STOPPED });
-        await this.sessionItemService.updateStatus(job.itemId, ResearchState.STOPPED);
+        await this.sessionItemService.updateStatus(
+          job.itemId,
+          ResearchState.STOPPED,
+        );
         if (job.status === QueueJobStatus.RUNNING) {
           this.abortControllers.get(job.jobId)?.abort();
         }
@@ -295,6 +402,4 @@ export abstract class QueueEngineService implements OnModuleInit, OnModuleDestro
     }
     this.sessionGateway.emitSessionUpdate(sessionId).catch(() => {});
   }
-
-  
 }

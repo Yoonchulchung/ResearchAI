@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ResumeVersionEntity } from 'src/recruit/domain/resume/resume-version.entity';
@@ -56,7 +60,10 @@ export class ResumeVersionService {
     };
   }
 
-  async getSnapshotAsTarget(resumeId: string, versionId: string): Promise<ResumeTarget> {
+  async getSnapshotAsTarget(
+    resumeId: string,
+    versionId: string,
+  ): Promise<ResumeTarget> {
     const version = await this.versionRepo.findOne({
       where: { id: versionId, resumeId },
     });

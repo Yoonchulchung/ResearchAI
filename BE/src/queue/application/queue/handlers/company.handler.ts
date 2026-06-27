@@ -5,8 +5,7 @@ import { QueueJob, SseEventType } from 'src/queue/domain/queue-job.model';
 import { CompanyAnalysisProgress } from 'src/company/domain/company-analysis.types';
 import { CompanyProfileExecutor } from 'src/queue/application/job/company-profile.executor';
 import { CompanyAnalysisExecutor } from 'src/queue/application/job/company-analysis.executor';
-import { CompanyNewsTimelineService } from 'src/company/infrastructure/company-news-timeline.service';
-import { CompanyNewsService } from 'src/company/infrastructure/company-news.service';
+import { CompanyNewsService } from 'src/company/application/company-news.service';
 
 @Injectable()
 export class CompanyHandler extends BaseJobHandler {
@@ -30,7 +29,6 @@ export class CompanyHandler extends BaseJobHandler {
   constructor(
     private readonly profileExecutor: CompanyProfileExecutor,
     private readonly analysisExecutor: CompanyAnalysisExecutor,
-    private readonly newsTimeline: CompanyNewsTimelineService,
     private readonly companyNews: CompanyNewsService,
   ) {
     super();
@@ -174,7 +172,7 @@ export class CompanyHandler extends BaseJobHandler {
       subject?.next({
         data: { type: 'log', message: '사업 로드맵 분석 중...' },
       });
-      const result = await this.newsTimeline.analyze(
+      const result = await this.companyNews.analyzeTimeline(
         companyId,
         companyName,
         job.CloudAIModel,

@@ -66,7 +66,9 @@ export class ResumeSearchService {
       .addOrderBy('coverLetter.orderIndex', 'ASC')
       .take(30);
     if (excludeResumeId) {
-      coverLetterQuery.andWhere('coverLetter.resumeId != :excludeResumeId', { excludeResumeId });
+      coverLetterQuery.andWhere('coverLetter.resumeId != :excludeResumeId', {
+        excludeResumeId,
+      });
     }
 
     const resumes = await this.resumeRepo.find({
@@ -76,27 +78,44 @@ export class ResumeSearchService {
     const resumeMap = new Map(
       resumes
         .filter((r) => r.id !== excludeResumeId)
-        .map((r) => [r.id, { companyName: r.companyName ?? '', jobTitle: r.jobTitle ?? '' }]),
+        .map((r) => [
+          r.id,
+          { companyName: r.companyName ?? '', jobTitle: r.jobTitle ?? '' },
+        ]),
     );
 
-    const [coverLetterRows, experiences, prizes, trainings] = await Promise.all([
-      coverLetterQuery.getMany(),
-      this.experienceRepo.find({
-        where: [{ activityType: pattern }, { organizationName: pattern }, { description: pattern }],
-        order: { orderIndex: 'ASC' },
-        take: 15,
-      }),
-      this.prizeRepo.find({
-        where: [{ title: pattern }, { organization: pattern }, { description: pattern }],
-        order: { orderIndex: 'ASC' },
-        take: 15,
-      }),
-      this.trainingRepo.find({
-        where: [{ title: pattern }, { institution: pattern }, { description: pattern }],
-        order: { orderIndex: 'ASC' },
-        take: 15,
-      }),
-    ]);
+    const [coverLetterRows, experiences, prizes, trainings] = await Promise.all(
+      [
+        coverLetterQuery.getMany(),
+        this.experienceRepo.find({
+          where: [
+            { activityType: pattern },
+            { organizationName: pattern },
+            { description: pattern },
+          ],
+          order: { orderIndex: 'ASC' },
+          take: 15,
+        }),
+        this.prizeRepo.find({
+          where: [
+            { title: pattern },
+            { organization: pattern },
+            { description: pattern },
+          ],
+          order: { orderIndex: 'ASC' },
+          take: 15,
+        }),
+        this.trainingRepo.find({
+          where: [
+            { title: pattern },
+            { institution: pattern },
+            { description: pattern },
+          ],
+          order: { orderIndex: 'ASC' },
+          take: 15,
+        }),
+      ],
+    );
 
     const aliases = this.buildSearchAliases(q);
     const rankedCoverLetters = coverLetterRows
@@ -168,7 +187,9 @@ export class ResumeSearchService {
     return { items };
   }
 
-  async getAllActivities(excludeResumeId?: string): Promise<ResumeActivitiesResult> {
+  async getAllActivities(
+    excludeResumeId?: string,
+  ): Promise<ResumeActivitiesResult> {
     const resumes = await this.resumeRepo.find({
       select: ['id', 'companyName', 'jobTitle'],
       where: { isDeleted: false },
@@ -176,10 +197,14 @@ export class ResumeSearchService {
     const resumeMap = new Map(
       resumes
         .filter((r) => r.id !== excludeResumeId)
-        .map((r) => [r.id, { companyName: r.companyName ?? '', jobTitle: r.jobTitle ?? '' }]),
+        .map((r) => [
+          r.id,
+          { companyName: r.companyName ?? '', jobTitle: r.jobTitle ?? '' },
+        ]),
     );
     const validResumeIds = [...resumeMap.keys()];
-    if (!validResumeIds.length) return { experienceGroups: [], prizeGroups: [] };
+    if (!validResumeIds.length)
+      return { experienceGroups: [], prizeGroups: [] };
 
     const [allExperiences, allPrizes] = await Promise.all([
       this.experienceRepo.find({
@@ -257,8 +282,17 @@ export class ResumeSearchService {
       compact.includes('기업선택')
     ) {
       return [
-        '지원동기', '지원한동기', '입사동기', '입사희망', '입사를희망',
-        '기업선택', '회사선택', '직무선택', '지원분야선택', '선택한이유', '이어진이유',
+        '지원동기',
+        '지원한동기',
+        '입사동기',
+        '입사희망',
+        '입사를희망',
+        '기업선택',
+        '회사선택',
+        '직무선택',
+        '지원분야선택',
+        '선택한이유',
+        '이어진이유',
       ];
     }
     return [compact];
@@ -270,7 +304,9 @@ export class ResumeSearchService {
     aliases: string[],
   ): number {
     const compact = (value?: string | null) =>
-      String(value ?? '').replace(/\s+/g, '').toLowerCase();
+      String(value ?? '')
+        .replace(/\s+/g, '')
+        .toLowerCase();
     const title = compact(item.title);
     const refinedTitle = compact(item.refinedTitle);
     const answer = compact(item.answer);
@@ -279,8 +315,11 @@ export class ResumeSearchService {
     if (
       title.includes(exact) ||
       refinedTitle.includes(exact) ||
-      aliases.some((alias) => title.includes(alias) || refinedTitle.includes(alias))
-    ) return 0;
+      aliases.some(
+        (alias) => title.includes(alias) || refinedTitle.includes(alias),
+      )
+    )
+      return 0;
     if (answer.includes(exact)) return 1;
     if (category.includes(exact)) return 2;
     return 3;

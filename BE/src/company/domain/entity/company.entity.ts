@@ -20,6 +20,9 @@ export class CompanyEntity {
   @Column({ type: 'text' })
   name!: string;
 
+  @Column({ name: 'english_name', type: 'text', nullable: true })
+  englishName!: string | null;
+
   @Column({ name: 'company_type', type: 'text', nullable: true })
   companyType!: string | null;
 

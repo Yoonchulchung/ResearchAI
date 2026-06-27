@@ -1,5 +1,8 @@
 import { JobPosting } from 'src/recruit/domain/job-posting.model';
-import { CollectQuery, JobSource } from 'src/recruit/domain/job-source.interface';
+import {
+  CollectQuery,
+  JobSource,
+} from 'src/recruit/domain/job-source.interface';
 
 /**
  * 사람인 Open API

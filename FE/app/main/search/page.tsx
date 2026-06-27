@@ -594,6 +594,7 @@ function TopicGroupCard({ group, byUrl, isDark }: {
   const textMuted = isDark ? "text-white/40" : "text-slate-400";
   const items = group.items.map((i) => byUrl.get(i.link)).filter(Boolean) as QueryNewsItem[];
   const visible = expanded ? items : items.slice(0, 3);
+  const groupDate = formatDate(group.dateKey) || group.dateKey;
 
   return (
     <section className={`overflow-hidden rounded-md border ${
@@ -609,7 +610,7 @@ function TopicGroupCard({ group, byUrl, isDark }: {
         <span className={`rounded-md px-2 py-1 text-xs font-black ${
           isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-700"
         }`}>{group.keyword}</span>
-        <span className={`text-xs font-semibold ${textMuted}`}>같은 날 {items.length}건</span>
+        <span className={`text-xs font-semibold ${textMuted}`}>{groupDate} · {items.length}건</span>
         <span className={`ml-auto text-2xs ${expanded ? "rotate-180" : ""} transition-transform ${textMuted}`}>▼</span>
       </button>
       <div className={isDark ? "border-t border-white/5" : "border-t border-slate-100"}>
@@ -778,6 +779,8 @@ function NewsListPanel({
 /* ════════════════════════════════════════
    메인 페이지
 ════════════════════════════════════════ */
+type MobileTab = "web" | "news" | "roadmap";
+
 function SearchPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -790,6 +793,7 @@ function SearchPageContent() {
   const [searched, setSearched] = useState(false);
   const [groupTopics, setGroupTopics] = useState(true);
   const [parsedDate, setParsedDate] = useState<{ cleanQuery?: string; label?: string; from?: string; to?: string }>({});
+  const [mobileTab, setMobileTab] = useState<MobileTab>("news");
 
   // 웹 검색 결과
   const [webItems, setWebItems]     = useState<WebSearchItem[]>([]);
@@ -904,6 +908,102 @@ function SearchPageContent() {
     ? "border-white/15 bg-white/8 text-white placeholder-white/30 focus:border-indigo-400"
     : "border-gray-200 bg-gray-50 text-gray-900 focus:border-indigo-400";
 
+  const TABS: { id: MobileTab; label: string }[] = [
+    { id: "news",    label: "뉴스" },
+    { id: "web",     label: "웹 검색" },
+    { id: "roadmap", label: "뉴스 기반 로드맵" },
+  ];
+
+  const webContent = (
+    <>
+      {webLoading && (
+        <div className="space-y-3">
+          {[1,2,3,4,5].map((i) => (
+            <div key={i} className={`rounded-lg border p-3 space-y-1.5 ${isDark ? "border-white/8" : "border-slate-100"}`}>
+              <div className={`h-3 w-1/3 animate-pulse rounded ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
+              <div className={`h-4 w-full animate-pulse rounded ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
+              <div className={`h-3 w-5/6 animate-pulse rounded ${isDark ? "bg-white/8" : "bg-slate-100"}`} />
+            </div>
+          ))}
+        </div>
+      )}
+      {!webLoading && webError && (
+        <p className={`text-xs ${isDark ? "text-red-400" : "text-red-500"}`}>{webError}</p>
+      )}
+      {!webLoading && !webError && webItems.length === 0 && searched && (
+        <p className={`text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>결과 없음</p>
+      )}
+      <div className="space-y-2">
+        {webItems.map((item, i) => (
+          <a key={item.url} href={item.url} target="_blank" rel="noreferrer"
+            className={`block rounded-lg border p-3 transition-colors ${
+              isDark
+                ? "border-white/8 bg-white/2 hover:border-indigo-400/30 hover:bg-white/5"
+                : "border-slate-100 bg-white hover:border-indigo-200 hover:bg-indigo-50/30"
+            }`}
+          >
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className={`text-2xs font-bold px-1 rounded ${isDark ? "bg-white/10 text-white/40" : "bg-slate-100 text-slate-400"}`}>{i + 1}</span>
+              <span className={`text-2xs truncate ${isDark ? "text-white/30" : "text-slate-400"}`}>{item.source}</span>
+            </div>
+            <p className={`text-xs font-semibold leading-snug line-clamp-2 mb-1 ${isDark ? "text-white/80" : "text-slate-800"}`}>
+              {item.title}
+            </p>
+            {item.snippet && (
+              <p className={`text-2xs leading-relaxed line-clamp-3 ${isDark ? "text-white/40" : "text-slate-500"}`}>
+                {item.snippet}
+              </p>
+            )}
+          </a>
+        ))}
+      </div>
+    </>
+  );
+
+  const newsContent = (
+    <div className="min-h-0 flex-1 overflow-hidden flex flex-col">
+      <div className="mb-2 shrink-0 flex items-center gap-2 flex-wrap">
+        <p className={`text-xs font-bold tracking-widest uppercase hidden lg:block ${isDark ? "text-white/30" : "text-slate-400"}`}>
+          뉴스
+        </p>
+        {parsedDate.label && (
+          <span className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold ${
+            isDark
+              ? "border-indigo-400/30 bg-indigo-400/10 text-indigo-300"
+              : "border-indigo-200 bg-indigo-50 text-indigo-600"
+          }`}>
+            <span className="text-2xs">📅</span> {parsedDate.label}
+          </span>
+        )}
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <NewsListPanel
+          items={newsItems}
+          loading={newsLoading}
+          hasMore={newsHasMore}
+          loadMore={loadMore}
+          error={newsError}
+          searched={searched}
+          isDark={isDark}
+          groupTopics={groupTopics}
+          setGroupTopics={setGroupTopics}
+        />
+      </div>
+    </div>
+  );
+
+  const roadmapContent = (
+    <RoadmapPanel
+      roadmap={roadmap}
+      loading={roadmapLoading}
+      error={roadmapError}
+      searched={searched}
+      isDark={isDark}
+      query={query}
+      onRoadmapUpdate={setRoadmap}
+    />
+  );
+
   return (
     <div className={`flex h-screen min-h-0 flex-col overflow-hidden ${bg}`}>
       {/* 헤더 */}
@@ -947,8 +1047,57 @@ function SearchPageContent() {
         </div>
       )}
 
-      {/* 3-col 본문 — flex-1 + min-h-0 가 핵심 */}
-      <div className="flex min-h-0 flex-1 overflow-hidden px-4 py-4 mx-auto w-full max-w-7xl gap-0">
+      {/* 모바일 탭 바 — lg 이상에서는 숨김 */}
+      {searched && (
+        <div className={`lg:hidden shrink-0 flex border-b ${isDark ? "border-white/8 bg-slate-900" : "border-gray-200 bg-white"}`}>
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setMobileTab(tab.id)}
+              className={`flex-1 py-2.5 text-xs font-bold transition-colors border-b-2 ${
+                mobileTab === tab.id
+                  ? isDark
+                    ? "border-indigo-400 text-indigo-300"
+                    : "border-indigo-600 text-indigo-600"
+                  : isDark
+                    ? "border-transparent text-white/40 hover:text-white/60"
+                    : "border-transparent text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              {tab.label}
+              {tab.id === "news" && newsLoading && (
+                <span className="ml-1 inline-block h-2 w-2 animate-spin rounded-full border border-current border-t-transparent" />
+              )}
+              {tab.id === "roadmap" && roadmapLoading && (
+                <span className="ml-1 inline-block h-2 w-2 animate-spin rounded-full border border-current border-t-transparent" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ─── 모바일 단일 패널 (lg 미만) ─── */}
+      <div className={`lg:hidden flex-1 min-h-0 overflow-hidden px-4 py-3 ${mobileTab !== "news" ? "flex flex-col" : "flex flex-col"}`}>
+        {mobileTab === "web" && (
+          <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+            {webContent}
+          </div>
+        )}
+        {mobileTab === "news" && newsContent}
+        {mobileTab === "roadmap" && (
+          <div className="flex-1 overflow-hidden">
+            {roadmapContent}
+          </div>
+        )}
+        {!searched && (
+          <p className={`py-16 text-center text-sm ${isDark ? "text-white/30" : "text-slate-400"}`}>
+            검색어를 입력하고 Enter를 누르세요
+          </p>
+        )}
+      </div>
+
+      {/* ─── 데스크탑 3컬럼 (lg 이상) ─── */}
+      <div className="hidden lg:flex min-h-0 flex-1 overflow-hidden px-4 py-4 mx-auto w-full max-w-7xl gap-0">
 
         {/* LEFT: 웹 검색 결과 (30%) */}
         <div className={`flex w-[30%] shrink-0 flex-col overflow-hidden pr-4 border-r ${
@@ -958,47 +1107,7 @@ function SearchPageContent() {
             웹 검색
           </p>
           <div className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
-            {webLoading && (
-              <div className="space-y-3">
-                {[1,2,3,4,5].map((i) => (
-                  <div key={i} className={`rounded-lg border p-3 space-y-1.5 ${isDark ? "border-white/8" : "border-slate-100"}`}>
-                    <div className={`h-3 w-1/3 animate-pulse rounded ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
-                    <div className={`h-4 w-full animate-pulse rounded ${isDark ? "bg-white/10" : "bg-slate-200"}`} />
-                    <div className={`h-3 w-5/6 animate-pulse rounded ${isDark ? "bg-white/8" : "bg-slate-100"}`} />
-                  </div>
-                ))}
-              </div>
-            )}
-            {!webLoading && webError && (
-              <p className={`text-xs ${isDark ? "text-red-400" : "text-red-500"}`}>{webError}</p>
-            )}
-            {!webLoading && !webError && webItems.length === 0 && searched && (
-              <p className={`text-xs ${isDark ? "text-white/30" : "text-slate-400"}`}>결과 없음</p>
-            )}
-            <div className="space-y-2">
-              {webItems.map((item, i) => (
-                <a key={item.url} href={item.url} target="_blank" rel="noreferrer"
-                  className={`block rounded-lg border p-3 transition-colors ${
-                    isDark
-                      ? "border-white/8 bg-white/2 hover:border-indigo-400/30 hover:bg-white/5"
-                      : "border-slate-100 bg-white hover:border-indigo-200 hover:bg-indigo-50/30"
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className={`text-2xs font-bold px-1 rounded ${isDark ? "bg-white/10 text-white/40" : "bg-slate-100 text-slate-400"}`}>{i + 1}</span>
-                    <span className={`text-2xs truncate ${isDark ? "text-white/30" : "text-slate-400"}`}>{item.source}</span>
-                  </div>
-                  <p className={`text-xs font-semibold leading-snug line-clamp-2 mb-1 ${isDark ? "text-white/80" : "text-slate-800"}`}>
-                    {item.title}
-                  </p>
-                  {item.snippet && (
-                    <p className={`text-2xs leading-relaxed line-clamp-3 ${isDark ? "text-white/40" : "text-slate-500"}`}>
-                      {item.snippet}
-                    </p>
-                  )}
-                </a>
-              ))}
-            </div>
+            {webContent}
           </div>
         </div>
 
@@ -1006,46 +1115,12 @@ function SearchPageContent() {
         <div className={`flex w-[30%] shrink-0 flex-col overflow-hidden px-4 border-r ${
           isDark ? "border-white/8" : "border-gray-200"
         }`}>
-          <div className="mb-2 shrink-0 flex items-center gap-2 flex-wrap">
-            <p className={`text-xs font-bold tracking-widest uppercase ${isDark ? "text-white/30" : "text-slate-400"}`}>
-              뉴스
-            </p>
-            {parsedDate.label && (
-              <span className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-bold ${
-                isDark
-                  ? "border-indigo-400/30 bg-indigo-400/10 text-indigo-300"
-                  : "border-indigo-200 bg-indigo-50 text-indigo-600"
-              }`}>
-                <span className="text-2xs">📅</span> {parsedDate.label}
-              </span>
-            )}
-          </div>
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <NewsListPanel
-              items={newsItems}
-              loading={newsLoading}
-              hasMore={newsHasMore}
-              loadMore={loadMore}
-              error={newsError}
-              searched={searched}
-              isDark={isDark}
-              groupTopics={groupTopics}
-              setGroupTopics={setGroupTopics}
-            />
-          </div>
+          {newsContent}
         </div>
 
         {/* RIGHT: 로드맵 (나머지) — 내부 가로 스크롤 */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pl-4">
-          <RoadmapPanel
-            roadmap={roadmap}
-            loading={roadmapLoading}
-            error={roadmapError}
-            searched={searched}
-            isDark={isDark}
-            query={query}
-            onRoadmapUpdate={setRoadmap}
-          />
+          {roadmapContent}
         </div>
       </div>
     </div>

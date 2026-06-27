@@ -187,28 +187,58 @@ export class AiController {
       interval: string;
       currentPrice: number;
       changePercent: number;
-      recentCandles: Array<{ date: string; open: number; high: number; low: number; close: number; volume?: number }>;
+      recentCandles: Array<{
+        date: string;
+        open: number;
+        high: number;
+        low: number;
+        close: number;
+        volume?: number;
+      }>;
       signals: Array<{ label: string; direction: string; description: string }>;
       activeStrategy?: string;
       model?: string;
     },
   ) {
     const model = body.model ?? 'claude-haiku-4-5';
-    const { symbol, companyName, interval, currentPrice, changePercent, recentCandles, signals, activeStrategy } = body;
+    const {
+      symbol,
+      companyName,
+      interval,
+      currentPrice,
+      changePercent,
+      recentCandles,
+      signals,
+      activeStrategy,
+    } = body;
 
     const intervalLabel: Record<string, string> = {
-      '15m': '15분봉', '1h': '1시간봉', '4h': '4시간봉', '1d': '일봉', '1w': '주봉',
+      '15m': '15분봉',
+      '1h': '1시간봉',
+      '4h': '4시간봉',
+      '1d': '일봉',
+      '1w': '주봉',
     };
     const priceLines = recentCandles
       .slice(-20)
-      .map((c) => `${c.date}  종가 ${c.close.toLocaleString()}  고 ${(c.high ?? c.close).toLocaleString()}  저 ${(c.low ?? c.close).toLocaleString()}`)
+      .map(
+        (c) =>
+          `${c.date}  종가 ${c.close.toLocaleString()}  고 ${(c.high ?? c.close).toLocaleString()}  저 ${(c.low ?? c.close).toLocaleString()}`,
+      )
       .join('\n');
 
     const signalLines = signals.length
-      ? signals.map((s) => `  - ${s.label}: ${s.direction === 'bull' ? '▲ 매수' : s.direction === 'bear' ? '▼ 매도' : '● 중립'} — ${s.description}`).join('\n')
+      ? signals
+          .map(
+            (s) =>
+              `  - ${s.label}: ${s.direction === 'bull' ? '▲ 매수' : s.direction === 'bear' ? '▼ 매도' : '● 중립'} — ${s.description}`,
+          )
+          .join('\n')
       : '  (활성 지표 없음)';
 
-    const strategyNote = activeStrategy ? `\n선택된 전략: ${activeStrategy}` : '';
+    const strategyNote = activeStrategy
+      ? `\n선택된 전략: ${activeStrategy}`
+      : '';
 
     const prompt = `당신은 주식 기술적 분석 전문가입니다. 아래 데이터를 바탕으로 현재 시장 상황을 한국어로 분석해주세요.
 

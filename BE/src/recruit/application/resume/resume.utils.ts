@@ -42,7 +42,9 @@ export function parseCategory(value?: string | null): string[] {
     .filter(Boolean);
 }
 
-export function stringifyCategory(value?: string[] | string | null): string | null {
+export function stringifyCategory(
+  value?: string[] | string | null,
+): string | null {
   if (!value) return null;
   const categories = Array.isArray(value)
     ? value
@@ -97,7 +99,11 @@ export function normalizeTargets(body: AnyProfile): ResumeTarget[] {
   if (intros.length > 0) {
     const grouped = new Map<string, ResumeTarget>();
     for (const intro of intros) {
-      const key = [intro.companyName ?? '', intro.jobTitle ?? '', intro.jd ?? ''].join('\n');
+      const key = [
+        intro.companyName ?? '',
+        intro.jobTitle ?? '',
+        intro.jd ?? '',
+      ].join('\n');
       const current: ResumeTarget = grouped.get(key) ?? {
         id: safeId(),
         companyName: intro.companyName ?? '',
@@ -105,17 +111,27 @@ export function normalizeTargets(body: AnyProfile): ResumeTarget[] {
         jd: intro.jd ?? '',
         selfIntroductions: [],
       };
-      current.selfIntroductions?.push(intro as ResumeSelfIntro);
+      current.selfIntroductions?.push(intro);
       grouped.set(key, current);
     }
     return [...grouped.values()];
   }
 
-  return [{ id: safeId(), companyName: '', jobTitle: '', appliedAt: '', jd: '', selfIntroductions: [] }];
+  return [
+    {
+      id: safeId(),
+      companyName: '',
+      jobTitle: '',
+      appliedAt: '',
+      jd: '',
+      selfIntroductions: [],
+    },
+  ];
 }
 
 export function buildVersionSnapshot(target: ResumeTarget): ResumeTarget {
-  const selfIntroductions = target.selfIntroductions ?? target.coverLetters ?? [];
+  const selfIntroductions =
+    target.selfIntroductions ?? target.coverLetters ?? [];
   return {
     id: target.id,
     companyName: target.companyName ?? '',

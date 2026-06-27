@@ -1,46 +1,38 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  MessageEvent,
   Param,
   Post,
   Query,
-  HttpException,
-  HttpStatus,
-  Res,
+  Sse,
 } from '@nestjs/common';
-import type { Response } from 'express';
-import { requestContext } from 'src/shared/request-context';
+import { Observable } from 'rxjs';
 import { CompanyMissingRefreshService } from 'src/queue/application/company-missing-refresh.service';
 import { CompanyEnrichQueueService } from 'src/queue/application/company-enrich-queue.service';
 import { CompanyService } from 'src/company/application/company.service';
-import { CompanyEnrichService } from 'src/company/application/company-enrich.service';
-import { CompanyStockService } from 'src/company/application/company-stock.service';
-import { CompanyFinancialInsightsService } from 'src/company/application/company-financial-insights.service';
-import { CompanyInvestorTradingService } from 'src/company/infrastructure/company-investor-trading.service';
-import { CompanyNewsService } from 'src/company/infrastructure/company-news.service';
-import { CompanyNewsScraperService } from 'src/company/infrastructure/company-news-scraper.service';
-import { CompanyNewsTimelineService } from 'src/company/infrastructure/company-news-timeline.service';
-import { CompanyShortSellingService } from 'src/company/infrastructure/company-short-selling.service';
-import { DartFinancialService } from 'src/company/infrastructure/dart/dart-financial.service';
+import { CompanyInfoService } from 'src/company/application/company-info.service';
+import { CompanyMergeService } from 'src/company/application/company-merge.service';
+import { CompanyNewsService } from 'src/company/application/company-news.service';
 import { SystemSettingsService } from 'src/shared/application/system-settings.service';
 
 @Controller('companies')
 export class CompanyController {
+  private readonly historicalScrapeControllers = new Map<
+    string,
+    AbortController
+  >();
+
   constructor(
     private readonly companyService: CompanyService,
-    private readonly companyEnrich: CompanyEnrichService,
-    private readonly companyStock: CompanyStockService,
-    private readonly companyFinancialInsights: CompanyFinancialInsightsService,
+    private readonly companyEnrich: CompanyInfoService,
     private readonly missingRefresh: CompanyMissingRefreshService,
     private readonly enrichQueue: CompanyEnrichQueueService,
     private readonly systemSettings: SystemSettingsService,
     private readonly companyNews: CompanyNewsService,
-    private readonly companyNewsScraper: CompanyNewsScraperService,
-    private readonly companyNewsTimeline: CompanyNewsTimelineService,
-    private readonly investorTrading: CompanyInvestorTradingService,
-    private readonly shortSelling: CompanyShortSellingService,
-    private readonly dartFinancial: DartFinancialService,
+    private readonly companyMerge: CompanyMergeService,
   ) {}
 
   @Get()
@@ -107,83 +99,6 @@ export class CompanyController {
     return { enabled: body.enabled };
   }
 
-  /** DART 공시 PDF 프록시 — HTML 뷰어 URL에서 실제 PDF를 추출해 반환 */
-  @Get('disclosures/pdf')
-  async getDisclosurePdf(@Query('url') url: string, @Res() res: Response) {
-    if (!url) {
-      throw new HttpException('공시 URL이 필요합니다.', HttpStatus.BAD_REQUEST);
-    }
-
-    const pdf = await this.dartFinancial.fetchDisclosurePdf(url);
-    if (!pdf) {
-      throw new HttpException(
-        '공시 PDF를 가져올 수 없습니다.',
-        HttpStatus.NOT_FOUND,
-      );
-    }
-
-    res.set({
-      'Content-Type': pdf.contentType,
-      'Content-Disposition': 'inline; filename="dart-disclosure.pdf"',
-      'Content-Length': String(pdf.buffer.length),
-      'Cache-Control': 'public, max-age=3600',
-      'X-Frame-Options': 'ALLOWALL',
-    });
-    return res.send(pdf.buffer);
-  }
-
-  @Get(':id/stock')
-  getCompanyStock(
-    @Param('id') id: string,
-    @Query('interval') interval?: string,
-    @Query('before') before?: string,
-  ) {
-    return this.companyStock.getStockQuote(id, interval ?? '1d', before);
-  }
-
-  @Get(':id/financial-insights')
-  getFinancialInsights(@Param('id') id: string) {
-    return this.companyFinancialInsights.getFinancialInsights(id);
-  }
-
-  @Get(':id/financial-insights/ai-analysis')
-  getFinancialAiAnalysisHistory(
-    @Param('id') id: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.companyFinancialInsights.getAiAnalysisHistory(
-      id,
-      limit ? Math.min(parseInt(limit, 10) || 10, 50) : 10,
-    );
-  }
-
-  @Post(':id/financial-insights/ai-analysis')
-  analyzeFinancialStatements(
-    @Param('id') id: string,
-    @Body() body: { model?: string },
-  ) {
-    return this.companyFinancialInsights.analyzeFinancialStatements(
-      id,
-      body.model ?? '',
-    );
-  }
-
-  @Get(':id/investor-trading')
-  async getInvestorTrading(
-    @Param('id') id: string,
-    @Query('days') days?: string,
-  ) {
-    return this.investorTrading.getDailyInvestorTrading(
-      id,
-      days ? Number(days) : 30,
-    );
-  }
-
-  @Get(':id/short-selling')
-  async getShortSelling(@Param('id') id: string, @Query('days') days?: string) {
-    return this.shortSelling.getDailyShortSelling(id, days ? Number(days) : 90);
-  }
-
   /** 실시간 수집 + DB 자동 저장 */
   @Get(':id/news')
   async getCompanyNews(
@@ -203,7 +118,7 @@ export class CompanyController {
     return this.companyNews.fetchAndSaveNews(
       id,
       company.name,
-      limit ? Number(limit) : 12,
+      limit ? Number(limit) : 50,
       offset ? Number(offset) : 0,
     );
   }
@@ -220,6 +135,16 @@ export class CompanyController {
       limit ? Number(limit) : 50,
       offset ? Number(offset) : 0,
     );
+  }
+
+  /** 저장된 뉴스, 키워드, 뉴스 타임라인 초기화 */
+  @Delete(':id/news')
+  async resetCompanyNews(@Param('id') id: string) {
+    const company = await this.companyService.findCompany(id);
+    if (!company) {
+      return { deletedNews: 0, deletedKeywords: 0, deletedTimeline: 0 };
+    }
+    return this.companyNews.resetSavedNews(company.id);
   }
 
   /** 뉴스 제목만 기반으로 AI 키워드 추출 */
@@ -264,21 +189,89 @@ export class CompanyController {
   @Post(':id/news/scrape-historical')
   async scrapeHistoricalNews(
     @Param('id') id: string,
-    @Body() body: { companyName?: string },
+    @Body() body: { companyName?: string; stopDate?: string },
   ) {
     const company = await this.companyService.findCompany(id);
     if (!company) return { fetched: 0, saved: 0, hasMore: false };
-    return this.companyNewsScraper.scrapeHistorical(
+    return this.companyNews.scrapeHistorical(
       id,
       body.companyName ?? company.name,
+      { stopDate: body.stopDate },
     );
+  }
+
+  /** 과거 뉴스 스크래핑 진행 상황 스트림 */
+  @Sse(':id/news/scrape-historical/stream')
+  streamHistoricalNews(
+    @Param('id') id: string,
+    @Query('companyName') companyName?: string,
+    @Query('stopDate') stopDate?: string,
+  ): Observable<MessageEvent> {
+    return new Observable<MessageEvent>((subscriber) => {
+      let closed = false;
+      let finished = false;
+      const controller = new AbortController();
+      this.historicalScrapeControllers.get(id)?.abort();
+      this.historicalScrapeControllers.set(id, controller);
+
+      const emit = (data: string | object) => {
+        if (!closed) subscriber.next({ data });
+      };
+
+      this.companyService
+        .findCompany(id)
+        .then((company) => {
+          if (!company) {
+            emit({
+              type: 'error',
+              message: '회사를 찾을 수 없습니다.',
+            });
+            return;
+          }
+          return this.companyNews.scrapeHistorical(
+            id,
+            companyName || company.name,
+            { onProgress: emit, signal: controller.signal, stopDate },
+          );
+        })
+        .catch((error) => {
+          emit({
+            type: 'error',
+            message:
+              error instanceof Error
+                ? error.message
+                : '이전 뉴스 수집에 실패했습니다.',
+          });
+        })
+        .finally(() => {
+          finished = true;
+          if (this.historicalScrapeControllers.get(id) === controller) {
+            this.historicalScrapeControllers.delete(id);
+          }
+          if (!closed) subscriber.complete();
+        });
+
+      return () => {
+        closed = true;
+        if (!finished) controller.abort();
+      };
+    });
+  }
+
+  /** 진행 중인 과거 뉴스 스크래핑 중지 — 현재까지 찾은 후보는 저장됨 */
+  @Post(':id/news/scrape-historical/stop')
+  stopHistoricalNews(@Param('id') id: string) {
+    const controller = this.historicalScrapeControllers.get(id);
+    if (!controller) return { stopped: false };
+    controller.abort();
+    return { stopped: true };
   }
 
   /** 저장된 뉴스 타임라인 조회 */
   @Get(':id/news/timeline')
   async getNewsTimeline(@Param('id') id: string) {
     const company = await this.companyService.findCompany(id);
-    return this.companyNewsTimeline.getSaved(company?.id ?? id, company?.name);
+    return this.companyNews.getSavedTimeline(company?.id ?? id, company?.name);
   }
 
   /** 뉴스 타임라인 AI 입력 여부와 제외 사유 디버깅 */
@@ -294,7 +287,7 @@ export class CompanyController {
         items: [],
       };
     }
-    return this.companyNewsTimeline.getSources(company.id, company.name);
+    return this.companyNews.getTimelineSources(company.id, company.name);
   }
 
   /** 뉴스 타임라인 AI 분석 (재)실행 */
@@ -304,7 +297,7 @@ export class CompanyController {
     @Body() body: { model: string; companyName: string; incremental?: boolean },
   ) {
     const company = await this.companyService.findCompany(id);
-    return this.companyNewsTimeline.analyze(
+    return this.companyNews.analyzeTimeline(
       company?.id ?? id,
       company?.name ?? body.companyName,
       body.model,
@@ -312,52 +305,35 @@ export class CompanyController {
     );
   }
 
+  @Sse(':id/refresh-missing/stream')
+  streamRefreshMissing(@Param('id') id: string): Observable<MessageEvent> {
+    return new Observable<MessageEvent>((subscriber) => {
+      let closed = false;
+      const emit = (data: string | object) => {
+        if (!closed) subscriber.next({ data });
+      };
 
-  /** DART 재무 데이터 재수집 (DB 업데이트) */
-  @Post(':id/refresh-financials')
-  async refreshFinancials(@Param('id') id: string) {
-    const dartApiKey =
-      requestContext.getStore()?.serviceCredentials?.dartApiKey;
-    if (!dartApiKey)
-      throw new HttpException(
-        'DART API 키가 설정되지 않았습니다.',
-        HttpStatus.BAD_REQUEST,
-      );
-    try {
-      const financials = await this.companyFinancialInsights.refreshFinancials(
-        id,
-        dartApiKey,
-      );
-      return { ok: true, count: financials.length, financials };
-    } catch (e) {
-      throw new HttpException(
-        (e as Error).message,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
+      this.companyEnrich
+        .refreshMissing(id, { onProgress: emit })
+        .catch((error) => {
+          emit({
+            type: 'error',
+            completed: 0,
+            total: 6,
+            message:
+              error instanceof Error
+                ? error.message
+                : '결측치 수집에 실패했습니다.',
+          });
+        })
+        .finally(() => {
+          if (!closed) subscriber.complete();
+        });
 
-  /** DART 최근 분기 실적 조회 */
-  @Get(':id/financials/quarterly')
-  async getQuarterlyFinancials(@Param('id') id: string) {
-    const dartApiKey =
-      requestContext.getStore()?.serviceCredentials?.dartApiKey;
-    if (!dartApiKey)
-      throw new HttpException(
-        'DART API 키가 설정되지 않았습니다.',
-        HttpStatus.BAD_REQUEST,
-      );
-    try {
-      return this.companyFinancialInsights.getQuarterlyFinancials(
-        id,
-        dartApiKey,
-      );
-    } catch (e) {
-      throw new HttpException(
-        (e as Error).message,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+      return () => {
+        closed = true;
+      };
+    });
   }
 
   @Get(':id')
@@ -368,5 +344,17 @@ export class CompanyController {
   @Post(':id/refresh-missing')
   refreshMissing(@Param('id') id: string) {
     return this.companyEnrich.refreshMissing(id);
+  }
+
+  /** 중복 기업 후보 목록 조회 */
+  @Get('duplicates/candidates')
+  findDuplicateCandidates() {
+    return this.companyMerge.findDuplicateCandidates();
+  }
+
+  /** 두 기업을 병합. keepId 기업이 살아남고 removeId 기업은 삭제됨 */
+  @Post('merge')
+  mergeCompanies(@Body() body: { keepId: string; removeId: string }) {
+    return this.companyMerge.merge(body.keepId, body.removeId);
   }
 }

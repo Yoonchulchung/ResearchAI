@@ -19,7 +19,7 @@ import { CoverLetterModule } from 'src/recruit/cover-letter.module';
 import { MetricsModule } from 'src/metrics/metrics.module';
 import { ExamModule } from 'src/recruit/exam.module';
 import { ResumeModule } from 'src/recruit/resume.module';
-import { StockModule } from 'src/stock/stock.module';
+import { FinancialModule } from 'src/financial/financial.module';
 
 @Module({
   imports: [
@@ -43,7 +43,7 @@ import { StockModule } from 'src/stock/stock.module';
     MetricsModule,
     ExamModule,
     ResumeModule,
-    StockModule,
+    FinancialModule,
   ],
 })
 export class AppModule {}

@@ -83,6 +83,25 @@ function IconNewspaper() {
   );
 }
 
+function IconLand() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <path
+        d="M4 19V8.5L11 4L18 8.5V19"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 19V12H14V19"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function IconPlus() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
@@ -365,7 +384,7 @@ function MobileHeader({
 
 // ─── Bottom Navigation ────────────────────────────────────────────────────────
 
-type NavTab = "home" | "sessions" | "write" | "news" | "settings" | "more";
+type NavTab = "home" | "sessions" | "write" | "news" | "land" | "settings" | "more";
 
 function BottomNav({
   active,
@@ -404,6 +423,12 @@ function BottomNav({
       icon: <IconPencil />,
       label: "채용",
       action: () => router.push("/recruit"),
+    },
+    {
+      id: "land",
+      icon: <IconLand />,
+      label: "부동산",
+      action: () => router.push("/land"),
     },
     {
       id: "settings",
@@ -462,6 +487,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/news/papers")) return "핫한 논문";
   if (pathname.startsWith("/news")) return "뉴스";
   if (pathname.startsWith("/stock")) return "증시";
+  if (pathname.startsWith("/land")) return "부동산";
   if (
     pathname.startsWith("/companies") ||
     pathname.startsWith("/company-analysis")
@@ -476,6 +502,7 @@ function getActiveTab(pathname: string): NavTab {
   if (pathname.startsWith("/sessions")) return "sessions";
   if (pathname.startsWith("/news")) return "news";
   if (pathname.startsWith("/recruit")) return "write";
+  if (pathname.startsWith("/land")) return "land";
   if (pathname.startsWith("/settings")) return "settings";
   if (
     pathname.startsWith("/companies") ||
@@ -575,6 +602,7 @@ export function MobileShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/companies") ||
     pathname.startsWith("/company-analysis") ||
     pathname.startsWith("/news") ||
+    pathname.startsWith("/land") ||
     pathname.startsWith("/settings");
 
   return (

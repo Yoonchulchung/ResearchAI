@@ -32,14 +32,19 @@ export class CoverLetterSpecAnalysisService {
     private readonly aiProvider: AiProviderService,
   ) {}
 
-  async analyzeJobsWithAi(request: CoverLetterJobAnalysisRequest = {}): Promise<{
+  async analyzeJobsWithAi(
+    request: CoverLetterJobAnalysisRequest = {},
+  ): Promise<{
     items: CoverLetterJobAnalysis[];
     target: JobCategoryTarget;
     analyzedAt: string;
     model: string;
   }> {
     const target: JobCategoryTarget = request.target ?? 'IT+전자';
-    const limit = Math.min(Math.max(request.limit ?? 20, 1), SPEC_ANALYSIS_MAX_ITEMS);
+    const limit = Math.min(
+      Math.max(request.limit ?? 20, 1),
+      SPEC_ANALYSIS_MAX_ITEMS,
+    );
     const idSet = new Set((request.ids ?? []).filter(Boolean));
     const entities =
       idSet.size > 0
@@ -52,20 +57,34 @@ export class CoverLetterSpecAnalysisService {
     const allCoverLetters = entities.map((entity) => toCoverLetter(entity));
 
     const allIds = allCoverLetters.map((item) => item.id);
-    const cached = allIds.length > 0
-      ? await this.specAnalysisRepo.find({ where: { coverLetterId: In(allIds) } })
-      : [];
+    const cached =
+      allIds.length > 0
+        ? await this.specAnalysisRepo.find({
+            where: { coverLetterId: In(allIds) },
+          })
+        : [];
     const cachedMap = new Map(cached.map((row) => [row.coverLetterId, row]));
 
     const cachedResults: CoverLetterJobAnalysis[] = cached
       .map((row) => entityToJobAnalysis(row))
       .filter((item) => matchesTarget(item.jobCategory, target));
 
-    const unanalyzed = allCoverLetters.filter((item) => !cachedMap.has(item.id));
-    const candidates = this.limitCandidates(unanalyzed, limit, SPEC_ANALYSIS_TOKEN_BUDGET);
+    const unanalyzed = allCoverLetters.filter(
+      (item) => !cachedMap.has(item.id),
+    );
+    const candidates = this.limitCandidates(
+      unanalyzed,
+      limit,
+      SPEC_ANALYSIS_TOKEN_BUDGET,
+    );
 
     if (candidates.length === 0) {
-      return { items: cachedResults, target, analyzedAt: new Date().toISOString(), model: request.model || '' };
+      return {
+        items: cachedResults,
+        target,
+        analyzedAt: new Date().toISOString(),
+        model: request.model || '',
+      };
     }
 
     const model = request.model || '';
@@ -100,10 +119,18 @@ export class CoverLetterSpecAnalysisService {
           school: spec.school || null,
           major: spec.major || null,
           gpa: spec.gpa || null,
-          languages: spec.languages?.length ? JSON.stringify(spec.languages) : null,
-          certificates: spec.certificates?.length ? JSON.stringify(spec.certificates) : null,
-          internships: spec.internships?.length ? JSON.stringify(spec.internships) : null,
-          activities: spec.activities?.length ? JSON.stringify(spec.activities) : null,
+          languages: spec.languages?.length
+            ? JSON.stringify(spec.languages)
+            : null,
+          certificates: spec.certificates?.length
+            ? JSON.stringify(spec.certificates)
+            : null,
+          internships: spec.internships?.length
+            ? JSON.stringify(spec.internships)
+            : null,
+          activities: spec.activities?.length
+            ? JSON.stringify(spec.activities)
+            : null,
           awards: spec.awards?.length ? JSON.stringify(spec.awards) : null,
           skills: spec.skills?.length ? JSON.stringify(spec.skills) : null,
           specSummary: spec.summary || null,
@@ -113,17 +140,30 @@ export class CoverLetterSpecAnalysisService {
       await this.specAnalysisRepo.save(specEntities);
     }
 
-    const filteredNew = newItems.filter((item) => matchesTarget(item.jobCategory, target));
-    return { items: [...cachedResults, ...filteredNew], target, analyzedAt: new Date().toISOString(), model: effectiveModel };
+    const filteredNew = newItems.filter((item) =>
+      matchesTarget(item.jobCategory, target),
+    );
+    return {
+      items: [...cachedResults, ...filteredNew],
+      target,
+      analyzedAt: new Date().toISOString(),
+      model: effectiveModel,
+    };
   }
 
   async getSpecAnalyses(ids: string[]): Promise<CoverLetterJobAnalysis[]> {
     if (ids.length === 0) return [];
-    const rows = await this.specAnalysisRepo.find({ where: { coverLetterId: In(ids) } });
+    const rows = await this.specAnalysisRepo.find({
+      where: { coverLetterId: In(ids) },
+    });
     return rows.map((row) => entityToJobAnalysis(row));
   }
 
-  private limitCandidates(items: CoverLetter[], limit: number, tokenBudget: number): CoverLetter[] {
+  private limitCandidates(
+    items: CoverLetter[],
+    limit: number,
+    tokenBudget: number,
+  ): CoverLetter[] {
     const result: CoverLetter[] = [];
     let usedTokens = 0;
     for (const item of items) {
@@ -138,11 +178,16 @@ export class CoverLetterSpecAnalysisService {
 
   private estimateItemTokens(item: CoverLetter): number {
     const text = [
-      item.company, item.position, item.season, item.spec,
-      ...item.questions.slice(0, 3).flatMap((q) => [
-        q.question,
-        q.answer.slice(0, SPEC_ANALYSIS_ANSWER_PREVIEW_CHARS),
-      ]),
+      item.company,
+      item.position,
+      item.season,
+      item.spec,
+      ...item.questions
+        .slice(0, 3)
+        .flatMap((q) => [
+          q.question,
+          q.answer.slice(0, SPEC_ANALYSIS_ANSWER_PREVIEW_CHARS),
+        ]),
     ]
       .filter(Boolean)
       .join('\n');

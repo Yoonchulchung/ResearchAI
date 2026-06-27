@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   getMarketPrice,
   getStockDashboard,
@@ -16,8 +18,9 @@ import {
   StockSectorItem,
   searchStocks,
 } from "@/lib/api/stock";
-import { StockChart } from "@/companies/_components/StockChart";
 import { useTheme } from "@/contexts/ThemeContext";
+import { IndexComparisonChart } from "./IndexComparisonChart";
+import { StockResearchChat } from "./StockResearchChat";
 
 const INDEX_SYMBOLS = [
   { symbol: "^KS11", label: "KOSPI", country: "KR" as const },
@@ -73,7 +76,7 @@ function formatCompact(value: number, currency?: "KRW" | "USD"): string {
 
 function changeClass(value: number): string {
   if (value > 0) return "text-rose-500";
-  if (value < 0) return "text-blue-500";
+  if (value < 0) return "text-sky-500";
   return "text-slate-400";
 }
 
@@ -93,35 +96,34 @@ function IndexStrip({
   loading: boolean;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
       {INDEX_SYMBOLS.map(({ symbol, label, country }) => {
         const item = items[symbol];
         return (
           <div
             key={symbol}
-            className="min-w-0 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+            className="min-w-0 rounded-2xl border border-slate-200/80 bg-white px-4 py-3.5 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-indigo-500/20 dark:border-slate-800/80 dark:bg-slate-900 dark:hover:border-indigo-500/30"
           >
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+              <span className="truncate text-xs font-bold text-slate-400 dark:text-slate-500">
                 {label}
               </span>
-              <span className="text-xs">{country === "KR" ? "🇰🇷" : "🇺🇸"}</span>
+              <span className="text-xs opacity-85">{country === "KR" ? "🇰🇷" : "🇺🇸"}</span>
             </div>
             {loading && !item ? (
               <div className="space-y-2">
-                <div className="h-5 w-24 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-                <div className="h-3 w-16 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                <div className="h-6 w-24 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+                <div className="h-4 w-16 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
               </div>
             ) : item ? (
               <>
-                <p className="truncate text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                <p className="truncate font-mono text-xl font-bold tracking-tight text-slate-900 dark:text-white">
                   {formatNumber(item.price, 2)}
                 </p>
                 <p
-                  className={`mt-1 text-xs font-semibold ${changeClass(item.changePercent)}`}
+                  className={`mt-1 font-mono text-xs font-semibold ${changeClass(item.changePercent)}`}
                 >
-                  {item.change >= 0 ? "+" : ""}
-                  {formatNumber(item.change, 2)} (
+                  {item.change >= 0 ? "▲" : "▼"} {formatNumber(Math.abs(item.change), 2)} (
                   {item.changePercent >= 0 ? "+" : ""}
                   {item.changePercent.toFixed(2)}%)
                 </p>
@@ -145,109 +147,150 @@ function RankingTable({
   type: StockRankingType;
   onSelect: (item: StockSearchItem) => void;
 }) {
+  if (items.length === 0) {
+    return (
+      <div className="flex h-56 items-center justify-center text-sm text-slate-400">
+        해당 시장의 순위 데이터가 없습니다.
+      </div>
+    );
+  }
   return (
-    <div className="max-h-[590px] overflow-auto">
-      <table className="w-full min-w-[760px] border-separate border-spacing-0">
-        <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur dark:bg-slate-900/95">
-          <tr className="text-left text-[11px] font-semibold text-slate-400">
-            <th className="w-14 border-b border-slate-100 px-4 py-3 text-center dark:border-slate-800">
-              순위
-            </th>
-            <th className="border-b border-slate-100 px-3 py-3 dark:border-slate-800">
-              종목
-            </th>
-            <th className="border-b border-slate-100 px-3 py-3 text-right dark:border-slate-800">
-              현재가
-            </th>
-            <th className="border-b border-slate-100 px-3 py-3 text-right dark:border-slate-800">
-              등락률
-            </th>
-            <th className="border-b border-slate-100 px-3 py-3 text-right dark:border-slate-800">
-              {type === "tradingValue" ? "거래대금" : "거래량"}
-            </th>
-            <th className="border-b border-slate-100 px-4 py-3 text-right dark:border-slate-800">
-              시가총액
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item, index) => (
-            <tr
-              key={`${item.country}-${item.exchange}-${item.symbol}-${index}`}
-              className="group hover:bg-slate-50 dark:hover:bg-slate-800/50"
-            >
-              <td className="border-b border-slate-100 px-4 py-3 text-center text-sm font-semibold text-slate-400 dark:border-slate-800">
-                {index + 1}
-              </td>
-              <td className="border-b border-slate-100 px-3 py-3 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() =>
-                    onSelect({
-                      symbol:
-                        item.country === "KR" && !item.symbol.includes(".")
-                          ? `${item.symbol}.${item.exchange === "KOSDAQ" ? "KQ" : "KS"}`
-                          : item.symbol,
-                      stockCode: item.country === "KR" ? item.symbol : null,
-                      name: item.name,
-                      exchange: item.exchange,
-                      country: item.country,
-                      currency: item.currency,
-                    })
-                  }
-                  className="flex min-w-0 items-center gap-3"
-                >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-xs font-bold text-slate-500 dark:bg-slate-800">
-                    {item.logoUrl ? (
-                      <img
-                        src={item.logoUrl}
-                        alt=""
-                        className="h-full w-full object-contain"
-                      />
-                    ) : (
-                      item.symbol.slice(0, 2)
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-800 group-hover:text-indigo-600 dark:text-slate-100">
-                      {item.name}
-                    </p>
-                    <div className="mt-0.5 flex items-center gap-1.5">
-                      <CountryBadge country={item.country} />
-                      <span className="text-[10px] text-slate-400">
-                        {item.symbol}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              </td>
-              <td className="border-b border-slate-100 px-3 py-3 text-right text-sm font-medium text-slate-700 dark:border-slate-800 dark:text-slate-200">
+    <>
+      {/* 모바일: 카드 레이아웃 */}
+      <div className="sm:hidden max-h-125 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+        {items.map((item, index) => (
+          <button
+            key={`${item.country}-${item.exchange}-${item.symbol}-${index}`}
+            type="button"
+            onClick={() =>
+              onSelect({
+                symbol:
+                  item.country === "KR" && !item.symbol.includes(".")
+                    ? `${item.symbol}.${item.exchange === "KOSDAQ" ? "KQ" : "KS"}`
+                    : item.symbol,
+                stockCode: item.country === "KR" ? item.symbol : null,
+                name: item.name,
+                exchange: item.exchange,
+                country: item.country,
+                currency: item.currency,
+              })
+            }
+            className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800/40"
+          >
+            <span className="w-5 shrink-0 text-xs font-semibold text-slate-400">{index + 1}</span>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-100 text-xs font-bold text-slate-500 dark:border-slate-800 dark:bg-slate-800">
+              {item.logoUrl ? (
+                <img src={item.logoUrl} alt="" className="h-full w-full object-contain" />
+              ) : (
+                item.symbol.slice(0, 2)
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{item.name}</p>
+              <p className="text-2xs text-slate-400">{item.exchange} · {item.symbol}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="font-mono text-sm font-bold text-slate-700 dark:text-slate-200">
                 {formatMoney(item.price, item.currency)}
-              </td>
-              <td
-                className={`border-b border-slate-100 px-3 py-3 text-right text-sm font-bold dark:border-slate-800 ${changeClass(item.changePercent)}`}
-              >
-                {item.changePercent >= 0 ? "+" : ""}
-                {item.changePercent.toFixed(2)}%
-              </td>
-              <td className="border-b border-slate-100 px-3 py-3 text-right text-sm text-slate-600 dark:border-slate-800 dark:text-slate-300">
-                {type === "tradingValue"
-                  ? formatCompact(item.tradingValue, item.currency)
-                  : formatCompact(item.volume)}
-              </td>
-              <td className="border-b border-slate-100 px-4 py-3 text-right text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                {formatCompact(item.marketCap, item.currency)}
-              </td>
+              </p>
+              <p className={`font-mono text-xs font-extrabold ${changeClass(item.changePercent)}`}>
+                {item.changePercent >= 0 ? "+" : ""}{item.changePercent.toFixed(2)}%
+              </p>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* 데스크탑: 테이블 레이아웃 */}
+      <div className="hidden sm:block max-h-147.5 overflow-auto">
+        <table className="w-full min-w-150 border-separate border-spacing-0">
+          <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur dark:bg-slate-900/95">
+            <tr className="text-left text-2xs font-bold uppercase tracking-wider text-slate-400/90 dark:text-slate-500">
+              <th className="w-10 border-b border-slate-100 px-3 py-3 text-center dark:border-slate-800">순위</th>
+              <th className="border-b border-slate-100 px-3 py-3 dark:border-slate-800">종목</th>
+              <th className="border-b border-slate-100 px-2.5 py-3 text-right dark:border-slate-800">현재가</th>
+              <th className="border-b border-slate-100 px-2.5 py-3 text-right dark:border-slate-800">등락률</th>
+              <th className="border-b border-slate-100 px-2.5 py-3 text-right dark:border-slate-800">
+                {type === "tradingValue" ? "거래대금" : "거래량"}
+              </th>
+              <th className="border-b border-slate-100 px-3 py-3 text-right dark:border-slate-800">시가총액</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {items.length === 0 && (
-        <div className="flex h-56 items-center justify-center text-sm text-slate-400">
-          해당 시장의 순위 데이터가 없습니다.
-        </div>
-      )}
-    </div>
+          </thead>
+          <tbody>
+            {items.map((item, index) => (
+              <tr
+                key={`${item.country}-${item.exchange}-${item.symbol}-${index}`}
+                className="group border-b border-slate-100 hover:bg-slate-50/70 dark:border-slate-800/80 dark:hover:bg-slate-800/30 transition-colors"
+              >
+                <td className="px-3 py-3.5 text-center text-sm font-semibold text-slate-400">{index + 1}</td>
+                <td className="px-3 py-3.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onSelect({
+                          symbol:
+                            item.country === "KR" && !item.symbol.includes(".")
+                              ? `${item.symbol}.${item.exchange === "KOSDAQ" ? "KQ" : "KS"}`
+                              : item.symbol,
+                          stockCode: item.country === "KR" ? item.symbol : null,
+                          name: item.name,
+                          exchange: item.exchange,
+                          country: item.country,
+                          currency: item.currency,
+                        })
+                      }
+                      className="flex min-w-0 flex-1 items-center gap-3"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-100 text-xs font-bold text-slate-500 dark:border-slate-800 dark:bg-slate-800">
+                        {item.logoUrl ? (
+                          <img src={item.logoUrl} alt="" className="h-full w-full object-contain" />
+                        ) : (
+                          item.symbol.slice(0, 2)
+                        )}
+                      </div>
+                      <div className="min-w-0 text-left">
+                        <p className="truncate text-sm font-semibold text-slate-800 group-hover:text-indigo-600 dark:text-slate-100">
+                          {item.name}
+                        </p>
+                        <div className="mt-0.5 flex items-center gap-1.5">
+                          <CountryBadge country={item.country} />
+                          <span className="font-mono text-2xs text-slate-400">{item.symbol}</span>
+                        </div>
+                      </div>
+                    </button>
+                    <Link
+                      href={`/stock?company=${encodeURIComponent(item.symbol)}`}
+                      title="개별 페이지로 보기"
+                      className="shrink-0 rounded-lg p-1.5 text-slate-300 opacity-0 transition hover:bg-slate-100 hover:text-indigo-600 group-hover:opacity-100 dark:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-indigo-400"
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5">
+                        <path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10"
+                          stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </Link>
+                  </div>
+                </td>
+                <td className="px-2.5 py-3.5 text-right font-mono text-sm font-bold text-slate-700 dark:text-slate-200">
+                  {formatMoney(item.price, item.currency)}
+                </td>
+                <td className={`px-2.5 py-3.5 text-right font-mono text-sm font-extrabold ${changeClass(item.changePercent)}`}>
+                  {item.changePercent >= 0 ? "+" : ""}{item.changePercent.toFixed(2)}%
+                </td>
+                <td className="px-2.5 py-3.5 text-right font-mono text-sm text-slate-600 dark:text-slate-300">
+                  {type === "tradingValue"
+                    ? formatCompact(item.tradingValue, item.currency)
+                    : formatCompact(item.volume)}
+                </td>
+                <td className="px-3 py-3.5 text-right font-mono text-sm text-slate-500 dark:text-slate-400">
+                  {formatCompact(item.marketCap, item.currency)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -259,20 +302,18 @@ function InvestorList({
   type: StockInvestorType;
 }) {
   return (
-    <div className="max-h-[420px] overflow-y-auto">
+    <div className="max-h-105 overflow-y-auto">
       {items.map((item, index) => (
-        <a
+        <Link
           key={`${item.exchange}-${item.symbol}-${index}`}
-          href={item.detailUrl}
-          target="_blank"
-          rel="noreferrer"
+          href={`/stock?company=${encodeURIComponent(item.symbol.includes(".") ? item.symbol : `${item.symbol}.${item.exchange === "KOSDAQ" ? "KQ" : "KS"}`)}`}
           className="flex items-center gap-3 border-b border-slate-100 px-4 py-3 transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
         >
           <span className="w-5 text-center text-xs font-semibold text-slate-400">
             {index + 1}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+            <p className="truncate text-sm font-semibold text-slate-800 hover:text-indigo-600 dark:text-slate-100">
               {item.name}
             </p>
             <p className="mt-0.5 text-[10px] text-slate-400">
@@ -288,7 +329,7 @@ function InvestorList({
               {type === "individual" ? " · 추정" : ""}
             </p>
           </div>
-        </a>
+        </Link>
       ))}
       {items.length === 0 && (
         <div className="flex h-44 items-center justify-center text-sm text-slate-400">
@@ -315,7 +356,7 @@ function SectorList({
         return (
           <div
             key={`${item.country}-${item.id}`}
-            className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/40"
+            className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 transition-all duration-300 hover:shadow-xs hover:border-slate-200 hover:bg-slate-50 dark:border-slate-800/80 dark:bg-slate-950/20 dark:hover:border-slate-700 dark:hover:bg-slate-900/30"
           >
             <div className="flex items-center gap-2">
               <span className="w-5 text-xs font-bold text-indigo-500">
@@ -328,16 +369,16 @@ function SectorList({
                 {item.name}
               </p>
               <span
-                className={`text-sm font-bold ${changeClass(item.changePercent)}`}
+                className={`font-mono text-sm font-bold ${changeClass(item.changePercent)}`}
               >
                 {item.changePercent >= 0 ? "+" : ""}
                 {item.changePercent.toFixed(2)}%
               </span>
             </div>
             <div className="mt-2 flex items-center gap-3">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-blue-100 dark:bg-blue-950">
+              <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800/60">
                 <div
-                  className="h-full rounded-full bg-rose-400"
+                  className="h-full rounded-full bg-gradient-to-r from-rose-400 to-rose-500"
                   style={{ width: `${Math.min(100, riseRatio)}%` }}
                 />
               </div>
@@ -357,8 +398,11 @@ function SectorList({
   );
 }
 
+type DashboardMobileTab = "research" | "ranking" | "investor";
+
 export function StockDashboard() {
   const { theme } = useTheme();
+  const router = useRouter();
   const [dashboard, setDashboard] = useState<StockDashboardData | null>(null);
   const [indices, setIndices] = useState<Record<string, MarketItem | null>>({});
   const [market, setMarket] = useState<StockMarketFilter>("ALL");
@@ -372,9 +416,7 @@ export function StockDashboard() {
   const [searchResults, setSearchResults] = useState<StockSearchItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(
-    null,
-  );
+  const [mobileTab, setMobileTab] = useState<DashboardMobileTab>("research");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -394,22 +436,6 @@ export function StockDashboard() {
       ]);
       setDashboard(dashboardData);
       setIndices(Object.fromEntries(indexEntries));
-      setSelectedStock((current) => {
-        if (current) return current;
-        const first = dashboardData.rankings.tradingValue[0];
-        if (!first) return null;
-        return {
-          symbol:
-            first.country === "KR" && !first.symbol.includes(".")
-              ? `${first.symbol}.${first.exchange === "KOSDAQ" ? "KQ" : "KS"}`
-              : first.symbol,
-          stockCode: first.country === "KR" ? first.symbol : null,
-          name: first.name,
-          exchange: first.exchange,
-          country: first.country,
-          currency: first.currency,
-        };
-      });
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -448,16 +474,13 @@ export function StockDashboard() {
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
 
-  const selectStock = useCallback((item: StockSearchItem) => {
-    setSelectedStock(item);
-    setSearchQuery(item.name);
-    setSearchOpen(false);
-    window.setTimeout(() => {
-      document
-        .getElementById("stock-chart")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 0);
-  }, []);
+  const selectStock = useCallback(
+    (item: StockSearchItem) => {
+      setSearchOpen(false);
+      router.push(`/stock?company=${encodeURIComponent(item.symbol)}`);
+    },
+    [router],
+  );
 
   const rankingItems = useMemo(() => {
     const items = dashboard?.rankings[rankingType] ?? [];
@@ -536,8 +559,8 @@ export function StockDashboard() {
           </div>
         </header>
 
-        <div className="relative z-30 mb-5 max-w-2xl">
-          <div className="flex items-center rounded-2xl border border-slate-200 bg-white px-4 shadow-sm transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-900">
+        <div className="relative z-30 mb-6 max-w-xl">
+          <div className="flex items-center rounded-2xl border border-slate-200 bg-white px-4 shadow-xs transition focus-within:border-indigo-500/50 focus-within:ring-4 focus-within:ring-indigo-500/5 dark:border-slate-800 dark:bg-slate-900">
             <svg
               className="h-5 w-5 shrink-0 text-slate-400"
               viewBox="0 0 20 20"
@@ -571,7 +594,7 @@ export function StockDashboard() {
                 if (event.key === "Escape") setSearchOpen(false);
               }}
               placeholder="회사명 또는 종목코드 검색 (예: 삼성전자, 005930, NVDA)"
-              className="h-13 min-w-0 flex-1 bg-transparent px-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-white"
+              className="h-12 min-w-0 flex-1 bg-transparent px-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-white"
             />
             {searching && (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-500" />
@@ -617,136 +640,139 @@ export function StockDashboard() {
           </div>
         )}
 
-        <IndexStrip items={indices} loading={loading} />
+        <div className="mb-5">
+          <IndexStrip items={indices} loading={loading} />
+        </div>
 
-        {selectedStock && (
-          <section id="stock-chart" className="mt-5 scroll-mt-5">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                  {selectedStock.name} 주식 차트
-                </h2>
-                <p className="mt-0.5 text-xs text-slate-400">
-                  {selectedStock.symbol} · {selectedStock.exchange}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedStock(null)}
-                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
-              >
-                차트 닫기
-              </button>
-            </div>
-            <div className="h-[720px] min-h-[560px]">
-              <StockChart
-                key={selectedStock.symbol}
-                symbol={selectedStock.symbol}
-                companyName={selectedStock.name}
-                isDark={theme === "dark"}
-                panelClass="border-slate-200 bg-white text-slate-900 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                mutedPanel="bg-slate-50 dark:bg-slate-950/50"
-                subtleText="text-slate-400 dark:text-slate-500"
-              />
-            </div>
-          </section>
-        )}
+        <div className="mb-5">
+          <IndexComparisonChart isDark={theme === "dark"} />
+        </div>
 
-        <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(330px,0.7fr)]">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="border-b border-slate-100 px-4 pt-4 dark:border-slate-800">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                    시장 순위
-                  </h2>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    국내 데이터는 KOSPI·KOSDAQ 통합 기준입니다.
-                  </p>
-                </div>
-                {dashboard?.generatedAt && (
-                  <span className="text-[10px] text-slate-400">
-                    {new Date(dashboard.generatedAt).toLocaleString("ko-KR")}{" "}
-                    기준
-                  </span>
-                )}
-              </div>
-              <div className="flex gap-1 overflow-x-auto">
-                {RANKING_TABS.map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setRankingType(tab.key)}
-                    className={`whitespace-nowrap border-b-2 px-3 py-2 text-xs font-semibold transition ${
-                      rankingType === tab.key
-                        ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
-                        : "border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {loading && !dashboard ? (
-              <div className="flex h-[430px] items-center justify-center">
-                <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-500" />
-              </div>
-            ) : (
-              <RankingTable
-                items={rankingItems}
-                type={rankingType}
-                onSelect={selectStock}
-              />
-            )}
+        {/* 모바일 탭 바 */}
+        <div className="mt-5 flex rounded-2xl border border-slate-200 bg-white overflow-hidden xl:hidden dark:border-slate-800 dark:bg-slate-900">
+          {(
+            [
+              { id: "research", label: "종목 리서치" },
+              { id: "ranking",  label: "시장 순위" },
+              { id: "investor", label: "투자자 수급" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setMobileTab(tab.id)}
+              className={`flex-1 py-2.5 text-xs font-bold transition border-b-2 ${
+                mobileTab === tab.id
+                  ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
+                  : "border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <section className="mt-3 grid gap-5 xl:mt-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          {/* 왼쪽: 종목 리서치 채팅 */}
+          <div className={`h-130 xl:h-145 ${mobileTab !== "research" ? "hidden xl:block" : ""}`}>
+            <StockResearchChat isDark={theme === "dark"} />
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="border-b border-slate-100 px-4 pt-4 dark:border-slate-800">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                투자자 순매수
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-400">
-                국내 시장 순매수 금액 기준
-              </p>
-              <div className="mt-3 flex gap-1">
-                {INVESTOR_TABS.map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setInvestorType(tab.key)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                      investorType === tab.key
-                        ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300"
-                        : "text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+          {/* 오른쪽: 시장순위 + 투자자 순매수 */}
+          <div className="flex flex-col gap-5">
+            {/* 시장 순위 */}
+            <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 ${mobileTab !== "ranking" ? "hidden xl:block" : ""}`}>
+              <div className="border-b border-slate-100 px-4 pt-4 dark:border-slate-800">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900 dark:text-white">시장 순위</h2>
+                    <p className="mt-0.5 text-xs text-slate-400">국내 데이터는 KOSPI·KOSDAQ 통합 기준입니다.</p>
+                  </div>
+                  {dashboard?.generatedAt && (
+                    <span className="text-2xs text-slate-400">
+                      {new Date(dashboard.generatedAt).toLocaleString("ko-KR")} 기준
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-1 overflow-x-auto">
+                  {RANKING_TABS.map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setRankingType(tab.key)}
+                      className={`whitespace-nowrap border-b-2 px-3 py-2 text-xs font-semibold transition ${
+                        rankingType === tab.key
+                          ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
+                          : "border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+              {loading && !dashboard ? (
+                <div className="flex h-70 items-center justify-center">
+                  <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-500" />
+                </div>
+              ) : (
+                <RankingTable items={rankingItems} type={rankingType} onSelect={selectStock} />
+              )}
             </div>
-            <InvestorList
-              items={dashboard?.investors[investorType] ?? []}
-              type={investorType}
-            />
-            {investorType === "individual" && (
-              <p className="border-t border-slate-100 px-4 py-3 text-[10px] leading-relaxed text-slate-400 dark:border-slate-800">
-                개인 수급은 공개된 외국인·기관 순매매의 반대값으로 산출한
-                추정치이며, 기타법인 거래에 따라 실제 값과 차이가 날 수
-                있습니다.
-              </p>
-            )}
+
+            {/* 투자자 순매수 */}
+            <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 ${mobileTab !== "investor" ? "hidden xl:block" : ""}`}>
+              <div className="border-b border-slate-100 px-4 pt-4 dark:border-slate-800">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">투자자 순매수</h2>
+                <p className="mt-0.5 text-xs text-slate-400">국내 시장 순매수 금액 기준</p>
+                <div className="mt-3 flex gap-1">
+                  {INVESTOR_TABS.map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setInvestorType(tab.key)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                        investorType === tab.key
+                          ? "bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300"
+                          : "text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <InvestorList items={dashboard?.investors[investorType] ?? []} type={investorType} />
+              {investorType === "individual" && (
+                <p className="border-t border-slate-100 px-4 py-3 text-2xs leading-relaxed text-slate-400 dark:border-slate-800">
+                  개인 수급은 공개된 외국인·기관 순매매의 반대값으로 산출한 추정치이며, 기타법인 거래에 따라 실제 값과 차이가 날 수 있습니다.
+                </p>
+              )}
+            </div>
           </div>
         </section>
 
         <section className="mt-5 grid gap-5 lg:grid-cols-2">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="border-b border-slate-100 px-4 py-4 dark:border-slate-800">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                업종 현황
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-400">
-                국내 업종과 미국 강세 섹터
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                    업종 현황
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    국내 업종과 미국 강세 섹터
+                  </p>
+                </div>
+                {dashboard?.generatedAt && (
+                  <span className="shrink-0 text-2xs text-slate-400">
+                    {new Date(dashboard.generatedAt).toLocaleString("ko-KR", {
+                      month: "numeric",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}{" "}
+                    기준
+                  </span>
+                )}
+              </div>
             </div>
             <SectorList
               items={sectorFilter(dashboard?.industries ?? [])}
@@ -755,12 +781,27 @@ export function StockDashboard() {
           </div>
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="border-b border-slate-100 px-4 py-4 dark:border-slate-800">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                급상승 테마
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-400">
-                당일 상승률과 상승 종목 비중 기준
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                    급상승 테마
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    당일 상승률과 상승 종목 비중 기준
+                  </p>
+                </div>
+                {dashboard?.generatedAt && (
+                  <span className="shrink-0 text-2xs text-slate-400">
+                    {new Date(dashboard.generatedAt).toLocaleString("ko-KR", {
+                      month: "numeric",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}{" "}
+                    기준
+                  </span>
+                )}
+              </div>
             </div>
             <SectorList
               items={sectorFilter(dashboard?.themes ?? [])}
@@ -785,15 +826,29 @@ export function StockDashboard() {
                 href={item.url}
                 target="_blank"
                 rel="noreferrer"
-                className="group flex min-w-0 gap-3 border-b border-slate-100 p-4 transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 md:odd:border-r"
+                className="group flex min-w-0 gap-4 border-b border-slate-100 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-50 dark:border-slate-800/80 dark:hover:bg-slate-800/30 md:odd:border-r"
               >
-                {item.imageUrl && (
-                  <img
-                    src={item.imageUrl}
-                    alt=""
-                    className="h-20 w-28 shrink-0 rounded-xl bg-slate-100 object-cover dark:bg-slate-800"
-                  />
-                )}
+                <div className="h-20 w-28 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-850">
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-102"
+                      onError={(e) => {
+                        (e.currentTarget.parentElement as HTMLElement).style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-50/50 to-purple-50/50 dark:from-indigo-950/20 dark:to-purple-950/20">
+                      <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7 text-indigo-400/80 dark:text-indigo-600/60">
+                        <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.5"/>
+                        <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
+                        <path d="M3 15l5-4 4 3 3-2.5L21 17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                  )}
+                </div>
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 flex items-center gap-2">
                     <CountryBadge
@@ -802,6 +857,14 @@ export function StockDashboard() {
                     <span className="truncate text-[10px] text-slate-400">
                       {item.source}
                     </span>
+                    {item.publishedAt && (
+                      <span className="ml-auto shrink-0 text-2xs text-slate-400">
+                        {new Date(item.publishedAt).toLocaleDateString("ko-KR", {
+                          month: "numeric",
+                          day: "numeric",
+                        })}
+                      </span>
+                    )}
                   </div>
                   <p className="line-clamp-2 text-sm font-semibold leading-5 text-slate-800 group-hover:text-indigo-600 dark:text-slate-100">
                     {item.title}

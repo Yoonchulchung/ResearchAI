@@ -15,7 +15,7 @@ import {
 import {
   YearlyFinancial,
   EmployeeDetail,
-} from 'src/company/infrastructure/dart/dart-types';
+} from 'src/financial/infrastructure/dart/dart-types';
 
 const NEWS_SITE_PATTERNS = [
   'news',

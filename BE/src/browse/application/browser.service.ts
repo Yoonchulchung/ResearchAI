@@ -103,6 +103,13 @@ export class BrowserService {
     return this.driver.searchNews(request);
   }
 
+  searchGoogleNews(
+    query: string,
+    limit = 10,
+  ): Promise<BrowserNewsSearchResult[]> {
+    return this.driver.searchGoogleNews(query, limit);
+  }
+
   findLiveVideo(
     channelUrl: string,
     channelName: string,

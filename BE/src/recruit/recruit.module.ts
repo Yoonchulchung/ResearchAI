@@ -2,8 +2,10 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RecruitController } from 'src/recruit/presentation/recruit.controller';
 import { CollectService } from 'src/recruit/application/collect.service';
+import { CollectImplService } from 'src/recruit/application/collect/collect-impl.service';
 import { JobsService } from 'src/recruit/application/jobs.service';
 import { RecruitContextService } from 'src/recruit/application/recruit-context.service';
+import { RecruitContextImplService } from 'src/recruit/application/context/recruit-context-impl.service';
 import { RecruitDb } from 'src/recruit/infrastructure/database/recruit-db';
 import { JobRepository } from 'src/recruit/infrastructure/repository/job-repository';
 import { SourceRegistry } from 'src/recruit/infrastructure/sources/source-registry';
@@ -15,6 +17,8 @@ import { JobPostingQueryService } from 'src/recruit/application/job-posting/job-
 import { JobPostingScrapeEngineService } from 'src/recruit/application/job-posting/job-posting-scrape-engine.service';
 import { JobPostingScraperController } from 'src/recruit/presentation/job-posting-scraper.controller';
 import { RecruitJobPostingCollectService } from 'src/recruit/application/recruit-job-posting-collect.service';
+import { RecruitCollectImplService } from 'src/recruit/application/job-posting-collect/recruit-collect-impl.service';
+import { RecruitRecommendImplService } from 'src/recruit/application/job-posting-collect/recruit-recommend-impl.service';
 import { RecruitJobPostingEntity } from 'src/recruit/domain/job-posting/entity/recruit-job-posting.entity';
 import { RecruitJobRecommendEntity } from 'src/recruit/domain/job-posting/entity/recruit-job-recommend.entity';
 import { SharedModule } from 'src/shared/shared.module';
@@ -43,8 +47,10 @@ import { JobPostingCrawlerRegistryPort } from 'src/recruit/application/job-posti
   controllers: [RecruitController, JobPostingScraperController],
   providers: [
     CollectService,
+    CollectImplService,
     JobsService,
     RecruitContextService,
+    RecruitContextImplService,
     RecruitDb,
     JobRepository,
     SourceRegistry,
@@ -55,6 +61,8 @@ import { JobPostingCrawlerRegistryPort } from 'src/recruit/application/job-posti
     JobPostingScrapeEngineService,
     JobPostingScraperService,
     RecruitJobPostingCollectService,
+    RecruitCollectImplService,
+    RecruitRecommendImplService,
     JobPostingCrawlerRegistry,
     {
       provide: JobPostingCrawlerRegistryPort,
